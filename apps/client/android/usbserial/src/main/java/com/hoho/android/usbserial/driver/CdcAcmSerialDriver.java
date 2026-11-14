@@ -12,7 +12,6 @@ import android.hardware.usb.UsbEndpoint;
 import android.hardware.usb.UsbInterface;
 import android.util.Log;
 
-import com.hoho.android.usbserial.util.HexDump;
 import com.hoho.android.usbserial.util.MonotonicClock;
 import com.hoho.android.usbserial.util.UsbUtils;
 
@@ -238,9 +237,9 @@ public class CdcAcmSerialDriver implements UsbSerialDriver {
 
         private int getInterfaceIdFromDescriptors() {
             ArrayList<byte[]> descriptors = UsbUtils.getDescriptors(mConnection);
-            Log.d(TAG, "USB descriptor:");
-            for(byte[] descriptor : descriptors)
-                Log.d(TAG, HexDump.toHexString(descriptor));
+            // atermius: upstream logs each descriptor through util/HexDump (AOSP, Apache-2.0),
+            // which is not vendored; only the count is logged.
+            Log.d(TAG, "USB descriptors: " + descriptors.size());
 
             if (descriptors.size() > 0 &&
                     descriptors.get(0).length == 18 &&
