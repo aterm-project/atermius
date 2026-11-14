@@ -400,6 +400,78 @@ void main() {
     expect(hostSessionIcon(HostProtocol.telnet), Icons.terminal);
   });
 
+  testWidgets('new-session menu and session tabs show the RDP mark', (
+    tester,
+  ) async {
+    HostProtocol? chosen;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: Column(
+            children: [
+              WorkspaceTabBar(
+                tabs: [
+                  for (final protocol in HostProtocol.values)
+                    WorkspaceTab(
+                      id: protocol.name,
+                      title: protocol.label,
+                      icon: hostSessionIcon(protocol),
+                    ),
+                ],
+                selectedId: 'rdp',
+                onSelect: (_) {},
+                onClose: (_) {},
+              ),
+              NewSessionMenu(onHost: (protocol) => chosen = protocol),
+            ],
+          ),
+        ),
+      ),
+    );
+    final tabs = find.byType(WorkspaceTabBar);
+    expect(
+      find.descendant(of: tabs, matching: find.byIcon(Icons.terminal)),
+      findsNWidgets(2),
+      reason: 'SSH and Telnet sessions',
+    );
+    expect(
+      find.descendant(
+        of: tabs,
+        matching: find.byIcon(AtermiusIcons.remoteDesktop),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: tabs,
+        matching: find.byIcon(Icons.desktop_windows_outlined),
+      ),
+      findsOneWidget,
+      reason: 'VNC',
+    );
+
+    await tester.tap(find.byType(NewSessionMenu));
+    await tester.pumpAndSettle();
+    final rdp = find.ancestor(
+      of: find.byIcon(AtermiusIcons.remoteDesktop),
+      matching: find.byType(PopupMenuItem<String>),
+    );
+    expect(rdp, findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(PopupMenuItem<String>),
+        matching: find.byIcon(Icons.desktop_mac_outlined),
+      ),
+      findsOneWidget,
+      reason: 'VNC keeps its own icon',
+    );
+    await tester.tap(rdp);
+    await tester.pumpAndSettle();
+    expect(chosen, HostProtocol.rdp);
+  });
+
   group('previews', skip: _previewDir == null, () {
     for (final brightness in Brightness.values) {
       final name = brightness.name;
