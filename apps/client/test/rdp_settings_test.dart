@@ -213,6 +213,46 @@ void main() {
       );
     });
 
+    test('the engine bits alone decide audio, microphone and camera (Android '
+        'engine: OpenSL ES + Camera2)', () {
+      // aterm_rdp_features of the Android engine (build_engine.sh): no
+      // printer, smart card or USB backend; audio and camera are compiled in.
+      const android = RdpFeatures(
+        RdpFeatures.configV1 |
+            RdpFeatures.drive |
+            RdpFeatures.audioOut |
+            RdpFeatures.audioIn |
+            RdpFeatures.multimon |
+            RdpFeatures.fileClipboard |
+            RdpFeatures.camera |
+            RdpFeatures.nativeTouch,
+      );
+      const settings = RdpSettings(
+        microphone: true,
+        cameras: true,
+        smartCards: true,
+      );
+      final config = settings.toNativeConfig(
+        features: android,
+        initialWidth: 1280,
+        initialHeight: 800,
+      );
+      expect(config.text, contains('\naudio=0\n'));
+      expect(config.text, contains('\nmicrophone=1\n'));
+      expect(config.text, contains('\ncameras=1\n'));
+      expect(config.text, contains('\nsmartcards=0\n'));
+      expect(config.unavailable, ['smart cards']);
+      // Leaving audio on the remote computer needs no local backend.
+      final remote = const RdpSettings(audio: RdpAudioMode.remote)
+          .toNativeConfig(
+            features: const RdpFeatures(RdpFeatures.configV1),
+            initialWidth: 1280,
+            initialHeight: 800,
+          );
+      expect(remote.text, contains('\naudio=1\n'));
+      expect(remote.unavailable, isEmpty);
+    });
+
     test('engine without config support reports everything as unavailable', () {
       const settings = RdpSettings(smartCards: true);
       final config = settings.toNativeConfig(
@@ -612,6 +652,48 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('host_rdp_clipboard_files')));
       await tester.pump();
       expect(changed?.clipboardFiles, isTrue);
+    });
+
+    testWidgets('the Android engine bits enable microphone and camera', (tester) async {
+      RdpSettings? changed;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: RdpSettingsEditor(
+                initial: RdpSettings.defaults,
+                features: const RdpFeatures(
+                  RdpFeatures.configV1 |
+                      RdpFeatures.drive |
+                      RdpFeatures.audioOut |
+                      RdpFeatures.audioIn |
+                      RdpFeatures.multimon |
+                      RdpFeatures.fileClipboard |
+                      RdpFeatures.camera |
+                      RdpFeatures.nativeTouch,
+                ),
+                onChanged: (v) => changed = v,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('RDP options'));
+      await tester.pumpAndSettle();
+      for (final name in ['microphone', 'cameras']) {
+        final tile = tester.widget<SwitchListTile>(find.byKey(ValueKey('host_rdp_$name')));
+        expect(tile.onChanged, isNotNull, reason: name);
+      }
+      final microphone = find.byKey(const ValueKey('host_rdp_microphone'));
+      await tester.ensureVisible(microphone);
+      await tester.tap(microphone);
+      await tester.pump();
+      expect(changed?.microphone, isTrue);
+      final cameras = find.byKey(const ValueKey('host_rdp_cameras'));
+      await tester.ensureVisible(cameras);
+      await tester.tap(cameras);
+      await tester.pump();
+      expect(changed?.cameras, isTrue);
     });
 
     testWidgets('host editor saves RDP options into the Host manifest', (tester) async {

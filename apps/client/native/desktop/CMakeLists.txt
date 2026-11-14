@@ -2,8 +2,9 @@ cmake_minimum_required(VERSION 3.28)
 project(atermius_rdp LANGUAGES C CXX)
 include(FetchContent)
 # Build the protocol engine into the application. No local daemon or CLI viewer.
-# Redirection channels use only capabilities already present in Windows
-# (Win32 files, winmm, spooler, winscard, Media Foundation). No driver is
+# Redirection channels use only capabilities already present in the OS:
+# Windows (Win32 files, winmm, spooler, winscard, Media Foundation) and
+# Android (POSIX files, OpenSL ES, NDK Camera2 + MediaCodec). No driver is
 # installed or replaced. Generic USB (libusb) is opt-in and only reaches
 # devices already bound to WinUSB.
 if(ANDROID OR APPLE)
@@ -25,14 +26,24 @@ if(WIN32)
 else()
   set(_windows_default OFF)
 endif()
+if(WIN32 OR ANDROID)
+  set(_media_default ON)
+else()
+  set(_media_default OFF)
+endif()
 option(ATERMIUS_RDP_DEVICES "Folder (drive) redirection" ON)
 option(ATERMIUS_RDP_PRINTER "Printer redirection (Windows spooler backend)" ${_windows_default})
 option(ATERMIUS_RDP_SMARTCARD "Smart card redirection (system WinSCard)" ${_windows_default})
-option(ATERMIUS_RDP_AUDIO "Audio playback/capture (winmm)" ${_windows_default})
-option(ATERMIUS_RDP_CAMERA "Camera redirection (Media Foundation HAL)" ${_windows_default})
+option(ATERMIUS_RDP_AUDIO "Audio playback/capture (winmm on Windows, OpenSL ES on Android)" ${_media_default})
+option(ATERMIUS_RDP_CAMERA "Camera redirection (Media Foundation HAL on Windows, NDK Camera2 + MediaCodec H.264 on Android)" ${_media_default})
 option(ATERMIUS_RDP_USB "Generic USB redirection via libusb (WinUSB-bound devices only)" OFF)
-if(ATERMIUS_RDP_CAMERA AND NOT WIN32)
-  message(FATAL_ERROR "The Atermius camera HAL uses Media Foundation (Windows only)")
+# Each enabled redirection needs a system backend; there is none elsewhere, so
+# refuse at configure time instead of building a switch that cannot work.
+if(ATERMIUS_RDP_AUDIO AND NOT (WIN32 OR ANDROID))
+  message(FATAL_ERROR "Atermius audio uses winmm (Windows) or OpenSL ES (Android)")
+endif()
+if(ATERMIUS_RDP_CAMERA AND NOT (WIN32 OR ANDROID))
+  message(FATAL_ERROR "The Atermius camera HAL uses Media Foundation (Windows) or NDK Camera2 (Android)")
 endif()
 # libusb is LGPL-2.1: on Windows link it dynamically from a separate vcpkg
 # x64-windows (DLL) prefix and ship libusb-1.0.dll beside the engine. No USB
@@ -96,7 +107,34 @@ set(WITH_WEBVIEW OFF CACHE BOOL "" FORCE)
 set(WITH_OSS OFF CACHE BOOL "" FORCE)
 set(WITH_RDPECAM_MOVIE OFF CACHE BOOL "" FORCE)
 set(WITH_RDPECAM_GSTREAMER OFF CACHE BOOL "" FORCE)
-set(WITH_WINMM ${ATERMIUS_RDP_AUDIO} CACHE BOOL "" FORCE)
+if(WIN32)
+  set(WITH_WINMM ${ATERMIUS_RDP_AUDIO} CACHE BOOL "" FORCE)
+else()
+  set(WITH_WINMM OFF CACHE BOOL "" FORCE)
+endif()
+if(ANDROID)
+  # Audio: OpenSL ES (libOpenSLES, API 9+) for rdpsnd "opensles" and audin
+  # "opensles". Never AAudio: libaaudio exists only from API 26 and a NEEDED
+  # entry the device lacks makes the whole engine fail to load (minSdk 24).
+  # freerdp_patches.cmake (5, 6) keeps a device that does not open (no
+  # microphone permission) from aborting the app or ending the session.
+  set(WITH_OPENSLES ${ATERMIUS_RDP_AUDIO} CACHE BOOL "" FORCE)
+  set(WITH_AAUDIO OFF CACHE BOOL "" FORCE)
+  # Camera: rdpecam "android" (NDK Camera2 + AImageReader, API 24) delivers
+  # NV12 that the device's MediaCodec encoder turns into H.264
+  # (libfreerdp/codec/video.c and h264_mediacodec.c; FFmpeg/swscale stay off).
+  # freerdp_patches.cmake (7, 8) limits WITH_MEDIACODEC to that encoder: no
+  # H.264 decoder is created on connect (WITH_GFX_H264 turns on, but the
+  # graphics pipeline is never negotiated) and audio stays PCM instead of
+  # moving to MediaCodec AAC.
+  set(WITH_MEDIACODEC ${ATERMIUS_RDP_CAMERA} CACHE BOOL "" FORCE)
+  # h264_mediacodec.c builds with __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__: its
+  # MediaCodec calls newer than API 24 become weak imports, which only a
+  # __builtin_available check may reach. Make a missing check a compile error
+  # (every other file keeps the NDK's strict mode, where any use is an error),
+  # so the engine still loads and runs on API 24.
+  add_compile_options(-Werror=unguarded-availability)
+endif()
 foreach(channel RDPDR RDPSND AUDIN AINPUT RAIL RDPGFX RDPEI GEOMETRY VIDEO ENCOMSP REMDESK ECHO URBDRC TSMF SMARTCARD PRINTER DRIVE SERIAL PARALLEL LOCATION RDP2TCP RDPECAM)
   set(CHANNEL_${channel} OFF CACHE BOOL "" FORCE)
 endforeach()
@@ -117,6 +155,13 @@ else()
 endif()
 set(CHANNEL_AUDIN ${ATERMIUS_RDP_AUDIO} CACHE BOOL "" FORCE)
 set(CHANNEL_RDPECAM ${ATERMIUS_RDP_CAMERA} CACHE BOOL "" FORCE)
+if(ANDROID)
+  # FreeRDP 3.33 builds only the server half of rdpecam unless the client is
+  # asked for (channels/rdpecam/ChannelOptions.cmake), and without the client
+  # drdynvc cannot load the requested rdpecam addin. Windows needs the same
+  # switch; it is left unchanged here until a Windows build verifies it.
+  set(CHANNEL_RDPECAM_CLIENT ${ATERMIUS_RDP_CAMERA} CACHE BOOL "" FORCE)
+endif()
 set(CHANNEL_URBDRC ${ATERMIUS_RDP_USB} CACHE BOOL "" FORCE)
 set(WITH_CHANNELS ON CACHE BOOL "" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
@@ -140,7 +185,7 @@ FetchContent_MakeAvailable(freerdp)
 include(${CMAKE_CURRENT_SOURCE_DIR}/bitmap_padding.cmake)
 find_package(OpenSSL REQUIRED)
 set(_sources atermius_rdp.c)
-if(ATERMIUS_RDP_CAMERA)
+if(ATERMIUS_RDP_CAMERA AND WIN32)
   list(APPEND _sources camera_mf.c)
 endif()
 add_library(atermius_rdp SHARED ${_sources})
@@ -154,7 +199,7 @@ foreach(_feature DEVICES PRINTER SMARTCARD AUDIO CAMERA USB)
 endforeach()
 target_compile_definitions(atermius_rdp PRIVATE ATERMIUS_RDP_NATIVE_TOUCH)
 target_link_libraries(atermius_rdp PRIVATE freerdp-client freerdp winpr OpenSSL::Crypto)
-if(ATERMIUS_RDP_CAMERA)
+if(ATERMIUS_RDP_CAMERA AND WIN32)
   target_link_libraries(atermius_rdp PRIVATE mfplat mfreadwrite mf mfuuid ole32)
   target_include_directories(atermius_rdp PRIVATE ${freerdp_SOURCE_DIR}/channels/rdpecam/client)
 endif()

@@ -35,6 +35,8 @@ flutter build appbundle --release
 
 Android 原生 RDP 引擎 `libatermius_rdp.so` 的构建与打包步骤见[远程桌面](../REMOTE-DESKTOP.md)中的“Android 直接连接”。
 
+RDP 会话可在本机播放远程音频，并可按主机设置重定向麦克风和摄像头：麦克风需要系统录音权限，摄像头需要相机权限，并依赖设备自带的 H.264 编码器（MediaCodec）。设备无法打开（例如未授权）时，该项不可用，连接照常进行。
+
 ## 首次使用与范围
 
 选择本地资料或自己的 HTTPS 实例。SSH 使用原生传输；本机 Shell、串口 Console 和 Windows 原生 RDP 引擎不属于 Android 能力。临时访客链接可在支持的浏览器中打开，前后台策略可能中断会话/转发。[可选推送提示](../MOBILE-PUSH.md)需单独配置。

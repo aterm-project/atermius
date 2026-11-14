@@ -113,16 +113,34 @@ API int aterm_rdp_set_home(const char* dir) {
 #define EVENT_FILE_REQUEST 1  // server reads one of our offered files
 #define EVENT_FILE_DATA 2     // server answered our FileContentsRequest
 
-#if defined(ATERMIUS_RDP_CAMERA)
+#if defined(ATERMIUS_RDP_CAMERA) && defined(_WIN32)
 extern UINT VCAPITYPE aterm_camera_mf_entry(void* entryPoints);
+#endif
+
+// System backends of the media channels. CMakeLists.txt refuses
+// ATERMIUS_RDP_AUDIO/CAMERA where none exists, so a reported feature bit
+// always has a backend.
+#if defined(_WIN32)
+#define AUDIO_SUBSYSTEM "sys:winmm"
+#define CAMERA_SUBSYSTEM "sys:mf"      // camera_mf.c, via aterm_addin_provider
+#elif defined(__ANDROID__)
+#define AUDIO_SUBSYSTEM "sys:opensles" // OpenSL ES, API 9+ (never AAudio: API 26+)
+#define CAMERA_SUBSYSTEM "sys:android" // NDK Camera2 + MediaCodec H.264, API 24
+#endif
+#if defined(ATERMIUS_RDP_AUDIO) && !defined(AUDIO_SUBSYSTEM)
+#error "ATERMIUS_RDP_AUDIO has no backend on this platform"
+#endif
+#if defined(ATERMIUS_RDP_CAMERA) && !defined(CAMERA_SUBSYSTEM)
+#error "ATERMIUS_RDP_CAMERA has no backend on this platform"
 #endif
 
 static INIT_ONCE provider_once = INIT_ONCE_STATIC_INIT;
 static PVIRTUALCHANNELENTRY aterm_addin_provider(LPCSTR name, LPCSTR subsystem, LPCSTR type,
                                                  DWORD flags) {
-#if defined(ATERMIUS_RDP_CAMERA)
+#if defined(ATERMIUS_RDP_CAMERA) && defined(_WIN32)
   // The Media Foundation camera HAL lives in this DLL rather than in the
   // FreeRDP static table; every other addin resolves exactly as before.
+  // Android's Camera2 HAL is in that static table (rdpecam "android").
   if (name && subsystem && strcmp(name, "rdpecam") == 0 && strcmp(subsystem, "mf") == 0)
     return (PVIRTUALCHANNELENTRY)(void*)aterm_camera_mf_entry;
 #endif
@@ -823,6 +841,10 @@ API UINT32 aterm_rdp_features(void) {
 #endif
   bits |= FEATURE_MULTIMON;
 #if defined(ATERMIUS_RDP_CAMERA)
+  // On Android every library of the camera path exists from API 24, the
+  // engine's minimum, so the bit needs no device check. Frames reach the
+  // server only through the device's MediaCodec H.264 encoder; without one
+  // rdpecam drops them and the session is unaffected.
   bits |= FEATURE_CAMERA;
 #endif
 #if defined(ATERMIUS_RDP_USB)
@@ -963,20 +985,26 @@ API void* aterm_rdp_create_ex(const char* host, int port, const char* user,
   BOOLVAL(AudioPlayback, cfg.audio == 0);
   BOOLVAL(RemoteConsoleAudio, cfg.audio == 1);
   BOOLVAL(AudioCapture, cfg.microphone);
-#if defined(_WIN32) && defined(ATERMIUS_RDP_AUDIO)
+#if defined(ATERMIUS_RDP_AUDIO)
+  // The OS devices open only when the server first plays or records. On
+  // Android a player or recorder that does not open (e.g. no microphone
+  // permission) is logged and that direction stays silent; the session goes
+  // on (freerdp_patches.cmake 5, 6).
   if (cfg.audio == 0) {
-    const char* params[] = { "rdpsnd", "sys:winmm" };
+    const char* params[] = { "rdpsnd", AUDIO_SUBSYSTEM };
     if (!freerdp_client_add_static_channel(s, 2, params)) goto fail;
     if (!freerdp_client_add_dynamic_channel(s, 2, params)) goto fail;
   }
   if (cfg.microphone) {
-    const char* params[] = { "audin", "sys:winmm" };
+    const char* params[] = { "audin", AUDIO_SUBSYSTEM };
     if (!freerdp_client_add_dynamic_channel(s, 2, params)) goto fail;
   }
 #endif
 #if defined(ATERMIUS_RDP_CAMERA)
+  // A camera that does not open (e.g. no camera permission) fails only the
+  // server's request to start that stream.
   if (cfg.cameras) {
-    const char* params[] = { "rdpecam", "sys:mf" };
+    const char* params[] = { "rdpecam", CAMERA_SUBSYSTEM };
     if (!freerdp_client_add_dynamic_channel(s, 2, params)) goto fail;
   }
 #endif
