@@ -44,6 +44,12 @@ class _FakeAccess implements UsbSerialAccess {
     requested.add(device);
     return answer(device);
   }
+
+  final picks = <(String, String)>[];
+
+  @override
+  void rememberPick(UsbSerialPortId port, String device) =>
+      picks.add(('$port', device));
 }
 
 UsbSerialAdapterList _adapters(List<UsbSerialAdapter> adapters) =>
@@ -119,6 +125,40 @@ void main() {
     expect(request.kind, QuickConnectKind.serial);
     expect(request.address, 'usb:0403:6001:A50285BI');
     expect(request.baudRate, 9600);
+    expect(access.picks, [('usb:0403:6001:A50285BI', '/dev/bus/usb/001/004')]);
+  });
+
+  testWidgets('identical adapters without serial numbers: the pick goes to '
+      'the Console tab with the bus path, the id stays the same', (
+    tester,
+  ) async {
+    const first = UsbSerialAdapter(
+      device: '/dev/bus/usb/001/005',
+      vendorId: 0x1a86,
+      productId: 0x7523,
+      driver: 'CH34x',
+      product: 'USB Serial',
+    );
+    const second = UsbSerialAdapter(
+      device: '/dev/bus/usb/001/006',
+      vendorId: 0x1a86,
+      productId: 0x7523,
+      driver: 'CH34x',
+      product: 'USB Serial',
+    );
+    final access = _FakeAccess([
+      _adapters(const [first, second]),
+    ]);
+    await openDialog(tester, access);
+    await tester.tap(
+      find.byKey(const ValueKey('usb_serial_adapter_/dev/bus/usb/001/006#0')),
+    );
+    await tester.pump();
+    await tester.tap(key('usb_serial_console_open'));
+    await tester.pumpAndSettle();
+    expect(access.requested, ['/dev/bus/usb/001/006']);
+    expect(results.single!.address, 'usb:1a86:7523');
+    expect(access.picks, [('usb:1a86:7523', '/dev/bus/usb/001/006')]);
   });
 
   testWidgets('a device without USB host says so', (tester) async {
@@ -173,6 +213,7 @@ void main() {
     expect(find.text('The USB serial adapter was disconnected.'), findsOne);
     expect(key('usb_serial_empty'), findsOne);
     expect(results, isEmpty);
+    expect(access.picks, isEmpty);
   });
 
   testWidgets('multi-port adapters list each port; nothing is preselected', (

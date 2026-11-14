@@ -15,6 +15,9 @@ import 'app_theme.dart';
 ///
 /// Nothing is opened here. Access is asked only for the adapter the user
 /// picked and only when they press Open; the Console tab opens the port.
+/// The pick itself goes to that tab in memory ([UsbSerialAccess.rememberPick]):
+/// identical adapters without a serial number share one id, and only the
+/// pick tells them apart.
 Future<QuickConnectRequest?> showUsbSerialConsoleDialog(
   BuildContext context, {
   required UsbSerialAccess access,
@@ -134,12 +137,12 @@ class _UsbSerialConsoleDialogState extends State<UsbSerialConsoleDialog> {
         });
         return;
       }
-      final request = QuickConnectRequest.parse(
-        'console ${adapter.portId(choice.port)} -b $baud',
-      );
+      final id = adapter.portId(choice.port);
+      final request = QuickConnectRequest.parse('console $id -b $baud');
       if (request == null || request.kind != QuickConnectKind.serial) {
         throw FormatException(l10n.invalidSerialPortOrBaudRate);
       }
+      widget.access.rememberPick(id, adapter.device);
       Navigator.of(context).pop(request);
     } on UsbSerialException catch (error) {
       if (!mounted) return;

@@ -200,14 +200,26 @@ class UsbSerialAdapterList {
 abstract interface class UsbSerialAccess {
   Future<UsbSerialAdapterList> list();
 
-  /// Shows Android's USB access prompt for one adapter, either the listed
-  /// [device] the user picked or the adapter a saved [port] id resolves to.
+  /// Shows Android's USB access prompt for one adapter: the listed [device]
+  /// the user picked when it is still attached (and, with [port], is that
+  /// kind of adapter), otherwise the adapter a saved [port] id resolves to.
   /// True when access is granted (also when it already was), false when the
   /// user declined. Throws [UsbSerialException] when the adapter cannot be
   /// asked for (not attached, ambiguous, not a serial adapter, app in the
   /// background). Requests are asked one at a time.
   Future<bool> requestPermission({String? device, UsbSerialPortId? port});
+
+  /// The user picked the listed [device] for [port] and a Console tab is
+  /// about to open it. Identical adapters without a usable serial number
+  /// share one port id, so the next open of [port] (within
+  /// [usbSerialPickLifetime]) goes to exactly this attachment. Kept in
+  /// memory only; the saved id never carries the bus path.
+  void rememberPick(UsbSerialPortId port, String device);
 }
+
+/// How long a pick from the adapter list waits for the Console tab that
+/// opens it.
+const usbSerialPickLifetime = Duration(minutes: 1);
 
 /// Dart side of UsbSerialBridge.kt. One instance owns the channel's incoming
 /// calls ("data" and "closed" for open sessions).
@@ -221,6 +233,12 @@ class UsbSerialBridge implements UsbSerialAccess {
 
   final MethodChannel channel;
   final _sessions = <int, _UsbSerialConsole>{};
+
+  /// [rememberPick]: port id → the picked bus path and when it was picked.
+  final _picks = <String, ({String device, DateTime at})>{};
+
+  /// Replaced in tests.
+  DateTime Function() now = DateTime.now;
 
   /// Completes when the previous permission request finished: Android shows
   /// one USB prompt at a time and the bridge rejects a second one, so a
@@ -290,23 +308,41 @@ class UsbSerialBridge implements UsbSerialAccess {
     String? device,
     UsbSerialPortId? port,
   }) async {
-    if ((device == null) == (port == null)) {
-      throw ArgumentError('Pass exactly one of device and port');
+    if (device == null && port == null) {
+      throw ArgumentError('Pass a device, a port or both');
     }
     final previous = _permissionTurn;
     final turn = Completer<void>();
     _permissionTurn = turn.future;
     try {
       await previous;
-      final granted = await _invoke<bool>(
-        'requestPermission',
-        device != null ? {'device': device} : _portArguments(port!),
-        true,
-      );
+      final granted = await _invoke<bool>('requestPermission', {
+        'device': ?device,
+        if (port != null) ..._portArguments(port),
+      }, true);
       return granted == true;
     } finally {
       turn.complete();
     }
+  }
+
+  @override
+  void rememberPick(UsbSerialPortId port, String device) {
+    final at = now();
+    _picks.removeWhere(
+      (_, pick) => at.difference(pick.at) >= usbSerialPickLifetime,
+    );
+    _picks['$port'] = (device: device, at: at);
+  }
+
+  /// The pick for [port], once: a later open of the same id (a copy, a
+  /// window combination, a restart) resolves the id again.
+  String? _takePick(UsbSerialPortId port) {
+    final pick = _picks.remove('$port');
+    if (pick == null || now().difference(pick.at) >= usbSerialPickLifetime) {
+      return null;
+    }
+    return pick.device;
   }
 
   /// Opens [port] at 8N1 without flow control. The returned console asks for
@@ -321,10 +357,12 @@ class UsbSerialBridge implements UsbSerialAccess {
 
   Future<({int session, String? driver})> _open(
     UsbSerialPortId port,
-    int baudRate,
-  ) async {
+    int baudRate, {
+    String? device,
+  }) async {
     final result = await _invoke<Object?>('open', {
       ..._portArguments(port),
+      'device': ?device,
       'baudRate': baudRate,
     });
     final session = result is Map ? result['session'] : null;
@@ -414,11 +452,13 @@ class _UsbSerialConsole implements LocalConsole, LocalConsoleStartup {
 
   Future<void> _start() async {
     try {
-      if (!await _bridge.requestPermission(port: _port)) {
+      // The adapter the user just picked in the list, if this tab opens it.
+      final device = _bridge._takePick(_port);
+      if (!await _bridge.requestPermission(device: device, port: _port)) {
         throw const UsbSerialException(UsbSerialIssue.permissionDenied);
       }
       if (_closed) return;
-      final opened = await _bridge._open(_port, _baudRate);
+      final opened = await _bridge._open(_port, _baudRate, device: device);
       if (_closed) {
         // Closed (tab closed, Stop) while the port was opening.
         unawaited(_bridge._close(opened.session).catchError((Object _) {}));

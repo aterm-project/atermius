@@ -687,4 +687,10 @@ class _FakeUsbAccess implements UsbSerialAccess {
     requested.add(device);
     return true;
   }
+
+  final picks = <(String, String)>[];
+
+  @override
+  void rememberPick(UsbSerialPortId port, String device) =>
+      picks.add(('$port', device));
 }

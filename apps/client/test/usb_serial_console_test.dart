@@ -321,6 +321,76 @@ void main() {
     await b.close();
   });
 
+  test('the adapter picked in the dialog is opened by bus path once, with '
+      'the unchanged id', () async {
+    // Two identical CH340s without serial numbers share this id.
+    final shared = UsbSerialPortId.tryParse('usb:1a86:7523')!;
+    var time = DateTime.utc(2026, 11, 14, 12);
+    bridge.now = () => time;
+    bridge.rememberPick(shared, '/dev/bus/usb/001/006');
+    final picked = bridge.open(shared, baudRate: 9600);
+    await (picked as LocalConsoleStartup).ready;
+    expect(native.named('requestPermission').single.arguments, {
+      'device': '/dev/bus/usb/001/006',
+      'vendorId': 0x1a86,
+      'productId': 0x7523,
+      'serial': null,
+      'port': 0,
+    });
+    final open = native.named('open').single.arguments as Map;
+    expect(open['device'], '/dev/bus/usb/001/006');
+    expect(open['vendorId'], 0x1a86);
+    expect(open['serial'], isNull);
+    await picked.close();
+
+    // A second open of the id (copy, window combination, restart) resolves
+    // the id again.
+    final again = bridge.open(shared, baudRate: 9600);
+    await (again as LocalConsoleStartup).ready;
+    expect(
+      (native.named('requestPermission').last.arguments as Map).containsKey(
+        'device',
+      ),
+      isFalse,
+    );
+    expect(
+      (native.named('open').last.arguments as Map).containsKey('device'),
+      isFalse,
+    );
+    await again.close();
+
+    // A pick no tab opened in time is dropped.
+    bridge.rememberPick(shared, '/dev/bus/usb/001/005');
+    time = time.add(usbSerialPickLifetime);
+    final late = bridge.open(shared, baudRate: 9600);
+    await (late as LocalConsoleStartup).ready;
+    expect(
+      (native.named('open').last.arguments as Map).containsKey('device'),
+      isFalse,
+    );
+    await late.close();
+  });
+
+  test('an ambiguous id without a pick asks to choose in the dialog', () async {
+    native.handlers['requestPermission'] = (_) =>
+        throw PlatformException(code: 'ambiguous');
+    final console = bridge.open(
+      UsbSerialPortId.tryParse('usb:1a86:7523')!,
+      baudRate: 9600,
+    );
+    await expectLater(
+      (console as LocalConsoleStartup).ready,
+      throwsA(
+        isA<LocalConsoleStartException>().having(
+          (e) => e.message,
+          'message',
+          contains('Add → Serial Console'),
+        ),
+      ),
+    );
+    expect(native.named('open'), isEmpty);
+  });
+
   test('list keeps well-formed adapters and drops unsafe text', () async {
     native.handlers['list'] = (_) => {
       'usbHost': true,

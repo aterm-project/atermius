@@ -46,6 +46,9 @@ import kotlin.concurrent.withLock
  * and opens a port at 8N1 without flow control. A port is identified by
  * vendor/product id, the USB serial number when Android lets the app read it,
  * and the port index; Dart owns the `usb:VVVV:PPPP[:serial][#port]` string.
+ * Right after the user picked an adapter, Dart also passes its bus path
+ * ("device", never saved), so the first open reaches exactly that adapter
+ * even when identical ones without a serial number share the id.
  *
  * Data flow mirrors the desktop serial Console: a reader thread forwards
  * device output with at most [MAX_UNACKED_OUTPUT] bytes in flight until Dart
@@ -259,21 +262,38 @@ class UsbSerialBridge(
         return mapOf("usbHost" to usbHost, "adapters" to adapters)
     }
 
+    /**
+     * The attachment the user picked in the adapter list ("device", Android's
+     * bus path), while it is still attached and, when [target] is given, has
+     * its vendor/product id. Identical adapters without a usable serial number
+     * share one port id; only this tells them apart. Null otherwise: the
+     * caller then resolves [target] (open() also checks its serial number).
+     */
+    private fun picked(manager: UsbManager, call: MethodCall, target: Target?): UsbDevice? {
+        val name = call.argument<Any?>("device") as? String ?: return null
+        val device = manager.deviceList[name] ?: return null
+        if (target != null && (device.vendorId != target.vendorId || device.productId != target.productId)) {
+            return null
+        }
+        return device
+    }
+
     private fun requestPermission(call: MethodCall, result: MethodChannel.Result) {
         val manager = usb ?: return result.error("noUsbHost", "USB host is unavailable", null)
-        val device: UsbDevice = when (val name = call.argument<Any?>("device")) {
-            null -> {
-                val target = target(call) ?: return result.error("invalid", "Invalid USB serial port", null)
-                when (val resolved = resolve(target)) {
-                    is Found -> resolved.device
-                    Ambiguous -> return result.error("ambiguous", "Several matching adapters", null)
-                    NotFound -> return result.error("notFound", "Adapter not attached", null)
-                }
-            }
-            is String -> manager.deviceList[name]
-                ?: return result.error("notFound", "Adapter not attached", null)
-            else -> return result.error("invalid", "Invalid USB device", null)
+        val name = call.argument<Any?>("device")
+        if (name != null && name !is String) return result.error("invalid", "Invalid USB device", null)
+        val target = if (call.argument<Any?>("vendorId") == null) {
+            null
+        } else {
+            target(call) ?: return result.error("invalid", "Invalid USB serial port", null)
         }
+        if (name == null && target == null) return result.error("invalid", "Invalid USB serial port", null)
+        val device: UsbDevice = picked(manager, call, target)
+            ?: when (val resolved = target?.let { resolve(it) } ?: NotFound) {
+                is Found -> resolved.device
+                Ambiguous -> return result.error("ambiguous", "Several matching adapters", null)
+                NotFound -> return result.error("notFound", "Adapter not attached", null)
+            }
         // Never a consent prompt for USB devices no serial driver claims.
         if (probe(device) == null) return result.error("unsupported", "Not a USB serial adapter", null)
         if (manager.hasPermission(device)) return result.success(true)
@@ -311,7 +331,7 @@ class UsbSerialBridge(
         val baudRate = call.int("baudRate", MIN_BAUD..MAX_BAUD)
             ?: return result.error("invalid", "Invalid baud rate", null)
         val manager = usb ?: return result.error("noUsbHost", "USB host is unavailable", null)
-        val device = when (val resolved = resolve(target)) {
+        val device = picked(manager, call, target) ?: when (val resolved = resolve(target)) {
             is Found -> resolved.device
             Ambiguous -> return result.error("ambiguous", "Several matching adapters", null)
             NotFound -> return result.error("notFound", "Adapter not attached", null)
@@ -399,8 +419,10 @@ class UsbSerialBridge(
         if (data.size > MAX_INPUT || session.queuedBytes + data.size > MAX_INPUT) {
             return result.error("full", "Serial input queue is full", null)
         }
+        // The writer may have failed and exited while its end() is still
+        // posted: such a write is answered here, never left in the queue.
+        if (!session.offer(Write(data, result))) return result.error("closed", "Session closed", null)
         session.queuedBytes += data.size
-        session.writes.offer(Write(data, result))
     }
 
     /** Main thread. A null [reason] is a requested close (no event to Dart). */
@@ -430,7 +452,7 @@ class UsbSerialBridge(
         private val port: UsbSerialPort,
         baudRate: Int,
     ) {
-        val writes = LinkedBlockingQueue<Write>()
+        private val writes = LinkedBlockingQueue<Write>()
         /** Main thread only: bytes queued for the writer, bounded by [MAX_INPUT]. */
         var queuedBytes = 0
         @Volatile private var ended = false
@@ -438,6 +460,8 @@ class UsbSerialBridge(
         /** Signalled when an ack frees room or the session ends. */
         private val room = lock.newCondition()
         private var unacked = 0 // guarded by lock
+        /** False once the writer stopped taking items; guarded by lock. */
+        private var accepting = true
         private val pending = ByteArrayOutputStream() // guarded by lock
         private var flushQueued = false // guarded by lock
         // About one second of line time per USB write, so the timeout below
@@ -451,7 +475,21 @@ class UsbSerialBridge(
             writer.start()
         }
 
-        /** Main thread; the writer closes the port once its current write ends. */
+        /**
+         * Queues [item] for the writer; false once the writer has exited.
+         * The writer drains the queue only after it stopped accepting (both
+         * under [lock]), so every queued item is answered exactly once.
+         */
+        fun offer(item: Write): Boolean = lock.withLock {
+            if (accepting) writes.offer(item)
+            accepting
+        }
+
+        /**
+         * Main thread; the writer closes the port within one chunk of the
+         * write in progress (about a second of line time, at most
+         * [WRITE_TIMEOUT_MS]).
+         */
         fun stop() {
             ended = true
             lock.withLock { room.signalAll() }
@@ -519,12 +557,15 @@ class UsbSerialBridge(
                     }
                     val error = try {
                         var offset = 0
-                        while (offset < item.data.size) {
+                        // A stop (tab closed, Stop, engine gone) ends a long
+                        // write between chunks rather than after all of it:
+                        // 64 KiB at 9600 baud is about a minute of line time.
+                        while (offset < item.data.size && !ended) {
                             val next = minOf(item.data.size, offset + writeChunk)
                             port.write(item.data.copyOfRange(offset, next), WRITE_TIMEOUT_MS)
                             offset = next
                         }
-                        null
+                        if (offset < item.data.size) "closed" else null
                     } catch (_: SerialTimeoutException) {
                         "timeout"
                     } catch (_: Exception) {
@@ -539,7 +580,10 @@ class UsbSerialBridge(
                 // write in progress; it also cancels the reader's pending read.
                 closeQuietly(port, null)
                 ended = true
-                lock.withLock { room.signalAll() }
+                lock.withLock {
+                    accepting = false
+                    room.signalAll()
+                }
                 val left = ArrayList<Write>()
                 writes.drainTo(left)
                 left.filter { it !== STOP }.forEach { item -> main.post { written(item, "closed") } }
