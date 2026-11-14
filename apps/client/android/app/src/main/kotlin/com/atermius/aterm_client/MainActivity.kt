@@ -25,6 +25,7 @@ class MainActivity : FlutterActivity() {
     private var rdpPermissions: RdpDevicePermissions? = null
     private var externalFileOpener: ExternalFileOpener? = null
     private var keyboardCapture: KeyboardCapture? = null
+    private var clipboardBridge: ClipboardBridge? = null
     private var windowFocused = false
     private var topResumed = false
 
@@ -102,6 +103,9 @@ class MainActivity : FlutterActivity() {
         rdpPermissions = RdpDevicePermissions(this, flutterEngine.dartExecutor.binaryMessenger) { resumed }
         externalFileOpener = ExternalFileOpener(this, flutterEngine.dartExecutor.binaryMessenger)
         keyboardCapture = KeyboardCapture(this, flutterEngine.dartExecutor.binaryMessenger, firstWindow())
+        clipboardBridge = ClipboardBridge(this, flutterEngine.dartExecutor.binaryMessenger).also {
+            it.focusChanged(windowFocused)
+        }
         fullscreenChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "atermius/fullscreen").also { channel ->
             channel.setMethodCallHandler { call, result ->
@@ -225,6 +229,7 @@ class MainActivity : FlutterActivity() {
         super.onWindowFocusChanged(hasFocus)
         windowFocused = hasFocus
         updateFirstWindow()
+        clipboardBridge?.focusChanged(hasFocus)
         if (hasFocus && fullscreenRequested) applyFullscreen(true)
     }
 
@@ -283,6 +288,8 @@ class MainActivity : FlutterActivity() {
         // Ends any capture and Samsung Meta key request with the engine (onDestroy).
         keyboardCapture?.close()
         keyboardCapture = null
+        clipboardBridge?.close()
+        clipboardBridge = null
         externalFileOpener?.close()
         externalFileOpener = null
         rdpStorage?.close()

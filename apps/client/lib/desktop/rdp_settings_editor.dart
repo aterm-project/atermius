@@ -448,6 +448,7 @@ class _RdpSettingsEditorState extends State<RdpSettingsEditor>
           context.l10n.desktopClipboardText,
           v.clipboardText,
           (on) => _set(v.copyWith(clipboardText: on)),
+          subtitle: context.l10n.desktopClipboardTextSyncHelp,
         ),
         _switch(
           'clipboard_files',
@@ -888,7 +889,7 @@ class _VncSettingsEditorState extends State<VncSettingsEditor> {
       // Top inset keeps the first field's floating label clear of the header.
       childrenPadding: const EdgeInsets.only(top: 10, bottom: 8),
       title: Text(context.l10n.vncDisplay),
-      subtitle: Text(context.l10n.resolutionAndLocalScaling),
+      subtitle: Text(context.l10n.vncDisplayAndClipboard),
       children: [
         DesktopResolutionPicker(
           keyPrefix: '${widget.keyPrefix}_vnc',
@@ -918,6 +919,14 @@ class _VncSettingsEditorState extends State<VncSettingsEditor> {
           }),
           scaling: v.scaling,
           onScalingChanged: (scaling) => _set(v.copyWith(scaling: scaling)),
+        ),
+        SwitchListTile(
+          key: ValueKey('${widget.keyPrefix}_vnc_clipboard_text'),
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.desktopClipboardText),
+          subtitle: Text(context.l10n.desktopClipboardTextSyncHelp),
+          value: v.clipboardText,
+          onChanged: (on) => _set(v.copyWith(clipboardText: on)),
         ),
       ],
     );

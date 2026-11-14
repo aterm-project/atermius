@@ -84,6 +84,34 @@ void main() {
   );
 
   testWidgets(
+    'Paste reads through TerminalClipboard, which the app replaces',
+    variant: android,
+    (tester) async {
+      final h = await _Harness.pump(tester, clipboard: 'flutter clipboard');
+      final previous = TerminalClipboard.read;
+      addTearDown(() => TerminalClipboard.read = previous);
+      var reads = 0;
+      TerminalClipboard.read = (context) async {
+        reads++;
+        return reads == 1 ? 'from the app reader' : null;
+      };
+      h.terminal.write('${'\r\n' * 12}first\r\n');
+      await tester.pump();
+      final row = h.rowOf('first');
+      await h.longPress(h.cellCenter(20, row + 3));
+      await tester.tap(find.text('Paste'));
+      await tester.pumpAndSettle();
+      expect(h.output, ['from the app reader']);
+      // Nothing to paste (the app reader already told the user why).
+      await h.longPress(h.cellCenter(20, row + 3));
+      await tester.tap(find.text('Paste'));
+      await tester.pumpAndSettle();
+      expect(h.output, ['from the app reader']);
+      expect(reads, 2);
+    },
+  );
+
+  testWidgets(
     'Paste is offered only when writable and sends the clipboard once',
     variant: android,
     (tester) async {

@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:xterm/src/terminal.dart';
+import 'package:xterm/src/ui/clipboard.dart';
 import 'package:xterm/src/ui/controller.dart';
 import 'package:xterm/src/ui/selection_mode.dart';
 
@@ -24,8 +25,7 @@ class TerminalActions extends StatelessWidget {
       actions: {
         PasteTextIntent: CallbackAction<PasteTextIntent>(
           onInvoke: (intent) async {
-            final data = await Clipboard.getData(Clipboard.kTextPlain);
-            final text = data?.text;
+            final text = await TerminalClipboard.read(context);
             if (text != null) {
               terminal.paste(text);
               controller.clearSelection();

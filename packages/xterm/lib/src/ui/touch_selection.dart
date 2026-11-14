@@ -8,6 +8,7 @@ import 'package:xterm/src/core/buffer/cell_offset.dart';
 import 'package:xterm/src/core/buffer/range.dart';
 import 'package:xterm/src/core/buffer/range_line.dart';
 import 'package:xterm/src/terminal.dart';
+import 'package:xterm/src/ui/clipboard.dart';
 import 'package:xterm/src/ui/controller.dart';
 import 'package:xterm/src/ui/render.dart';
 import 'package:xterm/src/ui/terminal_text_style.dart';
@@ -567,8 +568,7 @@ class TerminalTouchSelectionState extends State<TerminalTouchSelection> {
     if (widget.controller.selection != null) {
       widget.controller.clearSelection();
     }
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    final text = data?.text;
+    final text = await TerminalClipboard.read(context);
     // The view may have become read-only or been bound to another session
     // while the platform clipboard was read.
     if (!mounted ||

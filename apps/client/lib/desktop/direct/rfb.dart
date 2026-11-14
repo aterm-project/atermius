@@ -7,6 +7,7 @@ import 'package:pointycastle/export.dart';
 import '../../ssh/ssh_transport_io.dart'
     if (dart.library.js_interop) '../../ssh/ssh_transport_web.dart'
     as transport;
+import '../../l10n/l10n.dart';
 import 'connection.dart';
 
 /// RFB 3.3/3.7/3.8, Raw/CopyRect/DesktopSize/ExtendedDesktopSize. No gateway
@@ -376,11 +377,16 @@ class RfbConnection implements DirectDesktopConnection {
   @override
   void paste(String text) {
     if (_closed) return;
-    final bytes = latin1.encode(
-      text,
-    ); // RFC 6143 clipboard; reject lossy Unicode
-    if (bytes.length > 65536)
-      throw const FormatException('Clipboard is limited to 64 KiB');
+    // RFC 6143 cut text is Latin-1: refuse text it would garble.
+    final Uint8List bytes;
+    try {
+      bytes = latin1.encode(text);
+    } on ArgumentError {
+      throw FormatException(currentL10n.vncClipboardLatin1Only);
+    }
+    if (bytes.length > 65536) {
+      throw FormatException(currentL10n.clipboardIsLimitedTo64Kib);
+    }
     final data = ByteData(8)
       ..setUint8(0, 6)
       ..setUint32(4, bytes.length);

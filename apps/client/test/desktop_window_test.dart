@@ -3,17 +3,21 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:aterm_client/credential_visibility/sensitive_clipboard.dart';
 import 'package:aterm_client/desktop/desktop_session.dart';
 import 'package:aterm_client/desktop/direct/connection.dart';
 import 'package:aterm_client/desktop/rdp_settings.dart';
 import 'package:aterm_client/desktop/window/desktop_window.dart';
 import 'package:aterm_client/desktop/window/monitor_windows.dart';
 import 'package:aterm_client/platform/application_windows.dart';
+import 'package:aterm_client/platform/local_clipboard.dart';
 import 'package:aterm_client/platform/window_chrome.dart';
 import 'package:aterm_client/domain/models.dart';
+import 'package:aterm_client/l10n/l10n.dart';
 import 'package:aterm_client/terminal/live_terminal_window.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'support/fake_local_clipboard.dart';
 import 'support/l10n_fixture.dart';
 
 class _Fake implements DirectDesktopConnection {
@@ -119,6 +123,57 @@ void main() {
     expect(child.rdpConfig, isNull);
     await broker.close();
     await _until(() => child.state == 'disconnected', what: 'revocation reaches child');
+    await session.close();
+  });
+
+  test('clipboard sync: windows offer through the parent, never twice', () async {
+    final clipboard = FakeLocalClipboard(android: false);
+    LocalClipboard.debugInstance = clipboard;
+    addTearDown(() => LocalClipboard.debugInstance = null);
+    final (session, fake) = await _connected();
+    final broker = await DesktopWindowBroker.bind(
+      session: session,
+      spec: const DesktopWindowSpec(title: 'Win'),
+    );
+    final child = await connectDesktopWindow(broker.launch);
+    child.confirmReady();
+    expect(await broker.ready, isTrue);
+    await _until(() => child.clipboardSyncActive, what: 'sync state');
+
+    // Text copied in another app, read when the window gains focus.
+    clipboard.copy('from window');
+    await child.clipboardSync.localMayHaveChanged();
+    await _until(() => fake.pasted.isNotEmpty, what: 'window offer');
+    await child.clipboardSync.localMayHaveChanged();
+    child.offerClipboardText('from window'); // a second window, same text
+    await session.clipboardSync.localMayHaveChanged(); // the tab's own focus
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(fake.pasted, ['from window']);
+
+    // Remote text is written once, by the parent, and the window does not
+    // offer it back on focus.
+    fake.controller.add(DesktopClipboard('from remote'));
+    await _until(() => child.display.clipboard == 'from remote', what: 'relay');
+    await child.clipboardSync.localMayHaveChanged();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(clipboard.writes, ['from remote']);
+    expect(fake.pasted, ['from window']);
+
+    // A secret copied in the main window is skipped, and the window that
+    // offered it is told why.
+    SensitiveClipboard.markSecret('main-window secret');
+    addTearDown(SensitiveClipboard.debugForgetSecrets);
+    final notices = <String>[];
+    child.onNotice = notices.add;
+    clipboard.copy('main-window secret');
+    await child.clipboardSync.localMayHaveChanged();
+    await _until(() => notices.isNotEmpty, what: 'notice in the window');
+    expect(notices, [currentL10n.desktopClipboardSecretSkipped]);
+    expect(fake.pasted, ['from window']);
+
+    await broker.close();
+    await _until(() => child.state == 'disconnected', what: 'revocation');
+    expect(child.clipboardSyncActive, isFalse);
     await session.close();
   });
 

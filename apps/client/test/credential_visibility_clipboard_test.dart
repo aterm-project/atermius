@@ -153,4 +153,36 @@ void main() {
     await tester.pump();
     expect(platformText, '');
   });
+
+  group('secret registry (automatic remote-desktop sync skips these)', () {
+    setUp(SensitiveClipboard.debugForgetSecrets);
+    tearDown(SensitiveClipboard.debugForgetSecrets);
+
+    testWidgets('values copied here are secrets', (tester) async {
+      final fake = _FakeClipboard();
+      final clipboard = fake.create();
+      expect(SensitiveClipboard.isSecret('SENTINEL-PW'), isFalse);
+      await clipboard.copy('SENTINEL-PW');
+      expect(SensitiveClipboard.isSecret('SENTINEL-PW'), isTrue);
+      expect(SensitiveClipboard.isSecret('SENTINEL-PW '), isFalse);
+      clipboard.dispose();
+      await tester.pump();
+    });
+
+    test('marked values are remembered; the oldest leave first', () {
+      SensitiveClipboard.markSecret('');
+      expect(SensitiveClipboard.isSecret(''), isFalse);
+      for (var i = 0; i < 65; i++) {
+        SensitiveClipboard.markSecret('token-$i');
+      }
+      expect(SensitiveClipboard.isSecret('token-0'), isFalse);
+      expect(SensitiveClipboard.isSecret('token-1'), isTrue);
+      expect(SensitiveClipboard.isSecret('token-64'), isTrue);
+      // Marking again refreshes a value's place.
+      SensitiveClipboard.markSecret('token-1');
+      SensitiveClipboard.markSecret('token-65');
+      expect(SensitiveClipboard.isSecret('token-1'), isTrue);
+      expect(SensitiveClipboard.isSecret('token-2'), isFalse);
+    });
+  });
 }

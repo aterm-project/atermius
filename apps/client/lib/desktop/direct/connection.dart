@@ -70,6 +70,10 @@ class DesktopClipboard extends DesktopEvent {
   final String text;
 }
 
+/// The remote did not take offered clipboard text: the RDP session has no
+/// clipboard channel (turned off by the server or its policy).
+class DesktopClipboardRefused extends DesktopEvent {}
+
 class DesktopReady extends DesktopEvent {}
 
 /// True only after the server's native touch channel has completed negotiation.

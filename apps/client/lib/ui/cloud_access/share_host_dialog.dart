@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../../app_controller.dart';
 import '../../cloud/cloud_access_service.dart';
 import '../../cloud/host_share_plan.dart';
+import '../../credential_visibility/sensitive_clipboard.dart';
 import '../../domain/models.dart';
 import '../../l10n/l10n.dart';
 import '../app_theme.dart';
@@ -799,6 +800,8 @@ class _CreatedLinkViewState extends State<_CreatedLinkView> {
         FilledButton.icon(
           key: const ValueKey('cloud-access-copy-link'),
           onPressed: () async {
+            // The link carries its access secret.
+            SensitiveClipboard.markSecret(widget.created.url);
             await Clipboard.setData(ClipboardData(text: widget.created.url));
             if (mounted) setState(() => copied = true);
           },

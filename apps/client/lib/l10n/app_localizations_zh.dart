@@ -13536,6 +13536,54 @@ class AppLocalizationsZh extends AppLocalizations {
   String get desktopClipboardFiles => '剪贴板文件';
 
   @override
+  String get desktopClipboardTextSyncHelp =>
+      '连接期间，任意一端复制的文本都会自动同步。机密内容只会通过会话菜单中的“粘贴本机剪贴板文本”发送。';
+
+  @override
+  String get vncDisplayAndClipboard => '分辨率、本地缩放与剪贴板';
+
+  @override
+  String get desktopClipboardRemoteTooLarge => '远程剪贴板文本超过 64 KiB，未复制到本机。';
+
+  @override
+  String get desktopClipboardWriteFailed => '无法将远程剪贴板文本写入本机剪贴板。';
+
+  @override
+  String get desktopClipboardReadDenied =>
+      '系统不允许 Atermius 读取剪贴板，因此本机文本不会自动发送到远程桌面。请在系统设置中允许 Atermius 访问剪贴板。';
+
+  @override
+  String get desktopClipboardSecretSkipped =>
+      '标记为机密的已复制文本未自动发送到远程桌面。如需发送，请使用会话菜单中的“粘贴本机剪贴板文本”。';
+
+  @override
+  String get desktopClipboardLocalTooLarge => '本机剪贴板文本超过 64 KiB，未发送到远程桌面。';
+
+  @override
+  String get desktopRemoteClipboardEmpty => '远程剪贴板中没有文本。';
+
+  @override
+  String get vncClipboardLatin1Only => 'VNC 剪贴板只支持 Latin-1 文本，无法发送此文本。';
+
+  @override
+  String get clipboardIsEmpty => '剪贴板为空。';
+
+  @override
+  String get clipboardHasNoText => '剪贴板中没有可粘贴的文本（可能是图片或文件）。';
+
+  @override
+  String get clipboardReadDenied =>
+      '系统不允许 Atermius 读取剪贴板。请在系统设置中允许 Atermius 访问剪贴板。';
+
+  @override
+  String get clipboardReadUnfocused => 'Android 只允许前台应用读取剪贴板，请再次尝试粘贴。';
+
+  @override
+  String clipboardTextTooLarge(String limit) {
+    return '剪贴板文本超过 $limit，未粘贴。';
+  }
+
+  @override
   String get desktopMicrophone => '麦克风';
 
   @override

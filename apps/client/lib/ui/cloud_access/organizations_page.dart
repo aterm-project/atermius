@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../../cloud/cloud_access_crypto.dart';
 import '../../cloud/cloud_access_service.dart';
 import '../../cloud/pending_cloud_link.dart';
+import '../../credential_visibility/sensitive_clipboard.dart';
 import '../../l10n/l10n.dart';
 import '../app_theme.dart';
 import 'cloud_access_common.dart';
@@ -541,9 +542,15 @@ class _OrganizationDetailPageState extends State<OrganizationDetailPage> {
                           ),
                           const SizedBox(height: 6),
                           FilledButton.icon(
-                            onPressed: () => Clipboard.setData(
-                              ClipboardData(text: joinLink!),
-                            ),
+                            onPressed: () {
+                              // The invitation link grants membership.
+                              SensitiveClipboard.markSecret(joinLink!);
+                              unawaited(
+                                Clipboard.setData(
+                                  ClipboardData(text: joinLink!),
+                                ),
+                              );
+                            },
                             icon: const Icon(Icons.copy),
                             label: Text(l10n.cloudAccessCopyInvitation),
                           ),
