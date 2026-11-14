@@ -295,7 +295,10 @@ void main() {
       await pumpRow(tester, row: row(shell: false, usb: usb));
       await choose(tester, 'test_home_add_console');
       expect(find.byKey(const ValueKey('usb_serial_console_dialog')), findsOne);
-      expect(find.byKey(const ValueKey('home_serial_console_port')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('home_serial_console_port')),
+        findsNothing,
+      );
       await tester.tap(find.byKey(const ValueKey('usb_serial_console_open')));
       await tester.pumpAndSettle();
       expect(usb.requested, ['/dev/bus/usb/001/002']);

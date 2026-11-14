@@ -71,12 +71,11 @@ class QuickConnectRequest {
             UsbSerialPortId.tryParse(rawDevice)?.toString() ??
             (throw FormatException(currentL10n.enterAValidSerialPortFor));
       } else {
-        final posixDevice = RegExp(
-          r'^/dev/(?:cu|tty)\.[A-Za-z0-9._-]+$',
-        ).hasMatch(rawDevice) && !rawDevice.contains('..');
+        final posixDevice =
+            RegExp(r'^/dev/(?:cu|tty)\.[A-Za-z0-9._-]+$').hasMatch(rawDevice) &&
+            !rawDevice.contains('..');
         device = posixDevice ? rawDevice : rawDevice.toUpperCase();
-        if (!posixDevice &&
-            !RegExp(r'^COM[1-9][0-9]{0,3}$').hasMatch(device)) {
+        if (!posixDevice && !RegExp(r'^COM[1-9][0-9]{0,3}$').hasMatch(device)) {
           throw FormatException(currentL10n.enterAValidSerialPortFor);
         }
       }

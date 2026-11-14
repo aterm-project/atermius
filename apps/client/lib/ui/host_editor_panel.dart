@@ -357,8 +357,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
                             localDrives: RdpLocalDrivesController.instance,
                             mapLocalDisks: _mapLocalDisks,
                             onMapLocalDisksChanged: _setMapLocalDisks,
-                            permissions:
-                                RdpConnectPermissions.instance.broker,
+                            permissions: RdpConnectPermissions.instance.broker,
                           ),
                           fieldGap,
                         ],

@@ -120,7 +120,9 @@ void main() {
     final clipboard = FakeLocalClipboard();
     final (session, connection) = await _session(tester, clipboard);
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: DesktopView(session: session))),
+      MaterialApp(
+        home: Scaffold(body: DesktopView(session: session)),
+      ),
     );
     await tester.pump();
     await _openMenu(tester);
