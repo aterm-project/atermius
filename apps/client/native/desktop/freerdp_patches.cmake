@@ -58,8 +58,11 @@ atermius_patch(channels/rdpei/client/rdpei_main.c
 #    abort the process), and a failed Open or SetVolume becomes a channel error
 #    that disconnects (rdpsnd_main.c). A player that does not open is logged and
 #    leaves a silent device: Play drops the waves, which rdpsnd still confirms,
-#    and the next format change opens it again. Waves the 16-bit player cannot
-#    take (empty, odd size) are dropped.
+#    and the next format change opens it again. The player is always 16-bit
+#    (openSLPlayOpen), but FormatSupported accepts 8-bit PCM and the DSP
+#    copies PCM unconverted, so upstream played 8-bit waves as noise at double
+#    speed: PlayEx widens unsigned 8-bit samples to signed 16-bit and drops
+#    other PCM depths, as Play drops waves it cannot take (empty, odd size).
 atermius_patch(channels/rdpsnd/client/opensles/opensl_io.c
   "WINPR_ASSERT(!result);"
   "(void)result; /* atermius: the result is returned, not asserted */")
@@ -72,6 +75,12 @@ atermius_patch(channels/rdpsnd/client/opensles/rdpsnd_opensles.c
 atermius_patch(channels/rdpsnd/client/opensles/rdpsnd_opensles.c
   "\tWINPR_ASSERT(0 == size % 2);\n\tWINPR_ASSERT(size > 0);\n\tWINPR_ASSERT(src.b);\n\tret = android_AudioOut(opensles->stream, src.s, size / 2);"
   "\t/* atermius: the size comes from the server; drop what the 16-bit player cannot take */\n\tif (!src.b || (size < 2) || ((size % 2) != 0) || (size / 2 > INT32_MAX))\n\t{\n\t\tWLog_DBG(TAG, \"dropped a wave of %\" PRIuz \" bytes\", size);\n\t\treturn 0;\n\t}\n\tret = android_AudioOut(opensles->stream, src.s, (int)(size / 2));")
+atermius_patch(channels/rdpsnd/client/opensles/rdpsnd_opensles.c
+  "static void rdpsnd_opensles_start(rdpsndDevicePlugin* device)\n{"
+  "/* atermius: rdpsnd passes every wave here with the format it was sent in: PCM unchanged\n * (supported or copied by the DSP), other formats decoded to 16-bit PCM. The player is\n * 16-bit: widen unsigned 8-bit PCM and drop other PCM depths. */\nstatic UINT rdpsnd_opensles_play_ex(rdpsndDevicePlugin* device, const AUDIO_FORMAT* format,\n                                    const BYTE* data, size_t size)\n{\n\tif (!format || (format->wFormatTag != WAVE_FORMAT_PCM) || (format->wBitsPerSample == 16))\n\t\treturn rdpsnd_opensles_play(device, data, size);\n\n\tif ((format->wBitsPerSample != 8) || !data || (size == 0) || (size > INT32_MAX / 2))\n\t{\n\t\tWLog_DBG(TAG, \"dropped a %\" PRIu16 \"-bit wave of %\" PRIuz \" bytes\", format->wBitsPerSample,\n\t\t         size);\n\t\treturn 0;\n\t}\n\n\tINT16* wide = (INT16*)calloc(size, sizeof(INT16));\n\tif (!wide)\n\t\treturn 0;\n\tfor (size_t i = 0; i < size; i++)\n\t\twide[i] = (INT16)(((INT32)data[i] - 128) * 256);\n\tconst UINT latency = rdpsnd_opensles_play(device, (const BYTE*)wide, size * sizeof(INT16));\n\tfree(wide);\n\treturn latency;\n}\n\nstatic void rdpsnd_opensles_start(rdpsndDevicePlugin* device)\n{")
+atermius_patch(channels/rdpsnd/client/opensles/rdpsnd_opensles.c
+  "\topensles->device.Play = rdpsnd_opensles_play;\n"
+  "\topensles->device.Play = rdpsnd_opensles_play;\n\topensles->device.PlayEx = rdpsnd_opensles_play_ex; /* atermius: see above */\n")
 
 # 6. The microphone (audin "opensles") must not end the session either. A
 #    recorder that does not open (no RECORD_AUDIO permission, input busy) is
