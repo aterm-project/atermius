@@ -2,13 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../domain/models.dart';
 import '../l10n/l10n.dart';
+import '../ui/atermius_icons.dart';
 
-/// Icon used for a Host protocol in menus, search results and lists.
+/// Icon used for a Host protocol in menus, search results and lists. RDP has
+/// the app's own mark so it is never mistaken for VNC's plain monitor.
 IconData hostProtocolIcon(HostProtocol protocol) => switch (protocol) {
   HostProtocol.ssh => Icons.terminal,
   HostProtocol.telnet => Icons.settings_ethernet,
-  HostProtocol.rdp || HostProtocol.vnc => Icons.desktop_windows_outlined,
+  HostProtocol.rdp => AtermiusIcons.remoteDesktop,
+  HostProtocol.vnc => Icons.desktop_windows_outlined,
 };
+
+/// Icon of an open session (workspace tabs, connect actions): every text
+/// terminal shows the terminal glyph, a remote desktop its protocol's icon.
+IconData hostSessionIcon(HostProtocol protocol) =>
+    protocol.isTerminal ? Icons.terminal : hostProtocolIcon(protocol);
 
 /// Honest plaintext warning shown in Telnet host editors and before a Telnet
 /// connection. It makes no TLS or security claim for the connection; the
