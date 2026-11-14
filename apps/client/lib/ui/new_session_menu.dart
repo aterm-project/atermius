@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../domain/models.dart';
 import 'app_motion.dart';
+import 'atermius_icons.dart';
 import 'workspace_controls.dart';
 import '../l10n/l10n.dart';
 
@@ -40,7 +41,7 @@ class NewSessionMenu extends StatelessWidget {
       for (final item in [
         ('ssh', context.l10n.sshHost, Icons.terminal),
         ('telnet', context.l10n.telnetHost, Icons.settings_ethernet),
-        ('rdp', context.l10n.rdpRemoteDesktop, Icons.desktop_windows_outlined),
+        ('rdp', context.l10n.rdpRemoteDesktop, AtermiusIcons.remoteDesktop),
         ('vnc', context.l10n.vncRemoteDesktop, Icons.desktop_mac_outlined),
       ])
         appMenuItem(
