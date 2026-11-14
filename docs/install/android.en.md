@@ -35,6 +35,8 @@ Outputs are `build/app/outputs/flutter-apk/app-release.apk` and `build/app/outpu
 
 Building and packaging the Android native RDP engine `libatermius_rdp.so` is described under "Android 直接连接" (Android direct connection) in [remote desktop](../REMOTE-DESKTOP.md).
 
+RDP sessions can play remote audio on the device and, per Host, redirect the microphone and camera. The microphone needs the system microphone permission; the camera needs the camera permission and the device's own H.264 encoder (MediaCodec). A device that cannot be opened (for example without permission) is left out and the connection proceeds.
+
 ## First use and scope
 
 Choose local data or your HTTPS self-hosted instance. SSH uses the native transport; local shell/serial Console and the Windows native RDP engine are not Android features. Temporary guest links can be opened in a supported browser. Mobile OS background limits may interrupt sessions/forwarding. Optional [push hints](../MOBILE-PUSH.md) require separate provider configuration.
