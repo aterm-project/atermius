@@ -15269,6 +15269,69 @@
     "description": "RDP local disk mapping."
   },
   "rdpFolderPathTooLong": "This folder’s path is too long to map (over 259 bytes). Choose a folder with a shorter path.",
+  "@rdpStorageAccessTitle": {
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpStorageAccessTitle": "Map this device’s storage?",
+  "@rdpStorageAccessBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    },
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpStorageAccessBody": "“{name}” maps this device’s storage under \\\\tsclient, so you can open and save local files in the remote session. Android requires All files access for Atermius first. You can change this later under “Map local disks” when editing the host.",
+  "@rdpStorageAccessGrant": {
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpStorageAccessGrant": "Allow access",
+  "@rdpStorageAccessNotNow": {
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpStorageAccessNotNow": "Not now",
+  "@rdpStorageAccessDontMap": {
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpStorageAccessDontMap": "Don’t map disks for this host",
+  "@rdpFoldersNeedAccess": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    },
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpFoldersNeedAccess": "Skipped folders because All files access is off: {names}. Allow it for Atermius in Android Settings, then reconnect.",
+  "@rdpDevicesNeedPermission": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    },
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpDevicesNeedPermission": "Not redirected because Android hasn’t allowed Atermius to use them: {names}. Allow access in the host’s RDP options or in Android Settings, then reconnect.",
+  "@rdpPermissionGranted": {
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpPermissionGranted": "Allowed on this device.",
+  "@rdpPermissionMicrophoneDenied": {
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpPermissionMicrophoneDenied": "Atermius isn’t allowed to use the microphone on this device.",
+  "@rdpPermissionCameraDenied": {
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpPermissionCameraDenied": "Atermius isn’t allowed to use the camera on this device.",
+  "@rdpPermissionAllow": {
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpPermissionAllow": "Allow",
+  "@rdpPermissionOpenSettings": {
+    "description": "RDP Android permissions at connect and in the Host editor."
+  },
+  "rdpPermissionOpenSettings": "Open app settings",
   "keybarShiftGuidance": "Shift: tap for the next key only, double-tap to lock",
   "lockShiftModifier": "Lock Shift modifier",
   "releaseModifiers": "Release Control, Alt and Shift",

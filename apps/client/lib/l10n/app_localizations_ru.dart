@@ -18675,6 +18675,50 @@ class AppLocalizationsRu extends AppLocalizations {
       'Путь к этой папке слишком длинный для подключения (более 259 байт). Выберите папку с более коротким путём.';
 
   @override
+  String get rdpStorageAccessTitle => 'Подключить хранилище этого устройства?';
+
+  @override
+  String rdpStorageAccessBody(String name) {
+    return '«$name» подключает хранилище этого устройства в \\\\tsclient, чтобы в удалённом сеансе можно было открывать и сохранять локальные файлы. Сначала Android должен разрешить Atermius доступ ко всем файлам. Позже это можно изменить в пункте «Подключать локальные диски» в настройках хоста.';
+  }
+
+  @override
+  String get rdpStorageAccessGrant => 'Разрешить доступ';
+
+  @override
+  String get rdpStorageAccessNotNow => 'Не сейчас';
+
+  @override
+  String get rdpStorageAccessDontMap => 'Не подключать диски для этого хоста';
+
+  @override
+  String rdpFoldersNeedAccess(String names) {
+    return 'Папки пропущены, так как нет доступа ко всем файлам: $names. Разрешите его для Atermius в настройках Android и переподключитесь.';
+  }
+
+  @override
+  String rdpDevicesNeedPermission(String names) {
+    return 'Не перенаправлено, так как Android не разрешил Atermius их использовать: $names. Разрешите доступ в параметрах RDP хоста или в настройках Android и переподключитесь.';
+  }
+
+  @override
+  String get rdpPermissionGranted => 'Разрешено на этом устройстве.';
+
+  @override
+  String get rdpPermissionMicrophoneDenied =>
+      'На этом устройстве Atermius не разрешено использовать микрофон.';
+
+  @override
+  String get rdpPermissionCameraDenied =>
+      'На этом устройстве Atermius не разрешено использовать камеру.';
+
+  @override
+  String get rdpPermissionAllow => 'Разрешить';
+
+  @override
+  String get rdpPermissionOpenSettings => 'Открыть настройки приложения';
+
+  @override
   String get keybarShiftGuidance =>
       'Shift: одно касание — следующая клавиша, двойное — фиксация';
 

@@ -17542,6 +17542,50 @@ class AppLocalizationsJa extends AppLocalizations {
       'このフォルダーのパスは長すぎるため共有できません（259 バイト超）。より短いパスのフォルダーを選択してください。';
 
   @override
+  String get rdpStorageAccessTitle => 'このデバイスのストレージを共有しますか？';
+
+  @override
+  String rdpStorageAccessBody(String name) {
+    return '「$name」はこのデバイスのストレージを \\\\tsclient に共有し、リモートセッションでローカルファイルを開いたり保存したりできるようにします。Android では先に Atermius に「すべてのファイルへのアクセス」を許可する必要があります。あとでホストの編集画面の「ローカルディスクを共有」で変更できます。';
+  }
+
+  @override
+  String get rdpStorageAccessGrant => 'アクセスを許可';
+
+  @override
+  String get rdpStorageAccessNotNow => '今はしない';
+
+  @override
+  String get rdpStorageAccessDontMap => 'このホストではディスクを共有しない';
+
+  @override
+  String rdpFoldersNeedAccess(String names) {
+    return '「すべてのファイルへのアクセス」が許可されていないため、次のフォルダーをスキップしました：$names。Android 設定で Atermius に許可してから再接続してください。';
+  }
+
+  @override
+  String rdpDevicesNeedPermission(String names) {
+    return 'Android で Atermius の使用が許可されていないため、次のデバイスはリダイレクトされていません：$names。ホストの RDP オプションまたは Android 設定で許可してから再接続してください。';
+  }
+
+  @override
+  String get rdpPermissionGranted => 'このデバイスで許可されています。';
+
+  @override
+  String get rdpPermissionMicrophoneDenied =>
+      'このデバイスでは Atermius にマイクの使用が許可されていません。';
+
+  @override
+  String get rdpPermissionCameraDenied =>
+      'このデバイスでは Atermius にカメラの使用が許可されていません。';
+
+  @override
+  String get rdpPermissionAllow => '許可';
+
+  @override
+  String get rdpPermissionOpenSettings => 'アプリの設定を開く';
+
+  @override
   String get keybarShiftGuidance => 'Shift：タップで次のキーのみ有効、ダブルタップで固定';
 
   @override

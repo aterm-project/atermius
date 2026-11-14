@@ -276,6 +276,7 @@ class RdpDriveExpansion {
     this.tooLong = const [],
     this.leftOut = const [],
     this.accessRequired = false,
+    this.needAccess = const [],
   });
 
   /// Mappings sent to the engine, Host folders first.
@@ -302,6 +303,10 @@ class RdpDriveExpansion {
 
   /// Android: local volumes were not mapped because All files access is off.
   final bool accessRequired;
+
+  /// Android: Host folders skipped because All files access is off (the
+  /// engine would fail the whole connection on them).
+  final List<String> needAccess;
 }
 
 /// Whether [path] is in the Windows form (`C:\`, `\\server\share`).
@@ -331,7 +336,8 @@ String _shareName(String proposed) {
 
 /// Builds this connection's mappings. The Host's folders come first; a
 /// folder whose path belongs to the other operating system or is too long
-/// for the engine is skipped instead of failing the connection. When
+/// for the engine, or (Android) that cannot be opened because All files
+/// access is off, is skipped instead of failing the connection. When
 /// [automatic] is on, every local volume that is ready now follows, unless a
 /// Host folder already maps the same path; volumes that are not ready,
 /// vanished or whose path is too long are skipped. Names stay unique and the
@@ -344,13 +350,33 @@ Future<RdpDriveExpansion> expandRdpDrives({
   Duration timeout = const Duration(seconds: 10),
 }) async {
   final windows = source.windowsPaths;
+  final android = source.os == RdpAutoDriveOs.android;
+  // Android All files access, read at most once: null when it could not be
+  // read (fails closed for Host folders; maps no volumes, as before).
+  bool? access;
+  var accessRead = false;
+  Future<bool?> hasAccess() async {
+    if (!accessRead) {
+      accessRead = true;
+      try {
+        access = await source.hasAccess().timeout(timeout);
+      } on Object {
+        access = null;
+      }
+    }
+    return access;
+  }
+
   final drives = <RdpDriveRedirect>[];
   final otherDevice = <String>[], tooLong = <String>[];
+  final needAccess = <String>[];
   for (final drive in explicit) {
     if (rdpPathIsWindows(drive.path) != windows) {
       otherDevice.add(drive.name);
     } else if (!rdpPathFitsEngine(drive.path)) {
       tooLong.add(drive.name);
+    } else if (android && await hasAccess() != true) {
+      needAccess.add(drive.name);
     } else {
       drives.add(drive);
     }
@@ -360,10 +386,10 @@ Future<RdpDriveExpansion> expandRdpDrives({
   if (automatic && source.os != null) {
     var volumes = const <RdpLocalVolume>[];
     try {
-      if (source.os == RdpAutoDriveOs.android &&
-          !await source.hasAccess().timeout(timeout)) {
+      final allowed = android ? await hasAccess() : true;
+      if (allowed == false) {
         accessRequired = true;
-      } else {
+      } else if (allowed == true) {
         volumes = await source.volumes().timeout(timeout);
       }
     } on Object {
@@ -404,5 +430,6 @@ Future<RdpDriveExpansion> expandRdpDrives({
     tooLong: List.unmodifiable(tooLong),
     leftOut: List.unmodifiable(leftOut),
     accessRequired: accessRequired,
+    needAccess: List.unmodifiable(needAccess),
   );
 }

@@ -18628,6 +18628,50 @@ class AppLocalizationsEn extends AppLocalizations {
       'This folder’s path is too long to map (over 259 bytes). Choose a folder with a shorter path.';
 
   @override
+  String get rdpStorageAccessTitle => 'Map this device’s storage?';
+
+  @override
+  String rdpStorageAccessBody(String name) {
+    return '“$name” maps this device’s storage under \\\\tsclient, so you can open and save local files in the remote session. Android requires All files access for Atermius first. You can change this later under “Map local disks” when editing the host.';
+  }
+
+  @override
+  String get rdpStorageAccessGrant => 'Allow access';
+
+  @override
+  String get rdpStorageAccessNotNow => 'Not now';
+
+  @override
+  String get rdpStorageAccessDontMap => 'Don’t map disks for this host';
+
+  @override
+  String rdpFoldersNeedAccess(String names) {
+    return 'Skipped folders because All files access is off: $names. Allow it for Atermius in Android Settings, then reconnect.';
+  }
+
+  @override
+  String rdpDevicesNeedPermission(String names) {
+    return 'Not redirected because Android hasn’t allowed Atermius to use them: $names. Allow access in the host’s RDP options or in Android Settings, then reconnect.';
+  }
+
+  @override
+  String get rdpPermissionGranted => 'Allowed on this device.';
+
+  @override
+  String get rdpPermissionMicrophoneDenied =>
+      'Atermius isn’t allowed to use the microphone on this device.';
+
+  @override
+  String get rdpPermissionCameraDenied =>
+      'Atermius isn’t allowed to use the camera on this device.';
+
+  @override
+  String get rdpPermissionAllow => 'Allow';
+
+  @override
+  String get rdpPermissionOpenSettings => 'Open app settings';
+
+  @override
   String get keybarShiftGuidance =>
       'Shift: tap for the next key only, double-tap to lock';
 
