@@ -368,7 +368,8 @@ void main() {
       }
     });
 
-    test('without All files access nothing is listed or requested', () async {
+    test('without All files access nothing is listed or requested, and Host '
+        'folders are skipped instead of failing the connection', () async {
       final source = FakeLocalVolumes(
         os: RdpAutoDriveOs.android,
         access: false,
@@ -382,9 +383,39 @@ void main() {
         source: source,
       );
       expect(expansion.accessRequired, isTrue);
-      expect(expansion.drives, [_drive('Work', '/storage/emulated/0/Work')]);
+      expect(expansion.drives, isEmpty);
+      expect(expansion.needAccess, ['Work']);
       expect(source.listed, 0);
       expect(source.requests, 0);
+    });
+
+    test('with All files access Host folders and volumes map; access that '
+        'cannot be read maps neither', () async {
+      final source = FakeLocalVolumes(
+        os: RdpAutoDriveOs.android,
+        volumes: const [
+          RdpLocalVolume(name: 'Local Storage', path: '/storage/emulated/0'),
+        ],
+      );
+      var expansion = await expandRdpDrives(
+        explicit: [_drive('Work', '/storage/emulated/0/Work')],
+        automatic: true,
+        source: source,
+      );
+      expect(expansion.drives, [
+        _drive('Work', '/storage/emulated/0/Work'),
+        _drive('Local Storage', '/storage/emulated/0'),
+      ]);
+      expect(expansion.needAccess, isEmpty);
+
+      expansion = await expandRdpDrives(
+        explicit: [_drive('Work', '/storage/emulated/0/Work')],
+        automatic: true,
+        source: _UnknownAccess(),
+      );
+      expect(expansion.drives, isEmpty);
+      expect(expansion.needAccess, ['Work']);
+      expect(expansion.accessRequired, isFalse);
     });
   });
 
@@ -564,4 +595,11 @@ void main() {
       expect(partial.unavailable, ['E']);
     });
   });
+}
+
+/// Android whose All files access state cannot be read.
+class _UnknownAccess extends FakeLocalVolumes {
+  _UnknownAccess() : super(os: RdpAutoDriveOs.android);
+  @override
+  Future<bool> hasAccess() async => throw StateError('channel gone');
 }

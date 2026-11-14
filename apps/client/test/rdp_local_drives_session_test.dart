@@ -4,6 +4,7 @@ import 'package:aterm_client/desktop/desktop_session.dart';
 import 'package:aterm_client/desktop/direct/connection.dart';
 import 'package:aterm_client/desktop/rdp_features.dart';
 import 'package:aterm_client/desktop/rdp_local_drives.dart';
+import 'package:aterm_client/desktop/rdp_permissions.dart';
 import 'package:aterm_client/desktop/rdp_settings.dart';
 import 'package:aterm_client/desktop/rdp_storage.dart';
 import 'package:aterm_client/domain/models.dart';
@@ -50,8 +51,12 @@ void main() {
     List<String>? notices,
   }) async {
     final connections = <_Connection>[];
+    // No view attaches here, so nothing is asked (see
+    // rdp_connect_permissions_session_test.dart).
     final session = DesktopSession(
       localDrives: local,
+      permissions: RdpConnectPermissions(),
+      permissionViewWait: Duration.zero,
       directConnectionForTesting: (_) {
         final c = _Connection();
         connections.add(c);
@@ -129,8 +134,9 @@ void main() {
     expect(notices, isEmpty);
   });
 
-  test('Android without All files access connects without local storage, '
-      'never opens Settings and says how to grant it', () async {
+  test('Android without All files access and without a view to ask in '
+      'connects without local storage, never opens Settings and says how to '
+      'grant it', () async {
     final source = FakeLocalVolumes(
       os: RdpAutoDriveOs.android,
       access: false,
