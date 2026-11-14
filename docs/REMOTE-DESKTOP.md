@@ -11,7 +11,7 @@
 | 原生 VNC | 使用应用中的直接 RFB 实现，具体平台取决于构建和运行能力 |
 | 账户模式浏览器 RDP/VNC | 服务端配置 guacd、来源和目标策略 |
 | 临时访客 SSH/RDP | 单独的可信分享网关，要求 SQLite、HTTPS、胶囊与链接策略 |
-| 本机 Shell / 串口 Console | 桌面操作系统和相应 Shell/设备；浏览器不能创建系统进程或串口 |
+| 本机 Shell / 串口 Console | 本机 Shell 需桌面操作系统和已安装的 Shell；串口 Console 支持 Windows COM、macOS `/dev/cu.*`，以及 Android 经 OTG 连接的 USB 转串口适配器（见[快捷连接](QUICK-CONNECT.md)）；浏览器不能创建系统进程或串口 |
 
 添加主机时选择协议并检查端口，默认 SSH/RDP/VNC 分别为 22/3389/5900；保留自定义端口。密码、证书指纹及协议设置随主机加密保存。SSH 跳板、转发、tmux 和 SSH 文件管理不是 RDP/VNC 设置。
 
