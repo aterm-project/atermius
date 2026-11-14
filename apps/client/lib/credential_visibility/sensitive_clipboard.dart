@@ -10,6 +10,8 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../storage/clipboard_secret_marker.dart';
+
 /// Copies a secret to the system clipboard and removes it again after
 /// [clearAfter] and when the owner (a dialog) calls [clear] or [dispose].
 ///
@@ -24,7 +26,8 @@ import 'package:flutter/services.dart';
 /// copy; that is outside the app's control.
 ///
 /// Every value copied here is also remembered as a secret ([isSecret]), so
-/// automatic clipboard sync with remote desktops never sends it on its own.
+/// automatic clipboard sync with remote desktops never sends it on its own,
+/// also after Atermius restarts (see [markSecret]).
 class SensitiveClipboard {
   SensitiveClipboard({
     this.clearAfter = const Duration(minutes: 1),
@@ -70,16 +73,24 @@ class SensitiveClipboard {
   static final _secrets = <String>{};
   static const _maxSecrets = 64;
 
+  // The registry lives only as long as this run (process, or Flutter engine
+  // on Android), while the clipboard keeps a plain copy after it. The marker
+  // says only that some run copied a secret; see [markSecret].
+  static ClipboardSecretMarker _marker = createClipboardSecretMarker();
+  static Future<void>? _restoring;
+  static Future<void> _markerWrites = Future.value();
+
+  /// An earlier run left the marker: the clipboard may still hold its secret.
+  static bool _markerFound = false;
+
+  /// The next text [isSecret] is asked about counts as that secret.
+  static bool _inherited = false;
+  static bool _copiedThisRun = false;
+
   static String _fingerprint(String text) =>
       Hmac(sha256, _secretKey).convert(utf8.encode(text)).toString();
 
-  /// Records [text] as a secret Atermius is about to put on the clipboard
-  /// (credentials, tokens and recovery codes copied with a plain
-  /// [Clipboard.setData] call [markSecret] first). Remote-desktop clipboard
-  /// sync skips such text unless the user pastes it explicitly.
-  static void markSecret(String text) {
-    if (text.isEmpty) return;
-    final fingerprint = _fingerprint(text);
+  static void _remember(String fingerprint) {
     _secrets.remove(fingerprint);
     _secrets.add(fingerprint);
     while (_secrets.length > _maxSecrets) {
@@ -87,12 +98,79 @@ class SensitiveClipboard {
     }
   }
 
-  /// Whether [text] is a secret Atermius copied in this process.
-  static bool isSecret(String text) =>
-      _secrets.isNotEmpty && _secrets.contains(_fingerprint(text));
+  /// Records [text] as a secret Atermius is about to put on the clipboard
+  /// (credentials, tokens and recovery codes copied with a plain
+  /// [Clipboard.setData] call [markSecret] first). Remote-desktop clipboard
+  /// sync skips such text unless the user pastes it explicitly.
+  ///
+  /// The record itself ends with this run, but the copy may not: a
+  /// device-local marker (no content, no hash) also notes that a secret was
+  /// copied. The next run that finds it treats the first text automatic
+  /// sync offers as that secret, and removes the marker once it sees other
+  /// text on the clipboard without having copied a secret itself.
+  static void markSecret(String text) {
+    if (text.isEmpty) return;
+    _remember(_fingerprint(text));
+    // This copy replaces whatever an earlier run left on the clipboard.
+    _inherited = false;
+    _copiedThisRun = true;
+    // After [ready] read the marker, so this run never takes its own marker
+    // for an earlier run's.
+    _markerWrites = _markerWrites
+        .then((_) => ready())
+        .then((_) => _marker.write())
+        .catchError((Object _) {});
+  }
 
+  /// Reads the marker once per run. Automatic clipboard sync waits for it
+  /// before it asks [isSecret]. A marker that cannot be read in time counts
+  /// as found (fails closed).
+  static Future<void> ready() => _restoring ??= _restore();
+
+  static Future<void> _restore() async {
+    bool found;
+    try {
+      found = await _marker.read().timeout(const Duration(seconds: 2));
+    } on Object {
+      found = true;
+    }
+    _markerFound = found;
+    _inherited = found && !_copiedThisRun;
+  }
+
+  /// Whether [text] is a secret Atermius copied in this run, or may be the
+  /// one an earlier run left on the clipboard (see [markSecret]).
+  static bool isSecret(String text) {
+    if (text.isEmpty) return false;
+    final fingerprint = _fingerprint(text);
+    if (_secrets.contains(fingerprint)) return true;
+    if (_inherited) {
+      _inherited = false;
+      _remember(fingerprint);
+      return true;
+    }
+    if (_markerFound && !_copiedThisRun) {
+      // Other text replaced it: no earlier secret is left on the clipboard.
+      // (A run that copied a secret keeps the marker, since its own copy may
+      // still be there.)
+      _markerFound = false;
+      unawaited(_marker.clear().catchError((Object _) {}));
+    }
+    return false;
+  }
+
+  /// Forgets every secret and the marker state; [marker] replaces the
+  /// device-local marker (in memory when omitted).
   @visibleForTesting
-  static void debugForgetSecrets() => _secrets.clear();
+  static void debugForgetSecrets({ClipboardSecretMarker? marker}) {
+    _secrets.clear();
+    _marker = marker ?? MemoryClipboardSecretMarker();
+    _restoring = null;
+    _markerWrites = Future.value();
+    _markerFound = false;
+    _inherited = false;
+    _copiedThisRun = false;
+  }
 
   Future<void> copy(String text) async {
     if (_disposed) return;

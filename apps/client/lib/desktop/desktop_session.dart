@@ -114,6 +114,7 @@ class DesktopSession extends ChangeNotifier {
     send: offerClipboardText,
     notice: _notice,
     writesLocal: writesLocalClipboard,
+    isSecret: clipboardSecretCheck,
   );
 
   /// Direct RDP and VNC sessions sync while connected with the Host's
@@ -126,6 +127,13 @@ class DesktopSession extends ChangeNotifier {
   /// session (a detached window).
   @protected
   bool get writesLocalClipboard => true;
+
+  /// Which local text counts as a secret for [clipboardSync]; null for
+  /// `SensitiveClipboard.isSecret`. A detached window, whose offers the
+  /// main window's sync checks again, passes one that leaves this process's
+  /// registry and the device-local marker alone.
+  @protected
+  bool Function(String text)? get clipboardSecretCheck => null;
 
   /// Sends local text chosen by [clipboardSync] to the remote.
   @protected
@@ -384,9 +392,14 @@ class DesktopSession extends ChangeNotifier {
     if (_pendingNotices.length >= 8) _pendingNotices.removeAt(0);
     _pendingNotices.add(text);
   }
+
   RdpCertificateRequest? certificateRequest;
   bool savingCertificate = false;
   int _directAttempt = 0;
+
+  /// Whether the user started the current direct connection (see
+  /// [connectLocal]); false for one an external AI (MCP) started.
+  bool _userStarted = true;
 
   Future<bool> trustCertificate(RdpCertificateRequest request) async {
     if (_closed ||
@@ -419,7 +432,9 @@ class DesktopSession extends ChangeNotifier {
       if (_closed) return false;
       certificateRequest = null;
       state = 'connecting';
-      await connectLocal(saved);
+      // Trusting the certificate continues the same connection: one an
+      // external AI started still asks for no Android permissions.
+      await connectLocal(saved, userStarted: _userStarted);
       return true;
     } catch (_) {
       if (!_closed) error = currentL10n.theCertificateCouldntBeSavedThe;
@@ -561,16 +576,20 @@ class DesktopSession extends ChangeNotifier {
   /// a [userStarted] RDP connect first asks for the storage, microphone and
   /// camera access its Host needs (see [RdpConnectPermissions]); a connect
   /// started by an external AI (MCP) passes false and only connects without
-  /// what is missing.
+  /// what is missing. Only a [userStarted] connection offers the local
+  /// clipboard text as soon as it is up; for the other one local text goes
+  /// over once the user focuses the desktop or returns to the app.
   Future<void> connectLocal(
     HostRecord host, {
     int? guacdPort,
     bool userStarted = true,
   }) async {
     _reconnectHostId = host.id;
+    _userStarted = userStarted;
     // A reconnect uses the latest saved revision when one is known; an
     // in-session display change of the same Host still carries over below.
-    // The user starts every reconnect (see [reconnect]).
+    // The user starts every reconnect (see [reconnect]), so it is
+    // userStarted whoever opened the session.
     _reconnect = (latest) =>
         connectLocal(latest ?? _host ?? host, guacdPort: guacdPort);
     // An explicit port remains available to the gateway integration tests and
@@ -820,9 +839,11 @@ class DesktopSession extends ChangeNotifier {
             state = 'connected';
             notifyListeners();
             // Like mstsc, each connection starts with the local text; remote
-            // text from before this point never replaces it.
+            // text from before this point never replaces it. A connection
+            // an external AI started never reads the local clipboard on its
+            // own: the view offers it on the user's focus or resume.
             clipboardSync.reset();
-            unawaited(clipboardSync.localMayHaveChanged());
+            if (_userStarted) unawaited(clipboardSync.localMayHaveChanged());
           }
         } catch (_) {
           if (frameAttempt == _directAttempt) rethrow;

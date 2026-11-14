@@ -55,8 +55,8 @@ class _Fixture {
   late final DesktopSession session;
   final notices = <String>[];
 
-  Future<void> connect(HostRecord host) async {
-    await session.connectLocal(host);
+  Future<void> connect(HostRecord host, {bool userStarted = true}) async {
+    await session.connectLocal(host, userStarted: userStarted);
     var consumed = false;
     connection.controller.add(
       DesktopFrame(2, 2, Uint8List(16), onConsumed: () => consumed = true),
@@ -125,6 +125,28 @@ void main() {
         }
       },
     );
+  }
+
+  for (final protocol in [HostProtocol.rdp, HostProtocol.vnc]) {
+    test('$protocol: a connection an external AI starts reads no local text '
+        'until the user focuses it', () async {
+      final f = _Fixture(FakeLocalClipboard(text: 'copied before'));
+      try {
+        await f.connect(_host(protocol), userStarted: false);
+        expect(f.connection.pasted, isEmpty);
+        expect(f.clipboard.reads, 0);
+        expect(f.clipboard.stateChecks, 0);
+        // Remote → local still works.
+        await f.remote('copied remotely');
+        expect(f.clipboard.writes, ['copied remotely']);
+        // The view reports the user's focus (or the app's resume).
+        f.clipboard.copy('copied by the user');
+        await f.session.clipboardSync.localMayHaveChanged();
+        expect(f.connection.pasted, ['copied by the user']);
+      } finally {
+        await f.dispose();
+      }
+    });
   }
 
   test('the Host option off keeps both directions manual-only', () async {

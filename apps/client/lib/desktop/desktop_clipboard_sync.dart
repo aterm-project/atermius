@@ -25,9 +25,10 @@ const desktopClipboardMaxBytes = 65536;
 /// echoes it back. Where the platform tells that the clip did not change
 /// (Android's clip timestamp) the clipboard is not read at all, so Android
 /// 12+ shows its "pasted from your clipboard" toast only for a real change.
-/// Secrets Atermius copied ([SensitiveClipboard.isSecret]) and clips the
-/// copying app marked sensitive are never sent automatically; the session
-/// menu's paste still sends them on request. Where an unprompted read asks
+/// Secrets Atermius copied ([SensitiveClipboard.isSecret], also in an
+/// earlier run) and clips the copying app marked sensitive are never sent
+/// automatically; the session menu's paste still sends them on request.
+/// Where an unprompted read asks
 /// the user ([LocalClipboard.readsQuietly] false: web, iOS, macOS) only
 /// remote → local is automatic. Work runs one operation at a time, so a
 /// local read never races a remote write.
@@ -40,7 +41,11 @@ class DesktopClipboardSync {
     this.writesLocal = true,
     this.maxBytes = desktopClipboardMaxBytes,
     bool Function(String text)? isSecret,
-  }) : _isSecret = isSecret ?? SensitiveClipboard.isSecret;
+    Future<void> Function()? secretsReady,
+  }) : _isSecret = isSecret ?? SensitiveClipboard.isSecret,
+       _secretsReady =
+           secretsReady ??
+           (isSecret == null ? SensitiveClipboard.ready : _noWait);
 
   final LocalClipboard clipboard;
   final bool Function() active;
@@ -55,6 +60,10 @@ class DesktopClipboardSync {
   final bool writesLocal;
   final int maxBytes;
   final bool Function(String text) _isSecret;
+
+  /// Completes once [_isSecret] also knows what an earlier run copied.
+  final Future<void> Function() _secretsReady;
+  static Future<void> _noWait() async {}
 
   String? _synced, _rejected;
   int? _seenStamp;
@@ -127,6 +136,7 @@ class DesktopClipboardSync {
   /// Notices about this text go to [notice] (the window) when given.
   Future<void> offerLocal(String text, {void Function(String)? notice}) =>
       _serial(() async {
+        await _secretsReady();
         if (active() && !_refused) {
           _offer(text, flagged: false, notice: notice);
         }
@@ -137,6 +147,7 @@ class DesktopClipboardSync {
 
   Future<void> _syncLocal() async {
     if (!active() || _refused || !clipboard.readsQuietly) return;
+    await _secretsReady();
     final state = await clipboard.state();
     if (state != null) {
       // Android hands out clips only to the focused app: the next focus
@@ -210,9 +221,12 @@ class DesktopClipboardSync {
       _synced = text;
       _rejected = null;
     } on FormatException catch (error) {
-      // Offered again only after the local text changes.
+      // Offered again only after the local text changes. Every offer here
+      // is automatic, so one notice per connection says why (VNC carries
+      // only Latin-1: each Cyrillic or CJK copy would repeat it); the
+      // session menu's paste reports each attempt itself.
       _rejected = text;
-      _noticeOnce('rejected:${text.hashCode}', error.message, notice);
+      _noticeOnce('rejected', error.message, notice);
     }
   }
 

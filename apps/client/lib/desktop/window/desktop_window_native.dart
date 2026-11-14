@@ -661,6 +661,12 @@ class MirroredDesktopSession extends DesktopSession {
   @override
   bool get writesLocalClipboard => false;
 
+  /// The parent's sync decides about secrets ([offerClipboardText] goes
+  /// through its offerLocal). This process never copies one and must not
+  /// take or clear the parent's "a secret was copied" marker.
+  @override
+  bool Function(String text)? get clipboardSecretCheck => (_) => false;
+
   @override
   void offerClipboardText(String text) {
     if (utf8.encode(text).length > desktopClipboardMaxBytes) {

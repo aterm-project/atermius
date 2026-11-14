@@ -77,11 +77,14 @@ void main() {
   DesktopSession session({
     RdpPermissionPrompter? view,
     Duration wait = Duration.zero,
+    Future<HostRecord> Function(HostRecord host, String sha256)?
+    saveCertificate,
   }) {
     final desktop = DesktopSession(
       localDrives: local,
       permissions: RdpConnectPermissions(broker: broker),
       permissionViewWait: wait,
+      saveRdpCertificate: saveCertificate,
       directConnectionForTesting: (_) {
         final c = _Connection();
         connections.add(c);
@@ -253,6 +256,27 @@ void main() {
       expect(broker.requests, hasLength(1));
     },
   );
+
+  test('trusting the certificate of a connection an external AI started '
+      'continues it without asking', () async {
+    final view = FakeRdpPrompter();
+    final desktop = session(
+      view: view,
+      saveCertificate: (host, sha256) async =>
+          host.copyWith(rdpCertificateSha256: sha256),
+    );
+    await desktop.connectLocal(_host, userStarted: false);
+    connections.single.controller.addError(RdpCertificateException('c' * 64));
+    await pumpEventQueue();
+    final request = desktop.certificateRequest;
+    expect(request, isNotNull);
+    expect(await desktop.trustCertificate(request!), isTrue);
+    expect(connections, hasLength(2));
+    expect(view.explained, isEmpty);
+    expect(source.requests, 0);
+    expect(broker.requests, isEmpty);
+    expect(lines(desktop), contains('\nmicrophone=0\n'));
+  });
 
   test(
     'Host folders are skipped, not fatal, without All files access',

@@ -4,4 +4,6 @@
     <exclude domain="file" path="mcp-access-v1/" />
     <!-- RDP "Map local disks" choices are device-local by design. -->
     <exclude domain="file" path="rdp-local-drives-v1" />
+    <!-- "A secret was copied" note for clipboard sync; this device only. -->
+    <exclude domain="file" path="clipboard-secret-v1" />
 </full-backup-content>

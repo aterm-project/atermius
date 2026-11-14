@@ -1,5 +1,7 @@
 // Automatic remote-desktop text clipboard sync: loop prevention, the 64 KiB
 // limit, the Host option, secrets and Android's focus/timestamp rules.
+import 'dart:async';
+
 import 'package:aterm_client/desktop/desktop_clipboard_sync.dart';
 import 'package:aterm_client/l10n/l10n.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +14,7 @@ class _Harness {
     bool readsQuietly = true,
     bool writesLocal = true,
     Set<String> secrets = const {},
+    Future<void> Function()? secretsReady,
   }) : clipboard = FakeLocalClipboard(
          android: android,
          readsQuietly: readsQuietly,
@@ -27,6 +30,7 @@ class _Harness {
       notice: notices.add,
       writesLocal: writesLocal,
       isSecret: secrets.contains,
+      secretsReady: secretsReady,
     );
   }
 
@@ -188,6 +192,42 @@ void main() {
     h.clipboard.copy('latin');
     await h.sync.localMayHaveChanged();
     expect(h.sent, ['latin']);
+  });
+
+  test('automatic offers the remote rejects are reported once per '
+      'connection, not once per text', () async {
+    final h = _Harness()..rejectWith = 'Latin-1 only';
+    for (final text in ['привет', '你好', 'こんにちは']) {
+      h.clipboard.copy(text);
+      await h.sync.localMayHaveChanged();
+    }
+    await h.sync.offerLocal('другой текст');
+    expect(h.sent, isEmpty);
+    expect(h.notices, ['Latin-1 only']);
+    // A new connection explains it once more.
+    h.sync.reset();
+    h.clipboard.copy('ещё');
+    await h.sync.localMayHaveChanged();
+    expect(h.notices, ['Latin-1 only', 'Latin-1 only']);
+  });
+
+  test('nothing is read or offered before the secret registry knows what '
+      'an earlier run copied', () async {
+    final ready = Completer<void>();
+    final secrets = <String>{};
+    final h = _Harness(secrets: secrets, secretsReady: () => ready.future);
+    h.clipboard.copy('left by an earlier run');
+    final pending = h.sync.localMayHaveChanged();
+    final offered = h.sync.offerLocal('left by an earlier run');
+    await pumpEventQueue();
+    expect(h.clipboard.reads, 0);
+    expect(h.sent, isEmpty);
+    secrets.add('left by an earlier run');
+    ready.complete();
+    await pending;
+    await offered;
+    expect(h.sent, isEmpty);
+    expect(h.notices, [l10n.desktopClipboardSecretSkipped]);
   });
 
   test('a refusing remote stops automatic offers until reset', () async {
