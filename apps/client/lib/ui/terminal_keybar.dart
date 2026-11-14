@@ -11,6 +11,7 @@ import 'package:xterm/xterm.dart';
 
 import '../l10n/l10n.dart';
 import '../storage/terminal_keybar_store.dart';
+import 'clipboard_paste.dart';
 
 /// Soft Ctrl/Alt/Shift state reported by [TerminalKeybar.onModifiersChanged].
 ///
@@ -474,11 +475,14 @@ class _TerminalKeybarState extends State<TerminalKeybar>
   Future<void> _paste() async {
     if (widget.readOnly) return;
     final terminal = widget.terminal;
-    final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
+    // Says why when there is nothing to paste (empty, not text, refused).
+    final text = await readClipboardForPaste(
+      context,
+      maxBytes: terminalPasteMaxBytes,
+    );
     if (!mounted || widget.readOnly || !identical(terminal, widget.terminal)) {
       return;
     }
-    final text = clipboard?.text;
     if (text != null) terminal.paste(text);
     _focusTerminal();
   }

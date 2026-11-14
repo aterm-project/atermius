@@ -11,6 +11,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sodium/sodium_sumo.dart';
+import 'package:xterm/xterm.dart' show TerminalClipboard;
 
 import 'app_controller.dart';
 import 'mcp/mcp_listener_lifecycle.dart';
@@ -23,6 +24,7 @@ import 'platform/file_drop_region.dart' show initializeFileDrop;
 import 'platform/files_window_launch.dart';
 import 'terminal/live_terminal_window.dart';
 import 'ui/app_motion.dart';
+import 'ui/clipboard_paste.dart';
 import 'ui/live_terminal_window_page.dart';
 import 'ui/window_caption.dart';
 import 'ui/workspace_controls.dart';
@@ -64,6 +66,10 @@ import 'ui/cloud_access/guest_app.dart';
 
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Terminal pastes say why when there is nothing to paste (an empty clip,
+  // an image, or a read the system refused) instead of doing nothing.
+  TerminalClipboard.read = (context) =>
+      readClipboardForPaste(context, maxBytes: terminalPasteMaxBytes);
   McpListenerLifecycle.install(
     McpService.instance,
     text: () => McpForegroundText(

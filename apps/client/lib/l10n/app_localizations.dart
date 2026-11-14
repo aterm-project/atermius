@@ -24033,6 +24033,90 @@ abstract class AppLocalizations {
   /// **'Clipboard files'**
   String get desktopClipboardFiles;
 
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Text copied on either side is synced automatically while connected. Secrets are sent only with Paste local clipboard text in the session menu.'**
+  String get desktopClipboardTextSyncHelp;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolution, local scaling and clipboard'**
+  String get vncDisplayAndClipboard;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'The remote clipboard text is larger than 64 KiB, so it wasn\'t copied to this device.'**
+  String get desktopClipboardRemoteTooLarge;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t put the remote clipboard text on this device\'s clipboard.'**
+  String get desktopClipboardWriteFailed;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'The system didn\'t let Atermius read the clipboard, so local text isn\'t sent to the remote desktop automatically. Allow clipboard access for Atermius in the system settings.'**
+  String get desktopClipboardReadDenied;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied text marked as secret wasn\'t sent to the remote desktop automatically. To send it, use Paste local clipboard text in the session menu.'**
+  String get desktopClipboardSecretSkipped;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'The local clipboard text is larger than 64 KiB, so it wasn\'t sent to the remote desktop.'**
+  String get desktopClipboardLocalTooLarge;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'The remote clipboard has no text.'**
+  String get desktopRemoteClipboardEmpty;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'The VNC clipboard carries only Latin-1 text, so this text can\'t be sent.'**
+  String get vncClipboardLatin1Only;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'The clipboard is empty.'**
+  String get clipboardIsEmpty;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'The clipboard has no text to paste (it may hold an image or a file).'**
+  String get clipboardHasNoText;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'The system didn\'t let Atermius read the clipboard. Allow clipboard access for Atermius in the system settings.'**
+  String get clipboardReadDenied;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Android lets only the app in front read the clipboard. Try pasting again.'**
+  String get clipboardReadUnfocused;
+
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'The clipboard text is larger than {limit}, so it wasn\'t pasted.'**
+  String clipboardTextTooLarge(String limit);
+
   /// Desktop RDP/VNC display or local resource setting.
   ///
   /// In en, this message translates to:

@@ -15262,6 +15262,61 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopClipboardFiles => 'Clipboard files';
 
   @override
+  String get desktopClipboardTextSyncHelp =>
+      'Text copied on either side is synced automatically while connected. Secrets are sent only with Paste local clipboard text in the session menu.';
+
+  @override
+  String get vncDisplayAndClipboard =>
+      'Resolution, local scaling and clipboard';
+
+  @override
+  String get desktopClipboardRemoteTooLarge =>
+      'The remote clipboard text is larger than 64 KiB, so it wasn\'t copied to this device.';
+
+  @override
+  String get desktopClipboardWriteFailed =>
+      'Couldn\'t put the remote clipboard text on this device\'s clipboard.';
+
+  @override
+  String get desktopClipboardReadDenied =>
+      'The system didn\'t let Atermius read the clipboard, so local text isn\'t sent to the remote desktop automatically. Allow clipboard access for Atermius in the system settings.';
+
+  @override
+  String get desktopClipboardSecretSkipped =>
+      'Copied text marked as secret wasn\'t sent to the remote desktop automatically. To send it, use Paste local clipboard text in the session menu.';
+
+  @override
+  String get desktopClipboardLocalTooLarge =>
+      'The local clipboard text is larger than 64 KiB, so it wasn\'t sent to the remote desktop.';
+
+  @override
+  String get desktopRemoteClipboardEmpty => 'The remote clipboard has no text.';
+
+  @override
+  String get vncClipboardLatin1Only =>
+      'The VNC clipboard carries only Latin-1 text, so this text can\'t be sent.';
+
+  @override
+  String get clipboardIsEmpty => 'The clipboard is empty.';
+
+  @override
+  String get clipboardHasNoText =>
+      'The clipboard has no text to paste (it may hold an image or a file).';
+
+  @override
+  String get clipboardReadDenied =>
+      'The system didn\'t let Atermius read the clipboard. Allow clipboard access for Atermius in the system settings.';
+
+  @override
+  String get clipboardReadUnfocused =>
+      'Android lets only the app in front read the clipboard. Try pasting again.';
+
+  @override
+  String clipboardTextTooLarge(String limit) {
+    return 'The clipboard text is larger than $limit, so it wasn\'t pasted.';
+  }
+
+  @override
   String get desktopMicrophone => 'Microphone';
 
   @override
