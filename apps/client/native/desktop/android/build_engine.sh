@@ -6,6 +6,8 @@
 # statically; only Android system libraries stay dynamic (verify_engine.py
 # lists them and checks every import against the API_LEVEL stubs). The app
 # loads it through dart:ffi from the APK (no local daemon, no viewer app).
+# Redirection: folders, audio playback and microphone (OpenSL ES), camera
+# (NDK Camera2 + the device's MediaCodec H.264 encoder).
 #
 # Never downloads. Official tarballs listed in deps.lock must already be in
 # --deps; each is verified against its pinned SHA-256 before extraction.
@@ -138,9 +140,8 @@ for abi in "${ABIS[@]}"; do
     -DOPENSSL_SSL_LIBRARY="$ossl_prefix/lib/libssl.a" \
     -DCMAKE_FIND_ROOT_PATH="$ossl_prefix" \
     -DATERMIUS_RDP_DEVICES=ON -DATERMIUS_RDP_PRINTER=OFF -DATERMIUS_RDP_SMARTCARD=OFF \
-    -DATERMIUS_RDP_AUDIO=OFF -DATERMIUS_RDP_CAMERA=OFF -DATERMIUS_RDP_USB=OFF \
-    -DWITH_INTERNAL_MD4=ON -DWITH_INTERNAL_RC4=ON \
-    -DWITH_OPENSLES=OFF -DWITH_AAUDIO=OFF -DWITH_MEDIACODEC=OFF
+    -DATERMIUS_RDP_AUDIO=ON -DATERMIUS_RDP_CAMERA=ON -DATERMIUS_RDP_USB=OFF \
+    -DWITH_INTERNAL_MD4=ON -DWITH_INTERNAL_RC4=ON
   locked "$CMAKE" --build "$build" --target atermius_rdp -j "$JOBS"
 
   dest="$OUT/jniLibs/$abi"
