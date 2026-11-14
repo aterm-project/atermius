@@ -20,7 +20,7 @@ For SSH, compare the displayed host-key fingerprint with a trusted source. For R
 
 Terminal tabs/panes keep their own sessions. Use the pane handle/menu to split, clone, detach or close where the platform supports it. Saved window sets can be reopened from Home; unavailable protocols still require their platform/server prerequisites. The SSH right sidebar provides output search, snippets and input history. A snippet fills input for review before execution. See [terminal tools](TERMINAL-SIDEBAR.md).
 
-Open **SFTP** or **SCP** from the Host/session menu for a file workspace. Confirm the remote path and destination before transfer or replacement. See [features](FEATURES.md) for platform boundaries. Local shells and OS serial Console are desktop features.
+Open **SFTP** or **SCP** from the Host/session menu for a file workspace. Confirm the remote path and destination before transfer or replacement. See [features](FEATURES.md) for platform boundaries. Local shells are desktop features. The serial Console works with COM ports on Windows, /dev/cu.* devices on macOS and, on Android, a USB-to-serial adapter connected through USB OTG.
 
 ## 4. Optional sync and sharing
 

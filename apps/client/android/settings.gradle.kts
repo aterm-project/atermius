@@ -24,3 +24,5 @@ plugins {
 }
 
 include(":app")
+// Vendored USB-to-serial drivers (usb-serial-for-android) for the serial Console.
+include(":usbserial")

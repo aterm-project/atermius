@@ -45,6 +45,11 @@
          granted at install; Home, Overview and Power stay with the system and
          a long Escape press ends capture. -->
     <uses-permission android:name="android.permission.CAPTURE_KEYBOARD" />
+    <!-- Serial Console through USB-to-serial adapters (OTG). Optional, so
+         devices without USB host still install the app. Access is granted
+         per adapter by Android's USB prompt after the user picks it; there
+         is deliberately no USB_DEVICE_ATTACHED filter (no auto-launch). -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <application
         android:label="Atermius"
         android:name="${applicationName}"

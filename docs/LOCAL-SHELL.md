@@ -8,7 +8,9 @@ Atermius terminal tab through a PTY.
 Windows choices include cmd, Windows PowerShell, PowerShell 7 and Git Bash when
 installed. POSIX choices include bash, zsh, fish, sh and PowerShell 7 when found.
 The system-default entry uses the host's normal shell. Browser and mobile
-clients display an explanation that a desktop app is required.
+clients display an explanation that a desktop app is required. Android has no
+local shell; its serial Console (USB-to-serial adapters over OTG) is described
+in [quick connect](QUICK-CONNECT.md).
 
 Use the tab or pane controls to split horizontally or vertically, duplicate,
 move between panes, close, or detach a desktop terminal window. Splitting a lone
@@ -18,10 +20,10 @@ closing one Shell leaves the others running.
 
 Duplicates preserve the selected shell and starting directory. Linux also
 reads the current directory from the running shell when available; Windows and
-macOS retain the configured starting directory. A serial Console keeps its COM
-port and baud rate when duplicated or split. Opening the same serial port may
-fail if the operating system already has it in use; it never falls back to a
-Shell.
+macOS retain the configured starting directory. A serial Console keeps its port
+(COM port, `/dev/cu.*` device or Android `usb:` adapter id) and baud rate when
+duplicated or split. Opening the same serial port may fail if the operating
+system or another tab already has it in use; it never falls back to a Shell.
 
 Saved window sets retain the shell kind and directory in the existing encrypted
 layout storage. Executable paths and command strings are not accepted from a

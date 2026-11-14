@@ -3192,7 +3192,7 @@
   "@theTotalAttachmentPlaintextLengthExceeds": {},
   "attachmentPlaintextDigestOrTotalLength": "Attachment plaintext digest or total length verification failed.",
   "@attachmentPlaintextDigestOrTotalLength": {},
-  "theComSerialConsoleRequiresThe": "The COM serial Console requires the Windows client.",
+  "theComSerialConsoleRequiresThe": "The serial Console requires the Windows, macOS or Android app.",
   "@theComSerialConsoleRequiresThe": {},
   "theBrowserCantStartALocal": "The browser can't start a local shell directly; use the desktop client.",
   "@theBrowserCantStartALocal": {},
@@ -13786,7 +13786,7 @@
   "homeAddSerialConsoleBaud": "Baud rate",
   "homeSharingYou": "{name} (you)",
   "homeAddSerialConsoleTitle": "Open serial Console",
-  "homeAddSerialConsole": "Serial Console (COM)…",
+  "homeAddSerialConsole": "Serial Console…",
   "homeSharingLocalDetail": "This local Profile is stored encrypted on this device only. It has no Vault members, nobody else can see it and no presence is sent. Sign in to an account Vault to share Hosts with other people.",
   "@homeSharingYou": {
     "placeholders": {
@@ -13802,7 +13802,7 @@
       }
     }
   },
-  "homeAddSerialConsoleUnavailable": "Serial Console (Windows app only)",
+  "homeAddSerialConsoleUnavailable": "Serial Console (Windows, macOS and Android apps)",
   "@homeAddSerialConsoleBaud": {},
   "homeSharingPresenceUnknown": "Status unknown",
   "homeSharingOffline": "Offline",
@@ -15982,5 +15982,87 @@
   "cvDatabaseEncryptedAtRest": "Database encrypted at rest (SQLCipher)",
   "@cvDatabaseEncryptedAtRest": {
     "description": "Credential visibility v1 (admin escrow): settings, notices and admin tools."
+  },
+  "usbSerialDialogDetail": "Uses a USB-to-serial adapter connected to this device through USB OTG, at 8N1 without flow control. Supported: CDC-ACM, FTDI, Silicon Labs CP210x, WCH CH340/CH341 and Prolific PL2303. Nothing runs on the server.",
+  "@usbSerialDialogDetail": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialAdaptersHeading": "USB serial adapters",
+  "@usbSerialAdaptersHeading": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialNoAdapters": "Connect a USB serial adapter (OTG)",
+  "@usbSerialNoAdapters": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialNoAdaptersDetail": "Plug the adapter in with an OTG cable or adapter, then tap Refresh.",
+  "@usbSerialNoAdaptersDetail": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialNoUsbHost": "This device doesn't support USB host (OTG), so it can't use USB serial adapters.",
+  "@usbSerialNoUsbHost": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialAdapterFallbackName": "USB serial adapter",
+  "@usbSerialAdapterFallbackName": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialPortNumber": "Port {number}",
+  "@usbSerialPortNumber": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG).",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "usbSerialChooseAdapter": "Choose an adapter.",
+  "@usbSerialChooseAdapter": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialListFailed": "Couldn't list USB serial adapters.",
+  "@usbSerialListFailed": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialPermissionDenied": "USB access to the adapter was denied. Open the Console again and allow access when Android asks.",
+  "@usbSerialPermissionDenied": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialNotAttached": "The USB serial adapter {port} isn't attached. Connect it, or choose an attached adapter in Add → Serial Console.",
+  "@usbSerialNotAttached": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG).",
+    "placeholders": {
+      "port": {
+        "type": "String"
+      }
+    }
+  },
+  "usbSerialAmbiguous": "Several matching USB serial adapters are attached. Choose one in Add → Serial Console.",
+  "@usbSerialAmbiguous": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialUnsupported": "This USB device isn't a supported serial adapter (CDC-ACM, FTDI, CP210x, CH34x or PL2303).",
+  "@usbSerialUnsupported": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialBackground": "Android only asks for USB access while Atermius is in the foreground. Open the Console again from the app.",
+  "@usbSerialBackground": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialPermissionBusy": "Another USB access request is still open. Answer it first.",
+  "@usbSerialPermissionBusy": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialPortBusy": "This serial port is already open in another tab.",
+  "@usbSerialPortBusy": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialOpenFailed": "Couldn't open the USB serial adapter. Unplug it, plug it in again and retry.",
+  "@usbSerialOpenFailed": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "usbSerialDetached": "The USB serial adapter was disconnected.",
+  "@usbSerialDetached": {
+    "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
   }
 }

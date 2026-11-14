@@ -288,6 +288,11 @@ class TerminalTabSession {
   TelnetSession? telnet;
   TelnetConnectCancellation? telnetCancellation;
 
+  /// A Console that is still opening (an Android USB adapter waiting for
+  /// Android's USB access prompt). Stop, disconnect and close end it at once
+  /// so the port is never opened for a tab that no longer wants it.
+  LocalConsole? pendingConsole;
+
   /// The live interactive transport (SSH, Telnet or Console), used for
   /// terminal focus/keyboard decisions. SSH-only features use [connection].
   Object? get liveTerminalTransport => connection ?? telnet ?? console;
@@ -20128,6 +20133,7 @@ class AppController extends ChangeNotifier {
     tab.connectionCancellation = null;
     tab.telnetCancellation?.cancel();
     tab.telnetCancellation = null;
+    _closePendingConsole(tab);
     final output = tab.outputSubscription;
     final connection = tab.connection, telnet = tab.telnet;
     final desktop = tab.desktop, console = tab.console;
@@ -20235,6 +20241,7 @@ class AppController extends ChangeNotifier {
     tab.connectionCancellation = null;
     tab.telnetCancellation?.cancel();
     tab.telnetCancellation = null;
+    _closePendingConsole(tab);
     final connection = tab.connection, telnet = tab.telnet;
     final output = tab.outputSubscription;
     tab.outputSubscription = null;
@@ -20566,8 +20573,9 @@ class AppController extends ChangeNotifier {
   })?
   localConsoleOpenerForTesting;
 
-  /// Opens a local shell (no [serialPort]) or a Windows COM console. The
-  /// signature is kept for MCP/quick-connect callers; see [openLocalShellTab].
+  /// Opens a local shell (no [serialPort]) or a serial Console (COM port,
+  /// /dev/cu.* or Android `usb:` adapter id). The signature is kept for
+  /// MCP/quick-connect callers; see [openLocalShellTab].
   Future<void> openConsoleTab({
     String? serialPort,
     int baudRate = 115200,
@@ -20587,7 +20595,7 @@ class AppController extends ChangeNotifier {
   }) => _openConsoleTab(shell: launch);
 
   /// Opens an independent copy of a Console tab: a serial console reopens the
-  /// same COM port/baud (never a shell), and a local shell reuses its shell
+  /// same port/baud (never a shell), and a local shell reuses its shell
   /// kind and the shell's current (or launch) working directory.
   Future<String?> duplicateConsoleTab(String id) async {
     final source = _terminalTabs[id];
@@ -20619,8 +20627,14 @@ class AppController extends ChangeNotifier {
     int baudRate = 115200,
     TerminalTabSession? reuseTab,
   }) async {
-    if (!localConsoleSupported && localConsoleOpenerForTesting == null) {
-      throw UnsupportedError(currentL10n.theLocalConsoleRequiresTheDesktop);
+    if (localConsoleOpenerForTesting == null) {
+      // Android has the serial Console (USB adapters) but never a shell.
+      if (serialPort == null && !localConsoleSupported) {
+        throw UnsupportedError(currentL10n.theLocalConsoleRequiresTheDesktop);
+      }
+      if (serialPort != null && !serialConsoleSupported) {
+        throw UnsupportedError(currentL10n.theComSerialConsoleRequiresThe);
+      }
     }
     final launch = serialPort == null
         ? shell ?? LocalShellLaunch.systemDefault
@@ -20651,6 +20665,23 @@ class AppController extends ChangeNotifier {
           : serialPort == null
           ? openLocalConsole(launch: launch!)
           : openSerialConsole(serialPort, baudRate: baudRate);
+      if (console case final LocalConsoleStartup startup) {
+        // An Android USB adapter opens after Android's USB access prompt.
+        // The tab stays connecting meanwhile; Stop, disconnect and close end
+        // the pending console at once (see [_closePendingConsole]).
+        tab.pendingConsole = console;
+        try {
+          await startup.ready;
+        } on LocalConsoleStartException {
+          if (_isTerminalTabOpen(tab) &&
+              tab.connectionGeneration == connectionGeneration) {
+            unawaited(console.close().catchError((Object _) {}));
+            rethrow;
+          }
+        } finally {
+          if (identical(tab.pendingConsole, console)) tab.pendingConsole = null;
+        }
+      }
       if (!_isTerminalTabOpen(tab) ||
           tab.connectionGeneration != connectionGeneration) {
         // The tab was closed, stopped or reset while starting.
@@ -20689,15 +20720,29 @@ class AppController extends ChangeNotifier {
       tab.errorMessage = localShellIssueMessage(currentL10n, error.issue);
       tab.terminal.write('\r\n[${tab.errorMessage}]\r\n');
       tab.connectProgress.fail(progressAttempt, tab.errorMessage!);
+    } on LocalConsoleStartException catch (error) {
+      if (tab.connectionGeneration != connectionGeneration) return null;
+      tab.state = 'disconnected';
+      tab.errorMessage = error.message;
+      tab.terminal.write('\r\n[${tab.errorMessage}]\r\n');
+      tab.connectProgress.fail(progressAttempt, tab.errorMessage!);
     } catch (_) {
       if (tab.connectionGeneration != connectionGeneration) return null;
       tab.state = 'disconnected';
-      tab.errorMessage = currentL10n.couldntStartTheLocalShell;
+      tab.errorMessage = serialPort == null
+          ? currentL10n.couldntStartTheLocalShell
+          : currentL10n.theSerialConsoleFailedToStart;
       tab.terminal.write('\r\n[${tab.errorMessage}]\r\n');
       tab.connectProgress.fail(progressAttempt, tab.errorMessage!);
     }
     _notifyListenersIfAlive();
     return tab.id;
+  }
+
+  void _closePendingConsole(TerminalTabSession tab) {
+    final pending = tab.pendingConsole;
+    tab.pendingConsole = null;
+    unawaited(pending?.close().catchError((Object _) {}));
   }
 
   /// Opens and connects an SSH tab through the normal credential, Jump Host
@@ -21826,6 +21871,7 @@ class AppController extends ChangeNotifier {
     tab.desktop = null;
     await desktop?.close();
     desktop?.dispose();
+    _closePendingConsole(tab);
     final console = tab.console;
     tab.console = null;
     await console?.close();

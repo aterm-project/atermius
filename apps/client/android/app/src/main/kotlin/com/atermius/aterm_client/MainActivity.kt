@@ -26,6 +26,7 @@ class MainActivity : FlutterActivity() {
     private var externalFileOpener: ExternalFileOpener? = null
     private var keyboardCapture: KeyboardCapture? = null
     private var clipboardBridge: ClipboardBridge? = null
+    private var usbSerial: UsbSerialBridge? = null
     private var windowFocused = false
     private var topResumed = false
 
@@ -106,6 +107,8 @@ class MainActivity : FlutterActivity() {
         clipboardBridge = ClipboardBridge(this, flutterEngine.dartExecutor.binaryMessenger).also {
             it.focusChanged(windowFocused)
         }
+        // USB permission prompts only while this activity is visible.
+        usbSerial = UsbSerialBridge(this, flutterEngine.dartExecutor.binaryMessenger) { resumed }
         fullscreenChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "atermius/fullscreen").also { channel ->
             channel.setMethodCallHandler { call, result ->
@@ -290,6 +293,9 @@ class MainActivity : FlutterActivity() {
         keyboardCapture = null
         clipboardBridge?.close()
         clipboardBridge = null
+        // Serial Console sessions and USB connections die with the engine.
+        usbSerial?.close()
+        usbSerial = null
         externalFileOpener?.close()
         externalFileOpener = null
         rdpStorage?.close()

@@ -23,7 +23,7 @@ There is no published consumer installer matching the current main branch. Build
 
 The client is one Flutter app:
 
-- SSH terminals, compact Host lists, groups and reusable commands; Telnet, plus local shell and serial Console on desktop.
+- SSH terminals, compact Host lists, groups and reusable commands; Telnet, a local shell on desktop, and serial Console on desktop and on Android (USB-to-serial adapter over OTG).
 - SFTP/SCP file workspaces, split panes and saved window sets where supported.
 - RDP and VNC through direct engines where the platform build has them, or through the server's gateway.
 - Local encrypted profiles or a self-hosted synchronized Vault.

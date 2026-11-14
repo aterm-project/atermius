@@ -1620,12 +1620,20 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
     _LocalTerminalSession? reuseSession,
   }) async {
     final opener = localProfileConsoleOpenerForTesting;
+    // Android has the serial Console (USB adapters) but never a shell.
+    final supported = serialPort == null
+        ? localConsoleSupported
+        : serialConsoleSupported;
     if (_activeProfile == null ||
         (_busy && reuseSession == null) ||
         _disposing ||
-        (!localConsoleSupported && opener == null)) {
-      if (!localConsoleSupported && opener == null && mounted) {
-        unawaited(showLocalShellUnavailable(context));
+        (!supported && opener == null)) {
+      if (!supported && opener == null && mounted) {
+        unawaited(
+          serialPort == null
+              ? showLocalShellUnavailable(context)
+              : showHomeSerialConsoleUnavailable(context),
+        );
       }
       return null;
     }
@@ -1638,6 +1646,16 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
           : serialPort == null
           ? openLocalConsole(launch: launch!)
           : openSerialConsole(serialPort, baudRate: baudRate);
+      if (console case final LocalConsoleStartup startup) {
+        // An Android USB adapter opens after Android's USB access prompt;
+        // the tab is created (or reused) only once the port is open.
+        try {
+          await startup.ready;
+        } on LocalConsoleStartException {
+          unawaited(console.close().catchError((Object _) {}));
+          rethrow;
+        }
+      }
       if (!mounted || _disposing) {
         unawaited(console.close().catchError((Object _) {}));
         return null;
@@ -1670,6 +1688,16 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
       final message = localShellIssueMessage(context.l10n, error.issue);
       _showMessage(message);
       _reportConsoleFailure(reuseSession, launch, serialPort, baudRate, message);
+    } on LocalConsoleStartException catch (error) {
+      if (!mounted || _disposing) return null;
+      _showMessage(error.message);
+      _reportConsoleFailure(
+        reuseSession,
+        launch,
+        serialPort,
+        baudRate,
+        error.message,
+      );
     } catch (error) {
       final message = error is UnsupportedError
           ? error.message ?? context.l10n.thisConsoleIsntSupportedOnThis
@@ -3951,7 +3979,11 @@ _showMessage(error is FileWindowCaptureUnavailable?FileWindowCaptureUnavailable.
         },
         open: (pane) async {
           if (pane.kind == 'console') {
-            if (!localConsoleSupported) return null;
+            if (pane.serialPort == null
+                ? !localConsoleSupported
+                : !serialConsoleSupported) {
+              return null;
+            }
             final id = await _openConsole(
               serialPort: pane.serialPort,
               baudRate: pane.baudRate ?? 115200,

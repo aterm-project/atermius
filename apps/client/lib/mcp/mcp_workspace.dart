@@ -75,7 +75,10 @@ class McpWorkspace {
   final bool Function() localDeviceSupported;
 }
 
-bool _localConsoleSupported() => localConsoleSupported;
+// Android has serial sessions (USB adapters) without a local shell; they
+// are local-device sessions too, so the policy choice must be offered there.
+bool _localConsoleSupported() =>
+    localConsoleSupported || serialConsoleSupported;
 
 Map<String, Object?> mcpHostMetadata(HostRecord host) => {
   'id': host.id,

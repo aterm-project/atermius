@@ -252,4 +252,72 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await settle(tester);
   });
+
+  testWidgets('local Profile: an Android USB serial Console opens only after '
+      'startup and shows why it could not', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final started = <_StartupConsole>[];
+    var fail = true;
+    localProfileConsoleOpenerForTesting =
+        ({LocalShellLaunch? shell, String? serialPort, int baudRate = 115200}) {
+          final console = _StartupConsole(
+            serialPort: serialPort,
+            baudRate: baudRate,
+            failure: fail ? 'USB access to the adapter was denied.' : null,
+          );
+          started.add(console);
+          return console;
+        };
+    await unlock(tester);
+    WorkspaceTabBar bar() =>
+        tester.widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar));
+    Future<void> quickConnect(String text) async {
+      await tester.tap(
+        find.byKey(const ValueKey('workspace_host_search_button')),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('local_host_search')),
+        text,
+      );
+      await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.go);
+      await settle(tester);
+    }
+
+    await quickConnect('console usb:1A86:7523 -b 9600');
+    expect(started.single.serialPort, 'usb:1a86:7523');
+    expect(started.single.closed, isTrue);
+    expect(
+      bar().tabs.where((t) => t.title == 'usb:1a86:7523 · 9600'),
+      hasLength(1),
+    );
+    expect(
+      find.textContaining('USB access to the adapter was denied.'),
+      findsWidgets,
+    );
+
+    fail = false;
+    await quickConnect('console usb:1a86:7523#1');
+    expect(started.last.closed, isFalse);
+    expect(started.last.outputHasListener, isTrue);
+    expect(
+      bar().tabs.where((t) => t.title == 'usb:1a86:7523#1 · 115200'),
+      hasLength(1),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await settle(tester);
+  });
+}
+
+/// Fake Android USB serial console: [ready] fails with [failure] or succeeds.
+class _StartupConsole extends FakeLocalConsole implements LocalConsoleStartup {
+  _StartupConsole({super.serialPort, super.baudRate, String? failure})
+    : ready = failure == null
+          ? Future<void>.value()
+          : Future<void>.error(LocalConsoleStartException(failure));
+
+  @override
+  final Future<void> ready;
 }

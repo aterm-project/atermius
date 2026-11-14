@@ -1,6 +1,8 @@
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/console/local_shell.dart';
+import 'package:aterm_client/console/usb_serial_console.dart';
+import 'package:aterm_client/console/usb_serial_port_id.dart';
 import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/domain/quick_connect.dart';
 import 'package:aterm_client/l10n/app_localizations.dart';
@@ -166,6 +168,7 @@ void main() {
       bool canAdd = true,
       HomeSharingSnapshot snapshot = const HomeSharingSnapshot.local(),
       VoidCallback? onDetails,
+      UsbSerialAccess? usb,
     }) => HomeAddSharingRow(
       idPrefix: 'test',
       canAddHosts: canAdd,
@@ -174,6 +177,7 @@ void main() {
       onSerialConsole: serial.add,
       shellSupportedOverride: shell,
       serialSupportedOverride: serialOk,
+      usbSerialAccess: usb,
       sharing: HomeSharingCluster(
         idPrefix: 'test',
         snapshot: snapshot,
@@ -213,7 +217,7 @@ void main() {
       }
       expect(find.text('New Telnet host'), findsOneWidget);
       expect(find.text('Shell (system default)'), findsOneWidget);
-      expect(find.text('Serial Console (COM)…'), findsOneWidget);
+      expect(find.text('Serial Console…'), findsOneWidget);
       await tester.tapAt(const Offset(5, 690));
       await tester.pumpAndSettle();
 
@@ -284,6 +288,23 @@ void main() {
       expect(shells, isEmpty);
     });
 
+    testWidgets('Android: Console picks a USB adapter instead of a COM name', (
+      tester,
+    ) async {
+      final usb = _FakeUsbAccess();
+      await pumpRow(tester, row: row(shell: false, usb: usb));
+      await choose(tester, 'test_home_add_console');
+      expect(find.byKey(const ValueKey('usb_serial_console_dialog')), findsOne);
+      expect(find.byKey(const ValueKey('home_serial_console_port')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('usb_serial_console_open')));
+      await tester.pumpAndSettle();
+      expect(usb.requested, ['/dev/bus/usb/001/002']);
+      expect(serial.single.kind, QuickConnectKind.serial);
+      expect(serial.single.address, 'usb:1a86:7523');
+      expect(serial.single.baudRate, 115200);
+      expect(shells, isEmpty);
+    });
+
     testWidgets('unsupported Shell/serial show the existing explanations', (
       tester,
     ) async {
@@ -301,7 +322,9 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('The COM serial Console requires the Windows client.'),
+        find.text(
+          'The serial Console requires the Windows, macOS or Android app.',
+        ),
         findsOneWidget,
       );
       expect(shells, isEmpty);
@@ -634,3 +657,31 @@ ApiClient _offlineApi(String baseUrl) => ApiClient(
   baseUrl: baseUrl,
   client: MockClient((_) async => http.Response('', 503)),
 );
+
+/// One CH340 adapter without a serial number; access is always granted.
+class _FakeUsbAccess implements UsbSerialAccess {
+  final requested = <String?>[];
+
+  @override
+  Future<UsbSerialAdapterList> list() async => const UsbSerialAdapterList(
+    usbHost: true,
+    adapters: [
+      UsbSerialAdapter(
+        device: '/dev/bus/usb/001/002',
+        vendorId: 0x1a86,
+        productId: 0x7523,
+        driver: 'CH34x',
+        product: 'USB Serial',
+      ),
+    ],
+  );
+
+  @override
+  Future<bool> requestPermission({
+    String? device,
+    UsbSerialPortId? port,
+  }) async {
+    requested.add(device);
+    return true;
+  }
+}

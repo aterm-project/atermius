@@ -39,7 +39,7 @@ RDP sessions can play remote audio on the device and, per Host, redirect the mic
 
 ## First use and scope
 
-Choose local data or your HTTPS self-hosted instance. SSH uses the native transport; local shell/serial Console and the Windows native RDP engine are not Android features. Temporary guest links can be opened in a supported browser. Mobile OS background limits may interrupt sessions/forwarding. Optional [push hints](../MOBILE-PUSH.md) require separate provider configuration.
+Choose local data or your HTTPS self-hosted instance. SSH uses the native transport; the local shell and the Windows native RDP engine are not Android features. The serial Console works with a USB-to-serial adapter connected through USB OTG (CDC-ACM, FTDI, Silicon Labs CP210x, WCH CH340/CH341, Prolific PL2303): choose **Add → Serial Console…**, pick the adapter and allow access when Android asks; see [quick connect](../QUICK-CONNECT.md). Temporary guest links can be opened in a supported browser. Mobile OS background limits may interrupt sessions/forwarding. Optional [push hints](../MOBILE-PUSH.md) require separate provider configuration.
 
 Before updating an existing build, read "Update an existing build" in the [install overview](../INSTALLATION.en.md).
 

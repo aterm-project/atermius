@@ -1,4 +1,5 @@
 import 'models.dart';
+import '../console/usb_serial_port_id.dart';
 import '../l10n/l10n.dart';
 
 enum QuickConnectKind { ssh, rdp, vnc, console, serial, telnet }
@@ -63,12 +64,21 @@ class QuickConnectRequest {
         throw FormatException(currentL10n.serialFormatConsoleTtyCom3B);
       }
       final rawDevice = args.removeAt(0).replaceFirst(RegExp(r'^@'), '');
-      final posixDevice = RegExp(
-        r'^/dev/(?:cu|tty)\.[A-Za-z0-9._-]+$',
-      ).hasMatch(rawDevice) && !rawDevice.contains('..');
-      final device = posixDevice ? rawDevice : rawDevice.toUpperCase();
-      if (!posixDevice && !RegExp(r'^COM[1-9][0-9]{0,3}$').hasMatch(device)) {
-        throw FormatException(currentL10n.enterAValidSerialPortFor);
+      final String device;
+      if (UsbSerialPortId.claims(rawDevice)) {
+        // Android USB adapter: canonical id, serial number keeps its case.
+        device =
+            UsbSerialPortId.tryParse(rawDevice)?.toString() ??
+            (throw FormatException(currentL10n.enterAValidSerialPortFor));
+      } else {
+        final posixDevice = RegExp(
+          r'^/dev/(?:cu|tty)\.[A-Za-z0-9._-]+$',
+        ).hasMatch(rawDevice) && !rawDevice.contains('..');
+        device = posixDevice ? rawDevice : rawDevice.toUpperCase();
+        if (!posixDevice &&
+            !RegExp(r'^COM[1-9][0-9]{0,3}$').hasMatch(device)) {
+          throw FormatException(currentL10n.enterAValidSerialPortFor);
+        }
       }
       var baud = 115200;
       if (args.isNotEmpty) {

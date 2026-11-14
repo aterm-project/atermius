@@ -39,7 +39,7 @@ RDP 会话可在本机播放远程音频，并可按主机设置重定向麦克�
 
 ## 首次使用与范围
 
-选择本地资料或自己的 HTTPS 实例。SSH 使用原生传输；本机 Shell、串口 Console 和 Windows 原生 RDP 引擎不属于 Android 能力。临时访客链接可在支持的浏览器中打开，前后台策略可能中断会话/转发。[可选推送提示](../MOBILE-PUSH.md)需单独配置。
+选择本地资料或自己的 HTTPS 实例。SSH 使用原生传输；本机 Shell 和 Windows 原生 RDP 引擎不属于 Android 能力。串口 Console 支持经 USB OTG 连接的 USB 转串口适配器（CDC-ACM、FTDI、Silicon Labs CP210x、WCH CH340/CH341、Prolific PL2303）：选择 **添加 → 串口 Console…**，选中适配器，并在 Android 询问时允许访问；详见[快捷连接](../QUICK-CONNECT.md)。临时访客链接可在支持的浏览器中打开，前后台策略可能中断会话/转发。[可选推送提示](../MOBILE-PUSH.md)需单独配置。
 
 更新已有版本前请先阅读[安装总览](../INSTALLATION.md)中的“更新已有版本”。
 
