@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
+import 'desktop_touch_scroll.dart';
+
 /// Converts touchpad gestures to the same pointer packets as a real mouse.
 /// Physical mice are handled by DesktopView and never pass through this class.
 class DesktopTouchInput {
@@ -15,7 +17,8 @@ class DesktopTouchInput {
   Offset? _start;
   Offset? _lastTap;
   DateTime? _started, _lastTapTime;
-  double _travel = 0, _scroll = 0;
+  double _travel = 0;
+  final _scroll = DesktopTouchScroll();
   bool _multiple = false, _dragging = false, _longClicked = false;
   Timer? _hold;
   Rect _bounds = Rect.zero;
@@ -48,7 +51,8 @@ class DesktopTouchInput {
       if (_points.length == 1) {
         _start = event.position;
         _started = DateTime.now();
-        _travel = _scroll = 0;
+        _travel = 0;
+        _scroll.reset();
         _multiple = _longClicked = false;
         _dragging =
             _lastTapTime != null &&
@@ -76,12 +80,9 @@ class DesktopTouchInput {
       _travel += delta.distance;
       if (_travel >= kTouchSlop) _hold?.cancel();
       if (_points.length > 1) {
-        _scroll += delta.dy / _points.length;
-        while (_scroll.abs() >= 20) {
-          final down = _scroll > 0;
-          _mouse(pointer(), down ? 16 : 8);
+        for (final notch in _scroll.move(delta, _points.length)) {
+          _mouse(pointer(), notch);
           _mouse(pointer(), 0);
-          _scroll += down ? -20 : 20;
         }
       } else if (!_multiple && !_longClicked) {
         _mouse(pointer() + delta / scale, _dragging ? 1 : 0);

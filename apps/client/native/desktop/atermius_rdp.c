@@ -1089,8 +1089,14 @@ API int aterm_rdp_mouse(void* handle, int x, int y, UINT32 buttons) {
     if ((buttons ^ c->buttons) & mask)
       ok = freerdp_input_send_mouse_event(input, flags[i] | ((buttons & mask) ? PTR_FLAGS_DOWN : 0), (UINT16)x, (UINT16)y) && ok;
   }
+  // Momentary wheel bits (lib/desktop/desktop_touch_scroll.dart DesktopWheel):
+  // 8 up, 16 down, 32 left, 64 right; one 120-unit notch each. Horizontal
+  // notches use FreeRDP's xfreerdp encoding (buttons 6/7); FreeRDP drops them
+  // when the server does not announce a horizontal wheel.
   if (buttons & 8) ok = freerdp_input_send_mouse_event(input, PTR_FLAGS_WHEEL | 120, 0, 0) && ok;
   if (buttons & 16) ok = freerdp_input_send_mouse_event(input, PTR_FLAGS_WHEEL | PTR_FLAGS_WHEEL_NEGATIVE | 0x88, 0, 0) && ok;
+  if (buttons & 32) ok = freerdp_input_send_mouse_event(input, PTR_FLAGS_HWHEEL | PTR_FLAGS_WHEEL_NEGATIVE | 0x88, 0, 0) && ok;
+  if (buttons & 64) ok = freerdp_input_send_mouse_event(input, PTR_FLAGS_HWHEEL | 120, 0, 0) && ok;
   c->buttons = buttons & 7;
   return ok;
 }

@@ -14,6 +14,7 @@ import '../../terminal/live_terminal_window_contract.dart';
 import '../../terminal/live_terminal_window_native.dart'
     show OwnedLiveTerminalChild;
 import '../desktop_session.dart';
+import '../desktop_touch_scroll.dart';
 import '../direct/connection.dart';
 import 'desktop_window_contract.dart';
 import '../../l10n/l10n.dart';
@@ -462,7 +463,7 @@ class DesktopWindowBroker {
               x > size.width ||
               y > size.height ||
               buttons < 0 ||
-              buttons > 31) {
+              buttons > (7 | DesktopWheel.mask)) {
             throw const FormatException();
           }
           _pointerX = x;
