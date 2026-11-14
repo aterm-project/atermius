@@ -72,7 +72,9 @@ abstract interface class RdpLocalVolumeSource {
   /// Android "All files access". Always true elsewhere. Never prompts.
   Future<bool> hasAccess();
 
-  /// Opens the system permission screen (Android). Explicit user action only.
+  /// Opens the system permission screen (Android). Only after a user action:
+  /// a grant button, or agreeing to the explanation shown when the user
+  /// starts a connection that maps local storage.
   Future<bool> requestAccess();
 
   /// Volumes present now, including ones that are not ready.

@@ -29,7 +29,8 @@ McpWorkspace appMcpWorkspace(AppController app) => McpWorkspace(
         ),
       )
       .toList(),
-  connect: app.openTerminalTab,
+  // An external AI's connect never shows Android permission prompts.
+  connect: app.openTerminalTabForMcp,
   openConsole: app.openConsoleTab,
 );
 

@@ -29410,6 +29410,78 @@ abstract class AppLocalizations {
   /// **'This folder’s path is too long to map (over 259 bytes). Choose a folder with a shorter path.'**
   String get rdpFolderPathTooLong;
 
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Map this device’s storage?'**
+  String get rdpStorageAccessTitle;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'“{name}” maps this device’s storage under \\\\tsclient, so you can open and save local files in the remote session. Android requires All files access for Atermius first. You can change this later under “Map local disks” when editing the host.'**
+  String rdpStorageAccessBody(String name);
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow access'**
+  String get rdpStorageAccessGrant;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get rdpStorageAccessNotNow;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Don’t map disks for this host'**
+  String get rdpStorageAccessDontMap;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Skipped folders because All files access is off: {names}. Allow it for Atermius in Android Settings, then reconnect.'**
+  String rdpFoldersNeedAccess(String names);
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Not redirected because Android hasn’t allowed Atermius to use them: {names}. Allow access in the host’s RDP options or in Android Settings, then reconnect.'**
+  String rdpDevicesNeedPermission(String names);
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed on this device.'**
+  String get rdpPermissionGranted;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius isn’t allowed to use the microphone on this device.'**
+  String get rdpPermissionMicrophoneDenied;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius isn’t allowed to use the camera on this device.'**
+  String get rdpPermissionCameraDenied;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow'**
+  String get rdpPermissionAllow;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Open app settings'**
+  String get rdpPermissionOpenSettings;
+
   /// No description provided for @keybarShiftGuidance.
   ///
   /// In en, this message translates to:

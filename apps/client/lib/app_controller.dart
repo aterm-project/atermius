@@ -20260,6 +20260,7 @@ class AppController extends ChangeNotifier {
     HostRecord host, {
     void Function(String)? onTabOpened,
     TerminalTabSession? reuseTab,
+    bool userStarted = true,
   }) async {
     final client = _requireApi();
     final deviceId = identity?.deviceId;
@@ -20346,7 +20347,13 @@ class AppController extends ChangeNotifier {
           case 'certificate':
             progress.advance(progressAttempt, ConnectStage.awaitingUser);
           case 'connecting':
-            progress.advance(progressAttempt, ConnectStage.connecting);
+            // Waiting for the user in an Android permission prompt.
+            progress.advance(
+              progressAttempt,
+              desktop.awaitingPermission
+                  ? ConnectStage.awaitingUser
+                  : ConnectStage.connecting,
+            );
           case 'disconnected':
             progress.fail(
               progressAttempt,
@@ -20371,7 +20378,7 @@ class AppController extends ChangeNotifier {
     if (reuseTab == null) onTabOpened?.call(tab.id);
     notifyListeners();
     if (DesktopSession.supportsDirect(host.protocol)) {
-      await desktop.connectLocal(host);
+      await desktop.connectLocal(host, userStarted: userStarted);
     } else {
       await desktop.connect(client, deviceId!, host);
     }
@@ -20702,11 +20709,18 @@ class AppController extends ChangeNotifier {
     void Function(String tabId)? onTabOpened,
   }) => _openTerminalTab(host, onTabOpened: onTabOpened);
 
+  /// [openTerminalTab] for a connect an external AI (MCP) starts: a desktop
+  /// never shows Android permission prompts for it and connects without the
+  /// storage, microphone or camera access that is missing.
+  Future<void> openTerminalTabForMcp(HostRecord host) =>
+      _openTerminalTab(host, userStarted: false);
+
   Future<void> _openTerminalTab(
     HostRecord host, {
     String? expectedVaultId,
     void Function(String tabId)? onTabOpened,
     TerminalTabSession? reuseTab,
+    bool userStarted = true,
   }) async {
     final reuseGeneration = reuseTab?.connectionGeneration;
     if (host.protocol == HostProtocol.telnet) {
@@ -20722,6 +20736,7 @@ class AppController extends ChangeNotifier {
         host,
         onTabOpened: onTabOpened,
         reuseTab: reuseTab,
+        userStarted: userStarted,
       );
     }
     final initialKnownHostAccountId = session?.accountId;

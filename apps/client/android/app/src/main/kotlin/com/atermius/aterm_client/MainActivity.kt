@@ -22,6 +22,7 @@ class MainActivity : FlutterActivity() {
     private var leaseOwner: Any? = null
     private var resumed = false
     private var rdpStorage: RdpStorageAccess? = null
+    private var rdpPermissions: RdpDevicePermissions? = null
     private var externalFileOpener: ExternalFileOpener? = null
     private var keyboardCapture: KeyboardCapture? = null
     private var windowFocused = false
@@ -97,7 +98,8 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         loadRdpEngine()
-        rdpStorage = RdpStorageAccess(this, flutterEngine.dartExecutor.binaryMessenger)
+        rdpStorage = RdpStorageAccess(this, flutterEngine.dartExecutor.binaryMessenger) { resumed }
+        rdpPermissions = RdpDevicePermissions(this, flutterEngine.dartExecutor.binaryMessenger) { resumed }
         externalFileOpener = ExternalFileOpener(this, flutterEngine.dartExecutor.binaryMessenger)
         keyboardCapture = KeyboardCapture(this, flutterEngine.dartExecutor.binaryMessenger, firstWindow())
         fullscreenChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
@@ -269,7 +271,9 @@ class MainActivity : FlutterActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // Each broker ignores request codes other than its own.
         rdpStorage?.activityResult(requestCode)
+        rdpPermissions?.permissionsResult(requestCode, permissions, grantResults)
         if (requestCode != REQUEST_NOTIFICATIONS && requestCode != REQUEST_SSH_NOTIFICATIONS) return
         McpForegroundLease.recheckNotifications(applicationContext)
         SshSessionKeepalive.recheckNotifications(applicationContext)
@@ -283,6 +287,8 @@ class MainActivity : FlutterActivity() {
         externalFileOpener = null
         rdpStorage?.close()
         rdpStorage = null
+        rdpPermissions?.close()
+        rdpPermissions = null
         transferChannel?.setMethodCallHandler(null)
         transferChannel = null
         mcpChannel?.setMethodCallHandler(null)

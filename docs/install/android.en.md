@@ -43,4 +43,6 @@ Choose local data or your HTTPS self-hosted instance. SSH uses the native transp
 
 Before updating an existing build, read "Update an existing build" in the [install overview](../INSTALLATION.en.md).
 
+Remote desktop (RDP) requests no permission at app startup. It asks only when the user starts a connection or turns the matching switch on in a Host's RDP options: mapping local disks needs All files access (an in-app explanation comes before the system Settings page), and microphone or camera redirection needs the microphone or camera permission. If one is refused, the connection proceeds without that redirection; it can be allowed later in the system app settings. Devices without a microphone or camera can still install the app. See [Remote desktop](../REMOTE-DESKTOP.md#storage-mappings-and-direct-touch).
+
 [First use](../GETTING_STARTED.en.md) · [Troubleshooting](../TROUBLESHOOTING.en.md) · [Developer checks](../DEVELOPMENT.md)

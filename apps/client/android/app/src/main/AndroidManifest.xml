@@ -1,11 +1,28 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Network access is required by release builds for API, sync, SSH relay and SFTP. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Live native RDP disk/folder mapping. Requested in system Settings
-         only after an explicit Add disk/folder action, never at startup. -->
+    <!-- Live native RDP disk/folder mapping. Never requested at startup: only
+         after an explicit Add disk/folder action or grant button, or when the
+         user starts an RDP connection that maps local storage and agrees in
+         the in-app explanation (then system Settings opens; API 29 and lower
+         show the runtime dialog instead). -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <!-- RDP microphone and camera redirection (the engine records and captures
+         inside the session). Never requested at startup: only when the user
+         turns the Host's Microphone/Cameras switch on, or starts an RDP
+         connection that has it on (once per Host per app process). Denied:
+         the session connects without that device. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Optional: devices without a microphone or camera still install. The
+         CAMERA permission would otherwise imply a required rear camera with
+         autofocus (store filtering, Chromebooks), so those are declared too. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- External-AI MCP: user-started loopback listener kept reachable by a

@@ -14,11 +14,17 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 /** Native RDPDR uses live filesystem paths, rather than a copied SAF cache.
- * Storage access is requested only by an explicit user action (adding a
- * mapping, or the grant button of the Host's "Map local disks" switch);
- * connecting only checks it. The engine receives only the drive= lines Dart
- * built for the current connection. */
-class RdpStorageAccess(private val activity: Activity, messenger: BinaryMessenger) {
+ * Storage access is requested only after a user action: adding a mapping,
+ * the grant button of the Host's "Map local disks" switch, or "Allow access"
+ * in the in-app explanation shown when the user starts an RDP connection that
+ * maps local storage (once per Host per app process). Requests need the
+ * resumed activity; "checkAccess" never prompts. The engine receives only the
+ * drive= lines Dart built for the current connection. */
+class RdpStorageAccess(
+    private val activity: Activity,
+    messenger: BinaryMessenger,
+    private val resumed: () -> Boolean,
+) {
     private val channel = MethodChannel(messenger, "atermius/rdp_storage")
     private var pending: MethodChannel.Result? = null
 
@@ -47,6 +53,8 @@ class RdpStorageAccess(private val activity: Activity, messenger: BinaryMessenge
     private fun request(result: MethodChannel.Result) {
         if (hasAccess()) { result.success(true); return }
         if (pending != null) { result.error("busy", "A storage request is already open", null); return }
+        // Settings or the runtime dialog never open over another app.
+        if (!resumed()) { result.success(false); return }
         pending = result
         try {
             if (Build.VERSION.SDK_INT >= 30) {

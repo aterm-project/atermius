@@ -243,7 +243,8 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
           'workspace_busy',
           'The workspace is busy.',
         );
-      await _connectLocalHost(host);
+      // An external AI's connect never shows Android permission prompts.
+      await _connectLocalHost(host, userStarted: false);
     },
     openConsole: _openConsole,
   );
@@ -1921,12 +1922,15 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
     }
   }
 
+  /// [userStarted] is false for connects an external AI (MCP) starts: a
+  /// desktop then never asks for Android permissions.
   Future<void> _connectLocalHost(
     HostRecord host, {
     bool Function()? shouldContinue,
     void Function(_LocalTerminalSession session)? onSessionOpened,
     void Function(_LocalTerminalSession session)? onTabCreated,
     _LocalTerminalSession? reuseSession,
+    bool userStarted = true,
   }) async {
     if (kIsWeb) {
       // A browser LocalVault has no authenticated Relay and cannot open raw
@@ -2057,7 +2061,13 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
           case 'certificate':
             tab.progress.advance(attempt, ConnectStage.awaitingUser);
           case 'connecting':
-            tab.progress.advance(attempt, ConnectStage.connecting);
+            // Waiting for the user in an Android permission prompt.
+            tab.progress.advance(
+              attempt,
+              desktop.awaitingPermission
+                  ? ConnectStage.awaitingUser
+                  : ConnectStage.connecting,
+            );
           case 'disconnected':
             tab.progress.fail(
               attempt,
@@ -2078,7 +2088,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
       } else if (mounted) {
         setState(() {});
       }
-      await desktop.connectLocal(host);
+      await desktop.connectLocal(host, userStarted: userStarted);
       return;
     }
     final repository = _repository;

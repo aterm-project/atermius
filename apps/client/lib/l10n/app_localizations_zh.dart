@@ -16650,6 +16650,48 @@ class AppLocalizationsZh extends AppLocalizations {
   String get rdpFolderPathTooLong => '此文件夹路径过长（超过 259 字节），无法映射。请选择路径更短的文件夹。';
 
   @override
+  String get rdpStorageAccessTitle => '要映射本机存储吗？';
+
+  @override
+  String rdpStorageAccessBody(String name) {
+    return '“$name”会把本机存储映射到 \\\\tsclient 下，以便在远程会话中打开和保存本机文件。Android 要求先为 Atermius 授予“所有文件访问权限”。之后可在编辑主机时的“映射本机磁盘”处更改。';
+  }
+
+  @override
+  String get rdpStorageAccessGrant => '允许访问';
+
+  @override
+  String get rdpStorageAccessNotNow => '暂不';
+
+  @override
+  String get rdpStorageAccessDontMap => '此主机不映射磁盘';
+
+  @override
+  String rdpFoldersNeedAccess(String names) {
+    return '未授予“所有文件访问权限”，已跳过以下文件夹：$names。请在 Android 设置中为 Atermius 授权，然后重新连接。';
+  }
+
+  @override
+  String rdpDevicesNeedPermission(String names) {
+    return 'Android 未允许 Atermius 使用以下设备，因此未重定向：$names。请在主机的 RDP 选项或 Android 设置中允许，然后重新连接。';
+  }
+
+  @override
+  String get rdpPermissionGranted => '已在本设备上允许。';
+
+  @override
+  String get rdpPermissionMicrophoneDenied => '本设备未允许 Atermius 使用麦克风。';
+
+  @override
+  String get rdpPermissionCameraDenied => '本设备未允许 Atermius 使用摄像头。';
+
+  @override
+  String get rdpPermissionAllow => '允许';
+
+  @override
+  String get rdpPermissionOpenSettings => '打开应用设置';
+
+  @override
   String get keybarShiftGuidance => 'Shift：单击仅对下一个按键生效，双击锁定';
 
   @override

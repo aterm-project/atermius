@@ -4,6 +4,8 @@ Future<void> requestRdpStorageAccess() async {}
 Future<List<RdpStorageRoot>> localRdpStorageRoots() async => const [];
 Future<void> validateRdpDriveConfig(String config) async {}
 
+bool get rdpRuntimePermissionsRequired => false;
+
 /// No local volumes are mapped automatically on the web.
 RdpLocalVolumeSource platformRdpLocalVolumeSource() =>
     const _NoLocalVolumes();

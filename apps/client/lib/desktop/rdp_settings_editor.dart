@@ -6,6 +6,7 @@ import 'desktop_resolution.dart';
 import 'desktop_resolution_picker.dart';
 import 'rdp_features.dart';
 import 'rdp_local_drives.dart';
+import 'rdp_permissions.dart';
 import 'rdp_settings.dart';
 import 'rdp_storage.dart';
 import '../l10n/l10n.dart';
@@ -28,6 +29,7 @@ class RdpSettingsEditor extends StatefulWidget {
     this.localDrives,
     this.mapLocalDisks = true,
     this.onMapLocalDisksChanged,
+    this.permissions,
   });
   final RdpSettings initial;
   final ValueChanged<RdpSettings> onChanged;
@@ -51,13 +53,20 @@ class RdpSettingsEditor extends StatefulWidget {
 
   /// The stored entry was written by a newer version; saving replaces it.
   final bool unreadable;
+
+  /// Android microphone/camera permissions on this device. Turning either
+  /// switch on asks right away (an explicit action) and the state is shown
+  /// under it. The switch itself is the synchronized Host setting and stays
+  /// on when Android refuses: other devices may allow it.
+  final RdpPermissionBroker? permissions;
   @override
   State<RdpSettingsEditor> createState() => _RdpSettingsEditorState();
 }
 
 enum _RdpEditorError { settings, invalidFolder, folderPathTooLong }
 
-class _RdpSettingsEditorState extends State<RdpSettingsEditor> {
+class _RdpSettingsEditorState extends State<RdpSettingsEditor>
+    with WidgetsBindingObserver {
   late RdpSettings _value = widget.initial;
   late final _usb = TextEditingController(
     text: widget.initial.usbDevices.join(', '),
@@ -65,11 +74,126 @@ class _RdpSettingsEditorState extends State<RdpSettingsEditor> {
   _RdpEditorError? _error;
   String? _pickerError;
   bool _picking = false;
+  final _permissionStates = <RdpDevicePermission, RdpPermissionState>{};
+  final _requesting = <RdpDevicePermission>{};
+  int _checks = 0;
+
+  RdpPermissionBroker? get _broker {
+    final broker = widget.permissions;
+    return broker != null && broker.active ? broker : null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_checkPermissions());
+  }
+
+  /// Android Settings (or the permission dialog) may have changed them.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_checkPermissions());
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _usb.dispose();
     super.dispose();
+  }
+
+  /// Device permissions this engine could use. Checking never prompts.
+  Set<RdpDevicePermission> get _devicePermissions => {
+    if (widget.features.has(RdpFeatures.audioIn))
+      RdpDevicePermission.microphone,
+    if (widget.features.has(RdpFeatures.camera)) RdpDevicePermission.camera,
+  };
+
+  Future<void> _checkPermissions() async {
+    final broker = _broker, wanted = _devicePermissions;
+    if (broker == null || wanted.isEmpty) return;
+    final check = ++_checks;
+    try {
+      final states = await broker.check(wanted);
+      if (!mounted || check != _checks) return;
+      setState(() => _permissionStates.addAll(states));
+    } on Object {
+      // Unknown: no state line until a check succeeds.
+    }
+  }
+
+  /// Only after the user turned a switch on or pressed Allow.
+  Future<void> _requestPermission(RdpDevicePermission permission) async {
+    final broker = _broker;
+    if (broker == null ||
+        _permissionStates[permission] == RdpPermissionState.granted ||
+        !_requesting.add(permission)) {
+      return;
+    }
+    setState(() {});
+    try {
+      final states = await broker.request({permission});
+      // A check started before the answer must not overwrite it.
+      _checks++;
+      if (mounted) setState(() => _permissionStates.addAll(states));
+    } on Object {
+      // Not in front or another request open: the state line stays.
+    } finally {
+      if (mounted) setState(() => _requesting.remove(permission));
+    }
+  }
+
+  /// Under an enabled microphone/camera switch: allowed, or refused with
+  /// Allow (Android still asks) or Open app settings (it no longer does).
+  Widget _permissionStatus(RdpDevicePermission permission, bool on) {
+    final state = _permissionStates[permission];
+    final broker = _broker;
+    if (broker == null || !on || state == null) return const SizedBox.shrink();
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final name = permission.name;
+    if (state == RdpPermissionState.granted) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          l10n.rdpPermissionGranted,
+          key: _k('${name}_permission'),
+          style: theme.textTheme.bodySmall,
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            permission == RdpDevicePermission.microphone
+                ? l10n.rdpPermissionMicrophoneDenied
+                : l10n.rdpPermissionCameraDenied,
+            key: _k('${name}_permission'),
+            style: TextStyle(color: theme.colorScheme.error),
+          ),
+          if (state == RdpPermissionState.permanentlyDenied)
+            TextButton(
+              key: _k('${name}_permission_settings'),
+              onPressed: () => unawaited(broker.openSettings()),
+              child: Text(l10n.rdpPermissionOpenSettings),
+            )
+          else
+            TextButton(
+              key: _k('${name}_permission_allow'),
+              onPressed: _requesting.contains(permission)
+                  ? null
+                  : () => unawaited(_requestPermission(permission)),
+              child: Text(l10n.rdpPermissionAllow),
+            ),
+        ],
+      ),
+    );
   }
 
   void _set(RdpSettings next) {
@@ -360,12 +484,15 @@ class _RdpSettingsEditorState extends State<RdpSettingsEditor> {
               ? (mode) => _set(v.copyWith(audio: mode))
               : null,
         ),
-        _switch(
-          'microphone',
-          context.l10n.desktopMicrophone,
-          v.microphone,
-          (on) => _set(v.copyWith(microphone: on)),
-          feature: RdpFeatures.audioIn,
+        _switch('microphone', context.l10n.desktopMicrophone, v.microphone, (
+          on,
+        ) {
+          _set(v.copyWith(microphone: on));
+          if (on) unawaited(_requestPermission(RdpDevicePermission.microphone));
+        }, feature: RdpFeatures.audioIn),
+        _permissionStatus(
+          RdpDevicePermission.microphone,
+          v.microphone && widget.features.has(RdpFeatures.audioIn),
         ),
         DropdownButtonFormField<RdpPrinterMode>(
           isExpanded: true,
@@ -409,9 +536,16 @@ class _RdpSettingsEditorState extends State<RdpSettingsEditor> {
           'cameras',
           context.l10n.desktopCameras,
           v.cameras,
-          (on) => _set(v.copyWith(cameras: on)),
+          (on) {
+            _set(v.copyWith(cameras: on));
+            if (on) unawaited(_requestPermission(RdpDevicePermission.camera));
+          },
           feature: RdpFeatures.camera,
           subtitle: context.l10n.requiresCameraRedirectionSupportOnThe,
+        ),
+        _permissionStatus(
+          RdpDevicePermission.camera,
+          v.cameras && widget.features.has(RdpFeatures.camera),
         ),
         const SizedBox(height: 8),
         Wrap(
