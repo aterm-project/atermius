@@ -63,4 +63,6 @@ jobs:
         working-directory: apps/client
       - run: flutter test --concurrency=2 test/session_recovery_test.dart test/desktop_reconnect_test.dart test/telnet_app_controller_test.dart test/terminal_tabs_controller_test.dart test/telnet_local_profile_widget_test.dart test/terminal_tabs_widget_test.dart
         working-directory: apps/client
+      - run: flutter test --concurrency=2 test/rdp_settings_test.dart test/rdp_connect_permissions_test.dart test/rdp_connect_permissions_session_test.dart test/rdp_permission_prompts_widget_test.dart test/local_clipboard_test.dart test/desktop_clipboard_sync_test.dart test/desktop_clipboard_session_test.dart test/desktop_clipboard_view_test.dart test/usb_serial_port_id_test.dart test/usb_serial_console_test.dart test/usb_serial_console_dialog_test.dart test/usb_serial_console_tab_test.dart test/atermius_icons_test.dart
+        working-directory: apps/client
       - run: python3 -I integration/native/android_apk_abi_check.py --self-test
