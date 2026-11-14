@@ -7,6 +7,7 @@ import 'desktop_keyboard_mode.dart';
 import 'keyboard_capture.dart';
 import 'desktop_touch_input.dart';
 import 'desktop_direct_touch.dart';
+import 'desktop_touch_scroll.dart';
 import '../ui/app_motion.dart';
 
 import 'dart:async';
@@ -964,15 +965,14 @@ class DesktopViewState extends State<DesktopView>
                             _release();
                           },
                           onPointerSignal: (e) {
-                            if (e is PointerScrollEvent) {
+                            // Physical wheels keep the OS direction; only
+                            // touch gestures use natural scrolling.
+                            final wheel = e is PointerScrollEvent
+                                ? DesktopWheel.forScrollDelta(e.scrollDelta)
+                                : null;
+                            if (wheel != null) {
                               GestureBinding.instance.pointerSignalResolver
-                                  .register(
-                                    e,
-                                    (_) => mouse(
-                                      e,
-                                      wheel: e.scrollDelta.dy < 0 ? 8 : 16,
-                                    ),
-                                  );
+                                  .register(e, (_) => mouse(e, wheel: wheel));
                             }
                           },
                           child: ClipRect(

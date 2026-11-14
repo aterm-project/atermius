@@ -558,7 +558,52 @@ void main() {
       handle(const PointerMoveEvent(pointer: 1, position: Offset(300, 345)));
       handle(const PointerUpEvent(pointer: 1));
       handle(const PointerUpEvent(pointer: 2));
-      expect(events.map((e) => e.$2), [16, 0]);
+      // Content follows the fingers: moving them down scrolls up.
+      expect(events.map((e) => e.$2), [8, 0]);
+    });
+    for (final (name, move, notch) in [
+      ('down scrolls up', const Offset(0, 50), 8),
+      ('up scrolls down', const Offset(0, -50), 16),
+      ('right scrolls left', const Offset(50, 0), 32),
+      ('left scrolls right', const Offset(-50, 0), 64),
+    ]) {
+      test('two fingers moving $name and never move the cursor', () {
+        handle(const PointerDownEvent(pointer: 1, position: Offset(300, 300)));
+        handle(const PointerDownEvent(pointer: 2, position: Offset(340, 300)));
+        handle(
+          PointerMoveEvent(pointer: 1, position: const Offset(300, 300) + move),
+        );
+        handle(
+          PointerMoveEvent(pointer: 2, position: const Offset(340, 300) + move),
+        );
+        handle(const PointerUpEvent(pointer: 1));
+        handle(const PointerUpEvent(pointer: 2));
+        // 50 px with both fingers = two notches; each notch is released.
+        expect(events.map((e) => e.$2), [notch, 0, notch, 0]);
+        expect(point, const Offset(100, 100));
+      });
+    }
+    test('a mostly vertical two-finger swipe never scrolls sideways', () {
+      handle(const PointerDownEvent(pointer: 1, position: Offset(300, 300)));
+      handle(const PointerDownEvent(pointer: 2, position: Offset(340, 300)));
+      for (var i = 1; i <= 10; i++) {
+        handle(
+          PointerMoveEvent(
+            pointer: 1,
+            position: Offset(300 + 6.0 * i, 300 + 20.0 * i),
+          ),
+        );
+        handle(
+          PointerMoveEvent(
+            pointer: 2,
+            position: Offset(340 + 6.0 * i, 300 + 20.0 * i),
+          ),
+        );
+      }
+      handle(const PointerUpEvent(pointer: 1));
+      handle(const PointerUpEvent(pointer: 2));
+      expect(events.map((e) => e.$2).where((b) => b != 0), everyElement(8));
+      expect(events.map((e) => e.$2).where((b) => b != 0), hasLength(10));
     });
     test('second tap and drag holds button; cancel releases and clears it', () {
       handle(const PointerDownEvent(pointer: 1, position: Offset(300, 300)));
