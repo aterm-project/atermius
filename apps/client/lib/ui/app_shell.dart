@@ -25,6 +25,7 @@ import '../desktop/desktop_view.dart';
 import '../desktop/window/desktop_tab_windows.dart';
 import 'host_file_session.dart';
 import 'host_system_icon.dart';
+import 'atermius_icons.dart';
 import 'file_workspace_tabs.dart';
 import 'group_session_layout.dart';
 import 'remote_file_workspace.dart';
@@ -1876,6 +1877,10 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                       WorkspaceTab(
                         id: tab.id,
                         title: tab.host?.name ?? context.l10n.terminal,
+                        icon: switch (tab.host?.protocol) {
+                          final protocol? => hostSessionIcon(protocol),
+                          null => null,
+                        },
                         isConnected: tab.state == 'connected',
                         canDisconnect: tab.host?.protocol.isTerminal == true && tab.console == null &&
                             (tab.state == 'connected' || tab.state == 'connecting' || tab.recovery?.automaticEnabled == true),
@@ -4831,7 +4836,7 @@ class _HostCard extends StatelessWidget {
             WorkspaceAction(
               'host-connect-${host.id}',
               context.l10n.connect2,
-              Icons.terminal,
+              hostSessionIcon(host.protocol),
               onConnect,
             ),
             WorkspaceAction(
@@ -4983,7 +4988,7 @@ class _HostCard extends StatelessWidget {
                           WorkspaceAction(
                             'host-connect-${host.id}',
                             context.l10n.connect2,
-                            Icons.terminal,
+                            hostSessionIcon(host.protocol),
                             onConnect,
                           ),
                           WorkspaceAction(
@@ -15697,7 +15702,7 @@ class _SettingsPage extends StatelessWidget {
           SettingsSection(
             id: 'remote-desktop',
             title: context.l10n.remoteDesktop,
-            icon: Icons.desktop_windows_outlined,
+            icon: AtermiusIcons.remoteDesktop,
             description: context.l10n.desktopKeyboardModeTitle,
             builder: (_) => const SettingsCard(child: DesktopKeyboardSettings()),
           ),

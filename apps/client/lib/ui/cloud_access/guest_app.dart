@@ -15,6 +15,7 @@ import '../../desktop/desktop_view.dart';
 import '../../l10n/l10n.dart';
 import '../app_theme.dart';
 import '../app_theme_mode.dart';
+import '../atermius_icons.dart';
 import 'cloud_access_common.dart';
 import 'guest_display_store.dart';
 
@@ -456,9 +457,11 @@ class _ReadyView extends StatelessWidget {
           Card(
             child: ListTile(
               leading: Icon(
-                target['protocol'] == 'ssh'
-                    ? Icons.terminal
-                    : Icons.desktop_windows_outlined,
+                switch (target['protocol']) {
+                  'ssh' => Icons.terminal,
+                  'rdp' => AtermiusIcons.remoteDesktop,
+                  _ => Icons.desktop_windows_outlined,
+                },
                 color: target['protocol'] == 'ssh'
                     ? palette.teal
                     : palette.hostBlue,

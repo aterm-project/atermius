@@ -92,6 +92,7 @@ import 'keychain_page.dart';
 import 'password_field.dart';
 import 'session_logs_page.dart';
 import 'host_system_icon.dart';
+import 'atermius_icons.dart';
 import 'host_card_layout.dart';
 import 'terminal_palette.dart';
 import 'terminal_keyword_highlight_settings.dart';
@@ -4705,6 +4706,7 @@ _showMessage(
                     WorkspaceTab(
                       id: session.id,
                       title: session.host.name,
+                      icon: hostSessionIcon(session.host.protocol),
                       isConnected: session.connected.value,
                       canDisconnect: session.console == null && session.desktop == null &&
                           (session.connected.value || session.telnetState == 'connecting' ||
@@ -5519,7 +5521,7 @@ _showMessage(
       WorkspaceAction(
         'local_host_connect',
         context.l10n.connectDirectFromThisDevice,
-        Icons.terminal,
+        hostSessionIcon(host.protocol),
         () => _connectLocalHost(host),
         enabled: !_busy,
       ),
@@ -5996,7 +5998,7 @@ _showMessage(
         SettingsSection(
           id: 'remote-desktop',
           title: context.l10n.remoteDesktop,
-          icon: Icons.desktop_windows_outlined,
+          icon: AtermiusIcons.remoteDesktop,
           description: context.l10n.desktopKeyboardModeTitle,
           builder: (_) => const SettingsCard(child: DesktopKeyboardSettings()),
         ),
