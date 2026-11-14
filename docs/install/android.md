@@ -41,4 +41,6 @@ Android 原生 RDP 引擎 `libatermius_rdp.so` 的构建与打包步骤见[远�
 
 更新已有版本前请先阅读[安装总览](../INSTALLATION.md)中的“更新已有版本”。
 
+远程桌面（RDP）不在应用启动时申请权限，只在用户发起连接或在主机 RDP 选项中打开相应开关时申请：映射本机磁盘需要“所有文件访问权限”（先显示应用内说明再打开系统设置），麦克风、摄像头重定向需要麦克风、相机权限。拒绝后连接照常进行，只是不含该重定向；可随时在系统的应用设置中开启。没有麦克风或摄像头的设备同样可以安装。详见[远程桌面](../REMOTE-DESKTOP.md#storage-mappings-and-direct-touch)。
+
 [首次使用](../GETTING_STARTED.md) · [常见问题](../TROUBLESHOOTING.md) · [开发验证](../DEVELOPMENT.md)
