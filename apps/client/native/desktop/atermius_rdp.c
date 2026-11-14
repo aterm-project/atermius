@@ -27,6 +27,16 @@
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 #include <openssl/crypto.h>
+#if defined(_WIN32) && defined(ATERMIUS_RDP_AUDIO)
+#include <mmsystem.h>
+// A Windows client without an audio endpoint (a VM or server without a sound
+// device, or a disconnected remote session) makes FreeRDP's winmm rdpsnd/audin
+// backends fail while channels connect, and FreeRDP then aborts the whole
+// connection (ERRCONNECT_POST_CONNECT_FAILED, 0x20003). Such a client connects
+// without local playback or capture instead.
+static BOOL win_audio_out_available(void) { return waveOutGetNumDevs() > 0; }
+static BOOL win_audio_in_available(void) { return waveInGetNumDevs() > 0; }
+#endif
 #ifdef _WIN32
 #define API __declspec(dllexport)
 #else
@@ -982,20 +992,26 @@ API void* aterm_rdp_create_ex(const char* host, int port, const char* user,
   }
 #endif
   BOOLVAL(DeviceRedirection, devices);
-  BOOLVAL(AudioPlayback, cfg.audio == 0);
+  BOOL play_local = cfg.audio == 0;
+  BOOL capture = cfg.microphone ? TRUE : FALSE;
+#if defined(_WIN32) && defined(ATERMIUS_RDP_AUDIO)
+  if (play_local && !win_audio_out_available()) play_local = FALSE;
+  if (capture && !win_audio_in_available()) capture = FALSE;
+#endif
+  BOOLVAL(AudioPlayback, play_local);
   BOOLVAL(RemoteConsoleAudio, cfg.audio == 1);
-  BOOLVAL(AudioCapture, cfg.microphone);
+  BOOLVAL(AudioCapture, capture);
 #if defined(ATERMIUS_RDP_AUDIO)
   // The OS devices open only when the server first plays or records. On
   // Android a player or recorder that does not open (e.g. no microphone
   // permission) is logged and that direction stays silent; the session goes
   // on (freerdp_patches.cmake 5, 6).
-  if (cfg.audio == 0) {
+  if (play_local) {
     const char* params[] = { "rdpsnd", AUDIO_SUBSYSTEM };
     if (!freerdp_client_add_static_channel(s, 2, params)) goto fail;
     if (!freerdp_client_add_dynamic_channel(s, 2, params)) goto fail;
   }
-  if (cfg.microphone) {
+  if (capture) {
     const char* params[] = { "audin", AUDIO_SUBSYSTEM };
     if (!freerdp_client_add_dynamic_channel(s, 2, params)) goto fail;
   }
