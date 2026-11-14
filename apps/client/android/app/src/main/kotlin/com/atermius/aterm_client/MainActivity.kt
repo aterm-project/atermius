@@ -24,6 +24,7 @@ class MainActivity : FlutterActivity() {
     private var rdpStorage: RdpStorageAccess? = null
     private var externalFileOpener: ExternalFileOpener? = null
     private var keyboardCapture: KeyboardCapture? = null
+    private var usbSerial: UsbSerialBridge? = null
     private var windowFocused = false
     private var topResumed = false
 
@@ -100,6 +101,8 @@ class MainActivity : FlutterActivity() {
         rdpStorage = RdpStorageAccess(this, flutterEngine.dartExecutor.binaryMessenger)
         externalFileOpener = ExternalFileOpener(this, flutterEngine.dartExecutor.binaryMessenger)
         keyboardCapture = KeyboardCapture(this, flutterEngine.dartExecutor.binaryMessenger, firstWindow())
+        // USB permission prompts only while this activity is visible.
+        usbSerial = UsbSerialBridge(this, flutterEngine.dartExecutor.binaryMessenger) { resumed }
         fullscreenChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "atermius/fullscreen").also { channel ->
             channel.setMethodCallHandler { call, result ->
@@ -279,6 +282,9 @@ class MainActivity : FlutterActivity() {
         // Ends any capture and Samsung Meta key request with the engine (onDestroy).
         keyboardCapture?.close()
         keyboardCapture = null
+        // Serial Console sessions and USB connections die with the engine.
+        usbSerial?.close()
+        usbSerial = null
         externalFileOpener?.close()
         externalFileOpener = null
         rdpStorage?.close()

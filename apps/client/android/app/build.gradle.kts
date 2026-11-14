@@ -114,6 +114,11 @@ kotlin {
     }
 }
 
+dependencies {
+    // USB-to-serial adapter drivers for the serial Console (UsbSerialBridge).
+    implementation(project(":usbserial"))
+}
+
 flutter {
     source = "../.."
 }

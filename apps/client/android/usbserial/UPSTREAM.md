@@ -2,8 +2,9 @@
 
 - Upstream: [mik3y/usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android)
 - Base release: tag `3.11.0` (2026-07-18). The newer 3.12.0 (2026-11-10) was
-  only four days old when this was vendored and only adds CH34x RTS/CTS flow
-  control, which the serial Console does not use.
+  only four days old when this was vendored; it adds CH34x RTS/CTS flow
+  control, which the serial Console does not use, and lowers the CH34x baud
+  rate deviation at 307200 baud. Pick it up with the next update.
 - Source archive: https://github.com/mik3y/usb-serial-for-android/archive/refs/tags/3.11.0.tar.gz
   (sha256 `9fc12819db958e0e83bc3ec276600758e42e049ec528341c43954768a0793af4`,
   downloaded twice into fresh directories with identical hashes)
@@ -48,5 +49,7 @@ and reports a failed open instead of crashing.
 
 When updating, download the new tag's archive into an empty directory, record
 its URL and SHA-256 here, diff the vendored files against it, re-apply the
-`UsbSerialProber` change and re-run the Android compile check
-(`./gradlew :app:compileDebugKotlin` from `apps/client/android`).
+`UsbSerialProber` change and re-run the Android compile check (Gradle task
+`:app:compileDebugKotlin` from `apps/client/android`, for example with the
+Gradle distribution a `flutter build apk --debug` downloaded, since no wrapper
+script is checked in) and `apps/client/test/usb_serial_*_test.dart`.
