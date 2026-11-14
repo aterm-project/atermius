@@ -984,8 +984,8 @@ _snack(
         },
         open: (pane) async {
           if (pane.kind == 'console') {
-            if (!localConsoleSupported) return null;
             if (pane.serialPort == null) {
+              if (!localConsoleSupported) return null;
               final id = await app.openLocalShellTab(
                 launch: pane.shell ?? LocalShellLaunch.systemDefault,
               );
@@ -994,6 +994,10 @@ _snack(
                   .firstOrNull
                   ?.id;
             }
+            // A port that cannot open now (adapter not attached, another
+            // adapter, access declined) leaves a failed tab that says why
+            // and counts as a failed pane.
+            if (!serialConsoleSupported) return null;
             final before = app.terminalTabs.map((t) => t.id).toSet();
             await app.openConsoleTab(
               serialPort: pane.serialPort,

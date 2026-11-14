@@ -3904,7 +3904,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get attachmentPlaintextDigestOrTotalLength => '附件明文摘要或总长度验证失败。';
 
   @override
-  String get theComSerialConsoleRequiresThe => 'COM 串口 Console 需要 Windows 客户端。';
+  String get theComSerialConsoleRequiresThe =>
+      '串口 Console 需要 Windows、macOS 或 Android 应用。';
 
   @override
   String get theBrowserCantStartALocal => '浏览器不能直接启动本机 Shell，请使用桌面客户端。';
@@ -15480,14 +15481,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homeAddSerialConsoleTitle => '打开串口 Console';
 
   @override
-  String get homeAddSerialConsole => '串口 Console（COM）…';
+  String get homeAddSerialConsole => '串口 Console…';
 
   @override
   String get homeSharingLocalDetail =>
       '此本地配置文件仅加密保存在本设备上。它没有保险库成员，其他人无法看到，也不会发送在线状态。登录账户保险库即可与他人共享主机。';
 
   @override
-  String get homeAddSerialConsoleUnavailable => '串口 Console（仅 Windows 应用）';
+  String get homeAddSerialConsoleUnavailable =>
+      '串口 Console（Windows、macOS 和 Android 应用）';
 
   @override
   String get homeSharingPresenceUnknown => '状态未知';
@@ -17131,4 +17133,67 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cvDatabaseEncryptedAtRest => '数据库已静态加密（SQLCipher）';
+
+  @override
+  String get usbSerialDialogDetail =>
+      '通过 USB OTG 使用连接到本设备的 USB 转串口适配器，以 8N1、无流控方式打开。支持 CDC-ACM、FTDI、Silicon Labs CP210x、WCH CH340/CH341 和 Prolific PL2303。不会在服务器上运行任何内容。';
+
+  @override
+  String get usbSerialAdaptersHeading => 'USB 串口适配器';
+
+  @override
+  String get usbSerialNoAdapters => '请连接 USB 串口适配器（OTG）';
+
+  @override
+  String get usbSerialNoAdaptersDetail => '用 OTG 线或转接头插入适配器，然后点按“刷新”。';
+
+  @override
+  String get usbSerialNoUsbHost => '此设备不支持 USB 主机（OTG），无法使用 USB 串口适配器。';
+
+  @override
+  String get usbSerialAdapterFallbackName => 'USB 串口适配器';
+
+  @override
+  String usbSerialPortNumber(int number) {
+    return '端口 $number';
+  }
+
+  @override
+  String get usbSerialChooseAdapter => '请选择一个适配器。';
+
+  @override
+  String get usbSerialListFailed => '无法列出 USB 串口适配器。';
+
+  @override
+  String get usbSerialPermissionDenied =>
+      'USB 适配器的访问权限被拒绝。请重新打开 Console，并在 Android 询问时允许访问。';
+
+  @override
+  String usbSerialNotAttached(String port) {
+    return 'USB 串口适配器 $port 未连接。请连接它，或在“添加 → 串口 Console”中选择已连接的适配器。';
+  }
+
+  @override
+  String get usbSerialAmbiguous =>
+      '连接了多个匹配的 USB 串口适配器。请在“添加 → 串口 Console”中选择一个。';
+
+  @override
+  String get usbSerialUnsupported =>
+      '此 USB 设备不是受支持的串口适配器（CDC-ACM、FTDI、CP210x、CH34x 或 PL2303）。';
+
+  @override
+  String get usbSerialBackground =>
+      'Android 只在 Atermius 位于前台时询问 USB 访问权限。请在应用中重新打开 Console。';
+
+  @override
+  String get usbSerialPermissionBusy => '另一个 USB 访问请求尚未处理，请先回应它。';
+
+  @override
+  String get usbSerialPortBusy => '此串口已在另一个标签页中打开。';
+
+  @override
+  String get usbSerialOpenFailed => '无法打开 USB 串口适配器。请拔下后重新插入再试。';
+
+  @override
+  String get usbSerialDetached => 'USB 串口适配器已断开连接。';
 }
