@@ -9,6 +9,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.AssetFileDescriptor
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -22,8 +23,12 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Text clipboard for Dart where Flutter's own reader falls short on Android
@@ -48,6 +53,10 @@ import java.util.concurrent.Executors
  *   planted on the clipboard must never make Atermius, which may hold All
  *   files access, read a document on another app's behalf. Reads are capped
  *   at maxBytes and run off the main thread because a provider may be slow.
+ *   The provider controls how long a URI read takes, so each runs on a
+ *   thread of its own with a deadline ([URI_READ_TIMEOUT_MS]) after which
+ *   its descriptor is closed: a stalled provider never holds up later
+ *   reads (terminal paste, automatic remote-desktop sync).
  * - "changed" tells Dart that the primary clip changed while this activity
  *   has window focus (the listener is registered only then).
  * - "openSettings" opens this app's system settings page, where such a ROM
@@ -58,6 +67,8 @@ class ClipboardBridge(private val activity: Activity, messenger: BinaryMessenger
     private val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private val main = Handler(Looper.getMainLooper())
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
+    /** URI reads still running, including ones abandoned after the deadline. */
+    private val uriReads = AtomicInteger()
     private var listening = false
     private var closed = false
     private val listener = ClipboardManager.OnPrimaryClipChangedListener {
@@ -221,31 +232,97 @@ class ClipboardBridge(private val activity: Activity, messenger: BinaryMessenger
             false
         }
         if (!granted) return null
-        return try {
-            val descriptor = activity.contentResolver.openTypedAssetFileDescriptor(uri, "text/*", null)
-                ?: return null
-            descriptor.use {
-                it.createInputStream().use { input ->
-                    val out = ByteArrayOutputStream()
-                    val buffer = ByteArray(8192)
-                    while (true) {
-                        val n = input.read(buffer)
-                        if (n < 0) break
-                        out.write(buffer, 0, n)
-                        if (out.size() > budget) return ItemText.TooLarge
-                    }
-                    ItemText.Found(
-                        StandardCharsets.UTF_8.newDecoder()
-                            .onMalformedInput(CodingErrorAction.REPLACE)
-                            .onUnmappableCharacter(CodingErrorAction.REPLACE)
-                            .decode(ByteBuffer.wrap(out.toByteArray()))
-                            .toString()
-                    )
+        // A blocked read cannot be interrupted, and a binder call into the
+        // provider not even by closing; such threads are left to finish on
+        // their own, at most MAX_URI_READS of them.
+        if (uriReads.incrementAndGet() > MAX_URI_READS) {
+            uriReads.decrementAndGet()
+            return null
+        }
+        val read = UriRead()
+        val task = FutureTask<ItemText?>(Callable { read.run(uri, budget) })
+        try {
+            Thread({
+                try {
+                    task.run()
+                } finally {
+                    uriReads.decrementAndGet()
                 }
+            }, "atermius-clipboard-uri").apply { isDaemon = true }.start()
+        } catch (_: Throwable) {
+            uriReads.decrementAndGet()
+            return null
+        }
+        return try {
+            task.get(URI_READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        } catch (_: Exception) {
+            // Timed out, failed, or close() interrupted the worker. Closing
+            // the descriptor fails a pipe read blocked in the provider.
+            read.abandon()
+            task.cancel(true)
+            null
+        }
+    }
+
+    /** One content URI read on its own thread; [abandon] may come from another. */
+    private inner class UriRead {
+        private var descriptor: AssetFileDescriptor? = null // guarded by this
+        private var abandoned = false // guarded by this
+
+        fun run(uri: Uri, budget: Int): ItemText? = try {
+            val opened = activity.contentResolver.openTypedAssetFileDescriptor(uri, "text/*", null)
+            if (opened == null || !adopt(opened)) {
+                null
+            } else {
+                opened.use { readText(it, budget) }
             }
         } catch (_: Exception) {
-            // Gone, not text, or the provider refused.
+            // Gone, not text, the provider refused, or abandoned meanwhile.
             null
+        }
+
+        @Synchronized
+        private fun adopt(opened: AssetFileDescriptor): Boolean {
+            if (abandoned) {
+                closeQuietly(opened)
+                return false
+            }
+            descriptor = opened
+            return true
+        }
+
+        @Synchronized
+        fun abandon() {
+            abandoned = true
+            descriptor?.let { closeQuietly(it) }
+            descriptor = null
+        }
+
+        private fun closeQuietly(descriptor: AssetFileDescriptor) {
+            try {
+                descriptor.close()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun readText(descriptor: AssetFileDescriptor, budget: Int): ItemText {
+        descriptor.createInputStream().use { input ->
+            val out = ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            while (true) {
+                val n = input.read(buffer)
+                if (n < 0) break
+                out.write(buffer, 0, n)
+                if (out.size() > budget) return ItemText.TooLarge
+            }
+            return ItemText.Found(
+                StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPLACE)
+                    .onUnmappableCharacter(CodingErrorAction.REPLACE)
+                    .decode(ByteBuffer.wrap(out.toByteArray()))
+                    .toString()
+            )
         }
     }
 
@@ -263,6 +340,9 @@ class ClipboardBridge(private val activity: Activity, messenger: BinaryMessenger
     companion object {
         private const val READ_CLIPBOARD_OP = "android:read_clipboard"
         private const val MAX_HTML_CHARS = 4 * 1024 * 1024
+        /** Below Dart's 5 s read timeout, so the reader still answers in time. */
+        private const val URI_READ_TIMEOUT_MS = 3000L
+        private const val MAX_URI_READS = 2
 
         /** ClipDescription.EXTRA_IS_SENSITIVE (API 33); older apps set it too. */
         private const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
