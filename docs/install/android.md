@@ -41,4 +41,6 @@ Android 原生 RDP 引擎 `libatermius_rdp.so` 的构建与打包步骤见[远�
 
 更新已有版本前请先阅读[安装总览](../INSTALLATION.md)中的“更新已有版本”。
 
+剪贴板：Android 没有可申请或安装时授予的剪贴板权限，只有前台应用能读取；Android 12 起读取其他应用复制的文本时系统会提示“已粘贴”。部分厂商系统另有剪贴板权限，被拒绝时粘贴会说明原因并提供“设置”按钮。远程桌面会话在主机“剪贴板文本”开启时自动同步文本，见[远程桌面](../REMOTE-DESKTOP.md#clipboard)。
+
 [首次使用](../GETTING_STARTED.md) · [常见问题](../TROUBLESHOOTING.md) · [开发验证](../DEVELOPMENT.md)

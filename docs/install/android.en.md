@@ -41,4 +41,6 @@ Choose local data or your HTTPS self-hosted instance. SSH uses the native transp
 
 Before updating an existing build, read "Update an existing build" in the [install overview](../INSTALLATION.en.md).
 
+Clipboard: Android has no clipboard permission an app can request or receive at install time, and only the app in front may read the clipboard; Android 12 and later show a "pasted" message when Atermius reads text copied in another app. Some vendor systems add their own clipboard permission; when it refuses, paste explains why and offers a Settings button. Remote desktop sessions sync text automatically while the Host's Clipboard text option is on; see [remote desktop](../REMOTE-DESKTOP.md#clipboard).
+
 [First use](../GETTING_STARTED.en.md) · [Troubleshooting](../TROUBLESHOOTING.en.md) · [Developer checks](../DEVELOPMENT.md)

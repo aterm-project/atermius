@@ -29,6 +29,8 @@ Windows 原生引擎提供文本/文件剪贴板与可用资源重定向的设�
 
 远程桌面获得焦点后，按键发往远端；Windows 的 **Ctrl+Alt+Home** 打开本机会话菜单，其他绑定按应用设置处理。
 
+直接连接的 RDP/VNC 会话在主机“剪贴板文本”开启（默认开启）时自动双向同步文本剪贴板；iOS、macOS 与浏览器只自动同步远端到本机。规则与 Android 的限制见 [Clipboard](#clipboard)。
+
 ## Android 直接连接
 
 Android 上 RDP/VNC 只走直接连接，在会话标签和分屏内显示：VNC 由应用内 RFB 实现连接目标地址；RDP 由 APK 内引擎连接。连接使用系统路由和当前 VPN，不绑定特定网络，也不读取进程环境中的 HTTP(S) 代理；VPN 阻断目标时连接照常失败。任何模式（含已登录账户）都不会回退到本机 `127.0.0.1:4822` 或服务端桌面网关。未打包引擎的 APK 中，RDP 明确报告“无法启动 RDP 引擎”。
@@ -47,9 +49,9 @@ Windows 直接 RDP 构建步骤见[桌面版构建指南](install/desktop.md)。
 
 ## 已知边界与验证
 
-RDP 目标的 NLA、域策略、所有键盘布局、资源/剪贴板组合仍需相应环境验证。VNC 支持的传统 RFB 传输不提供端到端加密，未实现所有专有/VeNCrypt 认证；传统剪贴板按 Latin-1 处理，不承诺完整 Unicode 剪贴板。当前源码 CI 的组件/协议检查不等于新的 Windows/macOS/Android/iOS 可视 GUI 验收。
+RDP 目标的 NLA、域策略、所有键盘布局、资源/剪贴板组合仍需相应环境验证。VNC 支持的传统 RFB 传输不提供端到端加密，未实现所有专有/VeNCrypt 认证；传统剪贴板按 Latin-1 处理，不承诺完整 Unicode 剪贴板，含其他字符的文本不会发送并给出提示。当前源码 CI 的组件/协议检查不等于新的 Windows/macOS/Android/iOS 可视 GUI 验收。
 
-针对性测试入口为 `apps/client/test/desktop_protocol_test.dart`、`desktop_host_editor_test.dart`、Android 路由的 `android_direct_desktop_test.dart`/`android_desktop_route_test.dart` 及显式启用的网关/Console 验收文件。前后端链路参考[集成说明](INTEGRATION.md)。环境条件不足的跳过不算真实目标通过；物理硬件和当前安装包验收单独记录。
+针对性测试入口为 `apps/client/test/desktop_protocol_test.dart`、`desktop_host_editor_test.dart`、剪贴板的 `desktop_clipboard_sync_test.dart`/`desktop_clipboard_session_test.dart`/`desktop_clipboard_view_test.dart`/`local_clipboard_test.dart`、Android 路由的 `android_direct_desktop_test.dart`/`android_desktop_route_test.dart` 及显式启用的网关/Console 验收文件。前后端链路参考[集成说明](INTEGRATION.md)。环境条件不足的跳过不算真实目标通过；物理硬件和当前安装包验收单独记录。
 
 参考：[Guacamole 协议](https://guacamole.apache.org/doc/gug/guacamole-protocol.html)、[RDP 配置](https://guacamole.apache.org/doc/gug/configuring-guacamole.html)、[Flutter Windows 分发](https://docs.flutter.dev/platform-integration/windows/building)。
 
@@ -75,6 +77,19 @@ The navigation bar's Tools menu and remote desktop's three-dot menu provide Ente
 On Android/iOS, pull a tab down to lift it from a scrolling strip, then drag to a highlighted pane edge. A diagonal pull is accepted while a horizontal swipe still scrolls tabs. A drop in the centre leaves the layout intact; a small amount of corner jitter keeps the highlighted direction. Stationary long-press still opens the tab/group context menu.
 
 VNC IME text retains legacy Latin-1 keysyms where available, and uses Unicode keysyms for additional characters, as required for maximum compatibility by [RFC 6143 §7.5.4](https://www.rfc-editor.org/rfc/rfc6143.html#section-7.5.4). RDP uses Unicode text events when no soft modifier is active.
+
+## Clipboard
+
+Direct RDP (built-in engine) and VNC sessions sync text automatically while connected when the Host's **Clipboard text** option is on. It is on by default; VNC Hosts have the same switch under VNC display. Turning it off drops remote text and refuses pastes for that Host. Gateway sessions (account-mode browser RDP/VNC and guest links) keep the manual menu items only.
+
+- Remote to this device: text copied on the remote computer is placed on this device's clipboard. Text over 64 KiB is not copied, with a notice. Remote clipboard content from before the connection was established never replaces the local clipboard.
+- This device to remote: like mstsc, each new connection first offers the local text. After that the local clipboard is checked when the desktop gains focus, when the app returns to the foreground and, on Android, when the clip changes while Atermius has focus (for example in the keyboard's clipboard). Only text that changed since the last sync is sent, and text that came from the remote is never sent back.
+- Never sent automatically: secrets Atermius copied itself (credentials from the credential viewer, recovery codes, invitation tokens, the MCP configuration, share and organization invitation links) and clips another app marked sensitive, such as an Android password manager. A notice says so; **Paste local clipboard text** in the session menu still sends them on request.
+- iOS, macOS and browsers ask the user before an app reads the clipboard on its own, so there only remote to local is automatic; send local text with **Paste local clipboard text**.
+- Detached and per-monitor windows on Windows offer local text through the main window, so one text is sent once.
+- The session menu keeps **Paste local clipboard text** and **Copy remote clipboard text** as a fallback. They report an empty clipboard, content that is not text, a refused read or text over 64 KiB instead of doing nothing. If the RDP server has its clipboard channel turned off, a notice says so once and automatic sending stops for that connection.
+
+On Android no app can request a clipboard permission, and none is granted at install time. Since Android 10 only the app in front can read the clipboard, so Atermius reads it only while it has window focus. Android 12 and later show "Atermius pasted from your clipboard" when it reads text copied in another app; automatic sync checks the clip's timestamp first and reads only a changed clip, so the message appears once per new copy. Some phones (MIUI/HyperOS, ColorOS, OriginOS and others) add their own clipboard permission, often set to Ask or Deny. When it refuses, paste and sync say so, and a paste offers a Settings button for Atermius' app page. Atermius reads every item of a clip: plain text, HTML as text, and links copied as a URI. A document behind a content URI is read only for a paste you start, and only when the copying app shared it through the clipboard; access Atermius has of its own, such as All files access, is never used for it. Terminal paste (keybar Paste, the touch toolbar's Paste and the paste shortcut) uses the same reader and messages and pastes up to 16 MiB at once.
 
 ## Storage mappings and direct touch
 
