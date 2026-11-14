@@ -9,7 +9,13 @@ that would not load or would not behave as the Dart FFI bindings expect:
   and WinPR's ``JNI_OnLoad`` (run by System.loadLibrary to record the JavaVM)
   must be defined, and nothing else may be exported (static FreeRDP/OpenSSL
   symbols stay hidden so they cannot interpose on other libraries);
-* only Android system libraries may be NEEDED (no undeclared .so to package);
+* only Android system libraries may be NEEDED (no undeclared .so to package),
+  and the engine must load on its --api level: each NEEDED library must exist
+  there and define every strong import (the NDK sysroot's stub libraries for
+  that API are the reference). A newer library or symbol would make the whole
+  engine fail to load on older devices;
+* a weak import missing at --api (an NDK API called only behind
+  ``__builtin_available``) must be one of the reviewed GUARDED_WEAK_IMPORTS;
 * every PT_LOAD segment must be aligned for 16 KB page devices.
 
 Standard library only; reads ELF metadata with the NDK's llvm-readelf.
@@ -56,7 +62,39 @@ REQUIRED_EXPORTS = frozenset(
         "JNI_OnLoad",
     }
 )
-SYSTEM_LIBRARIES = frozenset({"libc.so", "libm.so", "libdl.so", "liblog.so", "libz.so"})
+# Audio uses OpenSL ES (not AAudio, which needs API 26); the camera uses NDK
+# Camera2 + AImageReader and the MediaCodec H.264 encoder.
+SYSTEM_LIBRARIES = frozenset(
+    {
+        "libc.so",
+        "libm.so",
+        "libdl.so",
+        "liblog.so",
+        "libz.so",
+        "libOpenSLES.so",
+        "libcamera2ndk.so",
+        "libmediandk.so",
+    }
+)
+# Weak imports newer than --api resolve to null on older devices and must
+# never be called there. OpenSSL declares getentropy (API 28) weak and tests
+# it for null. libfreerdp/codec/h264_mediacodec.c builds with
+# __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__ and -Werror=unguarded-availability,
+# so it reaches its API 26/28 MediaCodec symbols only behind
+# __builtin_available. Any other one needs the same review before it is added.
+GUARDED_WEAK_IMPORTS = frozenset(
+    {
+        "getentropy",
+        "AMEDIAFORMAT_KEY_BITRATE_MODE",
+        "AMEDIAFORMAT_KEY_PRIORITY",
+        "AMEDIAFORMAT_KEY_SLICE_HEIGHT",
+        "AMediaCodec_getInputFormat",
+        "AMediaCodec_getName",
+        "AMediaCodec_releaseName",
+        "AMediaCodec_setParameters",
+    }
+)
+STUB_TRIPLE = {"arm64-v8a": "aarch64-linux-android", "x86_64": "x86_64-linux-android"}
 MIN_PAGE_ALIGN = 16384
 
 
@@ -64,7 +102,28 @@ def readelf(tool: str, *args: str) -> str:
     return subprocess.run([tool, "--wide", *args], check=True, capture_output=True, text=True).stdout
 
 
-def check_library(tool: str, path: Path, abi: str) -> tuple[list[str], dict]:
+def dynamic_symbols(tool: str, path: Path) -> tuple[set[str], set[str], set[str]]:
+    """Defined, strong undefined and weak undefined dynamic symbol names."""
+    defined: set[str] = set()
+    strong: set[str] = set()
+    weak: set[str] = set()
+    for line in readelf(tool, "--dyn-syms", str(path)).splitlines():
+        fields = line.split()
+        # Num: Value Size Type Bind Vis Ndx Name[@version]
+        if len(fields) < 8 or not fields[0].endswith(":") or fields[4] not in ("GLOBAL", "WEAK"):
+            continue
+        name = fields[7].split("@")[0]
+        if fields[6] != "UND":
+            if fields[5] == "DEFAULT":
+                defined.add(name)
+        elif fields[4] == "WEAK":
+            weak.add(name)
+        else:
+            strong.add(name)
+    return defined, strong, weak
+
+
+def check_library(tool: str, path: Path, abi: str, api: int, sysroot: Path) -> tuple[list[str], dict]:
     errors: list[str] = []
     header = readelf(tool, "--file-header", str(path))
     elf_class = re.search(r"Class:\s+(\S+)", header)
@@ -81,13 +140,22 @@ def check_library(tool: str, path: Path, abi: str) -> tuple[list[str], dict]:
     if extra:
         errors.append(f"{abi}: depends on non-system libraries {extra}")
 
-    exports: set[str] = set()
-    for line in readelf(tool, "--dyn-syms", str(path)).splitlines():
-        fields = line.split()
-        # Num: Value Size Type Bind Vis Ndx Name
-        if len(fields) >= 8 and fields[0].endswith(":") and fields[6] != "UND":
-            if fields[4] in ("GLOBAL", "WEAK") and fields[5] == "DEFAULT":
-                exports.add(fields[7].split("@")[0])
+    exports, strong_imports, weak_imports = dynamic_symbols(tool, path)
+    available: set[str] = set()
+    stubs = sysroot / "usr" / "lib" / STUB_TRIPLE[abi] / str(api)
+    for lib in needed:
+        stub = stubs / lib
+        if not stub.is_file():
+            errors.append(f"{abi}: {lib} does not exist at API {api}")
+            continue
+        available |= dynamic_symbols(tool, stub)[0]
+    absent = sorted(strong_imports - available)
+    if absent:
+        errors.append(f"{abi}: imports missing at API {api} ({len(absent)}, e.g. {absent[:5]})")
+    newer_weak = sorted(weak_imports - available)
+    unreviewed = sorted(set(newer_weak) - GUARDED_WEAK_IMPORTS)
+    if unreviewed:
+        errors.append(f"{abi}: unreviewed weak imports newer than API {api}: {unreviewed}")
     missing = sorted(REQUIRED_EXPORTS - exports)
     unexpected = sorted(
         name for name in exports if not name.startswith("aterm_rdp_") and name != "JNI_OnLoad"
@@ -113,6 +181,7 @@ def check_library(tool: str, path: Path, abi: str) -> tuple[list[str], dict]:
         "bytes": len(data),
         "sha256": hashlib.sha256(data).hexdigest(),
         "needed": needed,
+        "weak_imports_newer_than_api": newer_weak,
         "exports": sorted(exports),
         "load_align": min(aligns) if aligns else None,
     }
@@ -125,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--abi", action="append", required=True, choices=sorted(ABI_ELF))
     parser.add_argument("--ndk-revision", required=True)
     parser.add_argument("--api", required=True, type=int)
+    parser.add_argument("--sysroot", required=True, type=Path, help="NDK sysroot with the API stub libraries")
     parser.add_argument("--source", action="append", default=[], help="file=sha256 of a verified input")
     args = parser.parse_args(argv)
 
@@ -135,7 +205,7 @@ def main(argv: list[str] | None = None) -> int:
         if not path.is_file():
             errors.append(f"{abi}: {path} missing")
             continue
-        problems, info = check_library(args.readelf, path, abi)
+        problems, info = check_library(args.readelf, path, abi, args.api, args.sysroot)
         errors.extend(problems)
         libraries[abi] = info
     licenses = sorted(p.name for p in (args.out / "assets/licenses/atermius_rdp").glob("*"))
@@ -148,7 +218,10 @@ def main(argv: list[str] | None = None) -> int:
         "android_api": args.api,
         "ndk_revision": args.ndk_revision,
         "sources": dict(item.split("=", 1) for item in args.source),
-        "features": "config_v1, drive, file_clipboard, multimon (no printer/smartcard/audio/camera/usb)",
+        "features": (
+            "config_v1, drive, file_clipboard, multimon, native_touch, audio_out, audio_in, camera "
+            "(no printer/smartcard/usb)"
+        ),
         "licenses": licenses,
         "ok": not errors,
         "errors": errors,
