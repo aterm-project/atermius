@@ -10,7 +10,9 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../api/api_client.dart';
 import '../domain/models.dart';
+import '../platform/local_clipboard.dart';
 import '../ssh/ssh_transport.dart' as transport;
+import 'desktop_clipboard_sync.dart';
 import 'desktop_display.dart';
 import 'direct/connection.dart';
 import 'direct/rfb.dart';
@@ -39,6 +41,7 @@ class DesktopSession extends ChangeNotifier {
     this.reconnectAllowed,
     this.latestHost,
     this.localDrives,
+    this.localClipboard,
   });
 
   /// Latest saved revision of a Host by id; null when it no longer exists or
@@ -51,6 +54,36 @@ class DesktopSession extends ChangeNotifier {
   final RdpLocalDrivesController? localDrives;
   RdpLocalDrivesController get _localDrives =>
       localDrives ?? RdpLocalDrivesController.instance;
+
+  /// This device's clipboard; [LocalClipboard.instance] when null.
+  final LocalClipboard? localClipboard;
+  LocalClipboard get deviceClipboard =>
+      localClipboard ?? LocalClipboard.instance;
+
+  /// Automatic text clipboard sync of this session. The session reports
+  /// remote text and new connections; the view reports focus and resume.
+  late final clipboardSync = DesktopClipboardSync(
+    clipboard: deviceClipboard,
+    active: () => clipboardSyncActive,
+    send: offerClipboardText,
+    notice: _notice,
+    writesLocal: writesLocalClipboard,
+  );
+
+  /// Direct RDP and VNC sessions sync while connected with the Host's
+  /// "Clipboard text" on. Gateway sessions (server relay, guest links) keep
+  /// the manual session-menu items only.
+  bool get clipboardSyncActive =>
+      _direct != null && !_closed && state == 'connected' && _clipboardText;
+
+  /// False where another process writes this device's clipboard for the
+  /// session (a detached window).
+  @protected
+  bool get writesLocalClipboard => true;
+
+  /// Sends local text chosen by [clipboardSync] to the remote.
+  @protected
+  void offerClipboardText(String text) => paste(text, automatic: true);
 
   /// Persists in-session display changes to the Host (optional). Must apply
   /// revision checks like certificate persistence; failures keep the change
@@ -152,6 +185,10 @@ class DesktopSession extends ChangeNotifier {
   /// Called with top-level paths after a download finishes.
   ValueChanged<List<String>>? onFilesSaved;
   bool _clipboardText = true;
+
+  /// Whether the last text offered to the remote came from [clipboardSync]
+  /// (decides how a refusal is reported).
+  bool _lastPasteAutomatic = false;
   HostRecord? _host;
   RdpSettings _rdp = RdpSettings.defaults;
   VncSettings _vnc = VncSettings.defaults;
@@ -517,11 +554,20 @@ class DesktopSession extends ChangeNotifier {
               scaling: _rdp.scaling,
             )
           : rdp;
-      if (!sameHost) {
-        _vnc = host.protocol == HostProtocol.vnc
-            ? VncSettings.of(host)
-            : VncSettings.defaults;
-      }
+      final vnc = host.protocol == HostProtocol.vnc
+          ? VncSettings.of(host)
+          : VncSettings.defaults;
+      _vnc = sameHost
+          ? vnc.copyWith(
+              resolution: _vnc.resolution,
+              width: _vnc.width,
+              height: _vnc.height,
+              scaling: _vnc.scaling,
+            )
+          : vnc;
+      _clipboardText = host.protocol == HostProtocol.vnc
+          ? _vnc.clipboardText
+          : _rdp.clipboardText;
       _host = host;
       serverResize = null;
       nativeTouch = false;
@@ -593,7 +639,20 @@ class DesktopSession extends ChangeNotifier {
           } else if (event is DesktopPointerPosition) {
             display.movePointer(Offset(event.x.toDouble(), event.y.toDouble()));
           } else if (event is DesktopClipboard) {
-            if (_clipboardText) display.clipboard = event.text;
+            if (_clipboardText) {
+              display.clipboard = event.text;
+              unawaited(clipboardSync.remoteChanged(event.text));
+              // Detached windows mirror it (DesktopWindowBroker).
+              notifyListeners();
+            }
+          } else if (event is DesktopClipboardRefused) {
+            final message = currentL10n.theTargetRdpSessionDoesntHave2;
+            // Automatic offers report it once; an explicit paste every time.
+            if (_lastPasteAutomatic) {
+              clipboardSync.refused(message);
+            } else {
+              _notice(message);
+            }
           } else if (event is DesktopTouchSupport) {
             if (nativeTouch != event.available) {
               nativeTouch = event.available;
@@ -700,6 +759,10 @@ class DesktopSession extends ChangeNotifier {
             _setupTimeout?.cancel();
             state = 'connected';
             notifyListeners();
+            // Like mstsc, each connection starts with the local text; remote
+            // text from before this point never replaces it.
+            clipboardSync.reset();
+            unawaited(clipboardSync.localMayHaveChanged());
           }
         } catch (_) {
           if (frameAttempt == _directAttempt) rethrow;
@@ -838,7 +901,6 @@ class DesktopSession extends ChangeNotifier {
     RdpFeatures? features,
   }) async {
     final settings = _rdp;
-    _clipboardText = settings.clipboardText;
     final engine = features ?? rdpEngineFeatures();
     if (!engine.has(RdpFeatures.configV1)) {
       rdpConfig = null;
@@ -943,27 +1005,33 @@ class DesktopSession extends ChangeNotifier {
     if (_direct != null) send(['cancelDownload']);
   }
 
-  void paste(String text) {
+  /// Offers [text] on the remote clipboard. [automatic] marks offers of
+  /// [clipboardSync]; anything else is the user's explicit paste. Throws
+  /// [FormatException] with a message for the user when it cannot be sent.
+  void paste(String text, {bool automatic = false}) {
     if (_direct != null && !_clipboardText) {
       throw FormatException(currentL10n.clipboardTextIsTurnedOffFor);
     }
     final bytes = utf8.encode(text);
-    if (bytes.length > 65536) {
+    if (bytes.length > desktopClipboardMaxBytes) {
       throw FormatException(currentL10n.clipboardIsLimitedTo64Kib);
     }
     if (_direct != null) {
+      _lastPasteAutomatic = automatic;
       _direct!.paste(text);
-      return;
+    } else {
+      send(['clipboard', 0, 'text/plain']);
+      for (var i = 0; i < bytes.length; i += 12000) {
+        send([
+          'blob',
+          0,
+          base64Encode(bytes.sublist(i, (i + 12000).clamp(0, bytes.length))),
+        ]);
+      }
+      send(['end', 0]);
     }
-    send(['clipboard', 0, 'text/plain']);
-    for (var i = 0; i < bytes.length; i += 12000) {
-      send([
-        'blob',
-        0,
-        base64Encode(bytes.sublist(i, (i + 12000).clamp(0, bytes.length))),
-      ]);
-    }
-    send(['end', 0]);
+    // Sent by hand: automatic sync does not offer it again.
+    if (!automatic) clipboardSync.sent(text);
   }
 
   void _fail(String message) {

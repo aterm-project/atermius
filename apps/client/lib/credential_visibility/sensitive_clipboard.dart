@@ -1,7 +1,12 @@
-// Clipboard handling for Credential visibility v1 secrets: the one-time
-// escrow recovery code and the credentials an admin reveals in the viewer.
+// Clipboard handling for Credential visibility v1 secrets (the one-time
+// escrow recovery code and the credentials an admin reveals in the viewer),
+// and the registry of every secret Atermius copies, which automatic
+// remote-desktop clipboard sync consults.
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -17,6 +22,9 @@ import 'package:flutter/services.dart';
 ///
 /// The platform clipboard history or a clipboard manager may still keep a
 /// copy; that is outside the app's control.
+///
+/// Every value copied here is also remembered as a secret ([isSecret]), so
+/// automatic clipboard sync with remote desktops never sends it on its own.
 class SensitiveClipboard {
   SensitiveClipboard({
     this.clearAfter = const Duration(minutes: 1),
@@ -51,9 +59,45 @@ class SensitiveClipboard {
   /// True while a copied value may still be on the clipboard.
   bool get holdsValue => _copied != null;
 
+  /// Keyed (per process, random key) fingerprints of the latest secrets, so
+  /// memory never holds a plain hash a secret could be guessed from.
+  static final _secretKey = () {
+    final random = Random.secure();
+    return List<int>.generate(32, (_) => random.nextInt(256));
+  }();
+  // Insertion-ordered (a set literal is a LinkedHashSet): the oldest goes
+  // first once the registry is full.
+  static final _secrets = <String>{};
+  static const _maxSecrets = 64;
+
+  static String _fingerprint(String text) =>
+      Hmac(sha256, _secretKey).convert(utf8.encode(text)).toString();
+
+  /// Records [text] as a secret Atermius is about to put on the clipboard
+  /// (credentials, tokens and recovery codes copied with a plain
+  /// [Clipboard.setData] call [markSecret] first). Remote-desktop clipboard
+  /// sync skips such text unless the user pastes it explicitly.
+  static void markSecret(String text) {
+    if (text.isEmpty) return;
+    final fingerprint = _fingerprint(text);
+    _secrets.remove(fingerprint);
+    _secrets.add(fingerprint);
+    while (_secrets.length > _maxSecrets) {
+      _secrets.remove(_secrets.first);
+    }
+  }
+
+  /// Whether [text] is a secret Atermius copied in this process.
+  static bool isSecret(String text) =>
+      _secrets.isNotEmpty && _secrets.contains(_fingerprint(text));
+
+  @visibleForTesting
+  static void debugForgetSecrets() => _secrets.clear();
+
   Future<void> copy(String text) async {
     if (_disposed) return;
     _timer?.cancel();
+    markSecret(text);
     await _write(text);
     _copied = text;
     _arm();

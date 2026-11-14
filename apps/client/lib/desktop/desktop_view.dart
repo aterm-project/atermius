@@ -17,6 +17,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../platform/local_clipboard.dart';
+import '../ui/clipboard_paste.dart';
+import 'desktop_clipboard_sync.dart';
 import 'desktop_display.dart';
 import 'desktop_resolution.dart';
 import 'desktop_resolution_dialog.dart';
@@ -72,8 +75,31 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
       _touch.reset();
       _directTouch.reset();
       _release();
+    } else if (_focus.hasFocus) {
+      // Back from another app (on Android "resumed" also means the window
+      // has focus again, so the clipboard is readable): text copied there
+      // goes to the remote desktop in front.
+      _localClipboardMayHaveChanged();
     }
   }
+
+  StreamSubscription<void>? _clipboardChanges;
+  LocalClipboard? _clipboardSource;
+
+  void _listenClipboard() {
+    final source = session.deviceClipboard;
+    if (identical(source, _clipboardSource)) return;
+    unawaited(_clipboardChanges?.cancel());
+    _clipboardSource = source;
+    // Android: the clip changed while Atermius has window focus (for
+    // example copied in the keyboard's clipboard).
+    _clipboardChanges = source.changes.listen((_) {
+      if (_focus.hasFocus) _localClipboardMayHaveChanged();
+    });
+  }
+
+  void _localClipboardMayHaveChanged() =>
+      unawaited(session.clipboardSync.localMayHaveChanged());
 
   @override
   void didChangeMetrics() {
@@ -181,6 +207,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     session.onFilesSaved = _filesSaved;
     session.addListener(_certificateChanged);
     _certificateChanged();
+    _listenClipboard();
   }
 
   void _filesSaved(List<String> paths) {
@@ -363,6 +390,8 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
       session.onFilesSaved = _filesSaved;
       session.addListener(_certificateChanged);
       _certificateChanged();
+      _listenClipboard();
+      if (_focus.hasFocus) _localClipboardMayHaveChanged();
     }
   }
 
@@ -377,7 +406,11 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
 
   void _focusChanged() {
     _capture.update(focused: _focus.hasFocus);
-    if (!_focus.hasFocus) {
+    if (_focus.hasFocus) {
+      // Coming back to this desktop (another tab, pane or window, or a
+      // closed menu): offer what was copied meanwhile.
+      _localClipboardMayHaveChanged();
+    } else {
       DesktopKeyboardController.instance.keyboardVisible(
         this,
         false,
@@ -413,6 +446,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     if (session.onNotice == _showNotice) session.onNotice = null;
     if (session.onFilesSaved == _filesSaved) session.onFilesSaved = null;
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(_clipboardChanges?.cancel());
     _directTouch.reset();
     _touch.dispose();
     _capture.unregister();
@@ -545,10 +579,15 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
             session.send(['key', key, 0]);
           }
         } else if (value == 'paste') {
-          final data = await Clipboard.getData(Clipboard.kTextPlain);
-          if (!mounted || data?.text == null) return;
+          // Explains an empty or refused clipboard instead of doing nothing.
+          final text = await readClipboardForPaste(
+            context,
+            maxBytes: desktopClipboardMaxBytes,
+            clipboard: session.deviceClipboard,
+          );
+          if (!mounted || text == null) return;
           try {
-            session.paste(data!.text!);
+            session.paste(text);
           } catch (error) {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
@@ -562,9 +601,14 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
             );
           }
         } else if (value == 'copy') {
-          await Clipboard.setData(
-            ClipboardData(text: session.display.clipboard),
-          );
+          final text = session.display.clipboard;
+          if (text.isEmpty) {
+            _showNotice(context.l10n.desktopRemoteClipboardEmpty);
+          } else if (await session.deviceClipboard.writeText(text)) {
+            session.clipboardSync.copiedLocally(text);
+          } else if (mounted) {
+            _showNotice(context.l10n.desktopClipboardWriteFailed);
+          }
         } else if (value == 'send_copied_files') {
           await _sendCopiedFiles();
         } else if (value == 'send_files') {
