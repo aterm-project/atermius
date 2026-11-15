@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
 
 import '../domain/vault_preference.dart';
+import '../terminal/keyword_highlighter.dart';
 import '../terminal/live_terminal_window.dart';
 import 'app_motion.dart';
 import 'terminal_palette.dart';
@@ -202,6 +203,7 @@ class _LiveTerminalWindowPageState extends State<LiveTerminalWindowPage> {
                   child: WallpaperPaneBackdrop(
                     child: TerminalView(
                     client.terminal,
+                    foregroundDecorator: TerminalKeywordHighlighter.instance,
                     // Credential-free child window: no Vault preference is
                     // available, so it uses this device's palette overlay or
                     // the default (grass-green text) palette.

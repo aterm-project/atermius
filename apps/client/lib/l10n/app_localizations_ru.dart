@@ -19369,4 +19369,126 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get hostedServerRetry => 'Повторить';
+
+  @override
+  String get keywordHighlightTitle => 'Подсветка ключевых слов';
+
+  @override
+  String get keywordHighlightDescription =>
+      'Выделяет цветом в выводе терминала такие слова, как error, warning или done, а также IP-адреса и ссылки. Перекрашивается только обычный текст: цвета, заданные программой, полноэкранные программы и скопированный текст не меняются. Сохраняется только на этом устройстве.';
+
+  @override
+  String get keywordHighlightEnable =>
+      'Подсвечивать ключевые слова в терминалах';
+
+  @override
+  String get keywordHighlightGroupError => 'Ошибки';
+
+  @override
+  String get keywordHighlightGroupWarning => 'Предупреждения';
+
+  @override
+  String get keywordHighlightGroupSuccess => 'Успех';
+
+  @override
+  String get keywordHighlightGroupInfo => 'Информация';
+
+  @override
+  String get keywordHighlightGroupAddress => 'IP- и MAC-адреса';
+
+  @override
+  String get keywordHighlightGroupUrl => 'Ссылки';
+
+  @override
+  String get keywordHighlightAddressHint =>
+      'Адреса IPv4, IPv6 и MAC распознаются автоматически.';
+
+  @override
+  String get keywordHighlightUrlHint =>
+      'Ссылки вида https://… распознаются автоматически и подчёркиваются.';
+
+  @override
+  String keywordHighlightKeywordCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ключевого слова',
+      many: '$count ключевых слов',
+      few: '$count ключевых слова',
+      one: '$count ключевое слово',
+      zero: 'Нет ключевых слов',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get keywordHighlightAddKeywordHint => 'Добавить слово или фразу';
+
+  @override
+  String get keywordHighlightAddKeyword => 'Добавить ключевое слово';
+
+  @override
+  String keywordHighlightRemoveKeyword(String keyword) {
+    return 'Удалить «$keyword»';
+  }
+
+  @override
+  String keywordHighlightGroupSwitch(String group) {
+    return 'Подсвечивать: $group';
+  }
+
+  @override
+  String get keywordHighlightColor => 'Цвет подсветки';
+
+  @override
+  String get keywordHighlightColorRed => 'Красный';
+
+  @override
+  String get keywordHighlightColorGreen => 'Зелёный';
+
+  @override
+  String get keywordHighlightColorYellow => 'Жёлтый';
+
+  @override
+  String get keywordHighlightColorBlue => 'Синий';
+
+  @override
+  String get keywordHighlightColorMagenta => 'Пурпурный';
+
+  @override
+  String get keywordHighlightColorCyan => 'Голубой';
+
+  @override
+  String get keywordHighlightAddGroup => 'Добавить группу';
+
+  @override
+  String get keywordHighlightGroupName => 'Название группы';
+
+  @override
+  String get keywordHighlightDeleteGroup => 'Удалить группу';
+
+  @override
+  String get keywordHighlightRestoreDefaults => 'Восстановить по умолчанию';
+
+  @override
+  String get keywordHighlightRestoreConfirm =>
+      'Восстановить встроенные списки ключевых слов и цвета? Добавленные вами группы будут удалены.';
+
+  @override
+  String get keywordHighlightDuplicate =>
+      'В этой группе уже есть такое ключевое слово.';
+
+  @override
+  String keywordHighlightGroupFull(int max) {
+    return 'Группа заполнена (ключевых слов: $max).';
+  }
+
+  @override
+  String keywordHighlightGroupLimit(int max) {
+    return 'Можно добавить не более $max групп.';
+  }
+
+  @override
+  String get keywordHighlightSaveFailed =>
+      'Не удалось сохранить подсветку ключевых слов на этом устройстве. Она действует до закрытия приложения.';
 }

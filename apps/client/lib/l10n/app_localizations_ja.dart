@@ -18203,4 +18203,119 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get hostedServerRetry => '再試行';
+
+  @override
+  String get keywordHighlightTitle => 'キーワードのハイライト';
+
+  @override
+  String get keywordHighlightDescription =>
+      'ターミナル出力の error、warning、done などの語、IP アドレス、リンクに色を付けて目立たせます。色が付くのは通常のテキストだけで、プログラムが付けた色、全画面プログラム、コピーしたテキストは変わりません。このデバイスにのみ保存されます。';
+
+  @override
+  String get keywordHighlightEnable => 'ターミナルでキーワードをハイライト';
+
+  @override
+  String get keywordHighlightGroupError => 'エラー';
+
+  @override
+  String get keywordHighlightGroupWarning => '警告';
+
+  @override
+  String get keywordHighlightGroupSuccess => '成功';
+
+  @override
+  String get keywordHighlightGroupInfo => '情報';
+
+  @override
+  String get keywordHighlightGroupAddress => 'IP アドレスと MAC アドレス';
+
+  @override
+  String get keywordHighlightGroupUrl => 'リンク';
+
+  @override
+  String get keywordHighlightAddressHint => 'IPv4、IPv6、MAC アドレスを自動的に認識します。';
+
+  @override
+  String get keywordHighlightUrlHint => 'https://… などのリンクを自動的に認識し、下線を付けます。';
+
+  @override
+  String keywordHighlightKeywordCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'キーワード $count 件',
+      zero: 'キーワードなし',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get keywordHighlightAddKeywordHint => '語句を追加';
+
+  @override
+  String get keywordHighlightAddKeyword => 'キーワードを追加';
+
+  @override
+  String keywordHighlightRemoveKeyword(String keyword) {
+    return '$keyword を削除';
+  }
+
+  @override
+  String keywordHighlightGroupSwitch(String group) {
+    return 'ハイライト: $group';
+  }
+
+  @override
+  String get keywordHighlightColor => 'ハイライトの色';
+
+  @override
+  String get keywordHighlightColorRed => '赤';
+
+  @override
+  String get keywordHighlightColorGreen => '緑';
+
+  @override
+  String get keywordHighlightColorYellow => '黄';
+
+  @override
+  String get keywordHighlightColorBlue => '青';
+
+  @override
+  String get keywordHighlightColorMagenta => 'マゼンタ';
+
+  @override
+  String get keywordHighlightColorCyan => 'シアン';
+
+  @override
+  String get keywordHighlightAddGroup => 'グループを追加';
+
+  @override
+  String get keywordHighlightGroupName => 'グループ名';
+
+  @override
+  String get keywordHighlightDeleteGroup => 'グループを削除';
+
+  @override
+  String get keywordHighlightRestoreDefaults => '既定値に戻す';
+
+  @override
+  String get keywordHighlightRestoreConfirm =>
+      '組み込みのキーワード一覧と色に戻しますか？追加したグループは削除されます。';
+
+  @override
+  String get keywordHighlightDuplicate => 'このグループには既にそのキーワードがあります。';
+
+  @override
+  String keywordHighlightGroupFull(int max) {
+    return 'このグループは上限（$max 件）に達しています。';
+  }
+
+  @override
+  String keywordHighlightGroupLimit(int max) {
+    return '追加できるグループは $max 個までです。';
+  }
+
+  @override
+  String get keywordHighlightSaveFailed =>
+      'このデバイスにキーワードのハイライト設定を保存できませんでした。アプリを閉じるまで適用されます。';
 }

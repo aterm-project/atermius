@@ -30543,6 +30543,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Try again'**
   String get hostedServerRetry;
+
+  /// Terminal settings: title of the keyword highlighting card.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyword highlighting'**
+  String get keywordHighlightTitle;
+
+  /// Terminal settings: explains keyword highlighting. error, warning and done are literal example words and stay untranslated.
+  ///
+  /// In en, this message translates to:
+  /// **'Colors words such as error, warning or done, and IP addresses and links, in terminal output so they stand out. Only plain text is recolored: colors set by the program, full-screen programs and copied text stay as they are. Saved on this device only.'**
+  String get keywordHighlightDescription;
+
+  /// Accessibility label of the master switch for terminal keyword highlighting.
+  ///
+  /// In en, this message translates to:
+  /// **'Highlight keywords in terminals'**
+  String get keywordHighlightEnable;
+
+  /// Name of the built-in keyword highlighting group for error words.
+  ///
+  /// In en, this message translates to:
+  /// **'Errors'**
+  String get keywordHighlightGroupError;
+
+  /// Name of the built-in keyword highlighting group for warning words.
+  ///
+  /// In en, this message translates to:
+  /// **'Warnings'**
+  String get keywordHighlightGroupWarning;
+
+  /// Name of the built-in keyword highlighting group for success words.
+  ///
+  /// In en, this message translates to:
+  /// **'Success'**
+  String get keywordHighlightGroupSuccess;
+
+  /// Name of the built-in keyword highlighting group for informational words.
+  ///
+  /// In en, this message translates to:
+  /// **'Information'**
+  String get keywordHighlightGroupInfo;
+
+  /// Name of the built-in keyword highlighting group that recognizes IP and MAC addresses.
+  ///
+  /// In en, this message translates to:
+  /// **'IP and MAC addresses'**
+  String get keywordHighlightGroupAddress;
+
+  /// Name of the built-in keyword highlighting group that recognizes links (URLs).
+  ///
+  /// In en, this message translates to:
+  /// **'Links'**
+  String get keywordHighlightGroupUrl;
+
+  /// Explains what the IP and MAC addresses highlighting group recognizes.
+  ///
+  /// In en, this message translates to:
+  /// **'IPv4, IPv6 and MAC addresses are recognized automatically.'**
+  String get keywordHighlightAddressHint;
+
+  /// Explains what the links highlighting group recognizes.
+  ///
+  /// In en, this message translates to:
+  /// **'Links such as https://… are recognized automatically and underlined.'**
+  String get keywordHighlightUrlHint;
+
+  /// Number of keywords in a highlighting group.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No keywords} =1{1 keyword} other{{count} keywords}}'**
+  String keywordHighlightKeywordCount(int count);
+
+  /// Hint of the text field that adds a keyword or phrase to a highlighting group.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a word or phrase'**
+  String get keywordHighlightAddKeywordHint;
+
+  /// Tooltip of the button that adds the typed keyword to a highlighting group.
+  ///
+  /// In en, this message translates to:
+  /// **'Add keyword'**
+  String get keywordHighlightAddKeyword;
+
+  /// Tooltip of the button that removes a keyword from a highlighting group.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {keyword}'**
+  String keywordHighlightRemoveKeyword(String keyword);
+
+  /// Accessibility label of the switch that turns one highlighting group on or off.
+  ///
+  /// In en, this message translates to:
+  /// **'Highlight: {group}'**
+  String keywordHighlightGroupSwitch(String group);
+
+  /// Tooltip of the button that chooses the color of a highlighting group.
+  ///
+  /// In en, this message translates to:
+  /// **'Highlight color'**
+  String get keywordHighlightColor;
+
+  /// Color name in the highlight color menu.
+  ///
+  /// In en, this message translates to:
+  /// **'Red'**
+  String get keywordHighlightColorRed;
+
+  /// Color name in the highlight color menu.
+  ///
+  /// In en, this message translates to:
+  /// **'Green'**
+  String get keywordHighlightColorGreen;
+
+  /// Color name in the highlight color menu.
+  ///
+  /// In en, this message translates to:
+  /// **'Yellow'**
+  String get keywordHighlightColorYellow;
+
+  /// Color name in the highlight color menu.
+  ///
+  /// In en, this message translates to:
+  /// **'Blue'**
+  String get keywordHighlightColorBlue;
+
+  /// Color name in the highlight color menu.
+  ///
+  /// In en, this message translates to:
+  /// **'Magenta'**
+  String get keywordHighlightColorMagenta;
+
+  /// Color name in the highlight color menu.
+  ///
+  /// In en, this message translates to:
+  /// **'Cyan'**
+  String get keywordHighlightColorCyan;
+
+  /// Button that adds a custom keyword highlighting group.
+  ///
+  /// In en, this message translates to:
+  /// **'Add group'**
+  String get keywordHighlightAddGroup;
+
+  /// Label of the name field for a new keyword highlighting group.
+  ///
+  /// In en, this message translates to:
+  /// **'Group name'**
+  String get keywordHighlightGroupName;
+
+  /// Button that deletes a custom keyword highlighting group.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete group'**
+  String get keywordHighlightDeleteGroup;
+
+  /// Button that restores the default keyword highlighting rules.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore defaults'**
+  String get keywordHighlightRestoreDefaults;
+
+  /// Confirmation before restoring the default keyword highlighting rules.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore the built-in keyword lists and colors? Groups you added are removed.'**
+  String get keywordHighlightRestoreConfirm;
+
+  /// Shown when the typed keyword is already in the highlighting group.
+  ///
+  /// In en, this message translates to:
+  /// **'This group already has that keyword.'**
+  String get keywordHighlightDuplicate;
+
+  /// Shown when a highlighting group cannot take more keywords.
+  ///
+  /// In en, this message translates to:
+  /// **'This group is full ({max} keywords).'**
+  String keywordHighlightGroupFull(int max);
+
+  /// Shown when no more custom highlighting groups can be added.
+  ///
+  /// In en, this message translates to:
+  /// **'You can add up to {max} groups.'**
+  String keywordHighlightGroupLimit(int max);
+
+  /// Shown when the keyword highlighting preference could not be written to device storage.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save keyword highlighting on this device. It applies until the app is closed.'**
+  String get keywordHighlightSaveFailed;
 }
 
 class _AppLocalizationsDelegate

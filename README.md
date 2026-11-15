@@ -30,6 +30,7 @@ The client is one Flutter app:
 - Organizations, member sharing and temporary links when enabled by the server.
 - Optional loopback MCP access for external AI tools on desktop and Android.
 - Chinese, Japanese, English and Russian UI; application accents and terminal palettes are separate settings.
+- Terminal keyword highlighting: errors, warnings, successes, IP/MAC addresses and links stand out in plain output; groups, colors and word lists are editable per device.
 
 The server is a self-hosted encrypted workspace API, organization manager and temporary access gateway:
 

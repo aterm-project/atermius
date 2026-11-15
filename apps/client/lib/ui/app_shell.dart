@@ -10,6 +10,7 @@ import 'app_density.dart';
 import '../telnet/telnet_ui.dart';
 import 'app_motion.dart';
 import 'window_combinations.dart';
+import '../terminal/keyword_highlighter.dart';
 import '../terminal/terminal_tools.dart';
 import 'terminal_tools_sidebar.dart';
 import '../mcp/app_mcp_workspace.dart';
@@ -59,6 +60,7 @@ import 'host_search_field.dart';
 import 'host_search_palette.dart';
 import 'host_card_layout.dart';
 import 'terminal_palette.dart';
+import 'terminal_keyword_highlight_settings.dart';
 import 'terminal_palette_picker.dart';
 import 'terminal_shortcut_editor.dart';
 import '../domain/sftp_entries.dart';
@@ -9341,6 +9343,7 @@ return DesktopView(
           )
         : TerminalView(
             tab.terminal,
+            foregroundDecorator: TerminalKeywordHighlighter.instance,
             key: _viewKeyFor(id),
             controller: search?.controller,
             scrollController: search?.scrollController,
@@ -9437,6 +9440,7 @@ return DesktopView(
     final viewKey = _viewKeyFor(tab.id);
     final terminalView = TerminalView(
       tab.terminal,
+      foregroundDecorator: TerminalKeywordHighlighter.instance,
       key: viewKey,
       controller: _terminalSearches[tab.id]?.controller,
       scrollController: _terminalSearches[tab.id]?.scrollController,
@@ -9543,6 +9547,7 @@ return DesktopView(
           onTap: () => _requestTerminalKeyboard(tab.id, fromUserGesture: true),
           child: TerminalView(
             tab.terminal,
+            foregroundDecorator: TerminalKeywordHighlighter.instance,
             key: _viewKeyFor(tab.id),
             controller: search?.controller,
             scrollController: search?.scrollController,
@@ -11650,6 +11655,7 @@ class _TerminalObserverDialogState extends State<_TerminalObserverDialog> {
                       focused: hasController && _terminalFocusNode.hasFocus,
                       child: TerminalView(
                         widget.observer.terminal,
+                        foregroundDecorator: TerminalKeywordHighlighter.instance,
                         key: _terminalViewKey,
                         focusNode: _terminalFocusNode,
                         readOnly: !hasController,
@@ -15732,6 +15738,12 @@ class _SettingsPage extends StatelessWidget {
               ],
               SettingsCard(
                 child: TerminalPaletteGallery(synced: app.terminalTheme),
+              ),
+              SettingsCard(
+                semanticContainer: false,
+                child: TerminalKeywordHighlightSettings(
+                  synced: app.terminalTheme,
+                ),
               ),
             ],
           ),

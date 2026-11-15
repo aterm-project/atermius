@@ -55,7 +55,9 @@ import 'storage/app_theme_store.dart';
 import 'ui/app_theme_mode.dart';
 import 'storage/wallpaper_store.dart';
 import 'ui/wallpaper.dart';
+import 'storage/keyword_highlight_store.dart';
 import 'storage/terminal_palette_store.dart';
+import 'terminal/keyword_highlighter.dart';
 import 'ui/terminal_palette.dart';
 import 'ui/app_language_settings.dart';
 import 'cloud/cloud_access_api.dart';
@@ -176,6 +178,9 @@ Future<void> main(List<String> arguments) async {
   // Device-local, non-secret terminal palette overlay; terminal child windows
   // read it too so every terminal on this device uses the same palette.
   await TerminalPaletteController.instance.load(createTerminalPaletteStore());
+  // Device-local, non-secret keyword highlighting rules for terminal output;
+  // terminal child windows read them too.
+  await TerminalKeywordHighlighter.instance.load(createKeywordHighlightStore());
   if (desktopLaunch != null) {
     // A remote desktop child only renders the parent's RDP/VNC session: never
     // initialize secure storage, profiles, Sodium, Firebase or a protocol

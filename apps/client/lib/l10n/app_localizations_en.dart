@@ -19315,4 +19315,123 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get hostedServerRetry => 'Try again';
+
+  @override
+  String get keywordHighlightTitle => 'Keyword highlighting';
+
+  @override
+  String get keywordHighlightDescription =>
+      'Colors words such as error, warning or done, and IP addresses and links, in terminal output so they stand out. Only plain text is recolored: colors set by the program, full-screen programs and copied text stay as they are. Saved on this device only.';
+
+  @override
+  String get keywordHighlightEnable => 'Highlight keywords in terminals';
+
+  @override
+  String get keywordHighlightGroupError => 'Errors';
+
+  @override
+  String get keywordHighlightGroupWarning => 'Warnings';
+
+  @override
+  String get keywordHighlightGroupSuccess => 'Success';
+
+  @override
+  String get keywordHighlightGroupInfo => 'Information';
+
+  @override
+  String get keywordHighlightGroupAddress => 'IP and MAC addresses';
+
+  @override
+  String get keywordHighlightGroupUrl => 'Links';
+
+  @override
+  String get keywordHighlightAddressHint =>
+      'IPv4, IPv6 and MAC addresses are recognized automatically.';
+
+  @override
+  String get keywordHighlightUrlHint =>
+      'Links such as https://… are recognized automatically and underlined.';
+
+  @override
+  String keywordHighlightKeywordCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count keywords',
+      one: '1 keyword',
+      zero: 'No keywords',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get keywordHighlightAddKeywordHint => 'Add a word or phrase';
+
+  @override
+  String get keywordHighlightAddKeyword => 'Add keyword';
+
+  @override
+  String keywordHighlightRemoveKeyword(String keyword) {
+    return 'Remove $keyword';
+  }
+
+  @override
+  String keywordHighlightGroupSwitch(String group) {
+    return 'Highlight: $group';
+  }
+
+  @override
+  String get keywordHighlightColor => 'Highlight color';
+
+  @override
+  String get keywordHighlightColorRed => 'Red';
+
+  @override
+  String get keywordHighlightColorGreen => 'Green';
+
+  @override
+  String get keywordHighlightColorYellow => 'Yellow';
+
+  @override
+  String get keywordHighlightColorBlue => 'Blue';
+
+  @override
+  String get keywordHighlightColorMagenta => 'Magenta';
+
+  @override
+  String get keywordHighlightColorCyan => 'Cyan';
+
+  @override
+  String get keywordHighlightAddGroup => 'Add group';
+
+  @override
+  String get keywordHighlightGroupName => 'Group name';
+
+  @override
+  String get keywordHighlightDeleteGroup => 'Delete group';
+
+  @override
+  String get keywordHighlightRestoreDefaults => 'Restore defaults';
+
+  @override
+  String get keywordHighlightRestoreConfirm =>
+      'Restore the built-in keyword lists and colors? Groups you added are removed.';
+
+  @override
+  String get keywordHighlightDuplicate =>
+      'This group already has that keyword.';
+
+  @override
+  String keywordHighlightGroupFull(int max) {
+    return 'This group is full ($max keywords).';
+  }
+
+  @override
+  String keywordHighlightGroupLimit(int max) {
+    return 'You can add up to $max groups.';
+  }
+
+  @override
+  String get keywordHighlightSaveFailed =>
+      'Couldn\'t save keyword highlighting on this device. It applies until the app is closed.';
 }

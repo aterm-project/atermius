@@ -17294,4 +17294,117 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get hostedServerRetry => '重试';
+
+  @override
+  String get keywordHighlightTitle => '关键词高亮';
+
+  @override
+  String get keywordHighlightDescription =>
+      '在终端输出中为 error、warning、done 等词语以及 IP 地址和链接着色，使其更醒目。只为普通文本着色：程序自己设置的颜色、全屏程序和复制出的文本都保持不变。仅保存在本设备。';
+
+  @override
+  String get keywordHighlightEnable => '在终端中高亮关键词';
+
+  @override
+  String get keywordHighlightGroupError => '错误';
+
+  @override
+  String get keywordHighlightGroupWarning => '警告';
+
+  @override
+  String get keywordHighlightGroupSuccess => '成功';
+
+  @override
+  String get keywordHighlightGroupInfo => '信息';
+
+  @override
+  String get keywordHighlightGroupAddress => 'IP 和 MAC 地址';
+
+  @override
+  String get keywordHighlightGroupUrl => '链接';
+
+  @override
+  String get keywordHighlightAddressHint => '自动识别 IPv4、IPv6 和 MAC 地址。';
+
+  @override
+  String get keywordHighlightUrlHint => '自动识别 https://… 等链接并加下划线。';
+
+  @override
+  String keywordHighlightKeywordCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个关键词',
+      zero: '没有关键词',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get keywordHighlightAddKeywordHint => '添加词语或短语';
+
+  @override
+  String get keywordHighlightAddKeyword => '添加关键词';
+
+  @override
+  String keywordHighlightRemoveKeyword(String keyword) {
+    return '移除 $keyword';
+  }
+
+  @override
+  String keywordHighlightGroupSwitch(String group) {
+    return '高亮：$group';
+  }
+
+  @override
+  String get keywordHighlightColor => '高亮颜色';
+
+  @override
+  String get keywordHighlightColorRed => '红色';
+
+  @override
+  String get keywordHighlightColorGreen => '绿色';
+
+  @override
+  String get keywordHighlightColorYellow => '黄色';
+
+  @override
+  String get keywordHighlightColorBlue => '蓝色';
+
+  @override
+  String get keywordHighlightColorMagenta => '品红';
+
+  @override
+  String get keywordHighlightColorCyan => '青色';
+
+  @override
+  String get keywordHighlightAddGroup => '添加分组';
+
+  @override
+  String get keywordHighlightGroupName => '分组名称';
+
+  @override
+  String get keywordHighlightDeleteGroup => '删除分组';
+
+  @override
+  String get keywordHighlightRestoreDefaults => '恢复默认设置';
+
+  @override
+  String get keywordHighlightRestoreConfirm => '恢复内置的关键词列表和颜色？你添加的分组将被移除。';
+
+  @override
+  String get keywordHighlightDuplicate => '该分组已包含这个关键词。';
+
+  @override
+  String keywordHighlightGroupFull(int max) {
+    return '该分组已满（$max 个关键词）。';
+  }
+
+  @override
+  String keywordHighlightGroupLimit(int max) {
+    return '最多可添加 $max 个分组。';
+  }
+
+  @override
+  String get keywordHighlightSaveFailed => '无法在本设备上保存关键词高亮设置。它会一直生效到应用关闭。';
 }

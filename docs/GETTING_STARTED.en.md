@@ -41,6 +41,6 @@ In server mode, organizations are under Account settings. A Host's **Share…** 
 
 ## 5. Keep the workspace useful
 
-Group Hosts, save reusable commands, adjust terminal palettes/key bindings and save layouts in the app's settings/sidebar. Use the SSH forwarding entry to manage rules; creating a rule does not start a tunnel until you activate it. Browser builds cannot open OS TCP listeners. Mobile foreground/background limits can interrupt live tunnels and sessions.
+Group Hosts, save reusable commands, adjust terminal palettes/key bindings and save layouts in the app's settings/sidebar. Terminals color words such as `error`, `warning` and `ok`, IP addresses and links in plain output; tune or switch this off under Settings → Theme → Keyword highlighting ([details](FEATURES.md#terminal-keyword-highlighting--终端关键词高亮)). Use the SSH forwarding entry to manage rules; creating a rule does not start a tunnel until you activate it. Browser builds cannot open OS TCP listeners. Mobile foreground/background limits can interrupt live tunnels and sessions.
 
 If a connection fails, use the session/log information and [troubleshooting](TROUBLESHOOTING.en.md). Do not put passwords, private keys or complete access links in issue reports.

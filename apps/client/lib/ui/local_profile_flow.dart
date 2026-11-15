@@ -5,6 +5,7 @@ import '../domain/window_combination.dart';
 import 'app_density.dart';
 import 'app_motion.dart';
 import 'window_combinations.dart';
+import '../terminal/keyword_highlighter.dart';
 import '../terminal/local_shell_history.dart';
 import '../terminal/terminal_tools.dart';
 import 'terminal_tools_sidebar.dart';
@@ -91,6 +92,7 @@ import 'session_logs_page.dart';
 import 'host_system_icon.dart';
 import 'host_card_layout.dart';
 import 'terminal_palette.dart';
+import 'terminal_keyword_highlight_settings.dart';
 import 'terminal_palette_picker.dart';
 import 'terminal_shortcut_editor.dart';
 import 'terminal_keybar.dart';
@@ -4897,6 +4899,7 @@ _showMessage(
                             excluding: _selectedTabId != id,
                             child: TerminalView(
                               session.terminal,
+                              foregroundDecorator: TerminalKeywordHighlighter.instance,
                               key: ValueKey('local_telnet_view_${session.id}'),
                               autofocus: _selectedTabId == id,
                               readOnly: !session.connected.value,
@@ -4918,6 +4921,7 @@ _showMessage(
                             excluding: _selectedTabId != id,
                             child: TerminalView(
                               session.terminal,
+                              foregroundDecorator: TerminalKeywordHighlighter.instance,
                               autofocus: _selectedTabId == id,
                               readOnly: !session.connected.value,
                               backgroundOpacity:
@@ -6099,6 +6103,12 @@ _showMessage(
             ),
             SettingsCard(
               child: TerminalPaletteGallery(synced: _savedTerminalThemeChoice),
+            ),
+            SettingsCard(
+              semanticContainer: false,
+              child: TerminalKeywordHighlightSettings(
+                synced: _savedTerminalThemeChoice,
+              ),
             ),
           ],
         ),
@@ -8049,6 +8059,7 @@ throw StateError(context.l10n.snippetChanged);
             Expanded(
               child: TerminalView(
                 _terminal,
+                foregroundDecorator: TerminalKeywordHighlighter.instance,
                 key: const ValueKey('local_ssh_terminal_view'),
                 readOnly: !widget.session.connected.value,
                 controller: _terminalController,
