@@ -5118,5 +5118,6 @@
   "insecureServerDetailTurnOff": "如需关闭：退出登录，在登录页选择“更换服务器”，然后在关闭此选项的情况下重新连接。",
   "insecureServerHttpHint": "仅对开发服务器，可以在下方开启“允许不安全连接”。切勿用于生产环境。",
   "insecureServerCertificateHint": "无法验证服务器证书（例如自签名、已过期或颁发给其他名称），因此已拒绝连接。仅对开发服务器，可以在下方开启“允许不安全连接”。切勿用于生产环境。",
-  "insecureServerAppliesTo": "服务器：{origin}"
+  "insecureServerAppliesTo": "服务器：{origin}",
+  "hostedServerRetry": "重试"
 }

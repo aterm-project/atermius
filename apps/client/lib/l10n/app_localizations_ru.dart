@@ -19366,4 +19366,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String insecureServerAppliesTo(String origin) {
     return 'Сервер: $origin';
   }
+
+  @override
+  String get hostedServerRetry => 'Повторить';
 }

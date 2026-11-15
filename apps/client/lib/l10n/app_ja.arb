@@ -5118,5 +5118,6 @@
   "insecureServerDetailTurnOff": "オフにするには、サインアウトし、サインイン画面で「サーバーを変更」を選び、このオプションをオフにして接続し直してください。",
   "insecureServerHttpHint": "開発用サーバーに限り、下の「安全でない接続を許可」をオンにできます。本番環境では絶対に使用しないでください。",
   "insecureServerCertificateHint": "サーバーの証明書を検証できなかったため（自己署名、期限切れ、別の名前に発行されたものなど）、接続を拒否しました。開発用サーバーに限り、下の「安全でない接続を許可」をオンにできます。本番環境では絶対に使用しないでください。",
-  "insecureServerAppliesTo": "サーバー: {origin}"
+  "insecureServerAppliesTo": "サーバー: {origin}",
+  "hostedServerRetry": "再試行"
 }

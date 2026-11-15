@@ -62,6 +62,7 @@ import 'telnet/telnet_errors.dart';
 import 'telnet/telnet_session.dart';
 import 'telnet/telnet_transport.dart';
 import 'platform/application_windows.dart';
+import 'platform/server_hosted.dart';
 import 'terminal/encrypted_shell_history_repository.dart';
 import 'terminal/shell_integration_protocol.dart';
 import 'terminal/shell_integration_session.dart';
@@ -3455,6 +3456,18 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       final saved = await secureStore.lastServerSelection();
+      if (serverHostedClient) {
+        // The browser build signs in to the server it was served by, never
+        // to an address remembered from somewhere else. A session saved for
+        // another address is left alone and simply not used here.
+        final origin = serverHostedOrigin;
+        final sameServer =
+            saved != null && serverOriginOf(saved.baseUrl) == origin;
+        serverUrl = sameServer ? saved.baseUrl : origin;
+        await configureHostedServer(showBusy: false);
+        if (sameServer) await _restoreStoredSessionLocked();
+        return;
+      }
       serverUrl = saved?.baseUrl;
       if (saved != null) {
         // The insecure-option choice is restored only together with the exact
@@ -3801,6 +3814,16 @@ class AppController extends ChangeNotifier {
   /// [ApiClient.insecureServer]). Never call it without that confirmation.
   Future<void> configureInsecureServer(String value, {bool showBusy = true}) =>
       _configureServer(value, showBusy: showBusy, allowInsecure: true);
+
+  /// Connects the browser build to the server its page came from (see
+  /// [serverHostedClient]). A page loaded over plain `http://` from another
+  /// computer is connected with the insecure option, so its warning shows.
+  Future<void> configureHostedServer({bool showBusy = true}) =>
+      _configureServer(
+        serverHostedOrigin,
+        showBusy: showBusy,
+        allowInsecure: serverHostedOverPlainHttp,
+      );
 
   Future<void> _configureServer(
     String value, {

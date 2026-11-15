@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../api/api_client.dart';
+import '../platform/server_hosted.dart';
 import '../api/insecure_server.dart';
 import '../app_controller.dart';
 import 'app_motion.dart';
@@ -75,10 +76,14 @@ class _AuthFlowState extends State<AuthFlow> {
 
   bool get _isWeb => widget.webForTesting ?? kIsWeb;
 
+  /// The browser build signs in to the server that serves it: there is no
+  /// address to type and no other server to change to.
+  bool get _hosted => serverHostedClient;
+
   @override
   void initState() {
     super.initState();
-    _server.text = app.serverUrl ?? '';
+    _server.text = _hosted ? serverHostedOrigin : (app.serverUrl ?? '');
     // A server that is already in use with the option keeps showing it as on
     // for that same address; this is where it can be switched off again.
     _insecureOrigin = app.insecureServerOrigin;
@@ -413,7 +418,42 @@ class _AuthFlowState extends State<AuthFlow> {
     );
   }
 
-  Widget _serverForm() => Column(
+  /// Shown by the browser build only while its own server cannot be reached:
+  /// the address is fixed, so all there is to do is try again.
+  Widget _hostedServerForm() => Column(
+    key: const ValueKey('hosted_server_form'),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          Icon(Icons.dns_outlined, size: 18, color: context.palette.muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SelectableText(
+              serverHostedOrigin,
+              key: const ValueKey('hosted_server_origin'),
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      FilledButton.icon(
+        key: const ValueKey('hosted_server_retry'),
+        onPressed: app.busy ? null : _connect,
+        icon: const Icon(Icons.refresh_rounded),
+        label: Text(context.l10n.hostedServerRetry),
+      ),
+      if (app.pendingInstanceIdentityRecovery case final recovery?) ...[
+        const SizedBox(height: 16),
+        _InstanceIdentityRollbackRecovery(app: app, recovery: recovery),
+      ],
+    ],
+  );
+
+  Widget _serverForm() => _hosted ? _hostedServerForm() : _typedServerForm();
+
+  Widget _typedServerForm() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       TextField(
@@ -525,12 +565,13 @@ class _AuthFlowState extends State<AuthFlow> {
             icon: const Icon(Icons.qr_code_2_rounded, size: 17),
             label: Text(context.l10n.importApproval),
           ),
-          TextButton(
-            onPressed: () {
-              app.setStage(ClientStage.server);
-            },
-            child: Text(context.l10n.changeServer),
-          ),
+          if (!_hosted)
+            TextButton(
+              onPressed: () {
+                app.setStage(ClientStage.server);
+              },
+              child: Text(context.l10n.changeServer),
+            ),
         ],
       ),
       const SizedBox(height: 6),
@@ -797,7 +838,9 @@ class _AuthFlowState extends State<AuthFlow> {
   Future<void> _connect() async {
     FocusScope.of(context).unfocus();
     try {
-      if (_allowInsecure) {
+      if (_hosted) {
+        await app.configureHostedServer();
+      } else if (_allowInsecure) {
         await app.configureInsecureServer(_server.text);
       } else {
         await app.configureServer(_server.text);

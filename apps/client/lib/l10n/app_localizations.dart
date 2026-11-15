@@ -30537,6 +30537,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Server: {origin}'**
   String insecureServerAppliesTo(String origin);
+
+  /// Browser build sign-in: retry connecting to the server that serves the page.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get hostedServerRetry;
 }
 
 class _AppLocalizationsDelegate

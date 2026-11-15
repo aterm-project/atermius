@@ -16071,5 +16071,9 @@
         "type": "String"
       }
     }
+  },
+  "hostedServerRetry": "Try again",
+  "@hostedServerRetry": {
+    "description": "Browser build sign-in: retry connecting to the server that serves the page."
   }
 }

@@ -16,6 +16,8 @@ Deploy the complete **`apps/client/build/web/`** output. `--no-web-resources-cdn
 
 ## Deploy with the API
 
+The browser build belongs to the server that serves it: it opens straight on that server's sign-in page and asks only for the account and password. It has no local mode and no server address to type or change; the address is always the page's own origin (scheme, host and port). First-account setup, invited registration and account recovery remain on the sign-in page. When the page was loaded over plain `http://` from another computer the client still connects, and keeps the “Insecure connection” warning on screen. Local mode exists only in the desktop and mobile clients.
+
 The recommended setup is the [server installation guide](server.en.md). The API and the frontend now live in the same repository: the server's `deploy/compose.web.yaml` builds the frontend image from the root `Dockerfile` and provides one browser origin for API/WebSocket traffic. A sibling `web` checkout is no longer needed.
 
 For a manual image build, from the repository root:

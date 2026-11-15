@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../storage/workspace_mode.dart';
 import '../l10n/l10n.dart';
+import '../platform/server_hosted.dart';
 
 class WorkspaceModeScope extends InheritedWidget {
   const WorkspaceModeScope({
@@ -58,7 +59,8 @@ class _ScopedWorkspaceModeSettingsState
   @override
   Widget build(BuildContext context) {
     final scope = WorkspaceModeScope.of(context);
-    if (scope == null) return const SizedBox.shrink();
+    // The browser build has one mode only (see [serverHostedClient]).
+    if (scope == null || serverHostedClient) return const SizedBox.shrink();
     return WorkspaceModeSettings(
       mode: scope.mode,
       onSwitch: () => _switch(scope),

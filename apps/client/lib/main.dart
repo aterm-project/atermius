@@ -1,4 +1,5 @@
 import 'platform/file_window_tracking.dart';
+import 'platform/server_hosted.dart';
 import 'desktop/desktop_keyboard_mode.dart';
 import 'storage/desktop_keyboard_store.dart';
 import 'desktop/keyboard_capture.dart';
@@ -562,6 +563,12 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
         }
         return;
       }
+      if (serverHostedClient) {
+        // The browser build belongs to its server: no local mode, whatever
+        // an earlier version stored as the chosen mode.
+        await _enterServerMode(remember: false);
+        return;
+      }
       final mode = await widget.modeStore?.read();
       if (!mounted) return;
       if (mode == WorkspaceMode.local || (mode == null && !kIsWeb)) {
@@ -617,7 +624,7 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
   }
 
   Future<void> _switchWorkspace() async {
-    if (_switchingMode) return;
+    if (_switchingMode || serverHostedClient) return;
     final wasLocal = _usingLocal;
     setState(() => _switchingMode = true);
     try {
@@ -809,6 +816,7 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
             serverAvailable:
                 _controller != null || widget.serverInitializer != null,
             localAvailable:
+                !serverHostedClient &&
                 widget.crypto != null &&
                 ((_localCatalog != null && _localService != null) ||
                     widget.localProfileCatalogInitializer != null),

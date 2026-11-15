@@ -18200,4 +18200,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String insecureServerAppliesTo(String origin) {
     return 'サーバー: $origin';
   }
+
+  @override
+  String get hostedServerRetry => '再試行';
 }

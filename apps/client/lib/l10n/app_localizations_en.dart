@@ -19312,4 +19312,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String insecureServerAppliesTo(String origin) {
     return 'Server: $origin';
   }
+
+  @override
+  String get hostedServerRetry => 'Try again';
 }

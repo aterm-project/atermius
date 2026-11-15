@@ -17291,4 +17291,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String insecureServerAppliesTo(String origin) {
     return '服务器：$origin';
   }
+
+  @override
+  String get hostedServerRetry => '重试';
 }

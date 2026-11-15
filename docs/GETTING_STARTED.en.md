@@ -4,7 +4,7 @@
 
 ## 1. Choose where your data lives
 
-Use a **local profile** for work kept on this device, or a **server account** for a self-hosted synchronized Vault. The app retains your choice; change it in settings. A fresh browser has its own storage and may need first-run setup. Manual lock and device secure-storage availability affect whether a profile can be reopened automatically.
+Use a **local profile** for work kept on this device, or a **server account** for a self-hosted synchronized Vault. The app retains your choice; change it in settings. The browser build has no local profile: it signs in to the server that serves it. A fresh browser has its own storage and may need first-run setup. Manual lock and device secure-storage availability affect whether a profile can be reopened automatically.
 
 For server mode, enter your instance's exact HTTPS origin. HTTP is a loopback-only development option. The first account needs the operator's one-use bootstrap token; later accounts follow the server's registration/invitation policy. An organization join link does not bypass account registration. Keep the recovery material created by the account flow somewhere you can recover independently of this device.
 
