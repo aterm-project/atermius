@@ -5096,5 +5096,9 @@
   "passwordRevealShow": "パスワードを表示",
   "passwordRevealHide": "パスワードを隠す",
   "keychainViewCredential": "認証情報を表示",
-  "desktopKeyboardPan": "リモート画面をスライド"
+  "desktopKeyboardPan": "リモート画面をスライド",
+  "desktopImeModeComposed": "IME 入力モード",
+  "desktopImeModeDirect": "直接キー入力モード",
+  "desktopImeModeUseDirect": "直接キー入力に切り替え：キーをすぐに送信、英字のみ",
+  "desktopImeModeUseComposed": "IME 入力に切り替え：日本語や中国語などを入力できます"
 }

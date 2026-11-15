@@ -18119,4 +18119,16 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get desktopKeyboardPan => 'リモート画面をスライド';
+
+  @override
+  String get desktopImeModeComposed => 'IME 入力モード';
+
+  @override
+  String get desktopImeModeDirect => '直接キー入力モード';
+
+  @override
+  String get desktopImeModeUseDirect => '直接キー入力に切り替え：キーをすぐに送信、英字のみ';
+
+  @override
+  String get desktopImeModeUseComposed => 'IME 入力に切り替え：日本語や中国語などを入力できます';
 }

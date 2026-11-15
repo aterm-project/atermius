@@ -10,6 +10,15 @@ import '../l10n/l10n.dart';
 
 enum _Latch { off, armed, locked }
 
+/// How the soft keyboard of a remote desktop delivers what is typed.
+enum DesktopImeMode {
+  /// The input method composes text in any language; it is sent on commit.
+  composed,
+
+  /// Every key is sent at once. Android IMEs offer only their Latin keyboard.
+  direct,
+}
+
 /// A pane-local IME client. The dock always stays on an edge of the pane;
 /// keyboard events go to its session, never through the SSH terminal input.
 class DesktopMobileControls extends StatefulWidget {
@@ -48,8 +57,18 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
     text: '\u200b',
     selection: TextSelection.collapsed(offset: 1),
   );
+
+  /// Chosen on the special-key bar; kept for the rest of the app run.
+  static DesktopImeMode imeMode = DesktopImeMode.composed;
   TextInputConnection? _connection;
   TextEditingValue _value = _seed;
+
+  /// Committed text that was already sent while the IME is still composing
+  /// behind it. It stays in the IME's buffer until that composition ends.
+  String _sent = '';
+
+  /// The composing (preedit) text, shown locally until the IME commits it.
+  String _preedit = '';
   bool _open = false, _imeSeen = false;
   Alignment _edge = Alignment.centerRight;
   Offset _anchor = const Offset(1, .3);
@@ -128,22 +147,44 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
     }
     if (!widget.connected) return;
     widget.onActivate();
-    _value = _seed;
     _imeSeen = false;
+    _attach();
+    _setOpen(true);
+  }
+
+  /// Starts a fresh IME client for the current [imeMode]. Android has no
+  /// TextInput.updateConfig, so a mode change replaces the client: the IME
+  /// restarts with the new input type while its window stays up.
+  void _attach() {
+    _value = _seed;
+    _sent = '';
+    _preedit = '';
     _connection = TextInput.attach(
       this,
       TextInputConfiguration(
         inputType: TextInputType.multiline,
         inputAction: TextInputAction.newline,
         autocorrect: false,
-        enableSuggestions: false,
+        // Android turns disabled suggestions into a visible-password field,
+        // for which IMEs offer only their Latin keyboard: no Chinese,
+        // Japanese or Korean can be composed there.
+        enableSuggestions: imeMode == DesktopImeMode.composed,
         enableIMEPersonalizedLearning: false,
         viewId: View.of(context).viewId,
       ),
     );
     _connection!.setEditingState(_value);
     _connection!.show();
-    _setOpen(true);
+  }
+
+  void _toggleImeMode() {
+    setState(() {
+      imeMode = imeMode == DesktopImeMode.composed
+          ? DesktopImeMode.direct
+          : DesktopImeMode.composed;
+    });
+    // An unfinished composition is dropped; nothing of it is sent.
+    if (_connection != null) _attach();
   }
 
   void _key(int sym, bool down) {
@@ -199,6 +240,8 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
     _connection?.close();
     _connection = null;
     _value = _seed;
+    _sent = '';
+    _preedit = '';
     _imeSeen = false;
     if (!notify) _open = false;
     if (notify && mounted) {
@@ -218,29 +261,59 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
   void updateEditingValue(TextEditingValue value) {
     if (!_open || !widget.connected || !widget.focus.hasFocus) return;
     _value = value;
-    // Preedit belongs to the IME. Send only its final committed text once.
-    if (value.composing.isValid && !value.composing.isCollapsed) return;
-    var text = value.text.replaceAll('\r\n', '\n');
-    if (text.isEmpty) {
-      stroke(0xff08); // the sentinel lets Backspace work at an empty IME
-    } else {
-      if (text.startsWith(_seed.text)) text = text.substring(1);
-      for (final rune in text.runes) {
-        stroke(switch (rune) {
-          10 || 13 => 0xff0d,
-          9 => 0xff09,
-          8 => 0xff08,
-          _ =>
-            rune <= 255 &&
-                    (!widget.unicodeText ||
-                        _modifiers.values.any((value) => value != _Latch.off))
-                ? rune
-                : 0x01000000 | rune,
-        });
-      }
+    final range = value.composing;
+    // A soft modifier turns the next key into a shortcut, so text the IME
+    // would keep composing is sent at once instead.
+    final composing =
+        range.isValid &&
+        !range.isCollapsed &&
+        range.end <= value.text.length &&
+        !_modifiers.values.any((value) => value != _Latch.off);
+    // Preedit belongs to the IME. Only text in front of it is final.
+    var committed = composing
+        ? value.text.substring(0, range.start)
+        : value.text;
+    if (committed.startsWith(_seed.text)) committed = committed.substring(1);
+    final before = _sent.runes.toList();
+    final after = committed.replaceAll('\r\n', '\n').runes.toList();
+    var kept = 0;
+    while (kept < before.length &&
+        kept < after.length &&
+        before[kept] == after[kept]) {
+      kept++;
     }
+    for (var i = kept; i < before.length; i++) {
+      stroke(0xff08);
+    }
+    for (final rune in after.skip(kept)) {
+      stroke(switch (rune) {
+        10 || 13 => 0xff0d,
+        9 => 0xff09,
+        8 => 0xff08,
+        _ =>
+          rune <= 255 &&
+                  (!widget.unicodeText ||
+                      _modifiers.values.any((value) => value != _Latch.off))
+              ? rune
+              : 0x01000000 | rune,
+      });
+    }
+    if (composing) {
+      // Leave the IME's buffer alone: rewriting it would end the composition.
+      _sent = String.fromCharCodes(after);
+      _showPreedit(range.textInside(value.text).replaceAll(_seed.text, ''));
+      return;
+    }
+    // The sentinel lets Backspace work at an empty IME.
+    if (value.text.isEmpty) stroke(0xff08);
+    _sent = '';
     _value = _seed;
     _connection?.setEditingState(_value);
+    _showPreedit('');
+  }
+
+  void _showPreedit(String text) {
+    if (_preedit != text && mounted) setState(() => _preedit = text);
   }
 
   @override
@@ -317,6 +390,66 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
     );
   }
 
+  Widget _imeModeButton() {
+    final direct = imeMode == DesktopImeMode.direct;
+    final l10n = context.l10n;
+    final action = direct
+        ? l10n.desktopImeModeUseComposed
+        : l10n.desktopImeModeUseDirect;
+    return Semantics(
+      button: true,
+      excludeSemantics: true,
+      onTap: _toggleImeMode,
+      label: action,
+      value: direct ? l10n.desktopImeModeDirect : l10n.desktopImeModeComposed,
+      child: IconButton(
+        key: const ValueKey('desktop_ime_mode_toggle'),
+        tooltip: action,
+        onPressed: _toggleImeMode,
+        icon: Icon(direct ? Icons.abc : Icons.translate),
+        constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+      ),
+    );
+  }
+
+  /// What the IME is composing, just above the key bar: the remote desktop
+  /// receives it only once it is committed.
+  Widget _preeditBubble() {
+    final colors = Theme.of(context).colorScheme;
+    return IgnorePointer(
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+          child: Material(
+            key: const ValueKey('desktop_ime_preedit'),
+            color: colors.inverseSurface,
+            elevation: 3,
+            borderRadius: BorderRadius.circular(8),
+            clipBehavior: Clip.antiAlias,
+            child: SingleChildScrollView(
+              // Keep the end, where the user is typing, in view.
+              scrollDirection: Axis.horizontal,
+              reverse: true,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Text(
+                _preedit,
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: colors.onInverseSurface,
+                  decoration: TextDecoration.underline,
+                  decorationColor: colors.onInverseSurface,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _keybar() {
     // Put the common keys at the start of both rows on a phone. Function
     // keys remain available by horizontal scrolling without hiding arrows.
@@ -355,14 +488,24 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final row in rows)
+          for (final (index, row) in rows.indexed)
             SizedBox(
               height: 48,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [for (final key in row) _keyButton(key.$1, key.$2)],
-                ),
+              child: Row(
+                children: [
+                  // Outside the scrolling keys, so it is always reachable.
+                  if (index == 0) _imeModeButton(),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final key in row) _keyButton(key.$1, key.$2),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
@@ -439,7 +582,18 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
         return Stack(
           children: [
             if (_open)
-              Positioned(left: 0, right: 0, bottom: 0, child: _keybar()),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_preedit.isNotEmpty) _preeditBubble(),
+                    _keybar(),
+                  ],
+                ),
+              ),
             Positioned(
               left: x.toDouble(),
               top: y.toDouble(),

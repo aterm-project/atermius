@@ -5096,5 +5096,9 @@
   "passwordRevealShow": "显示密码",
   "passwordRevealHide": "隐藏密码",
   "keychainViewCredential": "查看凭据",
-  "desktopKeyboardPan": "滑动远程画面"
+  "desktopKeyboardPan": "滑动远程画面",
+  "desktopImeModeComposed": "输入法模式",
+  "desktopImeModeDirect": "直接按键模式",
+  "desktopImeModeUseDirect": "切换为直接按键：每个按键立即发送，仅限英文",
+  "desktopImeModeUseComposed": "切换为输入法：可输入中文、日文等各种语言"
 }

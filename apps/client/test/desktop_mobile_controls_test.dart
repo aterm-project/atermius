@@ -5,6 +5,7 @@ import 'package:aterm_client/desktop/desktop_session.dart';
 import 'package:aterm_client/desktop/desktop_touch_input.dart';
 import 'package:aterm_client/desktop/desktop_view.dart';
 import 'package:aterm_client/domain/models.dart';
+import 'package:aterm_client/l10n/l10n.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -29,10 +30,18 @@ Future<_Session> _mount(
   TargetPlatform platform = TargetPlatform.android,
   HostProtocol protocol = HostProtocol.rdp,
   bool safeArea = false,
+  Locale? locale,
 }) async {
   final session = _Session(protocol: protocol);
   await tester.pumpWidget(
     MaterialApp(
+      locale: locale,
+      localizationsDelegates: locale == null
+          ? null
+          : AppLocalizationSetup.delegates,
+      supportedLocales: locale == null
+          ? const [Locale('en', 'US')]
+          : AppLocalizationSetup.locales,
       theme: ThemeData(platform: platform),
       builder: (context, child) => DesktopKeyboardViewport(child: child!),
       home: Scaffold(
@@ -57,8 +66,36 @@ Future<void> _open(WidgetTester tester) async {
   expect(find.byKey(const ValueKey('desktop_special_keybar')), findsOneWidget);
 }
 
+const _imeToggle = ValueKey('desktop_ime_mode_toggle');
+const _preedit = ValueKey('desktop_ime_preedit');
+
+List<List<Object>> _strokes(Iterable<int> syms) => [
+  for (final sym in syms) ...[
+    ['key', sym, 1],
+    ['key', sym, 0],
+  ],
+];
+
+/// What the IME reports while [composing] follows the [committed] text.
+void _ime(WidgetTester tester, String committed, [String composing = '']) {
+  final start = 1 + committed.length;
+  tester.testTextInput.updateEditingValue(
+    TextEditingValue(
+      text: '\u200b$committed$composing',
+      selection: TextSelection.collapsed(offset: start + composing.length),
+      composing: composing.isEmpty
+          ? TextRange.empty
+          : TextRange(start: start, end: start + composing.length),
+    ),
+  );
+}
+
 void main() {
   setUp(() {
+    DesktopMobileControlsState.imeMode = DesktopImeMode.composed;
+    addTearDown(
+      () => DesktopMobileControlsState.imeMode = DesktopImeMode.composed,
+    );
     final controller = DesktopKeyboardController();
     DesktopKeyboardController.debugInstance = controller;
     addTearDown(() {
@@ -632,6 +669,438 @@ void main() {
     expect(tester.testTextInput.hasAnyClients, isFalse);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
+  });
+
+  group('soft keyboard input modes', () {
+    testWidgets('input-method mode is the default and lets every IME compose', (
+      tester,
+    ) async {
+      await _mount(tester);
+      await _open(tester);
+      final config = tester.testTextInput.setClientArgs!;
+      // Android maps disabled suggestions to a visible-password field, where
+      // IMEs offer only their Latin keyboard.
+      expect(config['enableSuggestions'], isTrue);
+      expect(config['autocorrect'], isFalse);
+      expect(config['enableIMEPersonalizedLearning'], isFalse);
+      expect(config['obscureText'], isFalse);
+      expect((config['inputType'] as Map)['name'], 'TextInputType.multiline');
+      expect(config['inputAction'], 'TextInputAction.newline');
+      expect(tester.testTextInput.editingState!['text'], '\u200b');
+      expect(find.byKey(_preedit), findsNothing);
+    });
+
+    testWidgets(
+      'direct mode keeps the Latin-only configuration and is remembered',
+      (tester) async {
+        final session = await _mount(tester);
+        await _open(tester);
+        await tester.tap(find.byKey(_imeToggle));
+        await tester.pump();
+        expect(DesktopMobileControlsState.imeMode, DesktopImeMode.direct);
+        var config = tester.testTextInput.setClientArgs!;
+        expect(config['enableSuggestions'], isFalse);
+        expect(config['autocorrect'], isFalse);
+        expect(config['enableIMEPersonalizedLearning'], isFalse);
+        expect((config['inputType'] as Map)['name'], 'TextInputType.multiline');
+        expect(tester.testTextInput.isVisible, isTrue);
+        expect(session.keys, isEmpty);
+        // Every key the IME reports is sent at once.
+        tester.testTextInput.enterText('\u200bl');
+        tester.testTextInput.enterText('\u200bs');
+        tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+        await tester.pump();
+        expect(session.keys, _strokes([0x0100006c, 0x01000073, 0xff08]));
+        // Closing and reopening keeps the chosen mode.
+        await tester.tap(find.byKey(const ValueKey('desktop_keyboard_toggle')));
+        await tester.pump();
+        expect(tester.testTextInput.hasAnyClients, isFalse);
+        await _open(tester);
+        config = tester.testTextInput.setClientArgs!;
+        expect(config['enableSuggestions'], isFalse);
+        await tester.tap(find.byKey(_imeToggle));
+        await tester.pump();
+        expect(DesktopMobileControlsState.imeMode, DesktopImeMode.composed);
+        expect(
+          tester.testTextInput.setClientArgs!['enableSuggestions'],
+          isTrue,
+        );
+      },
+    );
+
+    testWidgets(
+      'composing shows a local preedit bubble and sends only on commit (RDP)',
+      (tester) async {
+        final session = await _mount(tester);
+        await _open(tester);
+        tester.testTextInput.log.clear();
+        for (final pinyin in ['n', 'ni', 'nih', 'nihao']) {
+          _ime(tester, '', pinyin);
+          await tester.pump();
+          expect(session.keys, isEmpty);
+          expect(
+            find.descendant(
+              of: find.byKey(_preedit),
+              matching: find.text(pinyin),
+            ),
+            findsOneWidget,
+          );
+        }
+        // The IME's own buffer is never rewritten while it composes.
+        expect(
+          tester.testTextInput.log.where(
+            (call) => call.method == 'TextInput.setEditingState',
+          ),
+          isEmpty,
+        );
+        final bubble = tester.getRect(find.byKey(_preedit));
+        final bar = tester.getRect(
+          find.byKey(const ValueKey('desktop_special_keybar')),
+        );
+        expect(bubble.bottom, lessThanOrEqualTo(bar.top));
+        expect(bar.top - bubble.bottom, lessThan(16));
+        _ime(tester, '你好');
+        await tester.pump();
+        expect(session.keys, _strokes([0x01004f60, 0x0100597d]));
+        expect(find.byKey(_preedit), findsNothing);
+        expect(tester.testTextInput.editingState!['text'], '\u200b');
+        expect(
+          session.sent.where((e) => e.first == 'mouse'),
+          isEmpty,
+          reason: 'the bubble never forwards touches',
+        );
+      },
+    );
+
+    testWidgets('VNC commit uses Latin-1 keysyms and Unicode keysyms above', (
+      tester,
+    ) async {
+      final session = await _mount(tester, protocol: HostProtocol.vnc);
+      await _open(tester);
+      _ime(tester, '', 'nihao');
+      await tester.pump();
+      expect(session.keys, isEmpty);
+      expect(find.byKey(_preedit), findsOneWidget);
+      _ime(tester, '你好a é');
+      await tester.pump();
+      expect(session.keys, _strokes([0x01004f60, 0x0100597d, 97, 32, 233]));
+      expect(find.byKey(_preedit), findsNothing);
+    });
+
+    testWidgets(
+      'text committed in front of a new composition is sent once, in order',
+      (tester) async {
+        final session = await _mount(tester);
+        await _open(tester);
+        _ime(tester, '', 'nihaoshijie');
+        await tester.pump();
+        tester.testTextInput.log.clear();
+        // The IME commits the first word and keeps composing the rest.
+        _ime(tester, '你好', 'shijie');
+        await tester.pump();
+        expect(session.keys, _strokes([0x01004f60, 0x0100597d]));
+        expect(
+          find.descendant(
+            of: find.byKey(_preedit),
+            matching: find.text('shijie'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester.testTextInput.log.where(
+            (call) => call.method == 'TextInput.setEditingState',
+          ),
+          isEmpty,
+          reason: 'resetting the buffer would end the running composition',
+        );
+        // More preedit changes repeat nothing.
+        _ime(tester, '你好', 'shi');
+        await tester.pump();
+        expect(session.keys, hasLength(4));
+        _ime(tester, '你好世界');
+        await tester.pump();
+        expect(
+          session.keys,
+          _strokes([0x01004f60, 0x0100597d, 0x01004e16, 0x0100754c]),
+        );
+        expect(find.byKey(_preedit), findsNothing);
+        expect(tester.testTextInput.editingState!['text'], '\u200b');
+        // The next commit starts from a clean buffer.
+        _ime(tester, '！');
+        await tester.pump();
+        expect(session.keys.skip(8), _strokes([0x0100ff01]));
+      },
+    );
+
+    testWidgets(
+      'a sent character the IME takes back becomes Backspace; an abandoned composition sends nothing',
+      (tester) async {
+        final session = await _mount(tester);
+        await _open(tester);
+        _ime(tester, '', 'ni');
+        await tester.pump();
+        // Composition deleted again: only the sentinel is left.
+        _ime(tester, '');
+        await tester.pump();
+        expect(session.keys, isEmpty);
+        expect(find.byKey(_preedit), findsNothing);
+        _ime(tester, '你好', 'ma');
+        await tester.pump();
+        session.sent.clear();
+        _ime(tester, '你');
+        await tester.pump();
+        expect(session.keys, _strokes([0xff08]));
+      },
+    );
+
+    testWidgets('Backspace at an empty field and Enter work in both modes', (
+      tester,
+    ) async {
+      final session = await _mount(tester);
+      await _open(tester);
+      for (final mode in DesktopImeMode.values) {
+        expect(DesktopMobileControlsState.imeMode, mode);
+        session.sent.clear();
+        tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+        await tester.pump();
+        expect(tester.testTextInput.editingState!['text'], '\u200b');
+        tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+        tester.testTextInput.enterText('\u200b\n');
+        await tester.testTextInput.receiveAction(TextInputAction.newline);
+        await tester.pump();
+        expect(session.keys, _strokes([0xff08, 0xff08, 0xff0d, 0xff0d]));
+        await tester.tap(find.byKey(_imeToggle));
+        await tester.pump();
+      }
+    });
+
+    testWidgets('a committed ASCII word and Enter type correctly', (
+      tester,
+    ) async {
+      final session = await _mount(tester);
+      await _open(tester);
+      for (final word in ['l', 'ls']) {
+        _ime(tester, '', word);
+        await tester.pump();
+      }
+      _ime(tester, 'ls ');
+      await tester.pump();
+      _ime(tester, '', '-la');
+      await tester.pump();
+      expect(session.keys, _strokes('ls '.runes.map((r) => 0x01000000 | r)));
+      _ime(tester, '-la\n');
+      await tester.pump();
+      expect(
+        session.keys,
+        _strokes([
+          for (final rune in 'ls -la'.runes) 0x01000000 | rune,
+          0xff0d,
+        ]),
+      );
+    });
+
+    testWidgets(
+      'a soft modifier sends the composing Latin key at once as a shortcut',
+      (tester) async {
+        final session = await _mount(tester);
+        await _open(tester);
+        await tester.tap(find.byKey(const ValueKey('desktop_key_65507')));
+        await tester.pump();
+        _ime(tester, '', 'c');
+        await tester.pump();
+        expect(session.keys, [
+          ['key', 0xffe3, 1],
+          ['key', 99, 1],
+          ['key', 99, 0],
+          ['key', 0xffe3, 0],
+        ]);
+        expect(find.byKey(_preedit), findsNothing);
+        expect(tester.testTextInput.editingState!['text'], '\u200b');
+        // The one-shot modifier is used up: typing composes again.
+        session.sent.clear();
+        _ime(tester, '', 'c');
+        await tester.pump();
+        expect(session.keys, isEmpty);
+        expect(find.byKey(_preedit), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'switching modes while open keeps the keyboard, drops the composition and sends nothing',
+      (tester) async {
+        final session = await _mount(tester);
+        await _open(tester);
+        _ime(tester, '你', 'hao');
+        await tester.pump();
+        expect(session.keys, _strokes([0x01004f60]));
+        session.sent.clear();
+        tester.testTextInput.log.clear();
+        await tester.tap(find.byKey(_imeToggle));
+        await tester.pump();
+        expect(session.sent, isEmpty);
+        expect(find.byKey(_preedit), findsNothing);
+        expect(tester.testTextInput.isVisible, isTrue);
+        expect(tester.testTextInput.hasAnyClients, isTrue);
+        expect(
+          find.byKey(const ValueKey('desktop_special_keybar')),
+          findsOneWidget,
+        );
+        final calls = tester.testTextInput.log.map((call) => call.method);
+        expect(calls, isNot(contains('TextInput.clearClient')));
+        expect(calls, isNot(contains('TextInput.hide')));
+        expect(calls, contains('TextInput.setClient'));
+        expect(
+          tester.testTextInput.setClientArgs!['enableSuggestions'],
+          isFalse,
+        );
+        expect(tester.testTextInput.editingState, {
+          ...const TextEditingValue(
+            text: '\u200b',
+            selection: TextSelection.collapsed(offset: 1),
+          ).toJSON(),
+        });
+        // The new client starts clean: nothing of the old buffer is diffed.
+        tester.testTextInput.enterText('\u200ba');
+        await tester.pump();
+        expect(session.keys, _strokes([0x01000061]));
+        // Back to the input method with a locked modifier still held.
+        session.sent.clear();
+        await tester.tap(find.byKey(_imeToggle));
+        await tester.pump();
+        expect(session.sent, isEmpty);
+        expect(
+          tester.testTextInput.setClientArgs!['enableSuggestions'],
+          isTrue,
+        );
+        expect(tester.testTextInput.isVisible, isTrue);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    for (final (code, composedTip, directTip, composedValue, directValue) in [
+      (
+        'en',
+        'Switch to direct keys: every key is sent at once, Latin only',
+        'Switch to input method: type Chinese, Japanese and other languages',
+        'Input method mode',
+        'Direct key mode',
+      ),
+      (
+        'zh',
+        '切换为直接按键：每个按键立即发送，仅限英文',
+        '切换为输入法：可输入中文、日文等各种语言',
+        '输入法模式',
+        '直接按键模式',
+      ),
+      (
+        'ja',
+        '直接キー入力に切り替え：キーをすぐに送信、英字のみ',
+        'IME 入力に切り替え：日本語や中国語などを入力できます',
+        'IME 入力モード',
+        '直接キー入力モード',
+      ),
+      (
+        'ru',
+        'Переключить на прямой ввод: каждая клавиша отправляется сразу, только латиница',
+        'Переключить на метод ввода: китайский, японский и другие языки',
+        'Режим метода ввода',
+        'Режим прямого ввода клавиш',
+      ),
+    ]) {
+      testWidgets('the mode button and key bar fit 390 px ($code)', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final semantics = tester.ensureSemantics();
+        try {
+          await _mount(tester, locale: Locale(code));
+          await _open(tester);
+          final toggle = find.byKey(_imeToggle);
+          final bar = tester.getRect(
+            find.byKey(const ValueKey('desktop_special_keybar')),
+          );
+          expect(bar.left, 0);
+          expect(bar.right, 390);
+          expect(bar.height, 96);
+          for (final (tip, value, icon) in [
+            (composedTip, composedValue, Icons.translate),
+            (directTip, directValue, Icons.abc),
+          ]) {
+            // Reachable without scrolling, at least 48 px, inside the bar.
+            final rect = tester.getRect(toggle);
+            expect(rect.left, greaterThanOrEqualTo(0));
+            expect(rect.right, lessThanOrEqualTo(390));
+            expect(rect.size, const Size(48, 48));
+            expect(bar.contains(rect.center), isTrue);
+            expect(
+              find.descendant(of: toggle, matching: find.byIcon(icon)),
+              findsOneWidget,
+            );
+            expect(find.byTooltip(tip), findsOneWidget);
+            final node = tester.getSemantics(toggle);
+            expect(node.label, tip);
+            expect(node.value, value);
+            expect(
+              node.getSemanticsData().hasAction(SemanticsAction.tap),
+              isTrue,
+            );
+            // The common keys stay on screen next to it.
+            for (final sym in [65507, 65361, 65362, 65363, 65364]) {
+              final key = tester.getRect(
+                find.byKey(ValueKey('desktop_key_$sym')),
+              );
+              expect(key.left, greaterThanOrEqualTo(0));
+              expect(key.right, lessThanOrEqualTo(390));
+              expect(key.overlaps(rect), isFalse);
+            }
+            // A long composition stays inside the pane.
+            _ime(tester, '', 'w' * 80);
+            await tester.pump();
+            final bubble = tester.getRect(find.byKey(_preedit));
+            expect(bubble.left, greaterThanOrEqualTo(0));
+            expect(bubble.right, lessThanOrEqualTo(390));
+            expect(bubble.bottom, lessThanOrEqualTo(bar.top));
+            expect(tester.takeException(), isNull);
+            await tester.tap(toggle);
+            await tester.pump();
+            expect(find.byKey(_preedit), findsNothing);
+          }
+          // Scrolling the keys never moves the mode button away.
+          await tester.drag(
+            find.byKey(const ValueKey('desktop_key_65507')),
+            const Offset(-300, 0),
+          );
+          await tester.pump();
+          expect(tester.getRect(toggle).left, 0);
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+
+    testWidgets('a short pane keeps the mode button on its single key row', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 240);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _mount(tester);
+      await _open(tester);
+      await tester.pump();
+      final bar = tester.getRect(
+        find.byKey(const ValueKey('desktop_special_keybar')),
+      );
+      expect(bar.height, 48);
+      final rect = tester.getRect(find.byKey(_imeToggle));
+      expect(rect.left, 0);
+      expect(bar.contains(rect.center), isTrue);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('relative touchpad', () {

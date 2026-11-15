@@ -5096,5 +5096,9 @@
   "passwordRevealShow": "Показать пароль",
   "passwordRevealHide": "Скрыть пароль",
   "keychainViewCredential": "Просмотр учётных данных",
-  "desktopKeyboardPan": "Сдвинуть удалённый экран"
+  "desktopKeyboardPan": "Сдвинуть удалённый экран",
+  "desktopImeModeComposed": "Режим метода ввода",
+  "desktopImeModeDirect": "Режим прямого ввода клавиш",
+  "desktopImeModeUseDirect": "Переключить на прямой ввод: каждая клавиша отправляется сразу, только латиница",
+  "desktopImeModeUseComposed": "Переключить на метод ввода: китайский, японский и другие языки"
 }

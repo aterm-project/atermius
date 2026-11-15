@@ -15963,5 +15963,21 @@
   "desktopKeyboardPan": "Slide the remote screen",
   "@desktopKeyboardPan": {
     "description": "Remote desktop: handle that slides the picture out from under the soft keyboard."
+  },
+  "desktopImeModeComposed": "Input method mode",
+  "@desktopImeModeComposed": {
+    "description": "State of the input-mode button on the special-key bar of an Android remote desktop (RDP/VNC): the keyboard's input method composes text in any language and it is sent when committed."
+  },
+  "desktopImeModeDirect": "Direct key mode",
+  "@desktopImeModeDirect": {
+    "description": "State of the input-mode button on the special-key bar of an Android remote desktop (RDP/VNC): every key of the soft keyboard is sent at once; only Latin letters can be typed."
+  },
+  "desktopImeModeUseDirect": "Switch to direct keys: every key is sent at once, Latin only",
+  "@desktopImeModeUseDirect": {
+    "description": "Tooltip of the input-mode button on the special-key bar of an Android remote desktop while input method mode is active."
+  },
+  "desktopImeModeUseComposed": "Switch to input method: type Chinese, Japanese and other languages",
+  "@desktopImeModeUseComposed": {
+    "description": "Tooltip of the input-mode button on the special-key bar of an Android remote desktop while direct key mode is active."
   }
 }

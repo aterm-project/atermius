@@ -19227,4 +19227,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get desktopKeyboardPan => 'Slide the remote screen';
+
+  @override
+  String get desktopImeModeComposed => 'Input method mode';
+
+  @override
+  String get desktopImeModeDirect => 'Direct key mode';
+
+  @override
+  String get desktopImeModeUseDirect =>
+      'Switch to direct keys: every key is sent at once, Latin only';
+
+  @override
+  String get desktopImeModeUseComposed =>
+      'Switch to input method: type Chinese, Japanese and other languages';
 }

@@ -19279,4 +19279,18 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get desktopKeyboardPan => 'Сдвинуть удалённый экран';
+
+  @override
+  String get desktopImeModeComposed => 'Режим метода ввода';
+
+  @override
+  String get desktopImeModeDirect => 'Режим прямого ввода клавиш';
+
+  @override
+  String get desktopImeModeUseDirect =>
+      'Переключить на прямой ввод: каждая клавиша отправляется сразу, только латиница';
+
+  @override
+  String get desktopImeModeUseComposed =>
+      'Переключить на метод ввода: китайский, японский и другие языки';
 }

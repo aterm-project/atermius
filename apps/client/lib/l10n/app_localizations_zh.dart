@@ -17211,4 +17211,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get desktopKeyboardPan => '滑动远程画面';
+
+  @override
+  String get desktopImeModeComposed => '输入法模式';
+
+  @override
+  String get desktopImeModeDirect => '直接按键模式';
+
+  @override
+  String get desktopImeModeUseDirect => '切换为直接按键：每个按键立即发送，仅限英文';
+
+  @override
+  String get desktopImeModeUseComposed => '切换为输入法：可输入中文、日文等各种语言';
 }

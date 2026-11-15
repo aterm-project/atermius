@@ -30405,6 +30405,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Slide the remote screen'**
   String get desktopKeyboardPan;
+
+  /// State of the input-mode button on the special-key bar of an Android remote desktop (RDP/VNC): the keyboard's input method composes text in any language and it is sent when committed.
+  ///
+  /// In en, this message translates to:
+  /// **'Input method mode'**
+  String get desktopImeModeComposed;
+
+  /// State of the input-mode button on the special-key bar of an Android remote desktop (RDP/VNC): every key of the soft keyboard is sent at once; only Latin letters can be typed.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct key mode'**
+  String get desktopImeModeDirect;
+
+  /// Tooltip of the input-mode button on the special-key bar of an Android remote desktop while input method mode is active.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to direct keys: every key is sent at once, Latin only'**
+  String get desktopImeModeUseDirect;
+
+  /// Tooltip of the input-mode button on the special-key bar of an Android remote desktop while direct key mode is active.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to input method: type Chinese, Japanese and other languages'**
+  String get desktopImeModeUseComposed;
 }
 
 class _AppLocalizationsDelegate
