@@ -12,6 +12,7 @@ import 'package:xterm/src/core/mouse/button_state.dart';
 import 'package:xterm/src/terminal.dart';
 import 'package:xterm/src/ui/controller.dart';
 import 'package:xterm/src/ui/cursor_type.dart';
+import 'package:xterm/src/ui/foreground_decorator.dart';
 import 'package:xterm/src/ui/painter.dart';
 import 'package:xterm/src/ui/selection_mode.dart';
 import 'package:xterm/src/ui/terminal_size.dart';
@@ -35,6 +36,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     required bool alwaysShowCursor,
     EditableRectCallback? onEditableRect,
     String? composingText,
+    TerminalForegroundDecorator? foregroundDecorator,
   })  : _terminal = terminal,
         _controller = controller,
         _offset = offset,
@@ -45,6 +47,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         _alwaysShowCursor = alwaysShowCursor,
         _onEditableRect = onEditableRect,
         _composingText = composingText,
+        _foregroundDecorator = foregroundDecorator,
         _painter = TerminalPainter(
           theme: theme,
           textStyle: textStyle,
@@ -148,6 +151,16 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     markNeedsPaint();
   }
 
+  /// Display-only recoloring of plain text; null paints the buffer as is.
+  TerminalForegroundDecorator? _foregroundDecorator;
+  set foregroundDecorator(TerminalForegroundDecorator? value) {
+    if (identical(value, _foregroundDecorator)) return;
+    if (attached) _foregroundDecorator?.removeListener(markNeedsPaint);
+    _foregroundDecorator = value;
+    if (attached) value?.addListener(markNeedsPaint);
+    markNeedsPaint();
+  }
+
   TerminalSize? _viewportSize;
 
   final TerminalPainter _painter;
@@ -186,6 +199,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     _terminal.addListener(_onTerminalChange);
     _controller.addListener(_onControllerUpdate);
     _focusNode.addListener(_onFocusChange);
+    _foregroundDecorator?.addListener(markNeedsPaint);
   }
 
   @override
@@ -195,6 +209,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     _terminal.removeListener(_onTerminalChange);
     _controller.removeListener(_onControllerUpdate);
     _focusNode.removeListener(_onFocusChange);
+    _foregroundDecorator?.removeListener(markNeedsPaint);
     _painter.clearCache();
   }
 
@@ -478,11 +493,19 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     final effectFirstLine = firstLine.clamp(0, lines.length - 1);
     final effectLastLine = lastLine.clamp(0, lines.length - 1);
 
+    // Asked once per paint; null (no decorator, switched off, or a terminal
+    // it leaves alone) keeps the undecorated path free of per-line work.
+    final decorator = _foregroundDecorator;
+    final styles = decorator?.beginPaint(_terminal, _painter.theme);
+
     for (var i = effectFirstLine; i <= effectLastLine; i++) {
+      final line = lines[i];
       _painter.paintLine(
         canvas,
         offset.translate(0, (i * charHeight + _lineOffset).truncateToDouble()),
-        lines[i],
+        line,
+        spans: styles == null ? null : decorator!.spansFor(line),
+        styles: styles,
       );
     }
 

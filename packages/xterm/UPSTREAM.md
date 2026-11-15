@@ -75,3 +75,16 @@ changes here. The application selects this package through the path override in
   of a double-width character as a separator. Word/character selections widen to
   whole wide characters, so the copied text matches the highlight.
 - Covered by `apps/client/test/terminal_touch_selection_test.dart`.
+- Foreground decorator (`lib/src/ui/foreground_decorator.dart`, exported from
+  `ui.dart`): `TerminalView.foregroundDecorator` takes a
+  `TerminalForegroundDecorator`, a display-only hook that returns, per line, runs of
+  cells to paint in another foreground (`TerminalForegroundSpan`, styles as
+  `TerminalForegroundStyle`: a cell color plus added cell flags). `RenderTerminal`
+  asks `beginPaint(terminal, theme)` once per paint (null skips all per-line work)
+  and `spansFor(line)` per visible line; `TerminalPainter.paintLine` applies a run
+  only when all of its cells are plain (default foreground and background, not
+  inverse, faint or invisible), so program-styled text is never recolored. The
+  buffer, selection, search highlights and cursor painting are unchanged, and the
+  view repaints when the decorator notifies. The package holds no keyword logic;
+  Atermius' keyword highlighting lives in `apps/client/lib/terminal/`. Covered by
+  `apps/client/test/terminal_keyword_highlight_paint_test.dart`.

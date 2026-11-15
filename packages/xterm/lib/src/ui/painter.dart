@@ -146,16 +146,62 @@ class TerminalPainter {
 
   /// Paints [line] to [canvas] at [offset]. The x offset of [offset] is usually
   /// 0, and the y offset is the top of the line.
+  ///
+  /// [spans] (with the [styles] they index) recolor runs of plain cells; see
+  /// [TerminalForegroundDecorator]. A run that touches a cell the program
+  /// styled itself is skipped as a whole.
   void paintLine(
     Canvas canvas,
     Offset offset,
-    BufferLine line,
-  ) {
+    BufferLine line, {
+    List<TerminalForegroundSpan>? spans,
+    List<TerminalForegroundStyle>? styles,
+  }) {
     final cellData = CellData.empty();
     final cellWidth = _cellSize.width;
 
+    if (spans == null || styles == null || spans.isEmpty) {
+      for (var i = 0; i < line.length; i++) {
+        line.getCellData(i, cellData);
+
+        final charWidth = cellData.content >> CellContent.widthShift;
+        final cellOffset = offset.translate(i * cellWidth, 0);
+
+        paintCell(canvas, cellOffset, cellData);
+
+        if (charWidth == 2) {
+          i++;
+        }
+      }
+      return;
+    }
+
+    var spanIndex = 0;
+    // The style of the span at [spanIndex], or null while that span is not
+    // applicable (not checked yet, or it covers program-styled cells).
+    TerminalForegroundStyle? style;
+    var checked = -1;
+
     for (var i = 0; i < line.length; i++) {
       line.getCellData(i, cellData);
+
+      while (spanIndex < spans.length && spans[spanIndex].end <= i) {
+        spanIndex++;
+      }
+      if (spanIndex < spans.length && spans[spanIndex].start <= i) {
+        if (checked != spanIndex) {
+          checked = spanIndex;
+          final span = spans[spanIndex];
+          style = span.style < styles.length &&
+                  terminalCellsArePlain(line, span.start, span.end)
+              ? styles[span.style]
+              : null;
+        }
+        if (style != null) {
+          cellData.foreground = style.foreground;
+          cellData.flags |= style.flags;
+        }
+      }
 
       final charWidth = cellData.content >> CellContent.widthShift;
       final cellOffset = offset.translate(i * cellWidth, 0);

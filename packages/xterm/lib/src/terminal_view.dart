@@ -9,6 +9,7 @@ import 'package:xterm/src/terminal.dart';
 import 'package:xterm/src/ui/controller.dart';
 import 'package:xterm/src/ui/cursor_type.dart';
 import 'package:xterm/src/ui/custom_text_edit.dart';
+import 'package:xterm/src/ui/foreground_decorator.dart';
 import 'package:xterm/src/ui/gesture/gesture_handler.dart';
 import 'package:xterm/src/ui/input_map.dart';
 import 'package:xterm/src/ui/keyboard_listener.dart';
@@ -51,6 +52,7 @@ class TerminalView extends StatefulWidget {
     this.hardwareKeyboardOnly = false,
     this.showKeyboardOnTap = true,
     this.simulateScroll = true,
+    this.foregroundDecorator,
   });
 
   /// The underlying terminal that this widget renders.
@@ -150,6 +152,11 @@ class TerminalView extends StatefulWidget {
   /// keys to the application. This is standard behavior for most terminal
   /// emulators. True by default.
   final bool simulateScroll;
+
+  /// Display-only recoloring of plain (default-colored) text, for example
+  /// keyword highlighting. The terminal buffer is not changed. Null (the
+  /// default) paints the buffer as is.
+  final TerminalForegroundDecorator? foregroundDecorator;
 
   @override
   State<TerminalView> createState() => TerminalViewState();
@@ -253,6 +260,7 @@ class TerminalViewState extends State<TerminalView> {
           alwaysShowCursor: widget.alwaysShowCursor,
           onEditableRect: _onEditableRect,
           composingText: _composingText,
+          foregroundDecorator: widget.foregroundDecorator,
         );
       },
     );
@@ -517,6 +525,7 @@ class _TerminalView extends LeafRenderObjectWidget {
     required this.alwaysShowCursor,
     this.onEditableRect,
     this.composingText,
+    this.foregroundDecorator,
   });
 
   final Terminal terminal;
@@ -545,6 +554,8 @@ class _TerminalView extends LeafRenderObjectWidget {
 
   final String? composingText;
 
+  final TerminalForegroundDecorator? foregroundDecorator;
+
   @override
   RenderTerminal createRenderObject(BuildContext context) {
     return RenderTerminal(
@@ -561,6 +572,7 @@ class _TerminalView extends LeafRenderObjectWidget {
       alwaysShowCursor: alwaysShowCursor,
       onEditableRect: onEditableRect,
       composingText: composingText,
+      foregroundDecorator: foregroundDecorator,
     );
   }
 
@@ -579,6 +591,7 @@ class _TerminalView extends LeafRenderObjectWidget {
       ..cursorType = cursorType
       ..alwaysShowCursor = alwaysShowCursor
       ..onEditableRect = onEditableRect
-      ..composingText = composingText;
+      ..composingText = composingText
+      ..foregroundDecorator = foregroundDecorator;
   }
 }
