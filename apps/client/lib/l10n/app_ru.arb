@@ -5158,5 +5158,6 @@
   "terminalScrollbackFieldLabel": "Строк на терминал",
   "terminalScrollbackLines": "{count} строк",
   "terminalScrollbackLinesDefault": "{count} строк (по умолчанию)",
-  "terminalScrollbackAppliesToNew": "Применяется к терминалам, открытым после изменения. Уже открытые терминалы сохраняют текущий размер истории."
+  "terminalScrollbackAppliesToNew": "Применяется к терминалам, открытым после изменения. Уже открытые терминалы сохраняют текущий размер истории.",
+  "connecting": "Подключение"
 }

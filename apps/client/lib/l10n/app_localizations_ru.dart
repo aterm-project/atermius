@@ -19519,4 +19519,7 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get terminalScrollbackAppliesToNew =>
       'Применяется к терминалам, открытым после изменения. Уже открытые терминалы сохраняют текущий размер истории.';
+
+  @override
+  String get connecting => 'Подключение';
 }

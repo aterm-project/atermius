@@ -18346,4 +18346,7 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get terminalScrollbackAppliesToNew =>
       '以降に開くターミナルに適用されます。すでに開いているターミナルは現在の行数のままです。';
+
+  @override
+  String get connecting => '接続中';
 }

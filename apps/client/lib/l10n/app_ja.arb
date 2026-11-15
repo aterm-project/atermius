@@ -5158,5 +5158,6 @@
   "terminalScrollbackFieldLabel": "ターミナルごとの保持行数",
   "terminalScrollbackLines": "{count} 行",
   "terminalScrollbackLinesDefault": "{count} 行（既定）",
-  "terminalScrollbackAppliesToNew": "以降に開くターミナルに適用されます。すでに開いているターミナルは現在の行数のままです。"
+  "terminalScrollbackAppliesToNew": "以降に開くターミナルに適用されます。すでに開いているターミナルは現在の行数のままです。",
+  "connecting": "接続中"
 }

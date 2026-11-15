@@ -5158,5 +5158,6 @@
   "terminalScrollbackFieldLabel": "每个终端保留的行数",
   "terminalScrollbackLines": "{count} 行",
   "terminalScrollbackLinesDefault": "{count} 行（默认）",
-  "terminalScrollbackAppliesToNew": "对之后打开的终端生效。已打开的终端保持当前的回滚行数。"
+  "terminalScrollbackAppliesToNew": "对之后打开的终端生效。已打开的终端保持当前的回滚行数。",
+  "connecting": "正在连接"
 }

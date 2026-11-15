@@ -19462,4 +19462,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get terminalScrollbackAppliesToNew =>
       'Applies to terminals opened afterwards. Terminals that are already open keep their current scrollback.';
+
+  @override
+  String get connecting => 'Connecting';
 }

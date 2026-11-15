@@ -17434,4 +17434,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get terminalScrollbackAppliesToNew => '对之后打开的终端生效。已打开的终端保持当前的回滚行数。';
+
+  @override
+  String get connecting => '正在连接';
 }

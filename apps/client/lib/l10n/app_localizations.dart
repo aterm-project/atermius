@@ -30777,6 +30777,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Applies to terminals opened afterwards. Terminals that are already open keep their current scrollback.'**
   String get terminalScrollbackAppliesToNew;
+
+  /// State of a session tab whose first connection attempt is still running, shown next to Connected / Not connected in the status bar and on split panes.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting'**
+  String get connecting;
 }
 
 class _AppLocalizationsDelegate

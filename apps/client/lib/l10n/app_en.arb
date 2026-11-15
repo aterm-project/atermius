@@ -16177,5 +16177,9 @@
   "terminalScrollbackAppliesToNew": "Applies to terminals opened afterwards. Terminals that are already open keep their current scrollback.",
   "@terminalScrollbackAppliesToNew": {
     "description": "Note under the scrollback setting: a change only affects terminals opened after it."
+  },
+  "connecting": "Connecting",
+  "@connecting": {
+    "description": "State of a session tab whose first connection attempt is still running, shown next to Connected / Not connected in the status bar and on split panes."
   }
 }
