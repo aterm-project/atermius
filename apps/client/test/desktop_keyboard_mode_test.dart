@@ -81,6 +81,54 @@ void main() {
       session.dispose();
     },
   );
+  testWidgets('a minimized window keeps the remote resolution', (tester) async {
+    final target = _ResizeTarget();
+    final session = DesktopSession(directConnectionForTesting: (_) => target);
+    await session.connectLocal(
+      HostRecord(
+        id: 'resize-minimized',
+        name: 'Minimized',
+        address: 'localhost',
+        protocol: HostProtocol.vnc,
+        manifest: const VncSettings(resolution: VncResolutionMode.fitWindow)
+            .applyTo(null),
+      ),
+    );
+    target.stream.add(DesktopReady());
+    session.state = 'connected';
+    target.stream.add(DesktopResizeStatus(serverResize: true));
+    addTearDown(tester.view.reset);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1000, 700);
+    Future<void> settle() async {
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: DesktopView(session: session)),
+      ),
+    );
+    await settle();
+    expect(target.sizes, hasLength(1));
+    final first = target.sizes.single;
+    // Windows reports an empty view while the window is minimized.
+    tester.view.physicalSize = Size.zero;
+    await settle();
+    expect(target.sizes, [first], reason: 'minimized is not a new size');
+    tester.view.physicalSize = const Size(1000, 700);
+    await settle();
+    expect(target.sizes, [first], reason: 'restored unchanged');
+    tester.view.physicalSize = const Size(1200, 700);
+    await settle();
+    expect(target.sizes, hasLength(2), reason: 'a real resize still applies');
+    expect(target.sizes.last[1], (first[1] as int) + 200);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(session.close);
+    session.dispose();
+  });
   test(
     'overlay default, saved resize, serialized choices and exact owner cleanup',
     () async {

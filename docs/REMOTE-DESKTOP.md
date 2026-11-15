@@ -80,6 +80,10 @@ On Windows, the local input method is switched off while an RDP or VNC desktop h
 
 Windows 上，RDP 或 VNC 桌面获得键盘焦点时会关闭本机输入法，按键原样送到远程电脑，由远程电脑自己的输入法组字（与 Windows 自带的远程桌面一致）。SSH、Telnet 终端和所有文本框仍使用本机输入法，焦点回到它们时立即恢复。
 
+Minimizing the window never changes the remote resolution: a session that follows the window size keeps the size it had, and asks for a new one only when the restored window really has a different size.
+
+最小化窗口不会改变远程分辨率：跟随窗口大小的会话保持原有尺寸，只有窗口恢复后大小确实变了才会重新调整。
+
 ## Storage mappings and direct touch
 
 On Windows and Android, RDP maps this device's local disks by default. Each Host has a switch to turn this off. The switch is stored only on this device and is not synchronized with the Host, so a choice made on one device never exposes another device's disks. The file is kept out of Android Auto Backup and device transfer, and on Windows it lives under Local AppData rather than the roaming profile. The switch fails closed: a choice that could not be saved stays in force in that window and is written again later, and the editor says so. If the stored choices exist but cannot be read, no local disks are mapped until they can be, with a notice. At connect time the app lists the volumes present at that moment and sends each one as an explicit mapping. The engine never enables FreeRDP's all-drives or home-drive redirection, and it does not add drives inserted during the session.

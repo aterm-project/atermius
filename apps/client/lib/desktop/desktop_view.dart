@@ -504,6 +504,10 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
         !session.followsWindowSize) {
       return;
     }
+    // A minimized window has no area (Windows reports an empty view), which
+    // is not a size the user chose: the remote keeps its resolution, and the
+    // restored window asks for nothing when it comes back unchanged.
+    if (size.isEmpty || View.of(context).physicalSize.isEmpty) return;
     if (_generation != session.displayGeneration) {
       _generation = session.displayGeneration;
       _lastSize = null;
