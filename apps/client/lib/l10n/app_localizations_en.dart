@@ -19215,4 +19215,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mcpEndpointsTitle =>
       'Clients can connect to any of these addresses:';
+
+  @override
+  String get passwordRevealShow => 'Show password';
+
+  @override
+  String get passwordRevealHide => 'Hide password';
+
+  @override
+  String get keychainViewCredential => 'View credential';
 }

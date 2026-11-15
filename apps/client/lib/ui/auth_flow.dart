@@ -8,6 +8,7 @@ import 'app_theme.dart';
 import '../l10n/l10n.dart';
 import 'app_language_settings.dart';
 import 'app_density.dart';
+import 'password_field.dart';
 import 'credential_visibility/credential_visibility_widgets.dart';
 
 class _RecoveryInput {
@@ -49,7 +50,6 @@ class _AuthFlowState extends State<AuthFlow> {
   final _recoveryNewPassword = TextEditingController();
   final _recoveryConfirmation = TextEditingController();
   final _recoveryDeviceName = TextEditingController();
-  bool _obscure = true;
   MfaLoginChallenge? _loginChallenge;
   bool _useMfaRecoveryCode = false;
 
@@ -374,7 +374,11 @@ class _AuthFlowState extends State<AuthFlow> {
         icon: Icons.alternate_email_rounded,
       ),
       const SizedBox(height: 14),
-      _passwordField(_password, context.l10n.masterPassword),
+      _passwordField(
+        _password,
+        context.l10n.masterPassword,
+        id: 'master_password',
+      ),
       const SizedBox(height: 18),
       FilledButton.icon(
         onPressed: app.busy || app.hasPreparedFullAccountRecovery
@@ -477,32 +481,40 @@ class _AuthFlowState extends State<AuthFlow> {
           style: TextStyle(color: context.palette.muted, height: 1.45),
         ),
         const SizedBox(height: 14),
-        TextField(
-          key: ValueKey(usingRecovery ? 'mfa_recovery_code' : 'mfa_totp_code'),
-          controller: _mfaCode,
-          autofocus: true,
-          obscureText: usingRecovery,
-          keyboardType: usingRecovery
-              ? TextInputType.text
-              : TextInputType.number,
-          inputFormatters: usingRecovery
-              ? [
-                  FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9-]')),
-                  LengthLimitingTextInputFormatter(19),
-                ]
-              : [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(6),
-                ],
-          maxLength: usingRecovery ? 19 : 6,
-          decoration: InputDecoration(
-            labelText: usingRecovery
-                ? context.l10n.recoveryCode
-                : context.l10n.authenticatorCode,
-            counterText: '',
+        if (usingRecovery)
+          PasswordField(
+            fieldKey: const ValueKey('mfa_recovery_code'),
+            controller: _mfaCode,
+            autofocus: true,
+            keyboardType: TextInputType.text,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9-]')),
+              LengthLimitingTextInputFormatter(19),
+            ],
+            maxLength: 19,
+            decoration: InputDecoration(
+              labelText: context.l10n.recoveryCode,
+              counterText: '',
+            ),
+            onSubmitted: (_) => _submitMfaLogin(),
+          )
+        else
+          TextField(
+            key: const ValueKey('mfa_totp_code'),
+            controller: _mfaCode,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(6),
+            ],
+            maxLength: 6,
+            decoration: InputDecoration(
+              labelText: context.l10n.authenticatorCode,
+              counterText: '',
+            ),
+            onSubmitted: (_) => _submitMfaLogin(),
           ),
-          onSubmitted: (_) => _submitMfaLogin(),
-        ),
         const SizedBox(height: 12),
         FilledButton.icon(
           key: const ValueKey('mfa_login_continue'),
@@ -596,9 +608,17 @@ class _AuthFlowState extends State<AuthFlow> {
           icon: Icons.alternate_email_rounded,
         ),
         const SizedBox(height: 12),
-        _passwordField(_password, context.l10n.masterPassword12Characters),
+        _passwordField(
+          _password,
+          context.l10n.masterPassword12Characters,
+          id: 'new_master_password',
+        ),
         const SizedBox(height: 12),
-        _passwordField(_confirmPassword, context.l10n.confirmMasterPassword),
+        _passwordField(
+          _confirmPassword,
+          context.l10n.confirmMasterPassword,
+          id: 'confirm_master_password',
+        ),
         const SizedBox(height: 12),
         _text(
           _bootstrap,
@@ -661,23 +681,18 @@ class _AuthFlowState extends State<AuthFlow> {
     decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
   );
 
-  Widget _passwordField(TextEditingController controller, String label) =>
-      TextField(
-        controller: controller,
-        obscureText: _obscure,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: const Icon(Icons.password_rounded),
-          suffixIcon: IconButton(
-            onPressed: () => setState(() => _obscure = !_obscure),
-            icon: Icon(
-              _obscure
-                  ? Icons.visibility_outlined
-                  : Icons.visibility_off_outlined,
-            ),
-          ),
-        ),
-      );
+  Widget _passwordField(
+    TextEditingController controller,
+    String label, {
+    required String id,
+  }) => PasswordField(
+    fieldKey: ValueKey('auth_$id'),
+    controller: controller,
+    decoration: InputDecoration(
+      labelText: label,
+      prefixIcon: const Icon(Icons.password_rounded),
+    ),
+  );
 
   Future<void> _connect() async {
     FocusScope.of(context).unfocus();
@@ -738,23 +753,25 @@ class _AuthFlowState extends State<AuthFlow> {
                       labelText: context.l10n.accountName,
                     ),
                   ),
-                  TextField(
+                  PasswordField(
+                    fieldKey: const ValueKey('account_recovery_code'),
                     controller: _recoveryCode,
-                    obscureText: true,
                     decoration: InputDecoration(
                       labelText: context.l10n.recoveryCode,
                     ),
                   ),
-                  TextField(
+                  PasswordField(
+                    fieldKey: const ValueKey('account_recovery_new_password'),
                     controller: _recoveryNewPassword,
-                    obscureText: true,
                     decoration: InputDecoration(
                       labelText: context.l10n.newMasterPassword12Characters,
                     ),
                   ),
-                  TextField(
+                  PasswordField(
+                    fieldKey: const ValueKey(
+                      'account_recovery_confirm_password',
+                    ),
                     controller: _recoveryConfirmation,
-                    obscureText: true,
                     decoration: InputDecoration(
                       labelText: context.l10n.confirmNewMasterPassword,
                     ),

@@ -15,6 +15,7 @@ import '../domain/models.dart';
 import 'app_density.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
+import 'password_field.dart';
 import '../l10n/l10n.dart';
 import '../telnet/telnet_ui.dart';
 
@@ -709,8 +710,12 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
         ],
       );
     }
-    return TextField(
-      key: ValueKey(
+    // The field holds the Host's saved sign-in (see initState), so the eye
+    // button shows the stored password again. A read-only Vault member can
+    // show it too: this panel already shows them the private key, and they
+    // hold the same decrypted record to connect with.
+    return PasswordField(
+      fieldKey: ValueKey(
         '${widget.keyPrefix}_${key == 'host_login_password'
             ? 'password'
             : key == 'host_login_private_key'
@@ -718,10 +723,6 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
             : 'passphrase'}',
       ),
       controller: controller,
-      obscureText: true,
-      autocorrect: false,
-      enableSuggestions: false,
-      enableIMEPersonalizedLearning: false,
       decoration: InputDecoration(labelText: label),
     );
   }

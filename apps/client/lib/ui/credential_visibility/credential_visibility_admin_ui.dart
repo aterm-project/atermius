@@ -19,6 +19,7 @@ import '../../l10n/l10n.dart';
 import '../app_density.dart';
 import '../app_motion.dart';
 import '../app_theme.dart';
+import '../password_field.dart';
 import '../settings_scaffold.dart';
 import 'credential_visibility_widgets.dart';
 import 'database_encryption_status.dart';
@@ -89,13 +90,10 @@ Future<String?> promptCredentialEscrowPassword(BuildContext context) async {
                   style: const TextStyle(height: 1.45),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  key: const ValueKey('credential_escrow_password'),
+                PasswordField(
+                  fieldKey: const ValueKey('credential_escrow_password'),
                   controller: controller,
-                  obscureText: true,
                   autofocus: true,
-                  autocorrect: false,
-                  enableSuggestions: false,
                   decoration: InputDecoration(
                     labelText: l10n.cvMasterPassword,
                     border: const OutlineInputBorder(),

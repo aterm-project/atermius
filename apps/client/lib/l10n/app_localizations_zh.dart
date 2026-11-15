@@ -17199,4 +17199,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mcpEndpointsTitle => '客户端可以使用以下任一地址连接：';
+
+  @override
+  String get passwordRevealShow => '显示密码';
+
+  @override
+  String get passwordRevealHide => '隐藏密码';
+
+  @override
+  String get keychainViewCredential => '查看凭据';
 }

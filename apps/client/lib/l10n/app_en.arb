@@ -15947,5 +15947,17 @@
   "mcpEndpointsTitle": "Clients can connect to any of these addresses:",
   "@mcpEndpointsTitle": {
     "description": "MCP settings: where the listener accepts connections."
+  },
+  "passwordRevealShow": "Show password",
+  "@passwordRevealShow": {
+    "description": "Tooltip of the show/hide (eye) button inside a password or passphrase field."
+  },
+  "passwordRevealHide": "Hide password",
+  "@passwordRevealHide": {
+    "description": "Tooltip of the show/hide (eye) button inside a password or passphrase field."
+  },
+  "keychainViewCredential": "View credential",
+  "@keychainViewCredential": {
+    "description": "Keychain of a read-only Vault: menu item and dialog title that shows a saved credential (its password or key can be revealed, nothing can be changed)."
   }
 }

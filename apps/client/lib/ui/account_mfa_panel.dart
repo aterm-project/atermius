@@ -7,6 +7,7 @@ import 'app_motion.dart';
 import 'app_theme.dart';
 import '../l10n/l10n.dart';
 import 'app_density.dart';
+import 'password_field.dart';
 
 const _totpCodePattern = r'^[0-9]{6}$';
 
@@ -81,13 +82,10 @@ class _AccountMfaPanelState extends State<AccountMfaPanel> {
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: Text(title),
-          content: TextField(
-            key: const ValueKey('mfa_current_password'),
+          content: PasswordField(
+            fieldKey: const ValueKey('mfa_current_password'),
             controller: _passwordController,
             autofocus: true,
-            obscureText: true,
-            enableSuggestions: false,
-            autocorrect: false,
             textInputAction: TextInputAction.done,
             decoration: InputDecoration(
               labelText: context.l10n.currentMasterPassword,
@@ -126,13 +124,10 @@ class _AccountMfaPanelState extends State<AccountMfaPanel> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                key: const ValueKey('mfa_current_password'),
+              PasswordField(
+                fieldKey: const ValueKey('mfa_current_password'),
                 controller: _passwordController,
                 autofocus: true,
-                obscureText: true,
-                enableSuggestions: false,
-                autocorrect: false,
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   labelText: context.l10n.currentMasterPassword,

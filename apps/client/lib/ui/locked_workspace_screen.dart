@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../l10n/l10n.dart';
 import 'app_density.dart';
+import 'password_field.dart';
 
 class LockedWorkspaceScreen extends StatefulWidget {
   const LockedWorkspaceScreen({required this.controller, super.key});
@@ -129,12 +130,12 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
                             ),
                           ],
                           const SizedBox(height: 22),
-                          TextField(
+                          PasswordField(
+                            fieldKey: const ValueKey(
+                              'locked_workspace_password',
+                            ),
                             controller: _password,
-                            obscureText: true,
                             enabled: !app.busy,
-                            autocorrect: false,
-                            enableSuggestions: false,
                             textInputAction: TextInputAction.go,
                             onSubmitted: (_) => _unlock(),
                             decoration: InputDecoration(

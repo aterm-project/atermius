@@ -64,6 +64,27 @@ void main() {
       );
       expect(first.obscureText, isFalse);
       expect(second.obscureText, isTrue);
+      // Only the hidden answer has the show/hide button.
+      expect(
+        find.byKey(const ValueKey('ssh-user-info-response-0_reveal')),
+        findsNothing,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('ssh-user-info-response-1_reveal')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const ValueKey('ssh-user-info-response-1')),
+            )
+            .obscureText,
+        isFalse,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('ssh-user-info-response-1_reveal')),
+      );
+      await tester.pump();
 
       await tester.enterText(
         find.byKey(const ValueKey('ssh-user-info-response-0')),

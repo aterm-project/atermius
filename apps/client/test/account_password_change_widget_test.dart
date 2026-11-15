@@ -72,6 +72,24 @@ void main() {
       for (final field in [currentField, newField, confirmationField]) {
         expect(tester.widget<TextField>(field).obscureText, isTrue);
       }
+      // Each master password field can be shown while it is typed.
+      for (final id in const ['current', 'new', 'confirm']) {
+        final reveal = find.byKey(ValueKey('account_password_${id}_reveal'));
+        await tester.ensureVisible(reveal);
+        await tester.tap(reveal);
+        await tester.pump();
+        expect(
+          tester
+              .widget<TextField>(find.byKey(ValueKey('account_password_$id')))
+              .obscureText,
+          isFalse,
+        );
+        await tester.tap(reveal);
+        await tester.pump();
+      }
+      for (final field in [currentField, newField, confirmationField]) {
+        expect(tester.widget<TextField>(field).obscureText, isTrue);
+      }
 
       await tester.enterText(currentField, 'current password fixture');
       await tester.enterText(newField, 'new password fixture');

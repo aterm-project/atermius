@@ -19,6 +19,7 @@ import 'app_motion.dart';
 import 'app_theme.dart';
 import '../l10n/l10n.dart';
 import 'app_density.dart';
+import 'password_field.dart';
 
 const _migrationUuid = Uuid();
 
@@ -942,12 +943,9 @@ class _LocalToSyncMigrationScreenState
               onChanged: _busy ? null : _selectProfile,
             ),
             const SizedBox(height: 10),
-            TextField(
-              key: const ValueKey('migration_profile_password'),
+            PasswordField(
+              fieldKey: const ValueKey('migration_profile_password'),
               controller: _password,
-              obscureText: true,
-              enableSuggestions: false,
-              autocorrect: false,
               decoration: InputDecoration(
                 labelText: context.l10n.localProfilePassword,
               ),

@@ -5092,5 +5092,8 @@
   "mcpListenAddressInvalid": "请输入本机的 IPv4 或 IPv6 地址，例如 192.168.1.20。",
   "mcpListenExposedWarning": "网络上的其他设备可以访问这个端口。拿到令牌的人可以在下方机器权限范围内操作你的主机。连接是明文 HTTP，同一网络上的设备可能截获令牌和传输内容。只在可信网络使用。来自公网地址的连接会被拒绝。",
   "mcpListenTokenNote": "每次启用生成新令牌；锁定、退出或切换保险库后授权失效。不同窗口可使用不同端口。停止 MCP 不会关闭你已打开的会话。",
-  "mcpEndpointsTitle": "客户端可以使用以下任一地址连接："
+  "mcpEndpointsTitle": "客户端可以使用以下任一地址连接：",
+  "passwordRevealShow": "显示密码",
+  "passwordRevealHide": "隐藏密码",
+  "keychainViewCredential": "查看凭据"
 }

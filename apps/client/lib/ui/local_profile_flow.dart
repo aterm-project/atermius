@@ -86,6 +86,7 @@ import 'app_theme.dart';
 import 'home_sidebar.dart';
 import 'host_editor_panel.dart';
 import 'keychain_page.dart';
+import 'password_field.dart';
 import 'session_logs_page.dart';
 import 'host_system_icon.dart';
 import 'host_card_layout.dart';
@@ -5256,10 +5257,9 @@ _showMessage(
             if (_deviceManagedProfiles.contains(_selectedProfile!.profileId))
               Text(context.l10n.thisWorkspaceIsProtectedByThe)
             else
-              TextField(
-                key: const ValueKey('local_profile_unlock_password'),
+              PasswordField(
+                fieldKey: const ValueKey('local_profile_unlock_password'),
                 controller: _unlockPassword,
-                obscureText: true,
                 autofillHints: const [AutofillHints.password],
                 decoration: InputDecoration(
                   labelText: context.l10n.localProfileMasterPassword,
@@ -5286,10 +5286,9 @@ _showMessage(
         const SizedBox(height: 26),
         Text(context.l10n.createNewProfile, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
-        TextField(
-          key: const ValueKey('local_profile_create_password'),
+        PasswordField(
+          fieldKey: const ValueKey('local_profile_create_password'),
           controller: _createPassword,
-          obscureText: true,
           autofillHints: const [AutofillHints.newPassword],
           decoration: InputDecoration(
             labelText: context.l10n.masterPasswordAtLeast12Characters,
@@ -6513,19 +6512,17 @@ class _LocalArchivePasswordDialogState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              key: const ValueKey('local_archive_password'),
+            PasswordField(
+              fieldKey: const ValueKey('local_archive_password'),
               controller: _password,
-              obscureText: true,
               autofocus: true,
               decoration: InputDecoration(labelText: context.l10n.localArchivePassphrase),
             ),
             if (widget.confirm) ...[
               const SizedBox(height: 10),
-              TextField(
-                key: const ValueKey('local_archive_password_confirm'),
+              PasswordField(
+                fieldKey: const ValueKey('local_archive_password_confirm'),
                 controller: _confirmation,
-                obscureText: true,
                 decoration: InputDecoration(labelText: context.l10n.confirmLocalArchivePassphrase),
               ),
             ],
@@ -7075,14 +7072,42 @@ class _LocalCredentialEditorDialogState
   late final TextEditingController _username = TextEditingController(
     text: widget.existing?.username ?? '',
   );
-  final _secret = TextEditingController();
-  final _passphrase = TextEditingController();
+  late AuthKind _kind = widget.existing?.kind ?? AuthKind.password;
+
+  // The saved secret is shown (obscured) so it can be read again with the eye
+  // button. It comes from the record the unlocked Profile already decrypted
+  // for this editor and lives only in these controllers.
+  late final TextEditingController _secret = TextEditingController(
+    text: _savedSecret(_kind) ?? '',
+  );
+  late final TextEditingController _passphrase = TextEditingController(
+    text: widget.existing?.kind == AuthKind.privateKey
+        ? widget.existing?.passphrase ?? ''
+        : '',
+  );
   late final TextEditingController _certificate = TextEditingController(
     text: widget.existing?.certificate ?? '',
   );
-  late AuthKind _kind = widget.existing?.kind ?? AuthKind.password;
-  bool _revealSecret = false;
   String? _error;
+
+  /// The saved password or private key, when the credential is of [kind].
+  String? _savedSecret(AuthKind kind) {
+    final existing = widget.existing;
+    if (existing == null || existing.kind != kind) return null;
+    return kind == AuthKind.password ? existing.secret : existing.privateKey;
+  }
+
+  void _selectKind(AuthKind kind) {
+    if (kind == _kind) return;
+    setState(() {
+      // An untouched field follows the type: it never offers the saved
+      // password as a private key or the other way round. Typed text stays.
+      if (_secret.text == (_savedSecret(_kind) ?? '')) {
+        _secret.text = _savedSecret(kind) ?? '';
+      }
+      _kind = kind;
+    });
+  }
 
   @override
   void dispose() {
@@ -7183,34 +7208,31 @@ class _LocalCredentialEditorDialogState
                 ),
               ],
               onChanged: (value) {
-                if (value != null) setState(() => _kind = value);
+                if (value != null) _selectKind(value);
               },
             ),
             const SizedBox(height: 10),
-            TextField(
-              key: ValueKey(
+            PasswordField(
+              // A new type starts obscured again.
+              key: ValueKey('local_credential_secret_field_${_kind.name}'),
+              fieldKey: ValueKey(
                 _kind == AuthKind.password
                     ? 'local_credential_secret'
                     : 'local_credential_private_key',
               ),
               controller: _secret,
-              obscureText: !_revealSecret,
-              maxLines: _revealSecret && _kind == AuthKind.privateKey ? 5 : 1,
-              autocorrect: false,
-              enableSuggestions: false,
+              revealedMaxLines: _kind == AuthKind.privateKey ? 5 : 1,
+              showTooltip: _kind == AuthKind.privateKey
+                  ? context.l10n.showKey
+                  : null,
+              hideTooltip: _kind == AuthKind.privateKey
+                  ? context.l10n.hideKey
+                  : null,
               decoration: InputDecoration(
                 labelText: _kind == AuthKind.password ? context.l10n.password2 : context.l10n.sshPrivateKey,
                 helperText: widget.existing == null
                     ? null
                     : context.l10n.leaveBlankToKeepTheCurrent,
-                suffixIcon: IconButton(
-                  tooltip: _revealSecret ? context.l10n.hideKey : context.l10n.showKey,
-                  onPressed: () =>
-                      setState(() => _revealSecret = !_revealSecret),
-                  icon: Icon(
-                    _revealSecret ? Icons.visibility_off : Icons.visibility,
-                  ),
-                ),
               ),
             ),
             if (_kind == AuthKind.privateKey) ...[
@@ -7224,12 +7246,9 @@ class _LocalCredentialEditorDialogState
                   onError: (message) => setState(() => _error = message),
                 ),
               ),
-              TextField(
-                key: const ValueKey('local_credential_passphrase'),
+              PasswordField(
+                fieldKey: const ValueKey('local_credential_passphrase'),
                 controller: _passphrase,
-                obscureText: !_revealSecret,
-                autocorrect: false,
-                enableSuggestions: false,
                 decoration: InputDecoration(labelText: context.l10n.privateKeyPassphraseOptional),
               ),
               const SizedBox(height: 10),

@@ -101,6 +101,7 @@ import 'connect_progress_view.dart';
 import 'transfer_dialog.dart';
 import '../platform/application_windows.dart';
 import 'new_window.dart';
+import 'password_field.dart';
 import 'sftp_text_editor_dialog.dart';
 import '../web_update/web_app_update_factory.dart';
 import '../web_update/web_app_update_monitor.dart';
@@ -5253,9 +5254,10 @@ class _CredentialsPageState extends State<_CredentialsPage> {
                     trailing: PopupMenuButton<String>(
                       popUpAnimationStyle: AppMotion.menuStyle(context),
                       tooltip: context.l10n.credentialActionsName(credential.name),
-                      enabled: canWrite,
                       onSelected: (value) async {
-                        if (value == 'delete') {
+                        if (value == 'view') {
+                          await _viewCredential(context, credential);
+                        } else if (value == 'delete') {
                           if (await _confirmDelete(context, credential.name) ==
                               true)
                             try {
@@ -5274,14 +5276,23 @@ class _CredentialsPageState extends State<_CredentialsPage> {
                         }
                       },
                       itemBuilder: (_) => [
-                        appMenuItem(context,value: 'edit', child: Text(context.l10n.edit2)),
-                        // Referenced credentials cannot be deleted (no silent
-                        // relink); AppController enforces the same rule.
-                        appMenuItem(context,
-                          value: 'delete',
-                          enabled: _usedBy(context, credential.id).isEmpty,
-                          child: Text(context.l10n.delete2),
-                        ),
+                        // A read-only Vault can still read what it saved.
+                        if (!canWrite)
+                          appMenuItem(
+                            context,
+                            value: 'view',
+                            child: Text(context.l10n.keychainViewCredential),
+                          ),
+                        if (canWrite) ...[
+                          appMenuItem(context,value: 'edit', child: Text(context.l10n.edit2)),
+                          // Referenced credentials cannot be deleted (no silent
+                          // relink); AppController enforces the same rule.
+                          appMenuItem(context,
+                            value: 'delete',
+                            enabled: _usedBy(context, credential.id).isEmpty,
+                            child: Text(context.l10n.delete2),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -5362,10 +5373,21 @@ Future<void> _editCredential(
   }
 }
 
+/// Shows a saved credential of a read-only Vault. Nothing can be changed or
+/// saved from it; the secrets stay obscured until the eye button is used.
+Future<void> _viewCredential(BuildContext context, CredentialRecord existing) =>
+    showAppDialog<void>(
+      context: context,
+      builder: (_) => _CredentialEditorDialog(existing: existing, readOnly: true),
+    );
+
 class _CredentialEditorDialog extends StatefulWidget {
-  const _CredentialEditorDialog({this.existing});
+  const _CredentialEditorDialog({this.existing, this.readOnly = false});
 
   final CredentialRecord? existing;
+
+  /// View only: every field is read-only and there is no Save button.
+  final bool readOnly;
 
   @override
   State<_CredentialEditorDialog> createState() =>
@@ -5436,7 +5458,11 @@ class _CredentialEditorDialogState extends State<_CredentialEditorDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
-      widget.existing == null ? context.l10n.newSshCredential : context.l10n.editCredential2,
+      widget.readOnly
+          ? context.l10n.keychainViewCredential
+          : widget.existing == null
+          ? context.l10n.newSshCredential
+          : context.l10n.editCredential2,
     ),
     content: SizedBox(
       width: 510,
@@ -5446,11 +5472,13 @@ class _CredentialEditorDialogState extends State<_CredentialEditorDialog> {
           children: [
             TextField(
               controller: _name,
+              readOnly: widget.readOnly,
               decoration: InputDecoration(labelText: context.l10n.credentialName2),
             ),
             const SizedBox(height: 11),
             TextField(
               controller: _username,
+              readOnly: widget.readOnly,
               decoration: InputDecoration(labelText: context.l10n.sshUsername),
             ),
             const SizedBox(height: 11),
@@ -5468,57 +5496,80 @@ class _CredentialEditorDialogState extends State<_CredentialEditorDialog> {
                 ),
               ],
               selected: {_kind},
-              onSelectionChanged: (values) =>
-                  setState(() => _kind = values.first),
+              onSelectionChanged: widget.readOnly
+                  ? null
+                  : (values) => setState(() => _kind = values.first),
             ),
             const SizedBox(height: 12),
             if (_kind == AuthKind.password)
-              TextField(
-                key: const ValueKey('ssh-credential-password'),
+              // Holds the saved password (see initState); the eye shows it.
+              PasswordField(
+                fieldKey: const ValueKey('ssh-credential-password'),
                 controller: _secret,
-                obscureText: true,
+                readOnly: widget.readOnly,
                 decoration: InputDecoration(
                   labelText: context.l10n.password,
                   prefixIcon: const Icon(Icons.lock_outline),
                 ),
               )
             else ...[
-              TextField(
-                key: const ValueKey('ssh-credential-private-key'),
-                controller: _privateKey,
-                minLines: 4,
-                maxLines: 8,
-                keyboardType: TextInputType.multiline,
-                textInputAction: TextInputAction.newline,
-                autocorrect: false,
-                enableSuggestions: false,
-                smartDashesType: SmartDashesType.disabled,
-                smartQuotesType: SmartQuotesType.disabled,
-                decoration: InputDecoration(
-                  labelText: context.l10n.pemPrivateKey,
-                  alignLabelWithHint: true,
-                  prefixIcon: const Icon(Icons.key_rounded),
+              if (widget.readOnly)
+                // View only: the key is obscured until it is asked for.
+                PasswordField(
+                  fieldKey: const ValueKey('ssh-credential-private-key'),
+                  controller: _privateKey,
+                  readOnly: true,
+                  revealedMaxLines: 8,
+                  showTooltip: context.l10n.showKey,
+                  hideTooltip: context.l10n.hideKey,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.pemPrivateKey,
+                    prefixIcon: const Icon(Icons.key_rounded),
+                  ),
+                )
+              else ...[
+                TextField(
+                  key: const ValueKey('ssh-credential-private-key'),
+                  controller: _privateKey,
+                  minLines: 4,
+                  maxLines: 8,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  smartDashesType: SmartDashesType.disabled,
+                  smartQuotesType: SmartQuotesType.disabled,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.pemPrivateKey,
+                    alignLabelWithHint: true,
+                    prefixIcon: const Icon(Icons.key_rounded),
+                  ),
                 ),
-              ),
-              Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: KeychainKeyFileButton(
-                  onLoaded: (text) => setState(() {
-                    _privateKey.text = text;
-                    _error = null;
-                  }),
-                  onError: (message) => setState(() => _error = message),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: KeychainKeyFileButton(
+                    onLoaded: (text) => setState(() {
+                      _privateKey.text = text;
+                      _error = null;
+                    }),
+                    onError: (message) => setState(() => _error = message),
+                  ),
                 ),
-              ),
-              TextField(
-                controller: _passphrase,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: context.l10n.keyPassphraseOptional,
+              ],
+              if (widget.readOnly) const SizedBox(height: 11),
+              if (!widget.readOnly || _passphrase.text.isNotEmpty)
+                PasswordField(
+                  fieldKey: const ValueKey('ssh-credential-passphrase'),
+                  controller: _passphrase,
+                  readOnly: widget.readOnly,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.keyPassphraseOptional,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              KeychainCertificateField(controller: _certificate),
+              if (!widget.readOnly) ...[
+                const SizedBox(height: 10),
+                KeychainCertificateField(controller: _certificate),
+              ],
             ],
             if (_error != null)
               Padding(
@@ -5531,7 +5582,9 @@ class _CredentialEditorDialogState extends State<_CredentialEditorDialog> {
               ),
             const SizedBox(height: 9),
             Text(
-              context.l10n.thisFormNeverSubmitsCredentialText,
+              widget.readOnly
+                  ? context.l10n.youHaveReadOnlyAccessTo
+                  : context.l10n.thisFormNeverSubmitsCredentialText,
               style: TextStyle(color: context.palette.teal, fontSize: 11),
             ),
           ],
@@ -5539,17 +5592,25 @@ class _CredentialEditorDialogState extends State<_CredentialEditorDialog> {
       ),
     ),
     actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: Text(context.l10n.cancel2),
-      ),
-      FilledButton(
-        onPressed: () {
-          final credential = _buildCredential();
-          if (credential != null) Navigator.pop(context, credential);
-        },
-        child: Text(context.l10n.saveEncryptedCredential2),
-      ),
+      if (widget.readOnly)
+        TextButton(
+          key: const ValueKey('ssh-credential-view-close'),
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.l10n.close),
+        )
+      else ...[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.l10n.cancel2),
+        ),
+        FilledButton(
+          onPressed: () {
+            final credential = _buildCredential();
+            if (credential != null) Navigator.pop(context, credential);
+          },
+          child: Text(context.l10n.saveEncryptedCredential2),
+        ),
+      ],
     ],
   );
 }
@@ -10502,28 +10563,44 @@ class _SshUserInfoDialogState extends State<_SshUserInfoDialog> {
               const SizedBox(height: 14),
               for (var index = 0; index < widget.prompts.length; index++) ...[
                 if (index > 0) const SizedBox(height: 10),
-                TextField(
-                  key: ValueKey('ssh-user-info-response-$index'),
-                  controller: _responses[index],
-                  autofocus: index == 0,
-                  obscureText: !widget.prompts[index].echo,
-                  autocorrect: false,
-                  enableSuggestions: widget.prompts[index].echo,
-                  enableIMEPersonalizedLearning: false,
-                  keyboardType: widget.prompts[index].echo
-                      ? TextInputType.text
-                      : TextInputType.visiblePassword,
-                  maxLength: 4096,
-                  decoration: InputDecoration(
-                    labelText: widget.prompts[index].text.isEmpty
-                        ? context.l10n.responseValuevalue(index + 1)
-                        : widget.prompts[index].text,
-                    counterText: '',
+                if (widget.prompts[index].echo)
+                  TextField(
+                    key: ValueKey('ssh-user-info-response-$index'),
+                    controller: _responses[index],
+                    autofocus: index == 0,
+                    autocorrect: false,
+                    enableIMEPersonalizedLearning: false,
+                    keyboardType: TextInputType.text,
+                    maxLength: 4096,
+                    decoration: InputDecoration(
+                      labelText: widget.prompts[index].text.isEmpty
+                          ? context.l10n.responseValuevalue(index + 1)
+                          : widget.prompts[index].text,
+                      counterText: '',
+                    ),
+                    onSubmitted: index == widget.prompts.length - 1
+                        ? (_) => _submit()
+                        : null,
+                  )
+                else
+                  // A no-echo answer (password, one-time code) can be checked
+                  // with the eye button before it is sent.
+                  PasswordField(
+                    fieldKey: ValueKey('ssh-user-info-response-$index'),
+                    controller: _responses[index],
+                    autofocus: index == 0,
+                    keyboardType: TextInputType.visiblePassword,
+                    maxLength: 4096,
+                    decoration: InputDecoration(
+                      labelText: widget.prompts[index].text.isEmpty
+                          ? context.l10n.responseValuevalue(index + 1)
+                          : widget.prompts[index].text,
+                      counterText: '',
+                    ),
+                    onSubmitted: index == widget.prompts.length - 1
+                        ? (_) => _submit()
+                        : null,
                   ),
-                  onSubmitted: index == widget.prompts.length - 1
-                      ? (_) => _submit()
-                      : null,
-                ),
               ],
             ],
             const SizedBox(height: 10),
@@ -22896,10 +22973,10 @@ class _AccountRecoveryPanelState extends State<_AccountRecoveryPanel> {
           title: Text(
             disabling ? context.l10n.disableAccountRecovery2 : context.l10n.setUpAccountRecovery,
           ),
-          content: TextField(
+          content: PasswordField(
+            fieldKey: const ValueKey('account_recovery_current_password'),
             controller: _passwordController,
             autofocus: true,
-            obscureText: true,
             decoration: InputDecoration(
               labelText: context.l10n.currentMasterPassword,
             ),
@@ -23367,18 +23444,21 @@ class _AccountPasswordPanelState extends State<_AccountPasswordPanel> {
                 controller: _currentPassword,
                 label: context.l10n.currentMasterPassword,
                 onChanged: _onPasswordEdited,
+                id: 'current',
               ),
               const SizedBox(height: 9),
               _masterPasswordField(
                 controller: _newPassword,
                 label: context.l10n.newMasterPassword,
                 onChanged: _onPasswordEdited,
+                id: 'new',
               ),
               const SizedBox(height: 9),
               _masterPasswordField(
                 controller: _confirmationPassword,
                 label: context.l10n.confirmNewMasterPassword,
                 onChanged: _onPasswordEdited,
+                id: 'confirm',
               ),
               const SizedBox(height: 8),
               Text(
@@ -23433,11 +23513,11 @@ class _AccountPasswordPanelState extends State<_AccountPasswordPanel> {
     required TextEditingController controller,
     required String label,
     required ValueChanged<String> onChanged,
-  }) => TextField(
+    // Stable widget identity; never derived from the (localized) label.
+    required String id,
+  }) => PasswordField(
+    fieldKey: ValueKey('account_password_$id'),
     controller: controller,
-    obscureText: true,
-    enableSuggestions: false,
-    autocorrect: false,
     textInputAction: TextInputAction.next,
     onChanged: onChanged,
     decoration: InputDecoration(labelText: label),
@@ -23768,9 +23848,9 @@ class _ArchivePasswordDialogState extends State<_ArchivePasswordDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            PasswordField(
+              fieldKey: const ValueKey('vault_archive_password'),
               controller: _password,
-              obscureText: true,
               autofocus: true,
               decoration: InputDecoration(
                 labelText: confirmation
@@ -23783,9 +23863,9 @@ class _ArchivePasswordDialogState extends State<_ArchivePasswordDialog> {
             ),
             if (confirmation) ...[
               const SizedBox(height: 12),
-              TextField(
+              PasswordField(
+                fieldKey: const ValueKey('vault_archive_password_confirm'),
                 controller: _repeated,
-                obscureText: true,
                 decoration: InputDecoration(
                   labelText: context.l10n.confirmArchivePassword,
                 ),
@@ -24148,9 +24228,9 @@ class _AccountDeletionConfirmationDialogState
             ),
           ),
           const SizedBox(height: 10),
-          TextField(
+          PasswordField(
+            fieldKey: const ValueKey('account_deletion_password'),
             controller: _password,
-            obscureText: true,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: context.l10n.reEnterAccountMasterPassword,
@@ -24272,9 +24352,9 @@ Future<void> _deleteVault(
                 ),
               ),
               const SizedBox(height: 10),
-              TextField(
+              PasswordField(
+                fieldKey: const ValueKey('vault_deletion_password'),
                 controller: password,
-                obscureText: true,
                 onChanged: (_) => setDialogState(() {}),
                 decoration: InputDecoration(
                   labelText: context.l10n.reEnterAccountMasterPassword,
@@ -24398,10 +24478,10 @@ Future<void> _cancelVaultDeletion(
             children: [
               Text(context.l10n.currentAccountValuevalue(app.authenticatedUsername ?? '—')),
               const SizedBox(height: 10),
-              TextField(
+              PasswordField(
+                fieldKey: const ValueKey('account_deletion_cancel_password'),
                 controller: password,
                 autofocus: true,
-                obscureText: true,
                 onChanged: (_) => setDialogState(() {}),
                 decoration: InputDecoration(
                   labelText: context.l10n.reEnterAccountMasterPassword,
@@ -25350,8 +25430,8 @@ Future<void> _acceptVaultInvitation(
               value: app.identity?.deviceId ?? '—',
             ),
             const SizedBox(height: 12),
-            TextField(
-              obscureText: true,
+            PasswordField(
+              fieldKey: const ValueKey('vault_invitation_token'),
               onChanged: (value) => token = value,
               decoration: InputDecoration(labelText: context.l10n.invitationToken),
             ),

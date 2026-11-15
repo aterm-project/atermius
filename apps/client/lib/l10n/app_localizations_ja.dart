@@ -18107,4 +18107,13 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get mcpEndpointsTitle => 'クライアントは次のいずれかのアドレスに接続できます:';
+
+  @override
+  String get passwordRevealShow => 'パスワードを表示';
+
+  @override
+  String get passwordRevealHide => 'パスワードを隠す';
+
+  @override
+  String get keychainViewCredential => '認証情報を表示';
 }

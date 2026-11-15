@@ -19267,4 +19267,13 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get mcpEndpointsTitle =>
       'Клиенты могут подключаться по любому из этих адресов:';
+
+  @override
+  String get passwordRevealShow => 'Показать пароль';
+
+  @override
+  String get passwordRevealHide => 'Скрыть пароль';
+
+  @override
+  String get keychainViewCredential => 'Просмотр учётных данных';
 }

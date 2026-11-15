@@ -30381,6 +30381,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clients can connect to any of these addresses:'**
   String get mcpEndpointsTitle;
+
+  /// Tooltip of the show/hide (eye) button inside a password or passphrase field.
+  ///
+  /// In en, this message translates to:
+  /// **'Show password'**
+  String get passwordRevealShow;
+
+  /// Tooltip of the show/hide (eye) button inside a password or passphrase field.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide password'**
+  String get passwordRevealHide;
+
+  /// Keychain of a read-only Vault: menu item and dialog title that shows a saved credential (its password or key can be revealed, nothing can be changed).
+  ///
+  /// In en, this message translates to:
+  /// **'View credential'**
+  String get keychainViewCredential;
 }
 
 class _AppLocalizationsDelegate

@@ -682,15 +682,22 @@ void main() {
       await tester.tap(find.text('Local deploy credential'));
       await pumpUntilVisible(tester, find.text(currentL10n.editLocalCredential));
       await tester.pump(const Duration(milliseconds: 250));
-      expect(
-        tester
-            .widget<TextField>(
-              find.byKey(const ValueKey('local_credential_secret')),
-            )
-            .controller!
-            .text,
-        isEmpty,
+      // The saved password is shown again: obscured until the eye is used.
+      TextField savedSecretField() => tester.widget<TextField>(
+        find.byKey(const ValueKey('local_credential_secret')),
       );
+      expect(savedSecretField().controller!.text, credentialSecret);
+      expect(savedSecretField().obscureText, isTrue);
+      await tester.tap(
+        find.byKey(const ValueKey('local_credential_secret_reveal')),
+      );
+      await tester.pump();
+      expect(savedSecretField().obscureText, isFalse);
+      await tester.tap(
+        find.byKey(const ValueKey('local_credential_secret_reveal')),
+      );
+      await tester.pump();
+      expect(savedSecretField().obscureText, isTrue);
       await tester.enterText(
         find.byKey(const ValueKey('local_credential_name')),
         'Updated local credential',
@@ -758,6 +765,78 @@ void main() {
       expect(keyVaultText, isNot(contains(privateKeyMaterial)));
       expect(keyVaultText, isNot(contains(privateKeyPassphrase)));
 
+      // The saved private key and its passphrase can be read again as well.
+      await tester.tap(find.text('Local key credential'));
+      await pumpUntilVisible(tester, find.text(currentL10n.editLocalCredential));
+      await tester.pump(const Duration(milliseconds: 250));
+      TextField credentialField(String key) =>
+          tester.widget<TextField>(find.byKey(ValueKey(key)));
+      Future<void> tapReveal(String key) async {
+        final button = find.byKey(ValueKey('${key}_reveal'));
+        await tester.ensureVisible(button);
+        await tester.pump();
+        await tester.tap(button);
+        await tester.pump();
+      }
+
+      expect(
+        credentialField('local_credential_private_key').controller!.text,
+        privateKeyMaterial,
+      );
+      expect(
+        credentialField('local_credential_passphrase').controller!.text,
+        privateKeyPassphrase,
+      );
+      expect(credentialField('local_credential_private_key').obscureText, isTrue);
+      expect(credentialField('local_credential_passphrase').obscureText, isTrue);
+      await tapReveal('local_credential_private_key');
+      expect(
+        credentialField('local_credential_private_key').obscureText,
+        isFalse,
+      );
+      expect(credentialField('local_credential_private_key').maxLines, 5);
+      expect(credentialField('local_credential_passphrase').obscureText, isTrue);
+      await tapReveal('local_credential_passphrase');
+      expect(
+        credentialField('local_credential_passphrase').obscureText,
+        isFalse,
+      );
+      // An untouched field never offers the saved key as a password, and the
+      // other type starts obscured.
+      // (The busy edit operation animates behind the dialog, so the menu is
+      // pumped for a fixed time instead of until idle.)
+      Future<void> chooseKind(String label) async {
+        final kind = find.byKey(const ValueKey('local_credential_kind'));
+        await tester.ensureVisible(kind);
+        await tester.pump();
+        await tester.tap(kind);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.tap(find.text(label).last);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+
+      await chooseKind(currentL10n.password2);
+      expect(credentialField('local_credential_secret').controller!.text, isEmpty);
+      expect(credentialField('local_credential_secret').obscureText, isTrue);
+      await chooseKind(currentL10n.sshPrivateKey);
+      expect(
+        credentialField('local_credential_private_key').controller!.text,
+        privateKeyMaterial,
+      );
+      expect(credentialField('local_credential_private_key').obscureText, isTrue);
+      await tester.tap(find.byKey(const ValueKey('local_credential_cancel')));
+      await pumpUntilIdle(tester);
+      await tester.pumpAndSettle();
+      expect(find.text(currentL10n.editLocalCredential), findsNothing);
+      credentials = await activeRepository!.listCredentials();
+      final unchangedKeyCredential = credentials.singleWhere(
+        (credential) => credential.name == 'Local key credential',
+      );
+      expect(unchangedKeyCredential.privateKey, privateKeyMaterial);
+      expect(unchangedKeyCredential.passphrase, privateKeyPassphrase);
+
       // Exercise update and ensure a fresh unlock reads the persisted value.
       await _tapWorkspaceAction(tester, 'local_profile_hosts_toggle');
       await tester.pumpAndSettle();
@@ -778,6 +857,17 @@ void main() {
 
       await tester.tap(find.byKey(ValueKey('local_profile_$profileId')));
       await tester.pumpAndSettle();
+      // Unlock and create passwords can be checked while they are typed.
+      for (final key in const [
+        'local_profile_unlock_password',
+        'local_profile_create_password',
+      ]) {
+        expect(
+          tester.widget<TextField>(find.byKey(ValueKey(key))).obscureText,
+          isTrue,
+        );
+        expect(find.byKey(ValueKey('${key}_reveal')), findsOneWidget);
+      }
       await tester.enterText(
         find.byKey(const ValueKey('local_profile_unlock_password')),
         'incorrect password',
