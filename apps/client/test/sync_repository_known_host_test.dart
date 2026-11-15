@@ -1433,6 +1433,134 @@ void main() {
   );
 
   test(
+    'tabs that reach the same new host key at once are answered by one review',
+    () async {
+      final identity = DeviceIdentity.create(sodium);
+      final database = ClientDatabase.forTesting(NativeDatabase.memory());
+      final key = sodium.randombytes.buf(32);
+      final api = _KnownHostApi(identity: identity, acceptPush: true);
+      final repository = _repository(
+        api: api,
+        database: database,
+        identity: identity,
+        key: key,
+      );
+      const vault = VaultDescriptor(
+        id: _vaultId,
+        role: 'owner',
+        activeKeyEpoch: '1',
+        membershipVersion: '1',
+      );
+      const host = HostRecord(
+        id: 'same-host-twice',
+        name: 'Same host twice',
+        address: 'same-host-twice.example.test',
+        username: 'fixture-user',
+        credentialId: 'same-host-twice-credential',
+      );
+      var connectorCalls = 0;
+      final reviews = <KnownHostApprovalRequest>[];
+      final answer = Completer<bool>();
+      final connections = <_KnownHostTestConnection>[];
+      final controller =
+          AppController(
+              sodium: sodium,
+              database: database,
+              secureStore: ClientSecureStore(),
+              repositoryForTesting: repository,
+              sshConnectorForTesting:
+                  ({
+                    required host,
+                    required credential,
+                    required verifyHostKey,
+                  }) async {
+                    connectorCalls++;
+                    if (!await verifyHostKey('ssh-ed25519', _fingerprintA)) {
+                      throw StateError(
+                        'The unapproved SSH handshake was stopped.',
+                      );
+                    }
+                    final connection = _KnownHostTestConnection();
+                    connections.add(connection);
+                    return connection;
+                  },
+            )
+            ..identity = identity
+            ..api = api
+            ..activeVault = vault
+            ..session = AuthSession(
+              accountId: '55555555-5555-4555-8555-555555555555',
+              accessToken: 'test-access-token',
+              expiresIn: 900,
+              refreshToken: 'test-refresh-token',
+              deviceId: identity.deviceId,
+              vaults: const [vault],
+            )
+            ..stage = ClientStage.workspace
+            ..credentials.add(
+              const CredentialRecord(
+                id: 'same-host-twice-credential',
+                name: 'Same host twice fixture',
+                username: 'fixture-user',
+                secret: 'unused-test-secret',
+              ),
+            )
+            ..askTrustHostApproval = (request) {
+              reviews.add(request);
+              return answer.future;
+            };
+
+      try {
+        // Two panes of one split connect to the same new Host together.
+        final first = controller.openTerminalTab(host);
+        final second = controller.openTerminalTab(host);
+        for (var i = 0; i < 200 && connectorCalls < 2; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        for (var i = 0; i < 200 && reviews.isEmpty; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        // Both handshakes stopped at the unknown key; one review is shown,
+        // for the tab that asked.
+        expect(connectorCalls, 2);
+        expect(reviews, hasLength(1));
+        final tabs = controller.terminalTabs;
+        expect(tabs, hasLength(2));
+        expect(tabs.map((tab) => tab.id), contains(reviews.single.tabId));
+
+        answer.complete(true);
+        await Future.wait([first, second]);
+
+        // The answer served both: no second review, one approval stored,
+        // and each tab connected with the verified key.
+        expect(reviews, hasLength(1));
+        expect(api.pushCalls, 1);
+        expect(connectorCalls, 4);
+        expect(connections, hasLength(2));
+        expect(tabs.map((tab) => tab.state), isNot(contains('failed')));
+        expect(tabs.map((tab) => tab.errorMessage), [null, null]);
+        expect(
+          await repository.knownHostTrustStatus(
+            host: host.address,
+            port: 22,
+            algorithm: 'ssh-ed25519',
+            fingerprint: _fingerprintA,
+          ),
+          KnownHostTrustStatus.trusted,
+        );
+      } finally {
+        await controller.disconnectAllTerminalTabs();
+        controller.dispose();
+        api.close();
+        identity.dispose();
+        key.fillRange(0, key.length, 0);
+        await database.close();
+      }
+    },
+  );
+
+  test(
     'local revocation invalidates a cached route proof before SSH authentication',
     () async {
       final identity = DeviceIdentity.create(sodium);

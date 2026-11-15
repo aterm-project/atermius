@@ -13224,9 +13224,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Preferences were changed by another operation and the current values were reloaded. Review them before saving.';
 
   @override
-  String get stopConnecting => 'Stop connecting';
-
-  @override
   String get stopCapture => 'Stop capture';
 
   @override

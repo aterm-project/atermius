@@ -796,6 +796,24 @@ class _PendingAccountPasswordChange {
 }
 
 /// Full host-key context passed to a UI trust-confirmation dialog.
+/// One host-key review in the queue of reviews shown one at a time.
+class _HostKeyReviewTurn {
+  /// The user answered (or the review ended without asking).
+  final answered = Completer<void>();
+
+  /// An approval given in this review is stored (or the review ended).
+  final stored = Completer<void>();
+
+  void answer() {
+    if (!answered.isCompleted) answered.complete();
+  }
+
+  void finish() {
+    answer();
+    if (!stored.isCompleted) stored.complete();
+  }
+}
+
 class KnownHostApprovalRequest {
   const KnownHostApprovalRequest({
     required this.host,
@@ -804,6 +822,7 @@ class KnownHostApprovalRequest {
     required this.fingerprint,
     required this.previouslyRevoked,
     this.offlineTransportUnavailable = false,
+    this.tabId,
   });
 
   final String host;
@@ -812,6 +831,11 @@ class KnownHostApprovalRequest {
   final String fingerprint;
   final bool previouslyRevoked;
   final bool offlineTransportUnavailable;
+
+  /// The tab whose new connection (or retry) asks, so the review can be
+  /// shown over it. Null for a background reconnect, which never brings its
+  /// tab forward.
+  final String? tabId;
 
   String get endpoint => endpointKey(host: host, port: port);
 }
@@ -3334,6 +3358,11 @@ class AppController extends ChangeNotifier {
 
   Future<bool> Function(String endpoint, String fingerprint)? askTrustHost;
   Future<bool> Function(KnownHostApprovalRequest request)? askTrustHostApproval;
+
+  /// The newest host-key review that is waiting or in progress, and how many
+  /// approvals given in reviews have been stored.
+  _HostKeyReviewTurn? _hostKeyReview;
+  int _hostKeyApprovalsStored = 0;
   Future<List<String>?> Function(
     HostRecord host,
     SSHUserInfoRequest request,
@@ -21345,71 +21374,124 @@ class AppController extends ChangeNotifier {
         }
 
         if (decision.status != KnownHostTrustStatus.trusted) {
-          final approvalRequest = KnownHostApprovalRequest(
-            host: request.host,
-            port: request.port,
-            algorithm: request.algorithm,
-            fingerprint: request.fingerprint,
-            previouslyRevoked: decision.status == KnownHostTrustStatus.revoked,
-            offlineTransportUnavailable: decision.offlineTransportUnavailable,
-          );
-          final confirmDetailed = askTrustHostApproval;
-          final confirmLegacy = askTrustHost;
-          advance(ConnectStage.awaitingUser);
-          final approved = confirmDetailed != null
-              ? await confirmDetailed(approvalRequest)
-              : confirmLegacy != null
-              ? await confirmLegacy(
-                  endpointKey(host: request.host, port: request.port),
-                  request.fingerprint,
-                )
-              : false;
-          if (!attemptCurrent() || !approved) {
-            hostKeyFailure = SshHostKeyFailure.rejected;
-            throw SshHostKeyVerificationException(hostKeyFailure!);
-          }
-          advance(ConnectStage.verifyingHost);
-          var approvalWasQueuedOffline = false;
-          await approveKnownHost(
-            host: approvalRequest.host,
-            port: approvalRequest.port,
-            algorithm: approvalRequest.algorithm,
-            fingerprint: approvalRequest.fingerprint,
-            offlineFirstApprovalWasConfirmed:
-                approvalRequest.offlineTransportUnavailable,
-            onOfflineApprovalQueued: () => approvalWasQueuedOffline = true,
-          );
-          if (approvalWasQueuedOffline) {
-            // A queued local record is not yet a Vault-confirmed SSH trust.
-            // The current handshake always stops; a later retry must sync and
-            // resolve any concurrent approval or revocation first.
-            throw const KnownHostApprovalQueuedException();
-          }
-          // Approval performs a Vault pull/push/readback, which may replace
-          // the repository or advance the decision generation while the
-          // review dialog is open. Resolve trust again after that sync so
-          // the route-scoped SSH proof is bound to the confirmed current state.
+          // Tabs connect independently, so several can reach an unknown host
+          // key at once. Their reviews are shown one at a time, and the next
+          // one starts when the previous approval is stored: a tab that
+          // waited asks again first, so tabs connecting to the same new Host
+          // are answered by one review. Storing takes a moment; when it is
+          // held up the next review is shown anyway.
+          final earlierReview = _hostKeyReview;
+          final review = _hostKeyReview = _HostKeyReviewTurn();
+          final storedBefore = _hostKeyApprovalsStored;
           try {
-            decision = await _knownHostTrustDecision(
-              host: approvalRequest.host,
-              port: approvalRequest.port,
-              algorithm: approvalRequest.algorithm,
-              fingerprint: approvalRequest.fingerprint,
-            );
-          } on StateError {
-            if (_knownHostStateTransitionPending ||
-                _vaultMembershipChangeActive) {
-              continue;
+            if (earlierReview != null) {
+              await earlierReview.answered.future;
+              await earlierReview.stored.future.timeout(
+                const Duration(seconds: 2),
+                onTimeout: () {},
+              );
+              if (!attemptCurrent()) return;
             }
-            rethrow;
-          }
-          if (decision.status == KnownHostTrustStatus.changed ||
-              decision.status == KnownHostTrustStatus.conflict) {
-            hostKeyFailure = SshHostKeyFailure.changed;
-            throw SshHostKeyVerificationException(hostKeyFailure!);
-          }
-          if (decision.status != KnownHostTrustStatus.trusted) {
-            throw StateError(currentL10n.vaultSyncDidNotConfirmThe);
+            if (_hostKeyApprovalsStored != storedBefore) {
+              decision = await _knownHostTrustDecision(
+                host: request.host,
+                port: request.port,
+                algorithm: request.algorithm,
+                fingerprint: request.fingerprint,
+              );
+              if (!attemptCurrent()) return;
+              if (!usingTestTrust) {
+                _ensureKnownHostDecisionScopeCurrent(
+                  accountId: initialKnownHostAccountId,
+                  deviceId: initialKnownHostDeviceId,
+                  vaultId: initialKnownHostVaultId,
+                );
+              } else if (decision.generation != _knownHostDecisionGeneration) {
+                throw StateError(currentL10n.sshHostKeyTestDecisionBecame);
+              }
+              if (decision.status == KnownHostTrustStatus.changed ||
+                  decision.status == KnownHostTrustStatus.conflict) {
+                hostKeyFailure = SshHostKeyFailure.changed;
+                throw const SshHostKeyVerificationException(
+                  SshHostKeyFailure.changed,
+                );
+              }
+            }
+            if (decision.status != KnownHostTrustStatus.trusted) {
+              final approvalRequest = KnownHostApprovalRequest(
+                host: request.host,
+                port: request.port,
+                algorithm: request.algorithm,
+                fingerprint: request.fingerprint,
+                previouslyRevoked: decision.status == KnownHostTrustStatus.revoked,
+                offlineTransportUnavailable: decision.offlineTransportUnavailable,
+                // A new tab or a retry is reviewed over its own tab.
+                tabId: progressAttempt == null ? null : id,
+              );
+              final confirmDetailed = askTrustHostApproval;
+              final confirmLegacy = askTrustHost;
+              advance(ConnectStage.awaitingUser);
+              final approved = confirmDetailed != null
+                  ? await confirmDetailed(approvalRequest)
+                  : confirmLegacy != null
+                  ? await confirmLegacy(
+                      endpointKey(host: request.host, port: request.port),
+                      request.fingerprint,
+                    )
+                  : false;
+              review.answer();
+              if (!attemptCurrent() || !approved) {
+                hostKeyFailure = SshHostKeyFailure.rejected;
+                throw SshHostKeyVerificationException(hostKeyFailure!);
+              }
+              advance(ConnectStage.verifyingHost);
+              var approvalWasQueuedOffline = false;
+              await approveKnownHost(
+                host: approvalRequest.host,
+                port: approvalRequest.port,
+                algorithm: approvalRequest.algorithm,
+                fingerprint: approvalRequest.fingerprint,
+                offlineFirstApprovalWasConfirmed:
+                    approvalRequest.offlineTransportUnavailable,
+                onOfflineApprovalQueued: () => approvalWasQueuedOffline = true,
+              );
+              if (approvalWasQueuedOffline) {
+                // A queued local record is not yet a Vault-confirmed SSH trust.
+                // The current handshake always stops; a later retry must sync and
+                // resolve any concurrent approval or revocation first.
+                throw const KnownHostApprovalQueuedException();
+              }
+              _hostKeyApprovalsStored++;
+              // Approval performs a Vault pull/push/readback, which may replace
+              // the repository or advance the decision generation while the
+              // review dialog is open. Resolve trust again after that sync so
+              // the route-scoped SSH proof is bound to the confirmed current state.
+              try {
+                decision = await _knownHostTrustDecision(
+                  host: approvalRequest.host,
+                  port: approvalRequest.port,
+                  algorithm: approvalRequest.algorithm,
+                  fingerprint: approvalRequest.fingerprint,
+                );
+              } on StateError {
+                if (_knownHostStateTransitionPending ||
+                    _vaultMembershipChangeActive) {
+                  continue;
+                }
+                rethrow;
+              }
+              if (decision.status == KnownHostTrustStatus.changed ||
+                  decision.status == KnownHostTrustStatus.conflict) {
+                hostKeyFailure = SshHostKeyFailure.changed;
+                throw SshHostKeyVerificationException(hostKeyFailure!);
+              }
+              if (decision.status != KnownHostTrustStatus.trusted) {
+                throw StateError(currentL10n.vaultSyncDidNotConfirmThe);
+              }
+            }
+          } finally {
+            if (identical(_hostKeyReview, review)) _hostKeyReview = null;
+            review.finish();
           }
         }
 

@@ -1644,9 +1644,10 @@ void main() {
           find.byKey(ValueKey('window-combination-${recipe.id}')),
         );
         if (revoked) {
+          // Both owners connect at the same time, each in its own pane.
           for (
             var attempt = 0;
-            attempt < 100 && sshHarness.authenticationAttempts < 3;
+            attempt < 100 && sshHarness.authenticationAttempts < 4;
             attempt++
           ) {
             await tester.runAsync(
@@ -1654,7 +1655,9 @@ void main() {
             );
             await tester.pump(const Duration(milliseconds: 50));
           }
-          expect(sshHarness.authenticationAttempts, 3);
+          expect(sshHarness.authenticationAttempts, 4);
+          expect(bar().tabs.where((t) => !t.isHome && !t.isFile), hasLength(2));
+          expect(bar().tabs.where((t) => t.isFile), isEmpty);
           await tester.pumpWidget(const SizedBox.shrink());
           gate!.complete();
           await drainClose(tester);
@@ -1663,8 +1666,8 @@ void main() {
           );
           expect(
             sshHarness.authenticationAttempts,
-            3,
-            reason: 'no second owner or file fallback after scope revocation',
+            4,
+            reason: 'no further owner or file fallback after scope revocation',
           );
           // Disposal cancels the pending owner attempt: a client that finished
           // authenticating afterwards is closed before any shell is opened.
@@ -1716,6 +1719,22 @@ void main() {
         );
         final restoredFiles = bar().tabs.where((t) => t.isFile).toList();
         expect(restoredFiles, hasLength(failOwner ? 1 : 2));
+        if (!failOwner) {
+          // The set was saved with the SCP tab in front: it is in front again
+          // once it has followed its owner.
+          await tester.pumpAndSettle();
+          final front = bar().selectedId;
+          expect(restoredFiles.map((t) => t.id), contains(front));
+          bar().onSelect(front);
+          await tester.pumpAndSettle();
+          expect(
+            tester
+                .widget<RemoteFileWorkspace>(find.byType(RemoteFileWorkspace))
+                .controller
+                .protocol,
+            SshTransferProtocol.scp,
+          );
+        }
         for (final tab in restoredFiles) {
           bar().onSelect(tab.id);
           await tester.pumpAndSettle();

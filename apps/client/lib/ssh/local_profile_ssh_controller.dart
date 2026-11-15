@@ -113,10 +113,14 @@ final class LocalProfileSshController {
 
   /// [cancellation] lets the owning tab stop loading: it closes the sockets
   /// of the in-flight route, and every later trust restart observes it.
+  /// [onApprovalStored] is called after each key approved through
+  /// [askApproval] has been stored (or could not be), before the route is
+  /// tried again.
   Future<SshConnection> connect({
     required HostRecord host,
     required CredentialRecord credential,
     required LocalKnownHostApprovalPrompt askApproval,
+    void Function()? onApprovalStored,
     SshConnectCancellation? cancellation,
   }) async {
     if (kIsWeb) {
@@ -201,7 +205,11 @@ final class LocalProfileSshController {
             SshHostKeyFailure.rejected,
           );
         }
-        await trust!.approvePending(explicitlyConfirmed: true);
+        try {
+          await trust!.approvePending(explicitlyConfirmed: true);
+        } finally {
+          onApprovalStored?.call();
+        }
       }
     }
     throw StateError('Local SSH host-key review exceeded the retry limit.');

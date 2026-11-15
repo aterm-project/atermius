@@ -9742,8 +9742,6 @@
   "@preferencesAreSavedEncryptedInThis": {},
   "preferencesWereChangedByAnotherOperation": "Preferences were changed by another operation and the current values were reloaded. Review them before saving.",
   "@preferencesWereChangedByAnotherOperation": {},
-  "stopConnecting": "Stop connecting",
-  "@stopConnecting": {},
   "stopCapture": "Stop capture",
   "@stopCapture": {},
   "otherLocalRecords": "Other local records",

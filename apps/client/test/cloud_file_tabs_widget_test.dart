@@ -611,7 +611,8 @@ void main() {
   );
 
   testWidgets(
-    'cancelled first group handshake stops before another host prompt',
+    'a group member that cannot open is reported and does not hold back '
+    'the other members',
     (tester) async {
       final fixture = await _fixture();
       try {
@@ -632,9 +633,19 @@ void main() {
           find.byKey(const ValueKey('cloud_group_connect_group')),
         );
         await tester.pumpAndSettle();
-        expect(fixture.app.attempts, [_a.id]);
-        expect(fixture.calls, isEmpty);
-        expect(fixture.app.terminalTabs, isEmpty);
+        // Members open at the same time, each in its own pane: the other
+        // one connects, and the reason for the refused one is on the page.
+        expect(fixture.app.attempts, [_a.id, _b.id]);
+        expect(fixture.calls, [_b.id]);
+        expect(fixture.app.terminalTabs.map((tab) => tab.host?.id), [_b.id]);
+        expect(fixture.app.terminalTabs.single.state, 'connected');
+        expect(
+          find.descendant(
+            of: find.byType(SnackBar),
+            matching: find.text('Connection denied'),
+          ),
+          findsOneWidget,
+        );
       } finally {
         await _cleanup(tester, fixture);
       }

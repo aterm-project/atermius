@@ -13252,9 +13252,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Настройки изменены другой операцией; текущие значения перезагружены. Проверьте их перед сохранением.';
 
   @override
-  String get stopConnecting => 'Остановить подключение';
-
-  @override
   String get stopCapture => 'Остановить запись';
 
   @override

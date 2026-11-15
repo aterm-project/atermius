@@ -3394,7 +3394,6 @@
   "preferencesSavedAndApplied": "偏好已保存并应用。",
   "preferencesAreSavedEncryptedInThis": "偏好已加密保存在此本地配置中。",
   "preferencesWereChangedByAnotherOperation": "偏好已被其他操作修改，已重新读取当前值。请确认后再保存。",
-  "stopConnecting": "停止连接",
   "stopCapture": "停止采集",
   "otherLocalRecords": "其他本地记录",
   "credentials": "凭据",

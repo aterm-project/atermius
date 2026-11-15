@@ -36,7 +36,7 @@
 | Host 编辑（新 revision） | `suspend_on_host_change` 时新连接 `CAPSULE_STALE`；创建者客户端重封后恢复；现有连接继续 | H |
 | 网关重启 / 备份恢复 | 无网关私钥时 `capabilities.gateway` 不公告；恢复后胶囊 stale → 重封恢复 | H |
 | 周期计划（P2） | `Asia/Shanghai` 工作日窗口；`America/New_York` DST 跳变/回拨边界按 DESIGN §8.3；窗口结束 5 分钟预警后 4409 | R |
-| 窗口组合一键打开 | 主页单击后所有可解析 pane 依次连接；主机密钥/证书提示逐个出现；拒绝一个只影响该 pane；启动/解锁/同步不触发连接；「预览」不连接 | W/桌面 |
+| 窗口组合一键打开 | 主页单击后分屏立即打开，所有可解析 pane 同时连接并各自显示连接进度；主机密钥/证书提示逐个出现；拒绝或失败一个只影响该 pane（在该 pane 内重试）；启动/解锁/同步不触发连接；「预览」不连接 | W/桌面 |
 | 窗口组合并发保存 | 两设备离线分别新增不同组合 → 合并后两者都在；同 id 两侧修改 → 生成「（冲突副本）」；超过 32 个不自动合并 | Dart 单元 |
 | 窗口组合基线保真 | SCP/SFTP `remote_path`、console `serial_port/baud_rate`、深度 16、比例 0.15/0.85 边界、独立标签往返编码不变；旧客户端遇 `windowCombinationPlacements` 不覆盖 | Dart 单元 |
 | Workspace v3 → 组合转换 | 比例/树/Host 顺序无损；原 Workspace 记录保留 | Dart 单元 |

@@ -499,15 +499,27 @@ class _AppShellState extends State<AppShell> {
   Future<bool> _askTrustHost(String endpoint, String fingerprint) =>
       _confirmSshHostKey(context, endpoint: endpoint, fingerprint: fingerprint);
 
-  Future<bool> _askTrustHostApproval(KnownHostApprovalRequest request) =>
-      _confirmSshHostKey(
-        context,
-        endpoint: request.endpoint,
-        fingerprint: request.fingerprint,
-        algorithm: request.algorithm,
-        previouslyRevoked: request.previouslyRevoked,
-        offlineTransportUnavailable: request.offlineTransportUnavailable,
-      );
+  Future<bool> _askTrustHostApproval(KnownHostApprovalRequest request) {
+    // Reviews arrive one at a time; each is shown over the tab (or split
+    // pane) that asks for it.
+    final tabId = request.tabId;
+    if (tabId != null &&
+        mounted &&
+        app.visibleTerminalTabs.any((tab) => tab.id == tabId) &&
+        (app.page != WorkspacePage.terminal ||
+            _selectedFileId != null ||
+            app.activeTerminalTabId != tabId)) {
+      _selectWorkspaceTab(tabId);
+    }
+    return _confirmSshHostKey(
+      context,
+      endpoint: request.endpoint,
+      fingerprint: request.fingerprint,
+      algorithm: request.algorithm,
+      previouslyRevoked: request.previouslyRevoked,
+      offlineTransportUnavailable: request.offlineTransportUnavailable,
+    );
+  }
 
   Future<List<String>?> _askSshUserInfo(
     HostRecord host,
@@ -842,6 +854,9 @@ _snack(
     final tab = app.terminalTabFor(id);
     if (tab == null || tab.closed) return null;
     if (tab.desktop == null) {
+      // A separate window mirrors a live terminal: it opens once the pane
+      // that is still connecting has connected.
+      if (!await _terminalTabConnected(id)) return null;
       await _detachSession(id);
       return ApplicationWindows.instance.isDetached(app, id) ? id : null;
     }
@@ -885,7 +900,51 @@ _snack(
     return opened ? windowId : null;
   }
 
-  final _combinationRestorer = CombinationRestoreCoordinator();
+  /// Completes once the attempt the tab is making has an outcome: true when
+  /// its session is connected, false when the attempt failed or was stopped,
+  /// or the tab was closed.
+  Future<bool> _terminalTabConnected(String id) async {
+    final tab = app.terminalTabFor(id);
+    if (tab == null) return false;
+    final outcome = Completer<bool>();
+    void check() {
+      if (outcome.isCompleted) return;
+      if (!mounted || tab.closed || !identical(app.terminalTabFor(id), tab)) {
+        outcome.complete(false);
+      } else if (tab.state == 'connected') {
+        outcome.complete(true);
+      } else if (!tab.connectProgress.isLoading) {
+        outcome.complete(false);
+      }
+    }
+
+    app.addListener(check);
+    tab.connectProgress.addListener(check);
+    check();
+    try {
+      return await outcome.future;
+    } finally {
+      app.removeListener(check);
+      tab.connectProgress.removeListener(check);
+    }
+  }
+
+  /// Tabs announce the result of their connection in the message bar, each
+  /// announcement replacing the one before. What could not be opened at all
+  /// is said after the tabs in [ids] have announced theirs, so that it is
+  /// not replaced right away.
+  Future<void> _connectResultsAnnounced(Iterable<String> ids) async {
+    await Future.wait(ids.map(_terminalTabConnected));
+    if (!mounted) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+  }
+
+  /// Opens a saved window set as its split right away: every pane gets its
+  /// tab at once and connects on its own, showing its progress (and failure,
+  /// with retry) in that pane. The home page is busy only until the panes
+  /// exist. File panes follow once their SSH owner is connected, separate
+  /// windows once the session they show is.
   Future<void> _openWindowCombination(WindowCombination recipe) async {
     final scope = _currentFilesScope;
     final generation = _scopeGeneration;
@@ -895,15 +954,85 @@ _snack(
         scope == _currentFilesScope &&
         generation == _scopeGeneration;
     setState(() => _openingCombination = true);
+    void panesOpened() {
+      if (mounted && _openingCombination) {
+        setState(() => _openingCombination = false);
+      }
+    }
+
     try {
       final latest = app.windowCombinations
           .where((value) => value.id == recipe.id).firstOrNull;
       if (latest == null || !current()) return;
       recipe = latest;
       var independentPlacementFailures = 0;
-      final result = await _combinationRestorer.restore(
+      Map<int, String>? placed;
+      Future<int>? mainWindowFailures;
+      // What was in front before an attached file pane opened as a tab, and
+      // the pane this restore selected itself.
+      ({WorkspacePage page, String? id})? frontBeforeFile;
+      String? selectedHere;
+      bool shown(String id) =>
+          _fileTabs.find(id) != null ||
+          app.visibleTerminalTabs.any((t) => t.id == id && !t.closed);
+      final result = await CombinationRestoreCoordinator().restore(
         recipe: recipe,
         isCurrent: current,
+        onSessions: (sessions) {
+          final before = placed;
+          placed = sessions;
+          if (before == null) {
+            // Every terminal pane has its tab: show the split now. Each pane
+            // reports its own connection from here on.
+            if (sessions.isNotEmpty) {
+              applyWindowCombination(recipe, _sessionWorkspace, sessions);
+              final selected = selectedHere = _sessionWorkspace.selectedId;
+              if (selected != null) _selectWorkspaceTab(selected);
+              mainWindowFailures = restoreWindowCombinationPlacements(
+                recipe: recipe,
+                sessions: sessions,
+                isCurrent: current,
+                detach: _detachCombinationWindow,
+                applyDetached: (id, value) => ApplicationWindows.instance
+                    .applyWindowPlacement(app, id, value),
+                closeDetached: (id) =>
+                    ApplicationWindows.instance.closeSession(app, id),
+                separateWindows: false,
+              ).catchError((Object _) => 1);
+            }
+            panesOpened();
+            return;
+          }
+          // A file pane joined its connected owner: it takes its saved place
+          // unless the panes were rearranged meanwhile. Whatever the user
+          // brought to the front stays there; otherwise the saved active
+          // pane is selected.
+          final moved = extendWindowCombination(
+            recipe,
+            _sessionWorkspace,
+            placed: {
+              for (final entry in before.entries)
+                if (shown(entry.value)) entry.key: entry.value,
+            },
+            sessions: {
+              for (final entry in sessions.entries)
+                if (shown(entry.value)) entry.key: entry.value,
+            },
+          );
+          final front = frontBeforeFile;
+          frontBeforeFile = null;
+          if (front == null) return;
+          if (front.page != WorkspacePage.terminal) {
+            setState(() => _selectedFileId = null);
+            app.showWorkspacePage(front.page);
+            return;
+          }
+          var back = front.id;
+          if (moved && back == selectedHere) {
+            back = selectedHere = _sessionWorkspace.selectedId;
+          }
+          if (back != null && shown(back)) _selectWorkspaceTab(back);
+        },
         independentPane: (index) =>
             recipe.windows.any((w) => w.pane == index && w.independentFile),
         openIndependent: (index, pane) async {
@@ -950,6 +1079,8 @@ _snack(
           if (!current()) return null;
           final host = app.hosts.where((h) => h.id == pane.hostId).firstOrNull;
           if (host == null || host.protocol != HostProtocol.ssh) return null;
+          // The owner connects in its own pane; its files follow it.
+          if (!await _terminalTabConnected(ownerId) || !current()) return null;
           final owner = app.visibleTerminalTabs
               .where(
                 (t) =>
@@ -968,6 +1099,10 @@ _snack(
             return null;
           if (kIsWeb) return null;
           final beforeFiles = _fileTabs.entries.map((e) => e.id).toSet();
+          frontBeforeFile = (
+            page: app.page,
+            id: _selectedFileId ?? app.activeTerminalTabId,
+          );
           await _openSessionFiles(
             owner.id,
             protocol: pane.kind == 'scp'
@@ -988,53 +1123,47 @@ _snack(
               .lastOrNull
               ?.id;
         },
+        // Returns as soon as the pane's tab exists; it keeps connecting (and
+        // reports a failure) there.
         open: (pane) async {
           if (pane.kind == 'console') {
             if (!localConsoleSupported) return null;
+            final before = app.terminalTabs.map((t) => t.id).toSet();
             if (pane.serialPort == null) {
-              final id = await app.openLocalShellTab(
+              await app.openLocalShellTab(
                 launch: pane.shell ?? LocalShellLaunch.systemDefault,
               );
-              return app.visibleTerminalTabs
-                  .where((t) => t.id == id && t.console != null)
-                  .firstOrNull
-                  ?.id;
+            } else {
+              await app.openConsoleTab(
+                serialPort: pane.serialPort,
+                baudRate: pane.baudRate ?? 115200,
+              );
             }
-            final before = app.terminalTabs.map((t) => t.id).toSet();
-            await app.openConsoleTab(
-              serialPort: pane.serialPort,
-              baudRate: pane.baudRate ?? 115200,
-            );
+            // A console that could not start keeps its pane, with the reason
+            // and retry.
             return app.visibleTerminalTabs
-                .where((t) => !before.contains(t.id) && t.console != null)
+                .where((t) => !before.contains(t.id) && !t.closed)
                 .firstOrNull
                 ?.id;
           }
           final host = app.hosts.where((h) => h.id == pane.hostId).firstOrNull;
           if (host == null) return null;
-          final before = app.terminalTabs.map((t) => t.id).toSet();
-          await app.openTerminalTab(host);
-          return app.visibleTerminalTabs
-              .where(
-                (t) =>
-                    !before.contains(t.id) &&
-                    t.host?.id == host.id &&
-                    !t.closed &&
-                    (t.state == 'connected' ||
-                        (t.desktop != null && t.state != 'disconnected')),
-              )
-              .firstOrNull
-              ?.id;
+          String? opened;
+          final connecting = app.openTerminalTab(
+            host,
+            onTabOpened: (id) => opened = id,
+          );
+          // Refused before a tab existed (tab limit, no credential, ...).
+          if (opened == null) await connecting;
+          unawaited(connecting.catchError((Object _) {}));
+          return opened;
         },
       );
+      panesOpened();
       if (result == null || result.stale || !current()) return;
-      if (result.sessions.isNotEmpty) {
-        applyWindowCombination(recipe, _sessionWorkspace, result.sessions);
-        final selected = _sessionWorkspace.selectedId;
-        if (selected != null) _selectWorkspaceTab(selected);
-      }
       final windowFailures =
           independentPlacementFailures +
+          (await mainWindowFailures ?? 0) +
           (result.sessions.isEmpty && result.independentOpened == 0
               ? 0
               : await restoreWindowCombinationPlacements(
@@ -1046,8 +1175,13 @@ _snack(
                       .applyWindowPlacement(app, id, value),
                   closeDetached: (id) =>
                       ApplicationWindows.instance.closeSession(app, id),
+                  mainWindow: mainWindowFailures == null,
                 ));
       if (!current()) return;
+      if (windowFailures > 0 || result.failures > 0) {
+        await _connectResultsAnnounced(result.sessions.values);
+        if (!current()) return;
+      }
       if (windowFailures > 0 && result.failures == 0)
         {
 _snack(context, currentL10n.someSeparateWindowsOrWindowPositions, error: true);
@@ -1064,10 +1198,15 @@ _snack(
     } catch (error) {
       if (current()) _snack(context, app.friendlyError(error), error: true);
     } finally {
-      if (mounted) setState(() => _openingCombination = false);
+      panesOpened();
     }
   }
 
+  /// Opens the Group as one split tab right away. Members that are not open
+  /// yet get their pane at once and connect at the same time, each showing
+  /// its own progress (and failure, with retry) in that pane; nothing waits
+  /// on the home page. A member that could not get a tab at all (the tab
+  /// limit, a missing credential) is reported here.
   Future<void> _openGroup(GroupRecord group) async {
     final scope = _currentFilesScope;
     if (scope == null || _openingGroup) return;
@@ -1103,6 +1242,8 @@ throw FormatException(context.l10n.eachGroupLayoutCanConnectUp);
       final layout =
           saved ?? GroupSessionLayout.forHosts(groupHostIds.toList());
       if (layout.panes.isEmpty) throw StateError(context.l10n.thisGroupHasNoConnectableSsh);
+      Object? refused;
+      final openedHere = <String>[];
       for (final pane in layout.panes) {
         if (!current()) break;
         final host = app.hosts
@@ -1112,38 +1253,59 @@ throw FormatException(context.l10n.eachGroupLayoutCanConnectUp);
             )
             .firstOrNull;
         if (host == null) continue;
-        var tab = app.visibleTerminalTabs
+        // A member that is connected, or still connecting, keeps its tab; one
+        // that failed or was stopped is tried again in its tab.
+        final open = app.visibleTerminalTabs
             .where(
               (tab) =>
                   !usedSessions.contains(tab.id) &&
                   !tab.closed &&
                   tab.host != null &&
-                  matchesGroupHostConnection(tab.host!, host) &&
-                  tab.state == 'connected' &&
-                  tab.connection != null,
+                  matchesGroupHostConnection(tab.host!, host),
             )
-            .firstOrNull;
-        if (tab == null) {
-          final before = app.terminalTabs.map((tab) => tab.id).toSet();
-          await app.openTerminalTab(host);
-          if (!current()) break;
-          tab = app.visibleTerminalTabs
-              .where(
-                (tab) =>
-                    !before.contains(tab.id) &&
-                    !tab.closed &&
-                    tab.host != null &&
-                    matchesGroupHostConnection(tab.host!, host) &&
-                    tab.state == 'connected' &&
-                    tab.connection != null,
-              )
-              .firstOrNull;
-          // A cancelled/failed handshake stops the sequence, never borrowing an
-          // unrelated active tab or proceeding into another trust prompt.
-          if (tab == null) break;
+            .toList();
+        var id = open
+            .where(
+              (tab) =>
+                  (tab.state == 'connected' && tab.connection != null) ||
+                  tab.connectProgress.isLoading,
+            )
+            .firstOrNull
+            ?.id;
+        if (id == null) {
+          id = open
+              .where((tab) => app.canRetryTerminalConnect(tab.id))
+              .firstOrNull
+              ?.id;
+          if (id != null) {
+            unawaited(app.retryTerminalConnect(id));
+            openedHere.add(id);
+          }
         }
-        usedSessions.add(tab.id);
-        sessionsByPane[pane.paneId] = tab.id;
+        if (id == null) {
+          String? opened;
+          final connecting = app.openTerminalTab(
+            host,
+            onTabOpened: (id) => opened = id,
+          );
+          if (opened == null) {
+            // Refused before a tab existed: only this page can say so.
+            try {
+              await connecting;
+            } catch (error) {
+              refused ??= error;
+            }
+            if (!current()) break;
+          } else {
+            // Its pane shows this attempt and its failure.
+            unawaited(connecting.catchError((Object _) {}));
+          }
+          id = opened;
+          if (opened != null) openedHere.add(opened!);
+        }
+        if (id == null) continue;
+        usedSessions.add(id);
+        sessionsByPane[pane.paneId] = id;
       }
       if (current() && sessionsByPane.isNotEmpty) {
         layout.apply(_sessionWorkspace, sessionIdsByPane: sessionsByPane);
@@ -1152,11 +1314,21 @@ throw FormatException(context.l10n.eachGroupLayoutCanConnectUp);
         _selectedFileId = null;
         app.showWorkspacePage(WorkspacePage.terminal);
       }
+      if (refused != null) {
+        // The Group can be opened again while the reason waits its turn.
+        if (mounted) setState(() => _openingGroup = false);
+        await _connectResultsAnnounced(openedHere);
+        throw refused;
+      }
     } catch (error) {
       if (current())
         _snack(
           context,
-          error is FormatException ? error.message : app.friendlyError(error),
+          error is FormatException
+              ? error.message
+              : error is StateError
+              ? error.message
+              : app.friendlyError(error),
           error: true,
         );
     } finally {

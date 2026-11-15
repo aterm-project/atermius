@@ -325,8 +325,6 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
       _sessions.where((s) => !_detached.contains(s.id)).toList();
 
   bool _hostGrid = true;
-  bool _groupConnecting = false;
-  int _groupConnectionGeneration = 0;
   bool _catalogLoading = true;
   String? _profileListError;
   bool _busy = false;
@@ -433,7 +431,6 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
     _homeSearch.dispose();
     McpService.instance.detach(_mcpWorkspace);
     _disposing = true;
-    _groupConnectionGeneration++;
     _files.removeListener(_onSessionChanged);
     _files.dispose();
     _unregisterWindowOwner?.call();
@@ -1587,6 +1584,39 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
     if (mounted && !_disposing) setState(() {});
   }
 
+  /// Completes once the attempt [session] is making has an outcome: true when
+  /// the session is connected, false when the attempt failed or was stopped,
+  /// or the tab was closed.
+  Future<bool> _localSessionConnected(_LocalTerminalSession session) async {
+    if (session._closed) return false;
+    final outcome = Completer<bool>();
+    void check() {
+      if (outcome.isCompleted) return;
+      if (!mounted ||
+          _disposing ||
+          session._closed ||
+          !_sessions.contains(session)) {
+        outcome.complete(false);
+      } else if (session.connected.value ||
+          session.telnetState == 'connected') {
+        outcome.complete(true);
+      } else if (!session.progress.isLoading &&
+          session.telnetState != 'connecting') {
+        outcome.complete(false);
+      }
+    }
+
+    session.connected.addListener(check);
+    session.progress.addListener(check);
+    check();
+    try {
+      return await outcome.future;
+    } finally {
+      session.connected.removeListener(check);
+      session.progress.removeListener(check);
+    }
+  }
+
   void _installLocalRecovery(_LocalTerminalSession session) {
     if (session.recovery != null || session.console != null ||
         session.isConsoleTab) {
@@ -2152,6 +2182,9 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
     }
 
     SshConnection? connection;
+    // Completed when the host key this attempt had reviewed is stored; the
+    // next review in the queue waits for it.
+    Completer<void>? approvalStored;
     // Sanitized lifecycle row: categories only, never credential material.
     SessionLogRecorder? log = _sessionLogs?.begin(
       host: host,
@@ -2177,15 +2210,24 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
         askApproval: (request) async {
           if (!attemptCurrent()) return false;
           advance(ConnectStage.awaitingUser);
+          final stored = approvalStored = Completer<void>();
           final approved = await _reviewLocalHostKey(
             request,
             isCurrent: attemptCurrent,
+            repository: repository,
             // A new tab or a retry brings its tab forward for the review; a
             // background reconnect never changes the selected tab.
             session: attempt == null ? null : session,
+            stored: stored.future,
           );
           if (approved) advance(ConnectStage.verifyingHost);
-          return approved && attemptCurrent();
+          final trusted = approved && attemptCurrent();
+          if (!trusted && !stored.isCompleted) stored.complete();
+          return trusted;
+        },
+        onApprovalStored: () {
+          final stored = approvalStored;
+          if (stored != null && !stored.isCompleted) stored.complete();
         },
       );
       if (!attemptCurrent()) return;
@@ -2229,6 +2271,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
       log?.markFailed(error);
       if (attemptCurrent()) report(currentL10n.couldntConnectToTheLocalSsh);
     } finally {
+      if (approvalStored?.isCompleted == false) approvalStored!.complete();
       // Abandoned (scope changed / cancelled) before a tab took ownership.
       log?.markClosed(SessionLogEndReason.user);
       if (connection != null) await connection.close();
@@ -2279,29 +2322,77 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
   }
 
   Future<void> _hostKeyReviews = Future<void>.value();
+  int _hostKeyApprovalsStored = 0;
 
   /// SSH tabs connect independently, so several can reach an unknown host key
   /// at once. Their reviews are shown one at a time, each over its own tab,
-  /// and one whose attempt ended while it waited is never shown.
+  /// and one whose attempt ended while it waited is never shown. The next
+  /// review starts when a key trusted in this one is stored ([stored]):
+  /// panes that connect to the same new Host ask about the same key, and the
+  /// ones that waited then find it trusted instead of asking again. Storing
+  /// takes a moment; when it is held up (it waits for handshakes in flight)
+  /// the next review is shown anyway.
   Future<bool> _reviewLocalHostKey(
     LocalKnownHostApprovalRequest request, {
     required bool Function() isCurrent,
+    required LocalHostRepository repository,
     _LocalTerminalSession? session,
+    Future<void>? stored,
   }) async {
     final earlier = _hostKeyReviews;
     final done = Completer<void>();
     _hostKeyReviews = done.future;
+    final storedBefore = _hostKeyApprovalsStored;
+    var approved = false;
     try {
       await earlier;
+      if (!isCurrent()) return false;
+      if (_hostKeyApprovalsStored != storedBefore &&
+          await _localHostKeyTrusted(repository, request)) {
+        return approved = isCurrent();
+      }
       if (!isCurrent()) return false;
       if (session != null &&
           _selectedTabId != session.id &&
           _visibleSessions.contains(session)) {
         _selectTerminalTab(session.id);
       }
-      return await _confirmLocalHostKey(request);
+      return approved = await _confirmLocalHostKey(request);
     } finally {
-      done.complete();
+      if (approved && stored != null) {
+        unawaited(
+          stored
+              .then((_) => _hostKeyApprovalsStored++)
+              .timeout(const Duration(seconds: 2), onTimeout: () => 0)
+              .whenComplete(done.complete),
+        );
+      } else {
+        done.complete();
+      }
+    }
+  }
+
+  /// Whether exactly the key of [request] is trusted by now. The read waits
+  /// behind an approval that is being stored; it does not wait for long.
+  Future<bool> _localHostKeyTrusted(
+    LocalHostRepository repository,
+    LocalKnownHostApprovalRequest request,
+  ) async {
+    try {
+      return await repository
+              .knownHostTrustStatus(
+                host: request.host,
+                port: request.port,
+                algorithm: request.algorithm,
+                fingerprint: request.fingerprint,
+              )
+              .timeout(
+                const Duration(seconds: 2),
+                onTimeout: () => LocalKnownHostTrustStatus.unknown,
+              ) ==
+          LocalKnownHostTrustStatus.trusted;
+    } on Object {
+      return false;
     }
   }
 
@@ -2619,7 +2710,6 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
 
   Future<void> _closeLocalConnections() async {
     await TrackedFilesWindows.instance.releaseOwner(_windowOwner);
-    _groupConnectionGeneration++;
     await _files.closeAll();
     await ApplicationWindows.instance.closeOwner(_windowOwner);
     final closing = List<_LocalTerminalSession>.of(_sessions);
@@ -3675,12 +3765,12 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
 
   Widget _groupMenu(LocalGroupRecord group) => PopupMenuButton<String>(
     popUpAnimationStyle: AppMotion.menuStyle(context),
-    enabled: !_busy && !_groupConnecting,
+    enabled: !_busy,
     tooltip: context.l10n.groupActionsName(group.name),
     onSelected: (value) {
       switch (value) {
         case 'connect':
-          unawaited(_connectGroup(group));
+          _connectGroup(group);
         case 'save':
           unawaited(_saveGroupLayout(group));
         case 'reset':
@@ -3831,6 +3921,9 @@ _showMessage(error is FileWindowCaptureUnavailable?FileWindowCaptureUnavailable.
     final session = _sessions.where((s) => s.id == id).firstOrNull;
     if (session == null) return null;
     if (session.desktop == null) {
+      // A separate window mirrors a live terminal: it opens once the pane
+      // that is still connecting has connected.
+      if (!await _localSessionConnected(session)) return null;
       await _detachTerminalTab(id);
       return ApplicationWindows.instance.isDetached(_windowOwner, id)
           ? id
@@ -3886,7 +3979,11 @@ _showMessage(error is FileWindowCaptureUnavailable?FileWindowCaptureUnavailable.
     return opened ? windowId : null;
   }
 
-  final _combinationRestorer = CombinationRestoreCoordinator();
+  /// Opens a saved window set as its split right away: every pane gets its
+  /// tab at once and connects on its own, showing its progress (and failure,
+  /// with retry) in that pane. The home page is busy only until the panes
+  /// exist. File panes follow once their SSH owner is connected, separate
+  /// windows once the session they show is.
   Future<void> _openWindowCombination(WindowCombination recipe) async {
     final profile = _activeProfile;
     final repository = _repository;
@@ -3898,15 +3995,78 @@ _showMessage(error is FileWindowCaptureUnavailable?FileWindowCaptureUnavailable.
         identical(profile, _activeProfile) &&
         identical(repository, _repository);
     setState(() => _openingCombination = true);
+    void panesOpened() {
+      if (mounted && _openingCombination) {
+        setState(() => _openingCombination = false);
+      }
+    }
+
     try {
       final latest = (await _loadWindowCombinations())
           .where((value) => value.id == recipe.id).firstOrNull;
       if (latest == null || !current()) return;
       recipe = latest;
       var independentPlacementFailures = 0;
-      final result = await _combinationRestorer.restore(
+      Map<int, String>? placed;
+      Future<int>? mainWindowFailures;
+      // What was selected before an attached file pane opened as a tab, and
+      // the pane this restore selected itself.
+      String? selectedBeforeFile, selectedHere;
+      bool shown(String id) =>
+          _visibleSessions.any((s) => s.id == id) || _files.find(id) != null;
+      final result = await CombinationRestoreCoordinator().restore(
         recipe: recipe,
         isCurrent: current,
+        onSessions: (sessions) {
+          final before = placed;
+          placed = sessions;
+          if (before == null) {
+            // Every terminal pane has its tab: show the split now. Each pane
+            // reports its own connection from here on.
+            if (sessions.isNotEmpty) {
+              applyWindowCombination(recipe, _layout, sessions);
+              final selected = selectedHere = _layout.selectedId;
+              if (selected != null) _selectTerminalTab(selected);
+              mainWindowFailures = restoreWindowCombinationPlacements(
+                recipe: recipe,
+                sessions: sessions,
+                isCurrent: current,
+                detach: _detachCombinationWindow,
+                applyDetached: (id, value) => ApplicationWindows.instance
+                    .applyWindowPlacement(_windowOwner, id, value),
+                closeDetached: (id) => ApplicationWindows.instance
+                    .closeSession(_windowOwner, id),
+                separateWindows: false,
+              ).catchError((Object _) => 1);
+            }
+            panesOpened();
+            return;
+          }
+          // A file pane joined its connected owner: it takes its saved place
+          // unless the panes were rearranged meanwhile. Whatever the user
+          // brought to the front stays there; otherwise the saved active
+          // pane is selected.
+          final moved = extendWindowCombination(
+            recipe,
+            _layout,
+            placed: {
+              for (final entry in before.entries)
+                if (shown(entry.value)) entry.key: entry.value,
+            },
+            sessions: {
+              for (final entry in sessions.entries)
+                if (shown(entry.value)) entry.key: entry.value,
+            },
+          );
+          var back = selectedBeforeFile;
+          selectedBeforeFile = null;
+          if (moved && back == selectedHere) {
+            back = selectedHere = _layout.selectedId;
+          }
+          if (back != null && (back == 'hosts' || shown(back))) {
+            _selectTerminalTab(back);
+          }
+        },
         independentPane: (index) =>
             recipe.windows.any((w) => w.pane == index && w.independentFile),
         openIndependent: (index, pane) async {
@@ -3951,6 +4111,15 @@ _showMessage(error is FileWindowCaptureUnavailable?FileWindowCaptureUnavailable.
           if (!current()) return null;
           final host = _hosts.where((h) => h.id == pane.hostId).firstOrNull;
           if (host == null || host.protocol != HostProtocol.ssh) return null;
+          // The owner connects in its own pane; its files follow it.
+          final pending = _visibleSessions
+              .where((t) => t.id == ownerId && t.host.id == host.id)
+              .firstOrNull;
+          if (pending == null ||
+              !await _localSessionConnected(pending) ||
+              !current()) {
+            return null;
+          }
           final owner = _visibleSessions
               .where(
                 (t) =>
@@ -3968,6 +4137,7 @@ _showMessage(error is FileWindowCaptureUnavailable?FileWindowCaptureUnavailable.
               owner.host.jumpHostId != host.jumpHostId)
             return null;
           final beforeFiles = _files.entries.map((e) => e.id).toSet();
+          selectedBeforeFile = _selectedTabId;
           await _openSessionFiles(
             owner,
             reuseExisting: false,
@@ -3988,45 +4158,45 @@ _showMessage(error is FileWindowCaptureUnavailable?FileWindowCaptureUnavailable.
               .lastOrNull
               ?.id;
         },
+        // Returns as soon as the pane's tab exists; it keeps connecting (and
+        // reports a failure) there.
         open: (pane) async {
           if (pane.kind == 'console') {
             if (!localConsoleSupported) return null;
-            final id = await _openConsole(
+            final before = _sessions.toSet();
+            await _openConsole(
               serialPort: pane.serialPort,
               baudRate: pane.baudRate ?? 115200,
               shell: pane.serialPort == null ? pane.shell : null,
             );
+            // A console that could not start keeps its pane, with the reason
+            // and retry.
             return _visibleSessions
-                .where((s) => s.id == id && s.console != null)
+                .where((s) => !before.contains(s) && s.isConsoleTab)
                 .firstOrNull
                 ?.id;
           }
           final host = _hosts.where((h) => h.id == pane.hostId).firstOrNull;
           if (host == null) return null;
-          final before = _sessions.map((s) => s.id).toSet();
-          await _connectLocalHost(host, shouldContinue: current);
-          return _visibleSessions
-              .where(
-                (s) =>
-                    !before.contains(s.id) &&
-                    s.host.id == host.id &&
-                    (s.connected.value ||
-                        (s.desktop != null &&
-                            s.desktop!.state != 'disconnected') ||
-                        s.telnetState == 'connecting'),
-              )
-              .firstOrNull
-              ?.id;
+          _LocalTerminalSession? created;
+          final connecting = _connectLocalHost(
+            host,
+            shouldContinue: current,
+            onTabCreated: (session) => created = session,
+          );
+          if (created == null) {
+            await connecting;
+            return null;
+          }
+          unawaited(connecting.catchError((Object _) {}));
+          return created!.id;
         },
       );
+      panesOpened();
       if (result == null || result.stale || !current()) return;
-      if (result.sessions.isNotEmpty) {
-        applyWindowCombination(recipe, _layout, result.sessions);
-        final selected = _layout.selectedId;
-        if (selected != null) _selectTerminalTab(selected);
-      }
       final windowFailures =
           independentPlacementFailures +
+          (await mainWindowFailures ?? 0) +
           (result.sessions.isEmpty && result.independentOpened == 0
               ? 0
               : await restoreWindowCombinationPlacements(
@@ -4038,6 +4208,7 @@ _showMessage(error is FileWindowCaptureUnavailable?FileWindowCaptureUnavailable.
                       .applyWindowPlacement(_windowOwner, id, value),
                   closeDetached: (id) => ApplicationWindows.instance
                       .closeSession(_windowOwner, id),
+                  mainWindow: mainWindowFailures == null,
                 ));
       if (!current()) return;
       if (windowFailures > 0 && result.failures == 0)
@@ -4059,12 +4230,16 @@ _showMessage(
         );
 }
     } finally {
-      if (mounted) setState(() => _openingCombination = false);
+      panesOpened();
     }
   }
 
-  Future<void> _connectGroup(LocalGroupRecord group) async {
-    if (_busy || _groupConnecting || kIsWeb || _disposing) return;
+  /// Opens the Group as one split tab right away. Members that are not open
+  /// yet get their pane at once and connect at the same time, each showing
+  /// its own progress (and failure, with retry) in that pane; nothing waits
+  /// on the home page.
+  void _connectGroup(LocalGroupRecord group) {
+    if (_busy || kIsWeb || _disposing) return;
     final profile = _activeProfile;
     if (profile == null) return;
     final members = GroupSessionLayout.groupHosts(
@@ -4089,55 +4264,46 @@ _showMessage(
       _showMessage(context.l10n.theSavedGroupLayoutIsInvalid2);
       return;
     }
-    final token = ++_groupConnectionGeneration;
-    final connected = <String, String>{};
+    final panes = <String, String>{};
     final used = <String>{};
-    bool current() =>
-        mounted &&
-        !_disposing &&
-        identical(_activeProfile, profile) &&
-        token == _groupConnectionGeneration;
-    setState(() => _groupConnecting = true);
-    try {
-      for (final pane in layout.panes) {
-        if (!current()) return;
-        final host = members
-            .where((host) => host.id == pane.hostId)
-            .firstOrNull;
-        if (host == null) continue;
-        var session = _visibleSessions
-            .where(
-              (session) =>
-                  matchesGroupHostConnection(session.host, host) &&
-                  session.connected.value &&
-                  !used.contains(session.id),
-            )
-            .firstOrNull;
-        if (session == null) {
-          final previous = _sessions.map((session) => session.id).toSet();
-          await _connectLocalHost(host, shouldContinue: current);
-          if (!current()) return;
-          session = _visibleSessions
-              .where(
-                (session) =>
-                    !previous.contains(session.id) &&
-                    matchesGroupHostConnection(session.host, host) &&
-                    session.connected.value,
-              )
-              .firstOrNull;
-        }
-        if (session == null) break;
-        used.add(session.id);
-        connected[pane.paneId] = session.id;
+    for (final pane in layout.panes) {
+      final host = members
+          .where((host) => host.id == pane.hostId)
+          .firstOrNull;
+      if (host == null) continue;
+      // A member that is connected, or still connecting, keeps its tab; one
+      // that failed or was stopped is tried again in its tab.
+      final open = _visibleSessions
+          .where(
+            (session) =>
+                matchesGroupHostConnection(session.host, host) &&
+                !used.contains(session.id),
+          )
+          .toList();
+      var session = open
+          .where((s) => s.connected.value || s.progress.isLoading)
+          .firstOrNull;
+      if (session == null) {
+        session = open.where(_canRetryLocalSession).firstOrNull;
+        if (session != null) unawaited(_retryLocalSession(session));
       }
-      if (!current() || connected.isEmpty) return;
-      if (layout.apply(_layout, sessionIdsByPane: connected)) {
-        setState(
-          () => _selectedTabId = _layout.selectedId ?? connected.values.first,
+      if (session == null) {
+        _LocalTerminalSession? created;
+        unawaited(
+          _connectLocalHost(
+            host,
+            onTabCreated: (session) => created = session,
+          ).catchError((Object _) {}),
         );
+        session = created;
       }
-    } finally {
-      if (mounted && !_disposing) setState(() => _groupConnecting = false);
+      if (session == null) continue;
+      used.add(session.id);
+      panes[pane.paneId] = session.id;
+    }
+    if (panes.isEmpty) return;
+    if (layout.apply(_layout, sessionIdsByPane: panes)) {
+      setState(() => _selectedTabId = _layout.selectedId ?? panes.values.first);
     }
   }
 
@@ -4145,7 +4311,7 @@ _showMessage(
     LocalGroupRecord group, {
     bool reset = false,
   }) async {
-    if (_busy || _groupConnecting) return;
+    if (_busy) return;
     final root = _layout.root;
     GroupSessionLayout? captured;
     if (!reset) {
@@ -5475,7 +5641,7 @@ _showMessage(
             }
           },
         ),
-        if (_groups.isNotEmpty || _groupConnecting)
+        if (_groups.isNotEmpty)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
@@ -5491,20 +5657,13 @@ _showMessage(
                           key: ValueKey('local_host_group_${group.id}'),
                           avatar: const Icon(Icons.folder_outlined, size: 16),
                           label: Text(group.name),
-                          onPressed: _busy || _groupConnecting || kIsWeb
+                          onPressed: _busy || kIsWeb
                               ? null
                               : () => _connectGroup(group),
                         ),
                         _groupMenu(group),
                       ],
                     ),
-                  ),
-                if (_groupConnecting)
-                  TextButton.icon(
-                    onPressed: () =>
-                        setState(() => _groupConnectionGeneration++),
-                    icon: const Icon(Icons.stop_circle_outlined),
-                    label: Text(context.l10n.stopConnecting),
                   ),
               ],
             ),
@@ -6386,7 +6545,7 @@ _showMessage(
                       subtitle: Text(
                         context.l10n.groupparentlabelHostscountHostsChildrencountSubgroups(_groupParentLabel(group), hostsCount, childrenCount),
                       ),
-                      onTap: _busy || _groupConnecting || kIsWeb
+                      onTap: _busy || kIsWeb
                           ? null
                           : () => _connectGroup(group),
                       trailing: _groupMenu(group),

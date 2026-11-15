@@ -11708,9 +11708,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '偏好已被其他操作修改，已重新读取当前值。请确认后再保存。';
 
   @override
-  String get stopConnecting => '停止连接';
-
-  @override
   String get stopCapture => '停止采集';
 
   @override

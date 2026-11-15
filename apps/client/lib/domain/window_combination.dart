@@ -469,6 +469,13 @@ class CombinationRestoreResult {
 class CombinationRestoreCoordinator {
   bool _busy = false;
   bool get busy => _busy;
+
+  /// Terminal, console and remote desktop panes are opened first, in pane
+  /// order; [open] may return as soon as its pane exists, without waiting for
+  /// the connection. [onSessions] then receives every pane opened so far:
+  /// once when all of those panes exist (before any file pane or separate
+  /// file window is opened), and again whenever an attached file pane joined
+  /// them. [openAttachedFile] may wait for its owner to connect.
   Future<CombinationRestoreResult?> restore({
     required WindowCombination recipe,
     required bool Function() isCurrent,
@@ -477,11 +484,22 @@ class CombinationRestoreCoordinator {
     Future<String?> Function(CombinationPane, String ownerId)? openAttachedFile,
     bool Function(int)? independentPane,
     Future<bool> Function(int, CombinationPane)? openIndependent,
+    void Function(Map<int, String> sessions)? onSessions,
   }) async {
     if (_busy || !isCurrent()) return null;
     _busy = true;
     final sessions = <int, String>{};
     var failures = 0, independentOpened = 0;
+    var terminalsReported = false;
+    // The panes opened so far, for a caller that shows them while the rest is
+    // still on its way.
+    void report() {
+      terminalsReported = true;
+      if (onSessions != null && isCurrent()) {
+        onSessions(Map.unmodifiable(Map.of(sessions)));
+      }
+    }
+
     try {
       for (final pane in recipe.panes) {
         if (!canResolve(pane)) {
@@ -505,6 +523,8 @@ class CombinationRestoreCoordinator {
             true,
             independentOpened: independentOpened,
           );
+        final file = {'sftp', 'scp'}.contains(pane.kind);
+        if (file && !terminalsReported) report();
         try {
           if (!canResolve(pane)) {
             failures++;
@@ -557,6 +577,7 @@ class CombinationRestoreCoordinator {
             failures++;
           } else {
             sessions[index] = id;
+            if (file) report();
           }
         } catch (_) {
           if (!isCurrent())
@@ -569,6 +590,7 @@ class CombinationRestoreCoordinator {
           failures++;
         }
       }
+      if (!terminalsReported && isCurrent()) report();
       return CombinationRestoreResult(
         Map.unmodifiable(sessions),
         failures,

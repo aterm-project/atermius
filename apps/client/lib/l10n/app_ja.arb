@@ -3394,7 +3394,6 @@
   "preferencesSavedAndApplied": "設定を保存して適用しました。",
   "preferencesAreSavedEncryptedInThis": "設定はこのローカルプロファイルに暗号化して保存されています。",
   "preferencesWereChangedByAnotherOperation": "設定は別の操作で変更されたため、現在の値を再読み込みしました。確認してから保存してください。",
-  "stopConnecting": "接続を中止",
   "stopCapture": "取得を停止",
   "otherLocalRecords": "その他のローカルレコード",
   "credentials": "認証情報",

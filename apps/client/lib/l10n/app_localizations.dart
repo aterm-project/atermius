@@ -20685,12 +20685,6 @@ abstract class AppLocalizations {
   /// **'Preferences were changed by another operation and the current values were reloaded. Review them before saving.'**
   String get preferencesWereChangedByAnotherOperation;
 
-  /// No description provided for @stopConnecting.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop connecting'**
-  String get stopConnecting;
-
   /// No description provided for @stopCapture.
   ///
   /// In en, this message translates to:

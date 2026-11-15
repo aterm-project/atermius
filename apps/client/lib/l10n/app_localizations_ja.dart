@@ -12404,9 +12404,6 @@ class AppLocalizationsJa extends AppLocalizations {
       '設定は別の操作で変更されたため、現在の値を再読み込みしました。確認してから保存してください。';
 
   @override
-  String get stopConnecting => '接続を中止';
-
-  @override
   String get stopCapture => '取得を停止';
 
   @override

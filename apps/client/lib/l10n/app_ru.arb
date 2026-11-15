@@ -3394,7 +3394,6 @@
   "preferencesSavedAndApplied": "Настройки сохранены и применены.",
   "preferencesAreSavedEncryptedInThis": "Настройки хранятся в зашифрованном виде в этом локальном профиле.",
   "preferencesWereChangedByAnotherOperation": "Настройки изменены другой операцией; текущие значения перезагружены. Проверьте их перед сохранением.",
-  "stopConnecting": "Остановить подключение",
   "stopCapture": "Остановить запись",
   "otherLocalRecords": "Другие локальные записи",
   "credentials": "Учётные данные",

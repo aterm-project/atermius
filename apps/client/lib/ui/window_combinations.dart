@@ -174,6 +174,9 @@ Future<WindowCombination> captureWindowCombinationWithPlacements({
 
 /// Runs only after an explicit recipe restore. Failed/unsupported placement
 /// leaves the already opened session available; stale scope closes new mirrors.
+/// The main window can be placed on its own ([separateWindows] false) as soon
+/// as the panes exist, and the separate windows later ([mainWindow] false),
+/// once the sessions they show are connected.
 Future<int> restoreWindowCombinationPlacements({
   required WindowCombination recipe,
   required Map<int, String> sessions,
@@ -191,9 +194,12 @@ Future<int> restoreWindowCombinationPlacements({
   applyDetached,
   required Future<void> Function(String windowId) closeDetached,
   WindowGeometry? geometry,
+  bool separateWindows = true,
+  bool mainWindow = true,
 }) async {
   var failures = 0;
   for (final (index, window) in recipe.windows.indexed) {
+    if (!separateWindows) break;
     if (window.independentFile) continue;
     if (!isCurrent()) return failures;
     final session = sessions[window.pane];
@@ -227,7 +233,7 @@ Future<int> restoreWindowCombinationPlacements({
       failures++;
     }
   }
-  if (isCurrent() && recipe.mainPlacement != null) {
+  if (mainWindow && isCurrent() && recipe.mainPlacement != null) {
     if (!await (geometry ?? WindowGeometry.instance).restorePlacement(
       recipe.mainPlacement!,
       isCurrent: isCurrent,
@@ -269,6 +275,57 @@ void applyWindowCombination(
       (sessions.isEmpty ? null : SessionWorkspacePane(sessions.values.first));
   if (root != null)
     workspace.restore(root, selectedId: sessions[recipe.activePane]);
+}
+
+/// Places [sessions] like [applyWindowCombination] when panes join a recipe
+/// that is already on screen (an attached file pane opens once its SSH owner
+/// is connected). [placed] are the panes applied before that still exist.
+/// Returns false, moving nothing, when they are no longer arranged as they
+/// were applied (unsplit, regrouped or joined by another tab meanwhile): the
+/// new pane then stays a tab of its own.
+bool extendWindowCombination(
+  WindowCombination recipe,
+  SessionWorkspaceController workspace, {
+  required Map<int, String> placed,
+  required Map<int, String> sessions,
+}) {
+  SessionWorkspaceNode? node(Map<String, Object?> value) {
+    if (value.containsKey('pane')) {
+      final id = placed[value['pane']];
+      return id == null ? null : SessionWorkspacePane(id);
+    }
+    final first = node(Map<String, Object?>.from(value['first'] as Map));
+    final second = node(Map<String, Object?>.from(value['second'] as Map));
+    if (first == null) return second;
+    if (second == null) return first;
+    return SessionWorkspaceSplit(
+      axis: value['axis'] == 'horizontal' ? Axis.horizontal : Axis.vertical,
+      first: first,
+      second: second,
+    );
+  }
+
+  String shape(SessionWorkspaceNode value) => switch (value) {
+    SessionWorkspacePane() => value.sessionId,
+    SessionWorkspaceSplit() =>
+      '(${value.axis.name} ${shape(value.first)} ${shape(value.second)})',
+  };
+  final groups = workspace.retainedGroupSnapshots;
+  for (final tree in [recipe.tree, for (final g in recipe.groups) g.tree]) {
+    final expected = node(tree);
+    if (expected == null) continue;
+    final id = expected.sessionIds.first;
+    final current = groups
+        .where((group) => group.root.sessionIds.contains(id))
+        .firstOrNull;
+    if (expected is SessionWorkspacePane
+        ? current != null
+        : current == null || shape(current.root) != shape(expected)) {
+      return false;
+    }
+  }
+  applyWindowCombination(recipe, workspace, sessions);
+  return true;
 }
 
 Future<String?> askWindowCombinationName(BuildContext context) =>
