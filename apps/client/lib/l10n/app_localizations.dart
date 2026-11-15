@@ -30327,6 +30327,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Automatic keeps text readable over this image. A lower value shows more of the wallpaper, in terminals too, but text can become hard to read.'**
   String get wallpaperOverlayHint;
+
+  /// MCP settings: where the listener accepts connections.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen on'**
+  String get mcpListenScope;
+
+  /// MCP settings: where the listener accepts connections.
+  ///
+  /// In en, this message translates to:
+  /// **'This device only'**
+  String get mcpListenLoopback;
+
+  /// MCP settings: where the listener accepts connections.
+  ///
+  /// In en, this message translates to:
+  /// **'Local network'**
+  String get mcpListenLan;
+
+  /// MCP settings: where the listener accepts connections.
+  ///
+  /// In en, this message translates to:
+  /// **'Specific IP'**
+  String get mcpListenCustom;
+
+  /// MCP settings: where the listener accepts connections.
+  ///
+  /// In en, this message translates to:
+  /// **'IP address of this device to listen on'**
+  String get mcpListenAddress;
+
+  /// MCP settings: where the listener accepts connections.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an IPv4 or IPv6 address of this device, for example 192.168.1.20.'**
+  String get mcpListenAddressInvalid;
+
+  /// MCP settings: where the listener accepts connections.
+  ///
+  /// In en, this message translates to:
+  /// **'Other devices on the network can reach this port. Anyone who has the token can use your hosts within the machine permissions below. The connection is plain HTTP, so devices on the same network may read the token and everything sent. Use it on trusted networks only. Connections from public addresses are refused.'**
+  String get mcpListenExposedWarning;
+
+  /// MCP settings: where the listener accepts connections.
+  ///
+  /// In en, this message translates to:
+  /// **'A new token is generated each time it\'s enabled; authorization ends after locking, signing out or switching Vaults. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.'**
+  String get mcpListenTokenNote;
+
+  /// MCP settings: where the listener accepts connections.
+  ///
+  /// In en, this message translates to:
+  /// **'Clients can connect to any of these addresses:'**
+  String get mcpEndpointsTitle;
 }
 
 class _AppLocalizationsDelegate

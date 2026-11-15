@@ -19184,4 +19184,35 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get wallpaperOverlayHint =>
       'Automatic keeps text readable over this image. A lower value shows more of the wallpaper, in terminals too, but text can become hard to read.';
+
+  @override
+  String get mcpListenScope => 'Listen on';
+
+  @override
+  String get mcpListenLoopback => 'This device only';
+
+  @override
+  String get mcpListenLan => 'Local network';
+
+  @override
+  String get mcpListenCustom => 'Specific IP';
+
+  @override
+  String get mcpListenAddress => 'IP address of this device to listen on';
+
+  @override
+  String get mcpListenAddressInvalid =>
+      'Enter an IPv4 or IPv6 address of this device, for example 192.168.1.20.';
+
+  @override
+  String get mcpListenExposedWarning =>
+      'Other devices on the network can reach this port. Anyone who has the token can use your hosts within the machine permissions below. The connection is plain HTTP, so devices on the same network may read the token and everything sent. Use it on trusted networks only. Connections from public addresses are refused.';
+
+  @override
+  String get mcpListenTokenNote =>
+      'A new token is generated each time it\'s enabled; authorization ends after locking, signing out or switching Vaults. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.';
+
+  @override
+  String get mcpEndpointsTitle =>
+      'Clients can connect to any of these addresses:';
 }

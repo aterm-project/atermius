@@ -65,6 +65,18 @@ class McpService extends ChangeNotifier {
   bool get starting => _starting;
   bool get workspaceReady => _workspace?.scope() != null;
   Uri? get endpoint => _listener?.endpoint;
+
+  /// Every URL a client may use while running (several when listening on all
+  /// interfaces), preferred first; empty when stopped.
+  List<Uri> get endpoints => switch (_listener) {
+    null => const [],
+    final McpAddressedListener listener => listener.endpoints,
+    final listener => [listener.endpoint],
+  };
+
+  /// Where the running (or starting) listener accepts connections.
+  McpBind get bind => _bind;
+  McpBind _bind = const McpBind.loopback();
   List<McpAuditEntry> get audit => List.unmodifiable(_audit.reversed);
 
   // ---------------------------------------------------------------------
@@ -305,7 +317,10 @@ class McpService extends ChangeNotifier {
     super.dispose();
   }
 
-  Future<void> start({int port = 8765}) async {
+  Future<void> start({
+    int port = mcpDefaultPort,
+    McpBind bind = const McpBind.loopback(),
+  }) async {
     if (_disposed) throw StateError('MCP service disposed.');
     if (_starting || running) return;
     final workspace = _workspace;
@@ -322,6 +337,7 @@ class McpService extends ChangeNotifier {
     final generation = ++_generation;
     _starting = true;
     _scope = scope;
+    _bind = bind;
     if (!_disposed) notifyListeners();
     McpProtocol? protocol;
     try {
@@ -365,6 +381,7 @@ class McpService extends ChangeNotifier {
         port: port,
         token: _token!,
         handler: protocol.handle,
+        bind: bind,
       );
       if (generation != _generation || workspace.scope() != scope) {
         protocol.close();
@@ -395,12 +412,14 @@ class McpService extends ChangeNotifier {
     }
   }
 
-  String connectionConfiguration() {
+  /// The client configuration for [endpoint] (one of [endpoints]; the
+  /// preferred one when omitted).
+  String connectionConfiguration({Uri? endpoint}) {
     if (!running || _token == null) throw StateError('MCP is stopped.');
     return const JsonEncoder.withIndent('  ').convert({
       'mcpServers': {
         'atermius': {
-          'url': endpoint.toString(),
+          'url': (endpoint ?? this.endpoint).toString(),
           'headers': {'Authorization': 'Bearer $_token'},
         },
       },

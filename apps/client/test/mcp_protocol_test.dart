@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/mcp/mcp_access_policy_store.dart';
+import 'package:aterm_client/mcp/mcp_bind.dart';
 import 'package:aterm_client/mcp/mcp_protocol.dart';
 import 'package:aterm_client/mcp/mcp_service.dart';
 import 'package:aterm_client/mcp/mcp_workspace.dart';
@@ -191,6 +192,94 @@ void main() {
       expect(h.consoleOpens, 0);
     },
   );
+
+  test('live LAN MCP: a client on the network calls a tool and the terminal '
+      'shows it', () async {
+    final h = _Harness()..operations = true;
+    final service = McpService(policyStore: MemoryMcpAccessPolicyStore())
+      ..attach(h.workspace);
+    try {
+      await service.start(port: 0, bind: const McpBind.lan());
+      await service.setDefaultAccess(McpAccessMode.readWrite);
+      expect(service.bind, const McpBind.lan());
+      final lan = service.endpoints
+          .where((url) => url.host != '127.0.0.1')
+          .firstOrNull;
+      if (lan == null || !Platform.isLinux) {
+        markTestSkipped('needs Linux with a private IPv4 interface');
+        return;
+      }
+      // The copied configuration points at a network address, not loopback.
+      final config = jsonDecode(service.connectionConfiguration()) as Map;
+      expect(config['mcpServers']['atermius']['url'], '$lan');
+      expect(service.endpoints.last.host, '127.0.0.1');
+      final auth =
+          config['mcpServers']['atermius']['headers']['Authorization']
+              as String;
+      final bridge = await Process.start(
+        'python3',
+        ['../../integration/mcp/stdio_bridge.py'],
+        environment: {
+          'ATERMIUS_MCP_URL': '$lan',
+          'ATERMIUS_MCP_TOKEN': auth.substring(7),
+        },
+      );
+      final stdout = utf8.decodeStream(bridge.stdout);
+      final stderr = utf8.decodeStream(bridge.stderr);
+      bridge.stdin.writeln(
+        jsonEncode(
+          rpc(
+            'initialize',
+            params: {
+              'protocolVersion': '2025-11-25',
+              'capabilities': {},
+              'clientInfo': {'name': 'test', 'version': '1'},
+            },
+          ),
+        ),
+      );
+      bridge.stdin.writeln(
+        jsonEncode(
+          call('ssh_exec', {'session_id': 's1', 'command': 'uname -a'}),
+        ),
+      );
+      await bridge.stdin.close();
+      expect(await bridge.exitCode.timeout(const Duration(seconds: 10)), 0);
+      expect(await stderr, isEmpty);
+      final replies = (await stdout)
+          .trim()
+          .split('\n')
+          .map(jsonDecode)
+          .toList();
+      expect(replies.last['result']['structuredContent']['stdout'], 'test');
+      expect(h.connection.commands, ['uname -a']);
+      final screen = [
+        for (var i = 0; i < h.terminal.buffer.lines.length; i++)
+          h.terminal.buffer.lines[i].getText().trimRight(),
+      ].where((line) => line.isNotEmpty).toList();
+      expect(screen, [
+        '[MCP] ssh_exec uname -a',
+        '[MCP] ssh_exec → exit 0',
+        '  test',
+      ]);
+
+      // The bridge refuses names and public addresses before sending a token.
+      for (final url in ['http://evil.example:1/mcp', 'http://8.8.8.8:1/mcp']) {
+        final refused = await Process.run(
+          'python3',
+          ['../../integration/mcp/stdio_bridge.py'],
+          environment: {
+            'ATERMIUS_MCP_URL': url,
+            'ATERMIUS_MCP_TOKEN': auth.substring(7),
+          },
+        );
+        expect(refused.exitCode, 2, reason: url);
+      }
+    } finally {
+      await service.stop();
+      service.dispose();
+    }
+  });
 
   test('live loopback MCP authenticates, rejects browser origins and revokes tokens', () async {
     final h = _Harness();

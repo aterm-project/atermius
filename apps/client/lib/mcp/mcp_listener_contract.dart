@@ -21,3 +21,10 @@ abstract interface class McpObservableListener implements McpListener {
   Future<void> get done;
   bool get closed;
 }
+
+/// Optional listener capability: every URL a client may use. A listener bound
+/// to all interfaces is reachable at each address of this device; [endpoints]
+/// lists them with the preferred one first ([McpListener.endpoint]).
+abstract interface class McpAddressedListener implements McpListener {
+  List<Uri> get endpoints;
+}

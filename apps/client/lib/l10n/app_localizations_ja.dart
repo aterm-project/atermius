@@ -18077,4 +18077,34 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get wallpaperOverlayHint =>
       '自動では、この画像の上でも文字が読みやすい濃さになります。値を下げると壁紙がよく見えますが（ターミナルでも同様）、文字が読みにくくなることがあります。';
+
+  @override
+  String get mcpListenScope => '待ち受け範囲';
+
+  @override
+  String get mcpListenLoopback => 'この端末のみ';
+
+  @override
+  String get mcpListenLan => 'ローカルネットワーク';
+
+  @override
+  String get mcpListenCustom => 'IPを指定';
+
+  @override
+  String get mcpListenAddress => '待ち受けるこの端末のIPアドレス';
+
+  @override
+  String get mcpListenAddressInvalid =>
+      'この端末のIPv4またはIPv6アドレスを入力してください（例: 192.168.1.20）。';
+
+  @override
+  String get mcpListenExposedWarning =>
+      'ネットワーク上の他の端末からこのポートに接続できます。トークンを持つ人は、下のマシン権限の範囲であなたのホストを操作できます。接続は平文のHTTPのため、同じネットワーク上の端末にトークンや通信内容を読まれる可能性があります。信頼できるネットワークでのみ使用してください。パブリックアドレスからの接続は拒否されます。';
+
+  @override
+  String get mcpListenTokenNote =>
+      '有効にするたびに新しいトークンが生成されます。ロック、サインアウト、Vaultの切り替え後は認可が無効になります。ウィンドウごとに別のポートを使用できます。MCPを停止しても、開いているセッションは閉じません。';
+
+  @override
+  String get mcpEndpointsTitle => 'クライアントは次のいずれかのアドレスに接続できます:';
 }

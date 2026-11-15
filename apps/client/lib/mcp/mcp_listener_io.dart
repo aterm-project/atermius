@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
+import 'mcp_bind.dart';
 import 'mcp_listener_contract.dart';
 import 'mcp_protocol.dart';
 
@@ -25,13 +26,26 @@ const _maxActiveRequests = 4;
 const _maxOpenConnections = 16;
 const _minTokenLength = 32;
 
+/// A peer other than this device that keeps presenting a wrong token is
+/// refused for the rest of the window (other devices can reach an exposed
+/// listener; the token itself is far beyond guessing).
+const _maxAuthFailures = 20;
+const _authFailureWindow = Duration(minutes: 1);
+const _maxTrackedPeers = 256;
+
 Future<McpListener> start({
   required int port,
   required String token,
   required McpRequestHandler handler,
+  McpBind bind = const McpBind.loopback(),
 }) async {
   if (!supported) throw UnsupportedError('MCP listener is unavailable.');
-  return bindMcpLoopbackListener(port: port, token: token, handler: handler);
+  return bindMcpListener(
+    port: port,
+    token: token,
+    handler: handler,
+    bind: bind,
+  );
 }
 
 /// Binds the authenticated listener on IPv4 loopback. Exposed for transport
@@ -42,26 +56,106 @@ Future<McpListener> bindMcpLoopbackListener({
   required String token,
   required McpRequestHandler handler,
   Duration bodyTimeout = const Duration(seconds: 10),
+}) => bindMcpListener(
+  port: port,
+  token: token,
+  handler: handler,
+  bodyTimeout: bodyTimeout,
+);
+
+/// Binds the authenticated listener where [bind] says: IPv4 loopback (the
+/// default), every IPv4 interface, or one address of this device. A listener
+/// other devices can reach only serves this device and private networks (see
+/// [mcpPeerAllowed]). [localAddresses] lists this device's addresses for the
+/// advertised endpoints (tests replace it).
+@visibleForTesting
+Future<McpListener> bindMcpListener({
+  required int port,
+  required String token,
+  required McpRequestHandler handler,
+  McpBind bind = const McpBind.loopback(),
+  Duration bodyTimeout = const Duration(seconds: 10),
+  Future<List<InternetAddress>> Function(InternetAddressType type)?
+  localAddresses,
 }) async {
   if (token.length < _minTokenLength ||
       token.codeUnits.any((c) => c < 0x21 || c > 0x7e)) {
     throw ArgumentError('MCP token is too short or malformed.');
   }
   if (port < 0 || port > 65535) throw RangeError.range(port, 0, 65535, 'port');
-  // Never bind a wildcard or external address: forwarding (ADB/SSH) must
-  // terminate on the device's loopback interface.
-  final server = await HttpServer.bind(
-    InternetAddress.loopbackIPv4,
-    port,
-    shared: false,
-  );
+  final InternetAddress address;
+  switch (bind.mode) {
+    case McpBindMode.loopback:
+      address = InternetAddress.loopbackIPv4;
+    case McpBindMode.lan:
+      address = InternetAddress.anyIPv4;
+    case McpBindMode.custom:
+      final literal = normalizeMcpAddress(bind.address ?? '');
+      final parsed = literal == null ? null : InternetAddress.tryParse(literal);
+      if (parsed == null) throw ArgumentError('Not an IP address.');
+      address = parsed;
+  }
+  final server = await HttpServer.bind(address, port, shared: false);
   server.idleTimeout = const Duration(seconds: 15);
   server.autoCompress = false;
-  return _Listener(server, token, handler, bodyTimeout);
+  var hosts = <InternetAddress>[address];
+  if (address == InternetAddress.anyIPv4 ||
+      address == InternetAddress.anyIPv6) {
+    // Reachable at every address of this device: advertise them, private
+    // networks first and loopback last.
+    final loopback = address.type == InternetAddressType.IPv4
+        ? InternetAddress.loopbackIPv4
+        : InternetAddress.loopbackIPv6;
+    List<InternetAddress> found;
+    try {
+      found = await (localAddresses ?? _localAddresses)(address.type);
+    } catch (_) {
+      found = const [];
+    }
+    final usable =
+        [
+          for (final candidate in found)
+            if (!candidate.isLoopback && !candidate.isLinkLocal) candidate,
+        ]..sort(
+          (a, b) =>
+              (mcpPeerAllowed(b.rawAddress) ? 1 : 0) -
+              (mcpPeerAllowed(a.rawAddress) ? 1 : 0),
+        );
+    hosts = [...usable, loopback];
+  }
+  return _Listener(
+    server,
+    token,
+    handler,
+    bodyTimeout,
+    exposed: !address.isLoopback,
+    hosts: hosts,
+  );
 }
 
-class _Listener implements McpObservableListener {
-  _Listener(this.server, this.token, this.handler, this.bodyTimeout) {
+Future<List<InternetAddress>> _localAddresses(InternetAddressType type) async =>
+    [
+      for (final interface in await NetworkInterface.list(type: type))
+        ...interface.addresses,
+    ];
+
+class _Listener implements McpObservableListener, McpAddressedListener {
+  _Listener(
+    this.server,
+    this.token,
+    this.handler,
+    this.bodyTimeout, {
+    required this.exposed,
+    required List<InternetAddress> hosts,
+  }) : endpoints = List.unmodifiable([
+         for (final host in hosts)
+           Uri(
+             scheme: 'http',
+             host: host.address,
+             port: server.port,
+             path: '/mcp',
+           ),
+       ]) {
     server.listen(
       (request) => unawaited(_serve(request)),
       onError: (Object _) {},
@@ -75,12 +169,19 @@ class _Listener implements McpObservableListener {
   final String token;
   final McpRequestHandler handler;
   final Duration bodyTimeout;
+
+  /// Other devices can reach this listener (not bound to loopback).
+  final bool exposed;
   final _done = Completer<void>();
+  final _authFailures = <String, ({int count, DateTime since})>{};
   int _active = 0;
   bool _closed = false;
 
   @override
-  Uri get endpoint => Uri.parse('http://127.0.0.1:${server.port}/mcp');
+  final List<Uri> endpoints;
+
+  @override
+  Uri get endpoint => endpoints.first;
 
   @override
   Future<void> get done => _done.future;
@@ -113,13 +214,51 @@ class _Listener implements McpObservableListener {
     return diff == 0;
   }
 
-  bool _allowedHost(String? host) =>
-      host == '127.0.0.1:${server.port}' || host == 'localhost:${server.port}';
+  /// DNS rebinding sends a page's own host name. A loopback listener accepts
+  /// only its two loopback names; an exposed one any IP literal (a client on
+  /// the network addresses this device by IP) or localhost, never a name.
+  bool _allowedHost(String? host) {
+    if (host == '127.0.0.1:${server.port}' ||
+        host == 'localhost:${server.port}') {
+      return true;
+    }
+    if (!exposed || host == null || host.length > 80) return false;
+    final uri = Uri.tryParse('http://$host');
+    return uri != null &&
+        uri.port == server.port &&
+        uri.authority == host &&
+        InternetAddress.tryParse(uri.host) != null;
+  }
 
-  bool _allowedOrigin(String? origin) =>
-      origin == null ||
-      origin == 'http://127.0.0.1:${server.port}' ||
-      origin == 'http://localhost:${server.port}';
+  bool _allowedOrigin(String? origin, String? host) =>
+      origin == null || (_allowedHost(host) && origin == 'http://$host');
+
+  bool _throttled(InternetAddress peer) {
+    final entry = _authFailures[peer.address];
+    if (entry == null) return false;
+    if (DateTime.now().difference(entry.since) >= _authFailureWindow) {
+      _authFailures.remove(peer.address);
+      return false;
+    }
+    return entry.count >= _maxAuthFailures;
+  }
+
+  void _authFailed(InternetAddress peer) {
+    if (peer.isLoopback) return;
+    final now = DateTime.now();
+    final entry = _authFailures[peer.address];
+    if (entry != null && now.difference(entry.since) < _authFailureWindow) {
+      _authFailures[peer.address] = (
+        count: entry.count + 1,
+        since: entry.since,
+      );
+      return;
+    }
+    if (_authFailures.length >= _maxTrackedPeers) {
+      _authFailures.remove(_authFailures.keys.first);
+    }
+    _authFailures[peer.address] = (count: 1, since: now);
+  }
 
   Future<void> _serve(HttpRequest request) async {
     var counted = false;
@@ -128,16 +267,25 @@ class _Listener implements McpObservableListener {
       request.response.headers.set('X-Content-Type-Options', 'nosniff');
       final host = request.headers.value('host');
       final origin = request.headers.value('origin');
+      final peer = request.connectionInfo?.remoteAddress;
       if (_closed || request.uri.path != '/mcp' || request.uri.hasQuery) {
         request.response.statusCode = 404;
-      } else if (!_allowedHost(host) || !_allowedOrigin(origin)) {
+      } else if (exposed &&
+          (peer == null || !mcpPeerAllowed(peer.rawAddress))) {
+        // Only this device and private networks, whatever the interface.
+        request.response.statusCode = 403;
+      } else if (!_allowedHost(host) || !_allowedOrigin(origin, host)) {
         // DNS rebinding and browser pages are rejected before credentials
         // are examined.
         request.response.statusCode = 403;
       } else if (server.connectionsInfo().total > _maxOpenConnections) {
         request.response.statusCode = 503;
         request.response.headers.set('Retry-After', '1');
+      } else if (peer != null && _throttled(peer)) {
+        request.response.statusCode = 429;
+        request.response.headers.set('Retry-After', '60');
       } else if (!_authorized(request.headers.value('authorization'))) {
+        if (peer != null) _authFailed(peer);
         request.response.statusCode = 401;
         request.response.headers.set(
           'WWW-Authenticate',

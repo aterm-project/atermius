@@ -19,6 +19,7 @@ class McpSession {
     this.hostId,
     this.terminal,
     this.connection,
+    this.notice,
   });
   final String id, name, kind, state;
   final String? hostId;
@@ -28,6 +29,10 @@ class McpSession {
   final void Function(String) input;
   final Terminal? terminal;
   final SshConnection? connection;
+
+  /// Shows a short notice in a session without a terminal (a remote
+  /// desktop), so what an external AI client does to it is visible there.
+  final void Function(String text)? notice;
 
   /// The policy identity this live session is authorized under. Console
   /// (local shell/serial) sessions use [mcpLocalDeviceHostId]; a remote

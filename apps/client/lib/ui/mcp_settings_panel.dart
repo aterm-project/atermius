@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import '../domain/models.dart';
 import '../l10n/l10n.dart';
 import '../mcp/mcp_access_policy.dart';
+import '../mcp/mcp_listen_settings_store.dart';
+import '../mcp/mcp_listener.dart'
+    show McpBind, McpBindMode, McpListenSettings, normalizeMcpAddress;
 import '../mcp/mcp_service.dart';
 import '../mcp/mcp_listener_lifecycle.dart';
 import '../mcp/mcp_tools.dart';
@@ -49,8 +52,12 @@ enum _HostChoice {
 /// Settings › AI / MCP. The same panel is used by the Windows, Linux, macOS
 /// and Android clients; only the arrangement adapts to the available width.
 class McpSettingsPanel extends StatefulWidget {
-  const McpSettingsPanel({this.service, super.key});
+  const McpSettingsPanel({this.service, this.listenStore, super.key});
   final McpService? service;
+
+  /// Where the port and bind address chosen here are remembered on this
+  /// device (the platform store by default).
+  final McpListenSettingsStore? listenStore;
 
   /// Machines rendered before "Show more"; keeps huge inventories responsive.
   static const machinePageSize = 50;
@@ -61,6 +68,10 @@ class McpSettingsPanel extends StatefulWidget {
 
 class _McpSettingsPanelState extends State<McpSettingsPanel> {
   final _port = TextEditingController(text: '8765');
+  final _address = TextEditingController();
+  McpBindMode _bindMode = McpBindMode.loopback;
+  late final McpListenSettingsStore _listenStore =
+      widget.listenStore ?? createMcpListenSettingsStore();
   final _query = TextEditingController();
   McpService get service => widget.service ?? McpService.instance;
   String? _error;
@@ -79,12 +90,51 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
     super.initState();
     service.addListener(_syncListeningPort);
     _syncListeningPort();
+    _restoreListenSettings();
+  }
+
+  /// The last port and bind address used on this device. A running service
+  /// shows what it is actually bound to instead.
+  Future<void> _restoreListenSettings() async {
+    McpListenSettings settings;
+    try {
+      settings = McpListenSettings.parse(
+        await _listenStore.read().timeout(const Duration(seconds: 2)),
+      );
+    } on Object {
+      return;
+    }
+    if (!mounted || service.running || service.starting) return;
+    setState(() {
+      _port.text = '${settings.port}';
+      _bindMode = settings.bind.mode;
+      _address.text = settings.bind.address ?? '';
+    });
   }
 
   void _syncListeningPort() {
     final endpoint = service.endpoint;
-    if (endpoint != null && _port.text != '${endpoint.port}') {
-      _port.text = '${endpoint.port}';
+    if (endpoint == null) return;
+    if (_port.text != '${endpoint.port}') _port.text = '${endpoint.port}';
+    final bind = service.bind;
+    if (bind.mode != _bindMode ||
+        (bind.address != null && bind.address != _address.text)) {
+      _bindMode = bind.mode;
+      if (bind.address != null) _address.text = bind.address!;
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// The bind the fields describe, or null when the address is not usable.
+  McpBind? get _chosenBind {
+    switch (_bindMode) {
+      case McpBindMode.loopback:
+        return const McpBind.loopback();
+      case McpBindMode.lan:
+        return const McpBind.lan();
+      case McpBindMode.custom:
+        final address = normalizeMcpAddress(_address.text);
+        return address == null ? null : McpBind.custom(address);
     }
   }
 
@@ -103,6 +153,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
   void dispose() {
     service.removeListener(_syncListeningPort);
     _port.dispose();
+    _address.dispose();
     _query.dispose();
     super.dispose();
   }
@@ -113,12 +164,25 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
       setState(() => _error = context.l10n.portMustBe102465535);
       return;
     }
+    final bind = _chosenBind;
+    if (bind == null) {
+      setState(() => _error = context.l10n.mcpListenAddressInvalid);
+      return;
+    }
     setState(() {
       _error = null;
       _copied = false;
     });
     try {
-      await service.start(port: port);
+      await service.start(port: port, bind: bind);
+      // Remembered for the next time; a failed save changes nothing now.
+      try {
+        await _listenStore.write(
+          McpListenSettings(port: port, bind: bind).encode(),
+        );
+      } on Object {
+        /* Device preference only. */
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _error = context.l10n.couldntStartMcpMakeSureThe);
@@ -282,6 +346,65 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 ),
               ),
             const SizedBox(height: 12),
+            Text(
+              l10n.mcpListenScope,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              key: const ValueKey('mcp_bind'),
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final (mode, label) in [
+                  (McpBindMode.loopback, l10n.mcpListenLoopback),
+                  (McpBindMode.lan, l10n.mcpListenLan),
+                  (McpBindMode.custom, l10n.mcpListenCustom),
+                ])
+                  ChoiceChip(
+                    key: ValueKey('mcp_bind_${mode.code}'),
+                    label: Text(label),
+                    selected: _bindMode == mode,
+                    onSelected: service.running || service.starting
+                        ? null
+                        : (_) => setState(() {
+                            _bindMode = mode;
+                            _error = null;
+                          }),
+                  ),
+              ],
+            ),
+            if (_bindMode == McpBindMode.custom) ...[
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('mcp_bind_address'),
+                controller: _address,
+                enabled: !service.running && !service.starting,
+                keyboardType: TextInputType.visiblePassword,
+                autocorrect: false,
+                enableSuggestions: false,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F:.]')),
+                  LengthLimitingTextInputFormatter(45),
+                ],
+                textInputAction: TextInputAction.next,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: l10n.mcpListenAddress,
+                  hintText: '192.168.1.20',
+                ),
+              ),
+            ],
+            if (_chosenBind?.exposed ?? _bindMode != McpBindMode.loopback) ...[
+              const SizedBox(height: 10),
+              _Notice(
+                key: const ValueKey('mcp_bind_warning'),
+                icon: Icons.warning_amber_rounded,
+                color: context.palette.orange,
+                text: l10n.mcpListenExposedWarning,
+              ),
+            ],
+            const SizedBox(height: 12),
             TextField(
               key: const ValueKey('mcp_port'),
               controller: _port,
@@ -341,19 +464,35 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
               ],
             ),
             if (endpoint != null) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: SelectableText(
-                  endpoint.toString(),
-                  key: const ValueKey('mcp_endpoint'),
+              if (service.endpoints.length > 1)
+                Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: Text(
+                    l10n.mcpEndpointsTitle,
+                    style: TextStyle(color: context.palette.muted),
+                  ),
                 ),
-              ),
-              if (Theme.of(context).platform == TargetPlatform.android)
+              for (final (index, url) in service.endpoints.indexed)
+                Padding(
+                  padding: EdgeInsets.only(top: index == 0 ? 14 : 4),
+                  child: SelectableText(
+                    url.toString(),
+                    key: index == 0
+                        ? const ValueKey('mcp_endpoint')
+                        : ValueKey('mcp_endpoint_$index'),
+                  ),
+                ),
+              if (Theme.of(context).platform == TargetPlatform.android &&
+                  service.bind.mode == McpBindMode.loopback)
                 _AndroidForwardingHint(port: endpoint.port),
             ],
             const SizedBox(height: 10),
             Text(
-              l10n.listensOn127001,
+              (service.running ? service.bind.mode : _bindMode) ==
+                      McpBindMode.loopback
+                  ? l10n.listensOn127001
+                  : l10n.mcpListenTokenNote,
+              key: const ValueKey('mcp_listen_note'),
               style: TextStyle(
                 color: context.palette.muted,
                 fontSize: 12,

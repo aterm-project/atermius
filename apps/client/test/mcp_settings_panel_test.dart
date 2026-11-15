@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/l10n/l10n.dart';
 import 'package:aterm_client/mcp/mcp_access_policy.dart';
+import 'package:aterm_client/mcp/mcp_bind.dart';
+import 'package:aterm_client/mcp/mcp_listen_settings_store.dart';
 import 'package:aterm_client/mcp/mcp_service.dart';
 import 'package:aterm_client/ui/app_theme.dart';
 import 'package:aterm_client/ui/mcp_settings_panel.dart';
@@ -45,9 +47,16 @@ class _FakeMcpService extends ChangeNotifier implements McpService {
   bool get starting => false;
   @override
   bool get workspaceReady => true;
+  McpBind currentBind = const McpBind.loopback();
+  List<String> hostsServed = const ['127.0.0.1'];
   @override
-  Uri? get endpoint =>
-      isRunning ? Uri.parse('http://127.0.0.1:$port/mcp') : null;
+  McpBind get bind => currentBind;
+  @override
+  List<Uri> get endpoints => isRunning
+      ? [for (final host in hostsServed) Uri.parse('http://$host:$port/mcp')]
+      : const [];
+  @override
+  Uri? get endpoint => isRunning ? endpoints.first : null;
   @override
   List<McpAuditEntry> get audit => const [];
   @override
@@ -89,9 +98,18 @@ class _FakeMcpService extends ChangeNotifier implements McpService {
   }
 
   @override
-  Future<void> start({int port = 8765}) async {
+  Future<void> start({
+    int port = 8765,
+    McpBind bind = const McpBind.loopback(),
+  }) async {
     starts++;
     this.port = port;
+    currentBind = bind;
+    hostsServed = switch (bind.mode) {
+      McpBindMode.loopback => const ['127.0.0.1'],
+      McpBindMode.lan => const ['192.168.1.20', '10.8.0.2', '127.0.0.1'],
+      McpBindMode.custom => [bind.address!],
+    };
     isRunning = true;
     notifyListeners();
   }
@@ -128,6 +146,7 @@ Future<void> _pump(
   Locale locale = const Locale('en'),
   TargetPlatform platform = TargetPlatform.android,
   bool settle = true,
+  McpListenSettingsStore? listenStore,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -149,7 +168,10 @@ Future<void> _pump(
               title: 'AI / MCP',
               icon: Icons.hub_outlined,
               description: 'MCP',
-              builder: (_) => McpSettingsPanel(service: service),
+              builder: (_) => McpSettingsPanel(
+                service: service,
+                listenStore: listenStore ?? MemoryMcpListenSettingsStore(),
+              ),
             ),
           ],
         ),
@@ -187,6 +209,163 @@ Future<void> _tapRadio(
 }
 
 void main() {
+  group('listen scope', () {
+    Future<void> tapKey(WidgetTester tester, String key) async {
+      final finder = find.byKey(ValueKey(key));
+      // A field that just took the focus is still being scrolled into view.
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(finder);
+      await tester.pumpAndSettle();
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('this device only is the default and writes nothing new', (
+      tester,
+    ) async {
+      final service = _FakeMcpService()..isRunning = false;
+      final store = MemoryMcpListenSettingsStore();
+      await _pump(
+        tester,
+        service,
+        size: const Size(900, 1400),
+        platform: TargetPlatform.windows,
+        listenStore: store,
+      );
+      ChoiceChip chip(String code) =>
+          tester.widget(find.byKey(ValueKey('mcp_bind_$code')));
+      expect(chip('loopback').selected, isTrue);
+      expect(find.byKey(const ValueKey('mcp_bind_warning')), findsNothing);
+      expect(find.byKey(const ValueKey('mcp_bind_address')), findsNothing);
+      await tapKey(tester, 'mcp_toggle');
+      expect(service.starts, 1);
+      expect(service.currentBind, const McpBind.loopback());
+      expect(
+        McpListenSettings.parse(store.value).bind,
+        const McpBind.loopback(),
+      );
+      expect(find.byKey(const ValueKey('mcp_endpoint')), findsOneWidget);
+      expect(find.byKey(const ValueKey('mcp_endpoint_1')), findsNothing);
+    });
+
+    testWidgets('local network warns first, then lists every address', (
+      tester,
+    ) async {
+      final service = _FakeMcpService()..isRunning = false;
+      final store = MemoryMcpListenSettingsStore();
+      await _pump(
+        tester,
+        service,
+        size: const Size(900, 1400),
+        platform: TargetPlatform.windows,
+        listenStore: store,
+      );
+      await tapKey(tester, 'mcp_bind_lan');
+      expect(find.byKey(const ValueKey('mcp_bind_warning')), findsOneWidget);
+      expect(service.starts, 0, reason: 'choosing a scope starts nothing');
+      await tester.enterText(find.byKey(const ValueKey('mcp_port')), '9100');
+      await tapKey(tester, 'mcp_toggle');
+      expect(service.currentBind, const McpBind.lan());
+      expect(service.port, 9100);
+      final saved = McpListenSettings.parse(store.value);
+      expect((saved.bind, saved.port), (const McpBind.lan(), 9100));
+      expect(find.text('http://192.168.1.20:9100/mcp'), findsOneWidget);
+      expect(find.text('http://10.8.0.2:9100/mcp'), findsOneWidget);
+      expect(find.text('http://127.0.0.1:9100/mcp'), findsOneWidget);
+      // The scope cannot change under a running listener.
+      final lan = tester.widget<ChoiceChip>(
+        find.byKey(const ValueKey('mcp_bind_loopback')),
+      );
+      expect(lan.onSelected, isNull);
+      expect(find.byKey(const ValueKey('mcp_bind_warning')), findsOneWidget);
+    });
+
+    testWidgets('a specific IP must be an address before anything starts', (
+      tester,
+    ) async {
+      final service = _FakeMcpService()..isRunning = false;
+      final store = MemoryMcpListenSettingsStore();
+      await _pump(
+        tester,
+        service,
+        size: const Size(900, 1400),
+        platform: TargetPlatform.windows,
+        listenStore: store,
+      );
+      await tapKey(tester, 'mcp_bind_custom');
+      expect(find.byKey(const ValueKey('mcp_bind_address')), findsOneWidget);
+      await tapKey(tester, 'mcp_toggle');
+      expect(service.starts, 0);
+      expect(find.byKey(const ValueKey('mcp_error')), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('mcp_bind_address')),
+        '192.168.1',
+      );
+      await tapKey(tester, 'mcp_toggle');
+      expect(service.starts, 0);
+      await tester.enterText(
+        find.byKey(const ValueKey('mcp_bind_address')),
+        '192.168.1.20',
+      );
+      await tester.pump();
+      expect(find.byKey(const ValueKey('mcp_bind_warning')), findsOneWidget);
+      await tapKey(tester, 'mcp_toggle');
+      expect(service.currentBind, const McpBind.custom('192.168.1.20'));
+      expect(find.text('http://192.168.1.20:8765/mcp'), findsOneWidget);
+      expect(
+        McpListenSettings.parse(store.value).bind,
+        const McpBind.custom('192.168.1.20'),
+      );
+    });
+
+    testWidgets('the last choice on this device is offered again', (
+      tester,
+    ) async {
+      final service = _FakeMcpService()..isRunning = false;
+      await _pump(
+        tester,
+        service,
+        size: const Size(900, 1400),
+        platform: TargetPlatform.windows,
+        listenStore: MemoryMcpListenSettingsStore(
+          const McpListenSettings(
+            port: 9200,
+            bind: McpBind.custom('10.0.0.7'),
+          ).encode(),
+        ),
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(find.byKey(const ValueKey('mcp_bind_custom')))
+            .selected,
+        isTrue,
+      );
+      expect(find.text('9200'), findsOneWidget);
+      expect(find.text('10.0.0.7'), findsOneWidget);
+      expect(service.starts, 0, reason: 'never started without the user');
+    });
+
+    for (final locale in AppLocalizationSetup.locales) {
+      testWidgets('fits a 390 px phone (${locale.languageCode})', (
+        tester,
+      ) async {
+        final service = _FakeMcpService()..isRunning = false;
+        await _pump(
+          tester,
+          service,
+          size: const Size(390, 2400),
+          locale: locale,
+        );
+        await tapKey(tester, 'mcp_bind_custom');
+        await tapKey(tester, 'mcp_bind_lan');
+        await tapKey(tester, 'mcp_toggle');
+        expect(service.currentBind, const McpBind.lan());
+        expect(find.byKey(const ValueKey('mcp_endpoint_2')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
   testWidgets(
     'legacy coverage: invalid port never starts and stop revokes endpoint',
     (tester) async {

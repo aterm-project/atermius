@@ -230,6 +230,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
             isAlive: () => !session._closed && _sessions.contains(session),
             terminal: session.desktop == null ? session.terminal : null,
             connection: session.connection,
+            notice: session.desktop?.showNotice,
             input: (text) => session.terminal.onOutput?.call(text),
             focus: () => _selectTerminalTab(session.id),
             close: () => _closeTerminalSession(session.id),

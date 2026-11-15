@@ -20,6 +20,7 @@ McpWorkspace appMcpWorkspace(AppController app) => McpWorkspace(
           isAlive: () => !tab.closed && app.terminalTabs.contains(tab),
           terminal: tab.desktop == null ? tab.terminal : null,
           connection: tab.connection,
+          notice: tab.desktop?.showNotice,
           input: (text) => app.sendTerminalInputFor(tab.id, text),
           focus: () {
             app.activateTerminalTab(tab.id);

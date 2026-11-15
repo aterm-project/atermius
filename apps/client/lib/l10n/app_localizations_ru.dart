@@ -19236,4 +19236,35 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get wallpaperOverlayHint =>
       'В автоматическом режиме текст остаётся читаемым поверх изображения. Чем меньше значение, тем лучше видны обои (в том числе в терминале), но текст может стать трудночитаемым.';
+
+  @override
+  String get mcpListenScope => 'Где принимать подключения';
+
+  @override
+  String get mcpListenLoopback => 'Только это устройство';
+
+  @override
+  String get mcpListenLan => 'Локальная сеть';
+
+  @override
+  String get mcpListenCustom => 'Указанный IP';
+
+  @override
+  String get mcpListenAddress => 'IP-адрес этого устройства для прослушивания';
+
+  @override
+  String get mcpListenAddressInvalid =>
+      'Введите IPv4- или IPv6-адрес этого устройства, например 192.168.1.20.';
+
+  @override
+  String get mcpListenExposedWarning =>
+      'Другие устройства в сети могут подключаться к этому порту. Тот, у кого есть токен, может работать с вашими хостами в пределах разрешений ниже. Соединение — обычный HTTP, поэтому устройства в той же сети могут перехватить токен и всё передаваемое. Используйте только в доверенных сетях. Подключения с публичных адресов отклоняются.';
+
+  @override
+  String get mcpListenTokenNote =>
+      'При каждом включении создаётся новый токен; авторизация прекращается после блокировки, выхода или смены хранилища. В разных окнах можно использовать разные порты. Остановка MCP не закрывает открытые вами сеансы.';
+
+  @override
+  String get mcpEndpointsTitle =>
+      'Клиенты могут подключаться по любому из этих адресов:';
 }

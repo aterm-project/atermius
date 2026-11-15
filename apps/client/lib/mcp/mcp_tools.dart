@@ -12,6 +12,7 @@ import '../sftp/dart_sftp_text_file_system.dart';
 import '../sftp/sftp_text_editor_service.dart';
 import '../ssh/ssh_service.dart';
 import 'mcp_access_policy.dart';
+import 'mcp_activity.dart';
 import 'mcp_workspace.dart';
 
 const mcpTextBytes = 64 * 1024;
@@ -345,6 +346,13 @@ class McpToolRunner {
             'Connection was not opened. Check the application for trust, authentication or connection errors.',
           );
         }
+        for (final session in added) {
+          McpActivity.show(
+            session,
+            'host_connect',
+            detail: '· opened by an external AI client',
+          );
+        }
         return {'sessions': added.map(_sessionJson).toList()};
       case 'console_open':
         _authorize(
@@ -373,6 +381,13 @@ class McpToolRunner {
             'Console was not opened.',
           );
         }
+        for (final session in added) {
+          McpActivity.show(
+            session,
+            'console_open',
+            detail: '· opened by an external AI client',
+          );
+        }
         return {'sessions': added.map(_sessionJson).toList()};
     }
     final session = _session(args['session_id'] as String, name, context);
@@ -386,12 +401,39 @@ class McpToolRunner {
       }
     }
 
+    try {
+      return await _sessionCall(name, args, context, session, checkSession);
+    } on McpToolException catch (error) {
+      // What was attempted is on screen already; so is how it ended.
+      if (session.isAlive()) {
+        McpActivity.show(session, name, detail: '→ failed: ${error.code}');
+      }
+      rethrow;
+    } catch (_) {
+      if (session.isAlive()) {
+        McpActivity.show(session, name, detail: '→ failed');
+      }
+      rethrow;
+    }
+  }
+
+  /// One tool on one live session. Every step that reaches the session is
+  /// announced in it first (see [McpActivity]).
+  Future<Map<String, Object?>> _sessionCall(
+    String name,
+    Map<String, dynamic> args,
+    McpCallContext context,
+    McpSession session,
+    void Function() checkSession,
+  ) async {
     switch (name) {
       case 'session_focus':
+        McpActivity.show(session, name);
         session.focus();
         return {'focused': true};
       case 'session_close':
         context.check();
+        McpActivity.show(session, name);
         await session.close();
         context.check();
         return {'closed': true};
@@ -415,11 +457,20 @@ class McpToolRunner {
         while (skip < bytes.length && (bytes[skip] & 0xc0) == 0x80) {
           skip++;
         }
-        return {
+        final result = {
           'text': utf8.decode(bytes.sublist(skip)),
           'truncated': clipped || start > 0,
           'total_retained_lines': lines.length,
         };
+        // After the text was taken, so a read never contains its own line.
+        if (McpActivity.readDue(session)) {
+          McpActivity.show(
+            session,
+            name,
+            detail: '· ${lines.length - start} lines',
+          );
+        }
+        return result;
       case 'terminal_write':
         if (session.terminal == null || session.state != 'connected') {
           throw const McpToolException(
@@ -427,6 +478,11 @@ class McpToolRunner {
             'A connected SSH, Telnet or Console session is required.',
           );
         }
+        McpActivity.show(
+          session,
+          name,
+          detail: McpActivity.printable(args['text'] as String),
+        );
         session.input(args['text'] as String);
         return {'sent': true};
       case 'ssh_exec':
@@ -437,6 +493,11 @@ class McpToolRunner {
             'A connected SSH session is required.',
           );
         }
+        McpActivity.show(
+          session,
+          name,
+          detail: McpActivity.printable(args['command'] as String),
+        );
         final cancellation = SshExecCancellation();
         context.onCancel(cancellation.cancel);
         final result = await connection.executeRemoteCommand(
@@ -446,6 +507,27 @@ class McpToolRunner {
           maxOutputBytes: mcpTextBytes,
         );
         checkSession();
+        McpActivity.show(
+          session,
+          name,
+          detail: [
+            if (result.timedOut)
+              '→ timed out'
+            else if (result.cancelled)
+              '→ cancelled'
+            else if (result.exitSignal != null)
+              '→ signal ${McpActivity.printable('${result.exitSignal}', max: 24)}'
+            else
+              '→ exit ${result.exitCode ?? '?'}',
+            if (result.outputTruncated) '(output truncated)',
+          ].join(' '),
+          output: [result.stdout, if (result.stderr.isNotEmpty) result.stderr]
+              .join(
+                result.stdout.isEmpty || result.stdout.endsWith('\n')
+                    ? ''
+                    : '\n',
+              ),
+        );
         return {
           'stdout': result.stdout,
           'stderr': result.stderr,
@@ -469,6 +551,18 @@ class McpToolRunner {
       throw const McpToolException(
         'invalid_path',
         'Use an absolute remote path without NUL characters.',
+      );
+    }
+    final shownPath = McpActivity.printable(path);
+    if (name == 'sftp_write_text') {
+      // A write is announced before anything reaches the remote.
+      final text = args['text'];
+      McpActivity.show(
+        session,
+        name,
+        detail:
+            '$shownPath (${args['mode'] == 'create' ? 'create' : 'replace'}, '
+            '${text is String ? utf8.encode(text).length : 0} bytes)',
       );
     }
     final sftp = await connection.client.sftp();
@@ -500,6 +594,12 @@ class McpToolRunner {
           }
           if (more) break;
         }
+        McpActivity.show(
+          session,
+          name,
+          detail:
+              '$shownPath → ${items.length} entries${more ? ' (more)' : ''}',
+        );
         return {'items': items, if (more) 'next_offset': offset + items.length};
       }
 
@@ -523,6 +623,11 @@ class McpToolRunner {
           checkSession();
           final bytes = doc.originalBytes;
           try {
+            McpActivity.show(
+              session,
+              name,
+              detail: '$shownPath → ${bytes.length} bytes',
+            );
             return {
               'path': path,
               'text': doc.text,
@@ -589,6 +694,7 @@ class McpToolRunner {
       if (result is SftpTextSaveSuccess) {
         try {
           checkSession();
+          McpActivity.show(session, name, detail: '$shownPath → saved');
           return {
             'saved': true,
             'path': path,

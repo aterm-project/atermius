@@ -17169,4 +17169,34 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get wallpaperOverlayHint =>
       '自动会按图片明暗保证文字清晰。调低后壁纸更清楚（终端里也一样），但文字可能不易辨认。';
+
+  @override
+  String get mcpListenScope => '监听范围';
+
+  @override
+  String get mcpListenLoopback => '仅本机';
+
+  @override
+  String get mcpListenLan => '局域网';
+
+  @override
+  String get mcpListenCustom => '指定 IP';
+
+  @override
+  String get mcpListenAddress => '监听的本机 IP 地址';
+
+  @override
+  String get mcpListenAddressInvalid =>
+      '请输入本机的 IPv4 或 IPv6 地址，例如 192.168.1.20。';
+
+  @override
+  String get mcpListenExposedWarning =>
+      '网络上的其他设备可以访问这个端口。拿到令牌的人可以在下方机器权限范围内操作你的主机。连接是明文 HTTP，同一网络上的设备可能截获令牌和传输内容。只在可信网络使用。来自公网地址的连接会被拒绝。';
+
+  @override
+  String get mcpListenTokenNote =>
+      '每次启用生成新令牌；锁定、退出或切换保险库后授权失效。不同窗口可使用不同端口。停止 MCP 不会关闭你已打开的会话。';
+
+  @override
+  String get mcpEndpointsTitle => '客户端可以使用以下任一地址连接：';
 }

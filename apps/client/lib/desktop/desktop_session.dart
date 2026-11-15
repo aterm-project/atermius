@@ -288,6 +288,9 @@ class DesktopSession extends ChangeNotifier {
     });
   }
 
+  /// Shows [text] over this session's view (kept until a view attaches).
+  void showNotice(String text) => _notice(text);
+
   void _notice(String text) {
     final handler = _onNotice;
     if (handler != null) {
