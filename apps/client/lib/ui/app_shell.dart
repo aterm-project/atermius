@@ -1544,13 +1544,25 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
         final host = app.hosts
             .where((host) => host.id == result.hostId)
             .firstOrNull;
-        if (host != null) await app.openTerminalTab(host);
+        if (host != null) _startTerminalTab(host);
       }
     } catch (error) {
       if (mounted) _snack(context, app.friendlyError(error), error: true);
     } finally {
       _hostSearchOpen = false;
     }
+  }
+
+  /// Starts connecting [host] without making search or quick connect wait:
+  /// the tab that opens right away shows the attempt, its failure and its
+  /// stop/retry/close controls. A request that could not open is reported
+  /// here.
+  void _startTerminalTab(HostRecord host) {
+    unawaited(
+      app.openTerminalTab(host).catchError((Object error) {
+        if (mounted) _snack(context, app.friendlyError(error), error: true);
+      }),
+    );
   }
 
   bool _quickConnectBusy = false;
@@ -1584,7 +1596,7 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
             mounted &&
             matchingVault == app.activeVault?.id &&
             matchingAccount == app.session?.accountId)
-          await app.openTerminalTab(host);
+          _startTerminalTab(host);
         return;
       }
       if (app.activeVault?.canWrite != true) throw StateError(context.l10n.hostsCantBeAddedInThe);
@@ -1608,7 +1620,7 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
           app.session?.accountId != accountId)
         return;
       final saved = app.hosts.where((host) => host.id == draft.id).firstOrNull;
-      if (saved != null) await app.openTerminalTab(saved);
+      if (saved != null) _startTerminalTab(saved);
     } catch (error) {
       if (mounted) _snack(context, app.friendlyError(error), error: true);
     }
