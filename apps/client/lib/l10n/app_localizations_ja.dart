@@ -18116,4 +18116,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get keychainViewCredential => '認証情報を表示';
+
+  @override
+  String get desktopKeyboardPan => 'リモート画面をスライド';
 }

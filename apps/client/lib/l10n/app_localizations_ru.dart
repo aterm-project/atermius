@@ -19276,4 +19276,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get keychainViewCredential => 'Просмотр учётных данных';
+
+  @override
+  String get desktopKeyboardPan => 'Сдвинуть удалённый экран';
 }

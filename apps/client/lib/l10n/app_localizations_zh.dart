@@ -17208,4 +17208,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get keychainViewCredential => '查看凭据';
+
+  @override
+  String get desktopKeyboardPan => '滑动远程画面';
 }

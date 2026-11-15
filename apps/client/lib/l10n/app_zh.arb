@@ -5095,5 +5095,6 @@
   "mcpEndpointsTitle": "客户端可以使用以下任一地址连接：",
   "passwordRevealShow": "显示密码",
   "passwordRevealHide": "隐藏密码",
-  "keychainViewCredential": "查看凭据"
+  "keychainViewCredential": "查看凭据",
+  "desktopKeyboardPan": "滑动远程画面"
 }

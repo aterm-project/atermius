@@ -30399,6 +30399,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View credential'**
   String get keychainViewCredential;
+
+  /// Remote desktop: handle that slides the picture out from under the soft keyboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Slide the remote screen'**
+  String get desktopKeyboardPan;
 }
 
 class _AppLocalizationsDelegate

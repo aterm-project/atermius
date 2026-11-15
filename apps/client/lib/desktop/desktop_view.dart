@@ -160,6 +160,55 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
   }
 
   Offset _pan = Offset.zero;
+
+  /// How far the picture is slid up from under the soft keyboard, in logical
+  /// pixels (0 while nothing is covered). The remote keeps its resolution: an
+  /// overlaid keyboard and its key bar hide the bottom of the picture, and
+  /// the slide handle brings that part into view.
+  double _keyboardPan = 0;
+  double _keyboardPanLimit = 0;
+
+  void _slideUnderKeyboard(double delta) {
+    final next = (_keyboardPan + delta).clamp(0.0, _keyboardPanLimit);
+    if (next != _keyboardPan) setState(() => _keyboardPan = next);
+  }
+
+  /// The handle that slides the picture while the keyboard covers part of
+  /// it. Dragging it up moves the picture up, like dragging the page.
+  Widget _keyboardPanHandle() {
+    final colors = Theme.of(context).colorScheme;
+    final step = math.max(24.0, _keyboardPanLimit / 4);
+    String percent(double pan) => _keyboardPanLimit <= 0
+        ? '0%'
+        : '${(pan.clamp(0.0, _keyboardPanLimit) / _keyboardPanLimit * 100).round()}%';
+    return Semantics(
+      slider: true,
+      label: context.l10n.desktopKeyboardPan,
+      value: percent(_keyboardPan),
+      increasedValue: percent(_keyboardPan + step),
+      decreasedValue: percent(_keyboardPan - step),
+      onIncrease: () => _slideUnderKeyboard(step),
+      onDecrease: () => _slideUnderKeyboard(-step),
+      child: GestureDetector(
+        key: const ValueKey('desktop_keyboard_pan'),
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onVerticalDragUpdate: (details) =>
+            _slideUnderKeyboard(-details.delta.dy),
+        child: Material(
+          color: colors.surfaceContainerHigh.withValues(alpha: 0.86),
+          shape: const StadiumBorder(),
+          elevation: 2,
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Icon(Icons.swap_vert, color: colors.onSurface),
+          ),
+        ),
+      ),
+    );
+  }
+
   Timer? _resizeTimer;
   DialogRoute<void>? _certificateDialog;
   DesktopSession get session => widget.session;
@@ -795,7 +844,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                             _pan.dy.clamp(0, maxPan.dy),
                           )
                         : Offset.zero;
-                    final offset = actual
+                    final placed = actual
                         ? Offset(
                             maxPan.dx > 0
                                 ? -_pan.dx
@@ -808,6 +857,20 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                             (area.width - size.width * scale) / 2,
                             (area.height - size.height * scale) / 2,
                           );
+                    // An overlaid keyboard and its key bar cover the bottom
+                    // of this surface. The picture may be slid up by as much
+                    // of it as they hide, never further.
+                    final covered = overlay && _keyboardOpen
+                        ? overlap + keybarHeight
+                        : 0.0;
+                    final hidden = covered <= 0
+                        ? 0.0
+                        : (placed.dy +
+                                  size.height * scale -
+                                  (area.height - covered))
+                              .clamp(0.0, covered);
+                    _keyboardPan = _keyboardPan.clamp(0.0, hidden);
+                    final offset = placed.translate(0, -_keyboardPan);
                     void mouse(PointerEvent event, {int? wheel}) {
                       if (_mobilePlatform &&
                           _touch.trackpad &&
@@ -877,11 +940,15 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                     }
 
                     final limit = actual ? maxPan : Offset.zero;
-                    if (limit != _panLimit || area != _panArea) {
-                      // Pan bars live outside this LayoutBuilder; refresh them once
-                      // layout has produced the new bounds.
+                    if (limit != _panLimit ||
+                        area != _panArea ||
+                        hidden != _keyboardPanLimit) {
+                      // Pan bars and the slide handle live outside this
+                      // LayoutBuilder; refresh them once layout has produced
+                      // the new bounds.
                       _panLimit = limit;
                       _panArea = area;
+                      _keyboardPanLimit = hidden;
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (mounted) setState(() {});
                       });
@@ -1062,6 +1129,13 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                       }
                     },
                   ),
+                ),
+              if (_mobilePlatform && _keyboardPanLimit > 0)
+                Positioned(
+                  key: const ValueKey('desktop_keyboard_pan_slot'),
+                  left: 8,
+                  bottom: overlap + keybarHeight + 8,
+                  child: _keyboardPanHandle(),
                 ),
               if (widget.embeddedMenu && !_mobilePlatform && _paneSlot == null)
                 Positioned(

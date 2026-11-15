@@ -19224,4 +19224,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keychainViewCredential => 'View credential';
+
+  @override
+  String get desktopKeyboardPan => 'Slide the remote screen';
 }

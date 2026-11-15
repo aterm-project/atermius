@@ -265,6 +265,127 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  group('slide handle under the overlaid keyboard', () {
+    final handle = find.byKey(const ValueKey('desktop_keyboard_pan'));
+
+    /// Remote y of a direct touch at [y] on screen (the last pointer report).
+    Future<int> remoteY(WidgetTester tester, _Session session, double y) async {
+      session.sent.clear();
+      await tester.tapAt(Offset(195, y));
+      await tester.pump(const Duration(milliseconds: 400));
+      final report = session.sent.lastWhere(
+        (e) => e.first == 'mouse' || e.first == 'touch',
+      );
+      return (report.first == 'mouse' ? report[2] : report[4]) as int;
+    }
+
+    Future<_Session> openOverKeyboard(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await DesktopKeyboardController.instance.select(
+        DesktopKeyboardMode.overlay,
+      );
+      final session = await _mount(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(handle, findsNothing, reason: 'nothing is covered yet');
+      await _open(tester);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      return session;
+    }
+
+    testWidgets('appears while the keyboard covers the picture and slides it '
+        'without resizing the remote', (tester) async {
+      final session = await openOverKeyboard(tester);
+      // 1000x800 remote fitted to 390 wide: picture is 390x312 at y 266..578;
+      // keyboard (320) and key bar (96) leave y < 428 visible, 150 is hidden.
+      expect(handle, findsOneWidget);
+      final keybar = tester.getRect(
+        find.byKey(const ValueKey('desktop_special_keybar')),
+      );
+      expect(tester.getRect(handle).bottom, lessThanOrEqualTo(keybar.top));
+      session.sent.clear();
+
+      // Before sliding, the last visible row shows remote y of about 410.
+      expect(await remoteY(tester, session, 426), closeTo(410, 4));
+
+      // Drag the handle up: the picture follows, up to what was hidden.
+      await tester.drag(handle, const Offset(0, -90));
+      await tester.pump();
+      expect(await remoteY(tester, session, 426), closeTo(410 + 90 / .39, 4));
+      await tester.drag(handle, const Offset(0, -500));
+      await tester.pump();
+      // The bottom edge of the remote screen now sits right above the bar.
+      expect(await remoteY(tester, session, 426), closeTo(795, 5));
+      // ...and it cannot be pulled further up than that.
+      await tester.drag(handle, const Offset(0, -300));
+      await tester.pump();
+      expect(await remoteY(tester, session, 426), closeTo(795, 5));
+
+      // Dragging down brings the top back.
+      await tester.drag(handle, const Offset(0, 500));
+      await tester.pump();
+      expect(await remoteY(tester, session, 426), closeTo(410, 4));
+
+      expect(
+        session.sent.where((e) => e.first == 'size'),
+        isEmpty,
+        reason: 'sliding never changes the remote resolution',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('works in mouse (touchpad) mode and goes away with the '
+        'keyboard', (tester) async {
+      final session = await openOverKeyboard(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('desktop_pointer_mode_toggle')),
+      );
+      await tester.pump();
+      expect(handle, findsOneWidget);
+      session.sent.clear();
+      await tester.drag(handle, const Offset(0, -120));
+      await tester.pump();
+      // Sliding is local: no pointer, key or size traffic to the remote.
+      expect(session.sent, isEmpty);
+      final semantics = tester.getSemantics(handle);
+      expect(semantics.label, 'Slide the remote screen');
+      expect(semantics.value, '80%');
+
+      // Closing the keyboard uncovers everything: no handle, picture back.
+      await tester.tap(find.byKey(const ValueKey('desktop_keyboard_toggle')));
+      tester.view.viewInsets = const FakeViewPadding();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(handle, findsNothing);
+      await tester.tap(
+        find.byKey(const ValueKey('desktop_pointer_mode_toggle')),
+      );
+      await tester.pump();
+      expect(await remoteY(tester, session, 422), closeTo(400, 4));
+    });
+
+    testWidgets('a keyboard that resizes the view covers nothing: no handle', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await DesktopKeyboardController.instance.select(
+        DesktopKeyboardMode.resize,
+      );
+      await _mount(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      await _open(tester);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(handle, findsNothing);
+    });
+  });
+
   for (final mode in DesktopKeyboardMode.values) {
     testWidgets('Android $mode keyboard viewport and remote size policy', (
       tester,

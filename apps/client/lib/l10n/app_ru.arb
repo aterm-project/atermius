@@ -5095,5 +5095,6 @@
   "mcpEndpointsTitle": "Клиенты могут подключаться по любому из этих адресов:",
   "passwordRevealShow": "Показать пароль",
   "passwordRevealHide": "Скрыть пароль",
-  "keychainViewCredential": "Просмотр учётных данных"
+  "keychainViewCredential": "Просмотр учётных данных",
+  "desktopKeyboardPan": "Сдвинуть удалённый экран"
 }

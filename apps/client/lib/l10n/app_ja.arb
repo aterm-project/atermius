@@ -5095,5 +5095,6 @@
   "mcpEndpointsTitle": "クライアントは次のいずれかのアドレスに接続できます:",
   "passwordRevealShow": "パスワードを表示",
   "passwordRevealHide": "パスワードを隠す",
-  "keychainViewCredential": "認証情報を表示"
+  "keychainViewCredential": "認証情報を表示",
+  "desktopKeyboardPan": "リモート画面をスライド"
 }
