@@ -1133,7 +1133,9 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
               if (_mobilePlatform && _keyboardPanLimit > 0)
                 Positioned(
                   key: const ValueKey('desktop_keyboard_pan_slot'),
-                  left: 8,
+                  // The start side above the key bar shows what the input
+                  // method is composing.
+                  right: 8,
                   bottom: overlap + keybarHeight + 8,
                   child: _keyboardPanHandle(),
                 ),
