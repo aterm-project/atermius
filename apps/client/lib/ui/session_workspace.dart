@@ -572,6 +572,35 @@ class _SessionDividerState extends State<_SessionDivider> {
   }
 }
 
+/// Lets the content of a pane put one control of its own into the actions of
+/// the pane's white handle (a remote desktop puts its session menu there), so
+/// nothing has to float over the content.
+class SessionPaneActionSlot extends InheritedWidget {
+  const SessionPaneActionSlot._(this._pane, {required super.child});
+
+  final _SessionPaneDropTargetState _pane;
+
+  /// The slot of the pane that hosts [context], if any. Does not register a
+  /// rebuild dependency.
+  static SessionPaneActionSlot? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<SessionPaneActionSlot>();
+
+  /// Shows [builder]'s control in the handle actions until [detach].
+  void attach(Object owner, WidgetBuilder builder) =>
+      _pane._attachAction(owner, builder);
+
+  void detach(Object owner) => _pane._detachAction(owner);
+
+  /// Shows the handle actions and keeps them on screen (the control's menu is
+  /// open, or is about to be opened from the keyboard) until [release].
+  void hold() => _pane._holdActions();
+
+  void release() => _pane._releaseActions();
+
+  @override
+  bool updateShouldNotify(SessionPaneActionSlot old) => old._pane != _pane;
+}
+
 class _SessionPaneDropTarget extends StatefulWidget {
   const _SessionPaneDropTarget({
     super.key,
@@ -631,13 +660,55 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
   bool _controlsVisible = false;
   bool _controlsPinned = false;
   final _controlsFocus = FocusNode(debugLabel: 'Split pane actions');
+
+  /// A control the pane content shows in the actions (see
+  /// [SessionPaneActionSlot]).
+  Object? _contentOwner;
+  WidgetBuilder? _contentAction;
+
+  void _attachAction(Object owner, WidgetBuilder builder) {
+    _contentOwner = owner;
+    _contentAction = builder;
+    _contentActionChanged();
+  }
+
+  void _detachAction(Object owner) {
+    if (!identical(owner, _contentOwner)) return;
+    _contentOwner = null;
+    _contentAction = null;
+    _contentActionChanged();
+  }
+
+  /// The content attaches while it is built or disposed below this pane.
+  void _contentActionChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _holdActions() {
+    if (!mounted) return;
+    _controlsPinned = true;
+    _showControls(true);
+  }
+
+  void _releaseActions() {
+    if (mounted) _afterAction();
+  }
+
   int get _actionCount =>
+      (_contentAction != null ? 1 : 0) +
       (widget.onFullscreen != null ? 1 : 0) +
       (widget.onUnsplit != null ? 1 : 0) +
       (widget.onClose != null ? 1 : 0) +
       (widget.onSplit != null ? 1 : 0) +
       (widget.onDuplicate != null ? 1 : 0);
   bool get _hasActions => _actionCount > 0;
+
+  /// Actions that stay buttons of their own in a narrow pane; the others
+  /// move into one menu.
+  int get _pinnedActionCount =>
+      (_contentAction != null ? 1 : 0) + (widget.onFullscreen != null ? 1 : 0);
   double get _actionExtent => AppDensity.of(context).isCompact ? 36 : 48;
 
   /// Handle offset below a dropped-down tab strip.
@@ -686,8 +757,7 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
   bool _nearActions(Offset local) {
     final box = context.findRenderObject() as RenderBox?;
     final count = widget.compactActions
-        ? (widget.onFullscreen != null ? 1 : 0) +
-              (_actionCount > (widget.onFullscreen != null ? 1 : 0) ? 1 : 0)
+        ? _pinnedActionCount + (_actionCount > _pinnedActionCount ? 1 : 0)
         : _actionCount;
     final top = _inset + 24;
     final rows = box != null && box.hasSize
@@ -956,7 +1026,7 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
                   // Stable slot: per-pane wallpaper (follow-splits mode).
                   WallpaperPaneBackdrop(
                     key: const ValueKey('pane-content'),
-                    child: widget.child,
+                    child: SessionPaneActionSlot._(this, child: widget.child),
                   ),
                   // While the tab strip is dropped down, a tap on the pane
                   // only retracts it: nothing reaches the terminal/desktop.
@@ -1031,6 +1101,13 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
     child: Wrap(
       alignment: WrapAlignment.center,
       children: [
+        if (_contentAction case final action?)
+          SizedBox(
+            key: ValueKey('pane-content-action-${widget.sessionId}'),
+            width: _actionExtent,
+            height: _actionExtent,
+            child: Builder(builder: action),
+          ),
         if (widget.onFullscreen != null)
           IconButton(
             key: widget.fullscreen && widget.selected
@@ -1108,7 +1185,7 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
               icon: Icon(Icons.close, size: appMenuIconSize(context)),
               onPressed: widget.onClose,
             ),
-        ] else if (_actionCount > (widget.onFullscreen != null ? 1 : 0))
+        ] else if (_actionCount > _pinnedActionCount)
           SizedBox(
             width: _actionExtent,
             height: _actionExtent,

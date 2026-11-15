@@ -60,7 +60,7 @@ Android 首页及设置页进入全屏后保留导航和 Tools 菜单，始终�
 
 Android 设置 → 远程桌面提供两种键盘模式，默认“悬浮叠加（保持分辨率）”：软键盘及特殊键栏覆盖画面，保持原有远端尺寸及本地缩放。选择“跟随键盘调整”则缩小可见区域，并让跟随窗口的会话调整远端分辨率；固定分辨率或服务器决定尺寸的会话仍保留其分辨率。选择仅保存在当前设备，不进入云端 Vault。
 
-面板顶部白色小横条可展开全屏/退出全屏、复制、取消分屏和关闭操作。三个远程桌面悬浮按钮作为一个整体拖动：贴左/右边缘时纵向排列，贴上/下边缘时横向排列，键盘弹出后仍位于其上方。鼠标/触控板模式由客户端绘制光标；直连 RDP 接收 FreeRDP 解码及缓存的形状、热点、默认/隐藏状态与位置更新，VNC 使用 RichCursor/PointerPos，光标不烘焙进远端帧缓冲。
+面板顶部白色小横条可展开全屏/退出全屏、复制、取消分屏和关闭操作。在 Windows、macOS、Linux 上，RDP/VNC 的会话菜单（显示器图标）也在这一行里，不再浮在远程画面右上角遮挡内容；Ctrl+Alt+Home 仍可直接打开它。三个远程桌面悬浮按钮作为一个整体拖动：贴左/右边缘时纵向排列，贴上/下边缘时横向排列，键盘弹出后仍位于其上方。鼠标/触控板模式由客户端绘制光标；直连 RDP 接收 FreeRDP 解码及缓存的形状、热点、默认/隐藏状态与位置更新，VNC 使用 RichCursor/PointerPos，光标不烘焙进远端帧缓冲。
 
 SSH/Telnet 的终端菜单和标签右键菜单（Android 长按标签）提供 Disconnect／断开连接。主动断开保留原标签、分屏及终端记录，并暂停每 5 秒自动重连；点击“恢复连接”后重新建立连接并恢复后续自动重连。组合标签只断开当前选中的面板。关闭标签仍通过原关闭入口执行。断开时也会取消尚未完成的连接，延迟返回的旧连接不能重新接管面板。
 
@@ -70,7 +70,7 @@ Android 的键盘、触摸/鼠标切换和三点参数菜单位于同一个贴�
 
 On Android, RDP and VNC show a dock on the edge of each pane. The keyboard button opens the system keyboard together with a special-key bar. Ctrl/Alt/Shift/Win apply to the next key after a single tap; double-tap to lock, then tap again to release. Composed text is sent when the IME commits it. The adjacent button switches between direct touch and a relative mouse touchpad. In touchpad mode, tap clicks at the cursor, slide moves it, two fingers scroll or right-click, and a second tap held down drags. The dock can move vertically or to the opposite edge and stays inside the resized pane above the keyboard.
 
-The navigation bar's Tools menu and remote desktop's three-dot menu provide Enter fullscreen / Exit fullscreen. Windows covers the current monitor and restores its saved placement; macOS uses native fullscreen Spaces; Android hides system bars through its own-window insets controller; iOS uses supported manual overlays. Web uses the browser fullscreen API and follows browser exit events. An unavailable platform operation keeps the normal window and reports the failure. System-owned window captions may remain visible in Android desktop windowing mode.
+The navigation bar's Tools menu and the remote desktop session menu provide Enter fullscreen / Exit fullscreen. On Windows, macOS and Linux a pane shows that session menu (monitor icon) among the actions of its white top handle, so nothing floats over the remote screen; Ctrl+Alt+Home still opens it from the keyboard. Windows covers the current monitor and restores its saved placement; macOS uses native fullscreen Spaces; Android hides system bars through its own-window insets controller; iOS uses supported manual overlays. Web uses the browser fullscreen API and follows browser exit events. An unavailable platform operation keeps the normal window and reports the failure. System-owned window captions may remain visible in Android desktop windowing mode.
 
 On Android/iOS, pull a tab down to lift it from a scrolling strip, then drag to a highlighted pane edge. A diagonal pull is accepted while a horizontal swipe still scrolls tabs. A drop in the centre leaves the layout intact; a small amount of corner jitter keeps the highlighted direction. Stationary long-press still opens the tab/group context menu.
 

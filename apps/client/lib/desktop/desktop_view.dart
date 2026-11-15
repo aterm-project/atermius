@@ -1,4 +1,5 @@
 import '../ui/app_menu.dart';
+import '../ui/session_workspace.dart';
 import '../ui/fullscreen_menu.dart';
 import '../platform/fullscreen.dart';
 import '../domain/models.dart';
@@ -46,6 +47,9 @@ class DesktopView extends StatefulWidget {
   final Rect? viewport;
 
   /// False when the host places [DesktopViewState.menuButton] elsewhere.
+  /// Inside a workspace pane the menu sits in the actions of the pane's white
+  /// handle on desktop platforms, so it never covers the remote screen; only
+  /// a view without such a pane floats it over its top right corner.
   final bool embeddedMenu;
   @override
   State<DesktopView> createState() => DesktopViewState();
@@ -172,7 +176,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
       _captureSend(session),
       onMenuShortcut: () {
         _release();
-        _menu.currentState?.showButtonMenu();
+        _openMenu();
       },
     );
     session.addListener(_captureSessionChanged);
@@ -342,6 +346,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
   @override
   void didUpdateWidget(covariant DesktopView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.embeddedMenu != widget.embeddedMenu) _syncPaneSlot();
     if (!identical(oldWidget.session, session)) {
       _directTouch.reset();
       _mobile.currentState?.releaseInput(notify: false);
@@ -416,6 +421,8 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     _directTouch.reset();
     _touch.dispose();
     _capture.unregister();
+    _paneSlot?.detach(this);
+    _paneSlot = null;
     _release();
     _resizeTimer?.cancel();
     _focus.dispose();
@@ -423,6 +430,44 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
   }
 
   final _menu = GlobalKey<PopupMenuButtonState<String>>();
+
+  /// The hosting pane's handle actions, when the menu lives there.
+  SessionPaneActionSlot? _paneSlot;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPaneSlot();
+  }
+
+  void _syncPaneSlot() {
+    final slot = widget.embeddedMenu && !_mobilePlatform
+        ? SessionPaneActionSlot.maybeOf(context)
+        : null;
+    if (identical(slot, _paneSlot)) return;
+    _paneSlot?.detach(this);
+    _paneSlot = slot;
+    slot?.attach(this, (_) => menuButton(inPaneActions: true));
+  }
+
+  /// Opens the session menu from the keyboard. In a pane the handle actions
+  /// are shown first, since the menu button is one of them.
+  void _openMenu() {
+    final slot = _paneSlot;
+    if (slot == null) {
+      _menu.currentState?.showButtonMenu();
+      return;
+    }
+    slot.hold();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final button = _menu.currentState;
+      if (button == null) {
+        slot.release();
+      } else {
+        button.showButtonMenu();
+      }
+    });
+  }
 
   /// Ctrl+Alt+Home is kept local (as in the Windows Remote Desktop client) so
   /// the session menu is reachable from the keyboard while every other key
@@ -440,7 +485,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
       // Release the modifiers already sent so the remote does not see them
       // held while the local menu is open.
       _release();
-      _menu.currentState?.showButtonMenu();
+      _openMenu();
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.home &&
@@ -529,16 +574,25 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     );
   }
 
-  /// The session menu. Embedded in the desktop corner by default; a child
-  /// window places it in its caption row instead (one navigation row).
-  Widget menuButton() {
+  /// The session menu. A workspace pane shows it in its handle actions
+  /// ([inPaneActions]), a child window in its caption row (one navigation
+  /// row); only a view without either floats it over the desktop corner.
+  Widget menuButton({bool inPaneActions = false}) {
     return PopupMenuButton<String>(
       popUpAnimationStyle: AppMotion.menuStyle(context),
       key: _menu,
       tooltip: context.l10n.remoteDesktopMenu,
-      icon: const Icon(Icons.more_horiz),
+      // The pane's own overflow menu already uses the three dots.
+      icon: inPaneActions
+          ? Icon(Icons.desktop_windows_outlined, size: appMenuIconSize(context))
+          : const Icon(Icons.more_horiz),
+      padding: inPaneActions ? EdgeInsets.zero : const EdgeInsets.all(8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      // The pane hides its actions when the pointer leaves; they must stay
+      // while this menu is open, or its choice would have no receiver.
+      onCanceled: () => _paneSlot?.release(),
       onSelected: (value) async {
+        _paneSlot?.release();
         if (value == 'fullscreen') {
           await toggleAppFullscreen(context);
         } else if (value == 'cad') {
@@ -584,7 +638,10 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
         }
         if (mounted) _focus.requestFocus();
       },
-      onOpened: () => unawaited(FullscreenController.instance.refresh()),
+      onOpened: () {
+        _paneSlot?.hold();
+        unawaited(FullscreenController.instance.refresh());
+      },
       itemBuilder: (_) => [
         if (FullscreenController.instance.supported)
           appMenuItem(
@@ -1006,7 +1063,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                     },
                   ),
                 ),
-              if (widget.embeddedMenu && !_mobilePlatform)
+              if (widget.embeddedMenu && !_mobilePlatform && _paneSlot == null)
                 Positioned(
                   top: 4,
                   right: 4,
