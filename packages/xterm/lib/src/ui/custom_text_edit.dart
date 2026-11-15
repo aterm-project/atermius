@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -134,17 +136,58 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
     _connection?.setEditingState(value);
   }
 
+  /// Tells the platform where text is being entered, so that the input
+  /// method places its composition and candidate windows at the cursor.
+  ///
+  /// [rect] is the terminal and [caretRect] the cursor cell, both in the
+  /// coordinates of the view (global logical pixels).
+  ///
+  /// The platform is told the same way a text field tells it: the size of
+  /// the editable area with the transform to its position, and the cursor as
+  /// the caret and as the composing ("marked text") rectangle inside that
+  /// area. Which of them a platform reads differs: Windows and Linux place
+  /// the candidate window by the composing rectangle and ignore the caret
+  /// rectangle, macOS and iOS use the caret rectangle. A platform that was
+  /// never told the composing rectangle shows the candidates in the top left
+  /// corner of the window.
+  ///
+  /// On the Web the browser places the candidates at the hidden input
+  /// element, whose position is the transform alone. There the editable
+  /// area is the rest of the cursor row, so the element sits at the cursor.
+  ///
+  /// The values are kept and sent again when an input connection opens. The
+  /// connection itself skips values that did not change.
   void setEditableRect(Rect rect, Rect caretRect) {
-    if (!hasInputConnection) {
+    _editableRect = rect;
+    _caretRect = caretRect;
+    _sendEditableRect();
+  }
+
+  Rect? _editableRect;
+  Rect? _caretRect;
+
+  void _sendEditableRect() {
+    final rect = _editableRect;
+    final caretRect = _caretRect;
+    if (rect == null || caretRect == null || !hasInputConnection) {
       return;
     }
-
-    _connection?.setEditableSizeAndTransform(
-      rect.size,
-      Matrix4.translationValues(0, 0, 0),
+    final area = kIsWeb
+        ? Rect.fromLTRB(
+            caretRect.left,
+            caretRect.top,
+            max(rect.right, caretRect.right),
+            caretRect.bottom,
+          )
+        : rect;
+    final connection = _connection!;
+    connection.setEditableSizeAndTransform(
+      area.size,
+      Matrix4.translationValues(area.left, area.top, 0),
     );
-
-    _connection?.setCaretRect(caretRect);
+    final localCaret = caretRect.shift(-area.topLeft);
+    connection.setCaretRect(localCaret);
+    connection.setComposingRect(localCaret);
   }
 
   void _onFocusChange() {
@@ -195,7 +238,8 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
 
       if (showKeyboard) _connection!.show();
 
-      // setEditableRect(Rect.zero, Rect.zero);
+      // A new connection knows nothing about the cursor position yet.
+      _sendEditableRect();
 
       _connection!.setEditingState(_initEditingState);
     }

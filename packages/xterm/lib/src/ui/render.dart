@@ -173,7 +173,6 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   void _onScroll() {
     _stickToBottom = _scrollOffset >= _maxScrollExtent;
     markNeedsLayout();
-    _notifyEditableRect();
   }
 
   void _onFocusChange() {
@@ -182,7 +181,6 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
   void _onTerminalChange() {
     markNeedsLayout();
-    _notifyEditableRect();
   }
 
   void _onControllerUpdate() {
@@ -388,15 +386,15 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     return CellOffset(bufferOffset.x, row);
   }
 
+  /// Reports where the cursor is on screen, for the input method. Called
+  /// from [paint], so once per frame with the final layout, also when only
+  /// the position or size of the terminal changed.
   void _notifyEditableRect() {
+    if (_onEditableRect == null) return;
     final cursor = localToGlobal(cursorOffset);
 
-    final rect = Rect.fromLTRB(
-      cursor.dx,
-      cursor.dy,
-      size.width,
-      cursor.dy + _painter.cellSize.height,
-    );
+    // The whole terminal and the cursor cell, both in global coordinates.
+    final rect = localToGlobal(Offset.zero) & size;
 
     final caretRect = cursor & _painter.cellSize;
 
@@ -476,6 +474,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   void paint(PaintingContext context, Offset offset) {
     _paint(context, offset);
     context.setWillChangeHint();
+    _notifyEditableRect();
   }
 
   void _paint(PaintingContext context, Offset offset) {
