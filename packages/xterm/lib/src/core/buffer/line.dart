@@ -26,8 +26,9 @@ class BufferLine with IndexedItem {
   /// Creates a line around existing cell [data] (four words per cell:
   /// foreground, background, attributes, content) that shows the first
   /// [length] cells. [data] must hold at least [length] cells and is owned by
-  /// the line afterwards. Used to restore lines from the scrollback archive
-  /// without the capacity rounding of the default constructor.
+  /// the line afterwards; allocate it with [capacityFor] so the line has the
+  /// spare capacity the rest of the buffer code relies on. Used to restore
+  /// lines from the scrollback archive.
   BufferLine.fromData(
     Uint32List data,
     int length, {
@@ -154,7 +155,7 @@ class BufferLine with IndexedItem {
     }
 
     // reset cell one to the right if end is second cell of a wide char
-    if (end < _length && getWidth(end - 1) == 2) {
+    if (end > 0 && end < _length && getWidth(end - 1) == 2) {
       eraseCell(end - 1, style);
     }
 
@@ -315,6 +316,15 @@ class BufferLine with IndexedItem {
       _data[dstOffset++] = src._data[srcOffset++];
     }
   }
+
+  /// Number of cells to allocate for a line that shows [length] cells, with
+  /// the same rounding as the default constructor plus one spare cell.
+  ///
+  /// Reflow and the wide-character checks read one cell past the visible
+  /// length in edge cases (a wide character in the last column), which the
+  /// rounded capacity of ordinary lines absorbs. Lines built with
+  /// [BufferLine.fromData] need the same slack.
+  static int capacityFor(int length) => _calcCapacity(length + 1);
 
   static int _calcCapacity(int length) {
     assert(length >= 0);

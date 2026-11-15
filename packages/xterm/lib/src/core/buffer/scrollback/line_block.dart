@@ -368,7 +368,9 @@ List<BufferLine> decodeLineBlock(
   for (var i = 0; i < lineCount; i++) {
     final header = lineHeaders[i];
     final cells = header >> 1;
-    final data = Uint32List(max(cells, viewWidth) * _cellSize);
+    final data = Uint32List(
+      BufferLine.capacityFor(max(cells, viewWidth)) * _cellSize,
+    );
 
     for (var offset = 0; offset < cells * _cellSize; offset += _cellSize) {
       if (runLeft == 0) {

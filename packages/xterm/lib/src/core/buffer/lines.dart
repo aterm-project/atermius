@@ -362,7 +362,7 @@ class BufferLines implements IndexedItemOwner {
     lines ??= List<BufferLine>.generate(
       _blockLines,
       (_) => BufferLine.fromData(
-        Uint32List(_viewWidth * _cellSize),
+        Uint32List(BufferLine.capacityFor(_viewWidth) * _cellSize),
         _viewWidth,
       ),
     );
