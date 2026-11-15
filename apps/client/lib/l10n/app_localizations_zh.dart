@@ -17131,4 +17131,42 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cvDatabaseEncryptedAtRest => '数据库已静态加密（SQLCipher）';
+
+  @override
+  String get themeAccentTitle => '配色';
+
+  @override
+  String get themeAccentEmerald => '翡翠绿';
+
+  @override
+  String get themeAccentOcean => '海洋蓝';
+
+  @override
+  String get themeAccentViolet => '暮光紫';
+
+  @override
+  String get themeAccentRose => '玫瑰红';
+
+  @override
+  String get themeAccentAmber => '琥珀橙';
+
+  @override
+  String get themeAccentGraphite => '石墨灰';
+
+  @override
+  String wallpaperOverlayValue(String value) {
+    return '色彩蒙版：$value%';
+  }
+
+  @override
+  String wallpaperOverlayAutoValue(String value) {
+    return '色彩蒙版：$value%（自动）';
+  }
+
+  @override
+  String get wallpaperOverlayAuto => '自动';
+
+  @override
+  String get wallpaperOverlayHint =>
+      '自动会按图片明暗保证文字清晰。调低后壁纸更清楚（终端里也一样），但文字可能不易辨认。';
 }

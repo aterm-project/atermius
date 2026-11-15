@@ -19146,4 +19146,42 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cvDatabaseEncryptedAtRest =>
       'Database encrypted at rest (SQLCipher)';
+
+  @override
+  String get themeAccentTitle => 'Color scheme';
+
+  @override
+  String get themeAccentEmerald => 'Emerald';
+
+  @override
+  String get themeAccentOcean => 'Ocean blue';
+
+  @override
+  String get themeAccentViolet => 'Violet';
+
+  @override
+  String get themeAccentRose => 'Rose';
+
+  @override
+  String get themeAccentAmber => 'Amber';
+
+  @override
+  String get themeAccentGraphite => 'Graphite';
+
+  @override
+  String wallpaperOverlayValue(String value) {
+    return 'Color overlay: $value%';
+  }
+
+  @override
+  String wallpaperOverlayAutoValue(String value) {
+    return 'Color overlay: $value% (automatic)';
+  }
+
+  @override
+  String get wallpaperOverlayAuto => 'Automatic';
+
+  @override
+  String get wallpaperOverlayHint =>
+      'Automatic keeps text readable over this image. A lower value shows more of the wallpaper, in terminals too, but text can become hard to read.';
 }

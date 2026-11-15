@@ -5072,5 +5072,16 @@
   "cvDatabaseNotEncryptedTitle": "数据库未静态加密",
   "cvDatabaseNotEncryptedBody": "服务器的数据库以明文存储。拿到数据库文件或备份快照的人可以读取账户元数据，并离线猜解管理员的主密码；一旦猜中，就能打开所有管理员可见账户。请停止服务器，配置数据库密钥，然后离线加密数据库：",
   "cvDatabaseEncryptionGuide": "操作步骤、密钥备份与限制见：{path}",
-  "cvDatabaseEncryptedAtRest": "数据库已静态加密（SQLCipher）"
+  "cvDatabaseEncryptedAtRest": "数据库已静态加密（SQLCipher）",
+  "themeAccentTitle": "配色",
+  "themeAccentEmerald": "翡翠绿",
+  "themeAccentOcean": "海洋蓝",
+  "themeAccentViolet": "暮光紫",
+  "themeAccentRose": "玫瑰红",
+  "themeAccentAmber": "琥珀橙",
+  "themeAccentGraphite": "石墨灰",
+  "wallpaperOverlayValue": "色彩蒙版：{value}%",
+  "wallpaperOverlayAutoValue": "色彩蒙版：{value}%（自动）",
+  "wallpaperOverlayAuto": "自动",
+  "wallpaperOverlayHint": "自动会按图片明暗保证文字清晰。调低后壁纸更清楚（终端里也一样），但文字可能不易辨认。"
 }

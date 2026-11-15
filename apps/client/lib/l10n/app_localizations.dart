@@ -30261,6 +30261,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Database encrypted at rest (SQLCipher)'**
   String get cvDatabaseEncryptedAtRest;
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Color scheme'**
+  String get themeAccentTitle;
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Emerald'**
+  String get themeAccentEmerald;
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Ocean blue'**
+  String get themeAccentOcean;
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Violet'**
+  String get themeAccentViolet;
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Rose'**
+  String get themeAccentRose;
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Amber'**
+  String get themeAccentAmber;
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Graphite'**
+  String get themeAccentGraphite;
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Color overlay: {value}%'**
+  String wallpaperOverlayValue(String value);
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Color overlay: {value}% (automatic)'**
+  String wallpaperOverlayAutoValue(String value);
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get wallpaperOverlayAuto;
+
+  /// Theme settings: color scheme and wallpaper color overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic keeps text readable over this image. A lower value shows more of the wallpaper, in terminals too, but text can become hard to read.'**
+  String get wallpaperOverlayHint;
 }
 
 class _AppLocalizationsDelegate

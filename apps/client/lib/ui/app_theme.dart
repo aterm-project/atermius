@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'app_density.dart';
@@ -30,6 +32,122 @@ abstract final class AppColors {
   static const teal = accentSoft;
   static const orange = Color(0xFFFFB55E);
   static const red = Color(0xFFFF7379);
+}
+
+/// App color scheme: the accent and the tint of the neutral surfaces that go
+/// with it. [code] is the stable persisted value; never rename it.
+///
+/// [emerald] is the historic Obsidian-Emerald palette, stored as constants.
+/// Every other scheme is that palette moved in OKLCH: the accent family is
+/// rotated by [hueShift] degrees and its chroma scaled by [accentChroma];
+/// tinted neutrals take the accent's hue and [neutralChroma]. Lightness is
+/// kept, so each scheme has the contrast of the emerald one (text roles stay
+/// WCAG AA). Status colors (info, warning, error) are the same in all schemes.
+enum AppAccent {
+  emerald('emerald', 0, 1, 1),
+  ocean('ocean', 72, 1.25, 1),
+  violet('violet', 118, 1.3, 1),
+  rose('rose', 178, 1.25, 1),
+  amber('amber', -105, 1.15, 1),
+  graphite('graphite', 72, .12, .5);
+
+  const AppAccent(
+    this.code,
+    this.hueShift,
+    this.accentChroma,
+    this.neutralChroma,
+  );
+
+  final String code;
+  final double hueShift;
+  final double accentChroma;
+  final double neutralChroma;
+
+  static AppAccent parse(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    for (final accent in values) {
+      if (accent.code == normalized) return accent;
+    }
+    return emerald;
+  }
+
+  /// A neutral chrome color of the emerald palette in this scheme.
+  Color neutral(Color color) =>
+      this == emerald ? color : _retint(color, this, accent: false);
+}
+
+/// OKLCH hue of the emerald accent; tinted neutrals of the other schemes sit
+/// on the rotated accent hue.
+const _emeraldHue = 180.0;
+
+double _srgbToLinear(double c) =>
+    c <= .04045 ? c / 12.92 : math.pow((c + .055) / 1.055, 2.4).toDouble();
+
+double _linearToSrgb(double c) =>
+    c <= .0031308 ? 12.92 * c : 1.055 * math.pow(c, 1 / 2.4) - .055;
+
+double _cbrt(double x) =>
+    x < 0 ? -math.pow(-x, 1 / 3).toDouble() : math.pow(x, 1 / 3).toDouble();
+
+/// Linear sRGB of an OKLCH color (may lie outside 0..1).
+(double, double, double) _oklchToLinear(double l, double c, double hue) {
+  final a = c * math.cos(hue * math.pi / 180);
+  final b = c * math.sin(hue * math.pi / 180);
+  final l_ = math.pow(l + .3963377774 * a + .2158037573 * b, 3).toDouble();
+  final m_ = math.pow(l - .1055613458 * a - .0638541728 * b, 3).toDouble();
+  final s_ = math.pow(l - .0894841775 * a - 1.2914855480 * b, 3).toDouble();
+  return (
+    4.0767416621 * l_ - 3.3077115913 * m_ + .2309699292 * s_,
+    -1.2684380046 * l_ + 2.6097574011 * m_ - .3413193965 * s_,
+    -.0041960863 * l_ - .7034186147 * m_ + 1.7076147010 * s_,
+  );
+}
+
+bool _inGamut((double, double, double) rgb) {
+  bool ok(double v) => v >= -1e-4 && v <= 1 + 1e-4;
+  return ok(rgb.$1) && ok(rgb.$2) && ok(rgb.$3);
+}
+
+/// [color] in [scheme]: same lightness, rotated hue and scaled chroma. Colors
+/// the display cannot show lose chroma only, never lightness.
+Color _retint(Color color, AppAccent scheme, {required bool accent}) {
+  final r = _srgbToLinear(color.r);
+  final g = _srgbToLinear(color.g);
+  final b = _srgbToLinear(color.b);
+  final l_ = _cbrt(.4122214708 * r + .5363325363 * g + .0514459929 * b);
+  final m_ = _cbrt(.2119034982 * r + .6806995451 * g + .1073969566 * b);
+  final s_ = _cbrt(.0883024619 * r + .2817188376 * g + .6299787005 * b);
+  final lightness = .2104542553 * l_ + .7936177850 * m_ - .0040720468 * s_;
+  final ka = 1.9779984951 * l_ - 2.4285922050 * m_ + .4505937099 * s_;
+  final kb = .0259040371 * l_ + .7827717662 * m_ - .8086757660 * s_;
+  var chroma =
+      math.sqrt(ka * ka + kb * kb) *
+      (accent ? scheme.accentChroma : scheme.neutralChroma);
+  final hue = accent
+      ? math.atan2(kb, ka) * 180 / math.pi + scheme.hueShift
+      : _emeraldHue + scheme.hueShift;
+  var rgb = _oklchToLinear(lightness, chroma, hue);
+  if (!_inGamut(rgb)) {
+    var low = 0.0, high = chroma;
+    for (var i = 0; i < 24; i++) {
+      final middle = (low + high) / 2;
+      if (_inGamut(_oklchToLinear(lightness, middle, hue))) {
+        low = middle;
+      } else {
+        high = middle;
+      }
+    }
+    chroma = low;
+    rgb = _oklchToLinear(lightness, chroma, hue);
+  }
+  int channel(double v) =>
+      (_linearToSrgb(v.clamp(0.0, 1.0)).clamp(0.0, 1.0) * 255).round();
+  return Color.fromARGB(
+    (color.a * 255).round(),
+    channel(rgb.$1),
+    channel(rgb.$2),
+    channel(rgb.$3),
+  );
 }
 
 /// Context-scoped UI chrome palette.
@@ -181,6 +299,50 @@ class AppPalette extends ThemeExtension<AppPalette> {
     tooltipText: Color(0xFFFFFFFF),
   );
 
+  static final _schemes = <(AppAccent, Brightness), AppPalette>{};
+
+  /// The palette of [accent] for [brightness]; the constants for emerald.
+  static AppPalette resolve(AppAccent accent, Brightness brightness) {
+    final base = brightness == Brightness.dark ? dark : light;
+    if (accent == AppAccent.emerald) return base;
+    return _schemes[(accent, brightness)] ??= base._in(accent);
+  }
+
+  AppPalette _in(AppAccent scheme) {
+    Color neutral(Color color) => _retint(color, scheme, accent: false);
+    Color emphasis(Color color) => _retint(color, scheme, accent: true);
+    return AppPalette(
+      brightness: brightness,
+      background: neutral(background),
+      surface: neutral(surface),
+      surfaceRaised: neutral(surfaceRaised),
+      surfaceSoft: neutral(surfaceSoft),
+      rail: neutral(rail),
+      line: neutral(line),
+      text: neutral(text),
+      muted: neutral(muted),
+      hint: neutral(hint),
+      accent: emphasis(accent),
+      onAccent: onAccent,
+      accentContainer: emphasis(accentContainer),
+      onAccentContainer: emphasis(onAccentContainer),
+      accentText: emphasis(accentText),
+      onAccentText: emphasis(onAccentText),
+      accentSoft: emphasis(accentSoft),
+      info: info,
+      hostBlue: hostBlue,
+      orange: orange,
+      red: red,
+      errorContainer: errorContainer,
+      onErrorContainer: onErrorContainer,
+      warningContainer: warningContainer,
+      codeBackground: neutral(codeBackground),
+      codeText: neutral(codeText),
+      tooltipBackground: neutral(tooltipBackground),
+      tooltipText: tooltipText,
+    );
+  }
+
   static AppPalette of(BuildContext context) =>
       Theme.of(context).extension<AppPalette>() ?? dark;
 
@@ -267,14 +429,16 @@ List<String> appFontFallback(Locale? locale) => switch (locale?.languageCode) {
 
 /// Builds the app theme. The default (no [brightness]) is the historic dark
 /// theme; [Brightness.light] builds the white/light UI chrome theme. Both
-/// share the R7 density, motion and font fallbacks.
+/// share the R7 density, motion and font fallbacks. [accent] picks the color
+/// scheme (emerald by default).
 ThemeData buildAppTheme({
   Locale? locale,
   TargetPlatform? platform,
   Brightness brightness = Brightness.dark,
+  AppAccent accent = AppAccent.emerald,
 }) {
   final dark = brightness == Brightness.dark;
-  final p = dark ? AppPalette.dark : AppPalette.light;
+  final p = AppPalette.resolve(accent, brightness);
   final base = dark
       ? ThemeData.dark(useMaterial3: true)
       : ThemeData.light(useMaterial3: true);
@@ -292,21 +456,21 @@ ThemeData buildAppTheme({
     scaffoldBackgroundColor: p.background,
     canvasColor: dark ? base.canvasColor : p.surface,
     colorScheme: dark
-        ? const ColorScheme.dark(
-            primary: AppColors.accent,
-            onPrimary: AppColors.onAccent,
-            primaryContainer: AppColors.accentContainer,
-            onPrimaryContainer: AppColors.onAccentContainer,
-            secondary: AppColors.accentText,
-            onSecondary: AppColors.onAccentText,
-            secondaryContainer: AppColors.accentContainer,
-            onSecondaryContainer: AppColors.onAccentContainer,
-            tertiary: AppColors.accentSoft,
-            onTertiary: AppColors.onAccentText,
-            inversePrimary: AppColors.accentText,
+        ? ColorScheme.dark(
+            primary: p.accent,
+            onPrimary: p.onAccent,
+            primaryContainer: p.accentContainer,
+            onPrimaryContainer: p.onAccentContainer,
+            secondary: p.accentText,
+            onSecondary: p.onAccentText,
+            secondaryContainer: p.accentContainer,
+            onSecondaryContainer: p.onAccentContainer,
+            tertiary: p.accentSoft,
+            onTertiary: p.onAccentText,
+            inversePrimary: p.accentText,
             surfaceTint: Colors.transparent,
-            surface: AppColors.surface,
-            error: AppColors.red,
+            surface: p.surface,
+            error: p.red,
           )
         : ColorScheme.light(
             primary: p.accent,
@@ -319,7 +483,10 @@ ThemeData buildAppTheme({
             onSecondaryContainer: p.onAccentContainer,
             tertiary: p.accentSoft,
             onTertiary: p.onAccentText,
-            inversePrimary: const Color(0xFF4FD8C4),
+            inversePrimary: AppPalette.resolve(
+              accent,
+              Brightness.dark,
+            ).accentText,
             surfaceTint: Colors.transparent,
             surface: p.surface,
             onSurface: p.text,
@@ -329,7 +496,7 @@ ThemeData buildAppTheme({
             surfaceContainer: p.surface,
             surfaceContainerHigh: p.surfaceRaised,
             surfaceContainerHighest: p.surfaceSoft,
-            outline: const Color(0xFF809490),
+            outline: accent.neutral(const Color(0xFF809490)),
             outlineVariant: p.line,
             inverseSurface: p.tooltipBackground,
             onInverseSurface: p.tooltipText,

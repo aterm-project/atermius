@@ -77,7 +77,8 @@ String wallpaperErrorText(AppLocalizations l10n, WallpaperImageError error) =>
       WallpaperImageError.storage => l10n.wallpaperErrorStorage,
     };
 
-/// Theme settings card: preview, choose/replace, remove, layout mode, blur.
+/// Theme settings card: preview, choose/replace, remove, layout mode, blur and
+/// color overlay opacity.
 class WallpaperSettings extends StatefulWidget {
   const WallpaperSettings({this.controller, this.pickImage, super.key});
 
@@ -128,6 +129,17 @@ class _WallpaperSettingsState extends State<WallpaperSettings> {
         final missing =
             wallpapers.status == WallpaperStatus.missing ||
             wallpapers.status == WallpaperStatus.failed;
+        // The automatic value depends on the theme, the image and the layout.
+        final overlayPercent =
+            (wallpaperOverlayAlpha(
+                      palette,
+                      wallpapers.luminance,
+                      pane: wallpapers.mode == WallpaperLayoutMode.panes,
+                      overlay: wallpapers.overlay,
+                    ) *
+                    100)
+                .round()
+                .clamp(0, 100);
         return Column(
           key: const ValueKey('wallpaper_settings'),
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -246,6 +258,42 @@ class _WallpaperSettingsState extends State<WallpaperSettings> {
               onChanged: (value) => wallpapers.setBlur(value, persist: false),
               onChangeEnd: (value) => wallpapers.setBlur(value),
             ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    wallpapers.overlay == null
+                        ? l10n.wallpaperOverlayAutoValue('$overlayPercent')
+                        : l10n.wallpaperOverlayValue('$overlayPercent'),
+                    key: const ValueKey('wallpaper_overlay_value'),
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                TextButton(
+                  key: const ValueKey('wallpaper_overlay_auto'),
+                  onPressed: wallpapers.overlay == null
+                      ? null
+                      : () => wallpapers.setOverlay(null),
+                  child: Text(l10n.wallpaperOverlayAuto),
+                ),
+              ],
+            ),
+            Slider(
+              key: const ValueKey('wallpaper_overlay'),
+              value: overlayPercent.toDouble(),
+              max: 100,
+              divisions: 100,
+              label: '$overlayPercent%',
+              onChanged: (value) =>
+                  wallpapers.setOverlay(value / 100, persist: false),
+              onChangeEnd: (value) => wallpapers.setOverlay(value / 100),
+            ),
+            Text(
+              l10n.wallpaperOverlayHint,
+              style: TextStyle(color: palette.muted, fontSize: 12, height: 1.4),
+            ),
+            const SizedBox(height: 8),
             Text(
               wallpapers.writeFailed
                   ? l10n.wallpaperSaveFailed

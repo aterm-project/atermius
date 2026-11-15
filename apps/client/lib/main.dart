@@ -122,8 +122,15 @@ Future<void> main(List<String> arguments) async {
             locale: locale,
             localizationsDelegates: AppLocalizationSetup.delegates,
             supportedLocales: AppLocalizationSetup.locales,
-            theme: buildAppTheme(locale: locale, brightness: Brightness.light),
-            darkTheme: buildAppTheme(locale: locale),
+            theme: buildAppTheme(
+              locale: locale,
+              brightness: Brightness.light,
+              accent: AppThemeController.instance.accent,
+            ),
+            darkTheme: buildAppTheme(
+              locale: locale,
+              accent: AppThemeController.instance.accent,
+            ),
             themeMode: themeMode,
             builder: (context, child) => WindowsWindowChrome(child: child!),
             home: Builder(
@@ -182,8 +189,15 @@ Future<void> main(List<String> arguments) async {
             locale: locale,
             localizationsDelegates: AppLocalizationSetup.delegates,
             supportedLocales: AppLocalizationSetup.locales,
-            theme: buildAppTheme(locale: locale, brightness: Brightness.light),
-            darkTheme: buildAppTheme(locale: locale),
+            theme: buildAppTheme(
+              locale: locale,
+              brightness: Brightness.light,
+              accent: AppThemeController.instance.accent,
+            ),
+            darkTheme: buildAppTheme(
+              locale: locale,
+              accent: AppThemeController.instance.accent,
+            ),
             themeMode: themeMode,
             builder: (context, child) => WindowsWindowChrome(
               navigationEmbedded: () => true,
@@ -211,8 +225,15 @@ Future<void> main(List<String> arguments) async {
             locale: locale,
             localizationsDelegates: AppLocalizationSetup.delegates,
             supportedLocales: AppLocalizationSetup.locales,
-            theme: buildAppTheme(locale: locale, brightness: Brightness.light),
-            darkTheme: buildAppTheme(locale: locale),
+            theme: buildAppTheme(
+              locale: locale,
+              brightness: Brightness.light,
+              accent: AppThemeController.instance.accent,
+            ),
+            darkTheme: buildAppTheme(
+              locale: locale,
+              accent: AppThemeController.instance.accent,
+            ),
             themeMode: themeMode,
             builder: (context, child) => WindowsWindowChrome(
               navigationEmbedded: () => true,
@@ -319,8 +340,15 @@ class _AtermiusStartupState extends State<AtermiusStartup> {
           locale: locale,
           localizationsDelegates: AppLocalizationSetup.delegates,
           supportedLocales: AppLocalizationSetup.locales,
-          theme: buildAppTheme(locale: locale, brightness: Brightness.light),
-          darkTheme: buildAppTheme(locale: locale),
+          theme: buildAppTheme(
+            locale: locale,
+            brightness: Brightness.light,
+            accent: AppThemeController.instance.accent,
+          ),
+          darkTheme: buildAppTheme(
+            locale: locale,
+            accent: AppThemeController.instance.accent,
+          ),
           themeMode: themeMode,
           builder: (context, child) => WindowsWindowChrome(child: child!),
           home: _StartupRecovery(
@@ -721,8 +749,15 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
     locale: locale,
     localizationsDelegates: AppLocalizationSetup.delegates,
     supportedLocales: AppLocalizationSetup.locales,
-    theme: buildAppTheme(locale: locale, brightness: Brightness.light),
-    darkTheme: buildAppTheme(locale: locale),
+    theme: buildAppTheme(
+      locale: locale,
+      brightness: Brightness.light,
+      accent: AppThemeController.instance.accent,
+    ),
+    darkTheme: buildAppTheme(
+      locale: locale,
+      accent: AppThemeController.instance.accent,
+    ),
     themeMode: themeMode,
     builder: (context, child) => WindowsWindowChrome(
       navigationState: _controller,

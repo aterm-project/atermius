@@ -53,6 +53,70 @@ void main() {
     }
   });
 
+  group('color schemes', () {
+    test('emerald is the historic palette, unchanged', () {
+      expect(
+        AppPalette.resolve(AppAccent.emerald, Brightness.dark),
+        same(AppPalette.dark),
+      );
+      expect(
+        AppPalette.resolve(AppAccent.emerald, Brightness.light),
+        same(AppPalette.light),
+      );
+      expect(AppAccent.emerald.neutral(AppColors.line), AppColors.line);
+    });
+
+    for (final accent in AppAccent.values) {
+      for (final brightness in Brightness.values) {
+        test('${accent.code} ${brightness.name} keeps readable text roles', () {
+          final theme = buildAppTheme(brightness: brightness, accent: accent);
+          final p = theme.extension<AppPalette>()!;
+          expect(p, same(AppPalette.resolve(accent, brightness)));
+          expect(theme.colorScheme.primary, p.accent);
+          expect(theme.colorScheme.secondary, p.accentText);
+          expect(theme.scaffoldBackgroundColor, p.background);
+          for (final surface in [p.background, p.surface, p.surfaceRaised]) {
+            for (final role in [p.text, p.muted, p.accentText, p.accentSoft]) {
+              expect(_contrast(role, surface), greaterThanOrEqualTo(4.5));
+            }
+          }
+          expect(_contrast(p.onAccent, p.accent), greaterThanOrEqualTo(4.5));
+          expect(
+            _contrast(p.onAccentContainer, p.accentContainer),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            _contrast(p.onAccentText, p.accentText),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            _contrast(p.codeText, p.codeBackground),
+            greaterThanOrEqualTo(7),
+          );
+          // Status colors are the same in every scheme.
+          final base = brightness == Brightness.dark
+              ? AppPalette.dark
+              : AppPalette.light;
+          expect([p.red, p.orange, p.info], [base.red, base.orange, base.info]);
+          expect(p.brightness, brightness);
+        });
+      }
+    }
+
+    test('schemes differ visibly from each other', () {
+      final accents = {
+        for (final accent in AppAccent.values)
+          AppPalette.resolve(accent, Brightness.dark).accent,
+      };
+      expect(accents, hasLength(AppAccent.values.length));
+      // Hue moves, lightness stays: every fill is about as bright as emerald.
+      final reference = AppColors.accent.computeLuminance();
+      for (final color in accents) {
+        expect(color.computeLuminance(), closeTo(reference, .06));
+      }
+    });
+  });
+
   group('AppThemeController', () {
     test('missing, invalid and failing reads keep the dark default', () async {
       for (final stored in [null, '', 'neon', 'x' * 40]) {
@@ -72,6 +136,50 @@ void main() {
       expect(controller.themeMode, ThemeMode.system);
       expect(store.value, 'system');
       expect(controller.writeFailed, isFalse);
+    });
+
+    test(
+      'the color scheme is stored after the theme, emerald as before',
+      () async {
+        final store = MemoryAppThemeStore('light');
+        final controller = AppThemeController();
+        await controller.load(store);
+        expect(controller.accent, AppAccent.emerald);
+        await controller.setAccent(AppAccent.ocean);
+        expect(controller.accent, AppAccent.ocean);
+        expect(controller.themeMode, ThemeMode.light);
+        expect(store.value, 'light:ocean');
+        await controller.setPreference(AppThemePreference.system);
+        expect(store.value, 'system:ocean');
+        for (final accent in AppAccent.values) {
+          expect(
+            encodeAppTheme(AppThemePreference.system, accent).length,
+            lessThanOrEqualTo(appThemeStoreMaxLength),
+          );
+        }
+
+        final restored = AppThemeController();
+        await restored.load(store);
+        expect(restored.accent, AppAccent.ocean);
+        expect(restored.preference, AppThemePreference.system);
+
+        // Back to the default scheme: exactly what earlier versions wrote.
+        await restored.setAccent(AppAccent.emerald);
+        expect(store.value, 'system');
+      },
+    );
+
+    test('an unknown color scheme keeps the stored theme', () async {
+      for (final stored in ['light:neon', 'light:', 'light:ocean:x']) {
+        final controller = AppThemeController();
+        await controller.load(MemoryAppThemeStore(stored));
+        expect(controller.preference, AppThemePreference.light, reason: stored);
+        expect(controller.accent, AppAccent.emerald, reason: stored);
+      }
+      final controller = AppThemeController();
+      await controller.load(MemoryAppThemeStore('neon:violet'));
+      expect(controller.preference, AppThemePreference.dark);
+      expect(controller.accent, AppAccent.violet);
     });
 
     test('a failed write still applies and is reported', () async {
@@ -98,8 +206,11 @@ void main() {
         builder: (context, mode) => MaterialApp(
           localizationsDelegates: AppLocalizationSetup.delegates,
           supportedLocales: AppLocalizationSetup.locales,
-          theme: buildAppTheme(brightness: Brightness.light),
-          darkTheme: buildAppTheme(),
+          theme: buildAppTheme(
+            brightness: Brightness.light,
+            accent: controller.accent,
+          ),
+          darkTheme: buildAppTheme(accent: controller.accent),
           themeMode: mode,
           home: Scaffold(
             body: ListView(
@@ -125,6 +236,26 @@ void main() {
     expect(created, 1, reason: 'subtree must not be recreated');
     expect(draft.text, 'unsaved draft');
     expect(find.text('unsaved draft'), findsOneWidget);
+
+    // Color scheme: applies to the shown theme in place, like the theme.
+    for (final accent in AppAccent.values) {
+      expect(find.byKey(ValueKey('app_accent_${accent.code}')), findsOneWidget);
+    }
+    await tester.ensureVisible(find.byKey(const ValueKey('app_accent_violet')));
+    await tester.tap(find.byKey(const ValueKey('app_accent_violet')));
+    await tester.pumpAndSettle();
+    expect(controller.accent, AppAccent.violet);
+    expect(
+      ctx().palette,
+      same(AppPalette.resolve(AppAccent.violet, Brightness.light)),
+    );
+    expect(
+      Theme.of(ctx()).colorScheme.primary,
+      AppPalette.resolve(AppAccent.violet, Brightness.light).accent,
+    );
+    expect(created, 1, reason: 'subtree must not be recreated');
+    expect(draft.text, 'unsaved draft');
+    expect(tester.takeException(), isNull);
 
     // The rendered tooltip label is white on the light theme too.
     tester.state<TooltipState>(find.byType(Tooltip)).ensureTooltipVisible();

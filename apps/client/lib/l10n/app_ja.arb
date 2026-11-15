@@ -5072,5 +5072,16 @@
   "cvDatabaseNotEncryptedTitle": "データベースは保存時に暗号化されていません",
   "cvDatabaseNotEncryptedBody": "サーバーはデータベースを暗号化せずに保存しています。データベースファイルやバックアップのスナップショットをコピーした人は、アカウントのメタデータを読み取り、管理者のマスターパスワードをオフラインで推測できます。1 回でも当たれば、「管理者に表示」のすべてのアカウントが開かれます。サーバーを停止し、データベース鍵を設定してから、オフラインでデータベースを暗号化してください：",
   "cvDatabaseEncryptionGuide": "手順・鍵のバックアップ・制限：{path}",
-  "cvDatabaseEncryptedAtRest": "データベースは保存時に暗号化されています（SQLCipher）"
+  "cvDatabaseEncryptedAtRest": "データベースは保存時に暗号化されています（SQLCipher）",
+  "themeAccentTitle": "配色",
+  "themeAccentEmerald": "エメラルド",
+  "themeAccentOcean": "オーシャンブルー",
+  "themeAccentViolet": "バイオレット",
+  "themeAccentRose": "ローズ",
+  "themeAccentAmber": "アンバー",
+  "themeAccentGraphite": "グラファイト",
+  "wallpaperOverlayValue": "カラーオーバーレイ: {value}%",
+  "wallpaperOverlayAutoValue": "カラーオーバーレイ: {value}%（自動）",
+  "wallpaperOverlayAuto": "自動",
+  "wallpaperOverlayHint": "自動では、この画像の上でも文字が読みやすい濃さになります。値を下げると壁紙がよく見えますが（ターミナルでも同様）、文字が読みにくくなることがあります。"
 }

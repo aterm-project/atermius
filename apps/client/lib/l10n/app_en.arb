@@ -15857,5 +15857,59 @@
   "cvDatabaseEncryptedAtRest": "Database encrypted at rest (SQLCipher)",
   "@cvDatabaseEncryptedAtRest": {
     "description": "Credential visibility v1 (admin escrow): settings, notices and admin tools."
+  },
+  "themeAccentTitle": "Color scheme",
+  "@themeAccentTitle": {
+    "description": "Theme settings: color scheme and wallpaper color overlay."
+  },
+  "themeAccentEmerald": "Emerald",
+  "@themeAccentEmerald": {
+    "description": "Theme settings: color scheme and wallpaper color overlay."
+  },
+  "themeAccentOcean": "Ocean blue",
+  "@themeAccentOcean": {
+    "description": "Theme settings: color scheme and wallpaper color overlay."
+  },
+  "themeAccentViolet": "Violet",
+  "@themeAccentViolet": {
+    "description": "Theme settings: color scheme and wallpaper color overlay."
+  },
+  "themeAccentRose": "Rose",
+  "@themeAccentRose": {
+    "description": "Theme settings: color scheme and wallpaper color overlay."
+  },
+  "themeAccentAmber": "Amber",
+  "@themeAccentAmber": {
+    "description": "Theme settings: color scheme and wallpaper color overlay."
+  },
+  "themeAccentGraphite": "Graphite",
+  "@themeAccentGraphite": {
+    "description": "Theme settings: color scheme and wallpaper color overlay."
+  },
+  "wallpaperOverlayValue": "Color overlay: {value}%",
+  "@wallpaperOverlayValue": {
+    "description": "Theme settings: color scheme and wallpaper color overlay.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "wallpaperOverlayAutoValue": "Color overlay: {value}% (automatic)",
+  "@wallpaperOverlayAutoValue": {
+    "description": "Theme settings: color scheme and wallpaper color overlay.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "wallpaperOverlayAuto": "Automatic",
+  "@wallpaperOverlayAuto": {
+    "description": "Theme settings: color scheme and wallpaper color overlay."
+  },
+  "wallpaperOverlayHint": "Automatic keeps text readable over this image. A lower value shows more of the wallpaper, in terminals too, but text can become hard to read.",
+  "@wallpaperOverlayHint": {
+    "description": "Theme settings: color scheme and wallpaper color overlay."
   }
 }

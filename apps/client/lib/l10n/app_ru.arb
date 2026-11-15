@@ -5072,5 +5072,16 @@
   "cvDatabaseNotEncryptedTitle": "База данных не зашифрована на диске",
   "cvDatabaseNotEncryptedBody": "Сервер хранит базу данных в незашифрованном виде. Любой, кто скопирует файл базы данных или снимок резервной копии, сможет прочитать метаданные учётных записей и подбирать мастер-пароли администраторов офлайн; одна удачная попытка открывает все учётные записи в режиме «видно администраторам». Остановите сервер, настройте ключ базы данных и зашифруйте её офлайн:",
   "cvDatabaseEncryptionGuide": "Порядок действий, резервная копия ключа и ограничения: {path}",
-  "cvDatabaseEncryptedAtRest": "База данных зашифрована на диске (SQLCipher)"
+  "cvDatabaseEncryptedAtRest": "База данных зашифрована на диске (SQLCipher)",
+  "themeAccentTitle": "Цветовая схема",
+  "themeAccentEmerald": "Изумруд",
+  "themeAccentOcean": "Океан",
+  "themeAccentViolet": "Фиалка",
+  "themeAccentRose": "Роза",
+  "themeAccentAmber": "Янтарь",
+  "themeAccentGraphite": "Графит",
+  "wallpaperOverlayValue": "Цветной слой: {value}%",
+  "wallpaperOverlayAutoValue": "Цветной слой: {value}% (авто)",
+  "wallpaperOverlayAuto": "Авто",
+  "wallpaperOverlayHint": "В автоматическом режиме текст остаётся читаемым поверх изображения. Чем меньше значение, тем лучше видны обои (в том числе в терминале), но текст может стать трудночитаемым."
 }

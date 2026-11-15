@@ -19198,4 +19198,42 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get cvDatabaseEncryptedAtRest =>
       'База данных зашифрована на диске (SQLCipher)';
+
+  @override
+  String get themeAccentTitle => 'Цветовая схема';
+
+  @override
+  String get themeAccentEmerald => 'Изумруд';
+
+  @override
+  String get themeAccentOcean => 'Океан';
+
+  @override
+  String get themeAccentViolet => 'Фиалка';
+
+  @override
+  String get themeAccentRose => 'Роза';
+
+  @override
+  String get themeAccentAmber => 'Янтарь';
+
+  @override
+  String get themeAccentGraphite => 'Графит';
+
+  @override
+  String wallpaperOverlayValue(String value) {
+    return 'Цветной слой: $value%';
+  }
+
+  @override
+  String wallpaperOverlayAutoValue(String value) {
+    return 'Цветной слой: $value% (авто)';
+  }
+
+  @override
+  String get wallpaperOverlayAuto => 'Авто';
+
+  @override
+  String get wallpaperOverlayHint =>
+      'В автоматическом режиме текст остаётся читаемым поверх изображения. Чем меньше значение, тем лучше видны обои (в том числе в терминале), но текст может стать трудночитаемым.';
 }

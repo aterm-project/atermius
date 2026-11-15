@@ -2,7 +2,8 @@ import 'app_theme_store_native.dart'
     if (dart.library.js_interop) 'app_theme_store_web.dart'
     as platform;
 
-/// Device-local UI theme preference (`system`, `dark` or `light`).
+/// Device-local UI theme preference: `system`, `dark` or `light`, followed by
+/// `:<color scheme>` when the scheme is not the default (`dark:ocean`).
 ///
 /// Like the display language this lives outside the encrypted Vault/profile
 /// stores: it must be readable before any secure storage is unlocked and by

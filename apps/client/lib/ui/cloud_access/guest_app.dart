@@ -47,8 +47,15 @@ class GuestApp extends StatelessWidget {
         locale: locale,
         localizationsDelegates: AppLocalizationSetup.delegates,
         supportedLocales: AppLocalizationSetup.locales,
-        theme: buildAppTheme(locale: locale, brightness: Brightness.light),
-        darkTheme: buildAppTheme(locale: locale),
+        theme: buildAppTheme(
+          locale: locale,
+          brightness: Brightness.light,
+          accent: AppThemeController.instance.accent,
+        ),
+        darkTheme: buildAppTheme(
+          locale: locale,
+          accent: AppThemeController.instance.accent,
+        ),
         themeMode: themeMode,
         home: GuestPage(slug: slug, secret: secret, api: api, sodium: sodium),
       ),

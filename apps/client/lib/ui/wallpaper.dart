@@ -62,18 +62,29 @@ double sanitizeWallpaperBlur(Object? value) {
   return (clamped * 2).roundToDouble() / 2;
 }
 
+/// Opacity (0..1, whole percent) of the color overlay drawn over the
+/// wallpaper, or null for the automatic, contrast-driven value.
+double? sanitizeWallpaperOverlay(Object? value) {
+  if (value is! num || !value.isFinite) return null;
+  return (value.toDouble().clamp(0.0, 1.0) * 100).roundToDouble() / 100;
+}
+
 @immutable
 class WallpaperPreferences {
   const WallpaperPreferences({
     this.imageId,
     this.mode = WallpaperLayoutMode.window,
     this.blur = wallpaperDefaultBlur,
+    this.overlay,
   });
 
   /// Random id of the app-owned image copy; never a path or file name.
   final String? imageId;
   final WallpaperLayoutMode mode;
   final double blur;
+
+  /// User-chosen opacity of the color overlay; null keeps it automatic.
+  final double? overlay;
 
   /// Strict, sanitizing parse. Anything invalid falls back field by field.
   static WallpaperPreferences parse(String? raw) {
@@ -94,6 +105,7 @@ class WallpaperPreferences {
       imageId: image is String && isValidWallpaperImageId(image) ? image : null,
       mode: WallpaperLayoutMode.parse(decoded['mode']),
       blur: sanitizeWallpaperBlur(decoded['blur'] ?? wallpaperDefaultBlur),
+      overlay: sanitizeWallpaperOverlay(decoded['overlay']),
     );
   }
 
@@ -117,6 +129,7 @@ class WallpaperPreferences {
     'image': ?imageId,
     'mode': mode.code,
     'blur': blur,
+    'overlay': ?overlay,
   });
 }
 
@@ -448,6 +461,15 @@ double wallpaperScrimAlpha(
   return 1;
 }
 
+/// Opacity of the color overlay (the theme background color) over the
+/// wallpaper: the user's [overlay] when set, else [wallpaperScrimAlpha].
+double wallpaperOverlayAlpha(
+  AppPalette palette,
+  WallpaperLuminance luminance, {
+  required bool pane,
+  required double? overlay,
+}) => overlay ?? wallpaperScrimAlpha(palette, luminance, pane: pane);
+
 String _newImageId() {
   final random = math.Random.secure();
   return List.generate(
@@ -490,6 +512,7 @@ class WallpaperController extends ChangeNotifier {
   WallpaperStore? _store;
   WallpaperLayoutMode _mode = WallpaperLayoutMode.window;
   double _blur = wallpaperDefaultBlur;
+  double? _overlay;
   String? _imageId;
   ui.Image? _image;
   ui.Image? _baked;
@@ -517,6 +540,12 @@ class WallpaperController extends ChangeNotifier {
 
   WallpaperLayoutMode get mode => _mode;
   double get blur => _blur;
+
+  /// Opacity (0..1) the user chose for the color overlay over the wallpaper,
+  /// or null while it is automatic (see [wallpaperScrimAlpha]). It also sets
+  /// how opaque terminal backgrounds are, so 0 shows the plain image and 1
+  /// hides it everywhere.
+  double? get overlay => _overlay;
   WallpaperStatus get status => _status;
   WallpaperImageError? get lastError => _lastError;
 
@@ -569,6 +598,7 @@ class WallpaperController extends ChangeNotifier {
         readable && (raw == null || WallpaperPreferences.isTrusted(raw));
     _mode = preferences.mode;
     _blur = preferences.blur;
+    _overlay = preferences.overlay;
     _imageId = preferences.imageId;
     final generation = ++_imageGeneration;
     _setImage(null);
@@ -709,6 +739,18 @@ class WallpaperController extends ChangeNotifier {
     if (persist) unawaited(_persist());
   }
 
+  /// Sets the color overlay opacity (0..1), or null for automatic. [persist]
+  /// is false while a slider drags; the final value is persisted on release.
+  void setOverlay(double? value, {bool persist = true}) {
+    if (_disposed) return;
+    final next = value == null ? null : sanitizeWallpaperOverlay(value);
+    if (next != _overlay) {
+      _overlay = next;
+      notifyListeners();
+    }
+    if (persist) unawaited(_persist());
+  }
+
   Future<void> _persist([Future<void> Function()? after]) {
     final store = _store;
     if (store == null) return Future<void>.value();
@@ -732,6 +774,7 @@ class WallpaperController extends ChangeNotifier {
               imageId: _imageId,
               mode: _mode,
               blur: _blur,
+              overlay: _overlay,
             ).encode(),
           );
         }
@@ -847,6 +890,7 @@ class _WallpaperVisibility extends InheritedWidget {
     required this.windowActive,
     required this.panesActive,
     required this.luminance,
+    required this.overlay,
     required super.child,
   });
 
@@ -856,6 +900,9 @@ class _WallpaperVisibility extends InheritedWidget {
 
   /// Changes only with the image (never on blur ticks).
   final WallpaperLuminance luminance;
+
+  /// [WallpaperController.overlay].
+  final double? overlay;
 
   bool get anyActive => windowActive || panesActive;
 
@@ -867,16 +914,20 @@ class _WallpaperVisibility extends InheritedWidget {
       old.controller != controller ||
       old.windowActive != windowActive ||
       old.panesActive != panesActive ||
-      old.luminance != luminance;
+      old.luminance != luminance ||
+      old.overlay != overlay;
 }
 
 /// TerminalView `backgroundOpacity` for terminals hosted in a window or pane
-/// that shows the wallpaper; 1 otherwise. Rebuilds only on visibility changes
-/// (never on blur ticks).
-double wallpaperTerminalBackgroundOpacity(BuildContext context) =>
-    _WallpaperVisibility.of(context)?.anyActive == true
-    ? wallpaperTerminalOpacity
-    : 1;
+/// that shows the wallpaper; 1 otherwise. A color overlay opacity chosen by
+/// the user applies to the terminal background too, so the whole range from
+/// the plain image (0) to no wallpaper at all (1) is reachable. Rebuilds only
+/// on visibility and overlay changes (never on blur ticks).
+double wallpaperTerminalBackgroundOpacity(BuildContext context) {
+  final visibility = _WallpaperVisibility.of(context);
+  if (visibility?.anyActive != true) return 1;
+  return visibility!.overlay ?? wallpaperTerminalOpacity;
+}
 
 /// [color] made translucent while the whole-window wallpaper is shown, so
 /// large chrome fills (rail, terminal frame) let it through; else [color].
@@ -910,6 +961,7 @@ class WallpaperWindowHost extends StatelessWidget {
         panesActive:
             wallpapers.active && wallpapers.mode == WallpaperLayoutMode.panes,
         luminance: wallpapers.luminance,
+        overlay: wallpapers.overlay,
         child: body!,
       ),
       child: _WallpaperWindowBody(child: child),
@@ -937,10 +989,11 @@ class _WallpaperWindowBody extends StatelessWidget {
         _WallpaperThemeOverride(
           scaffoldBackground: active
               ? (palette) => palette.background.withValues(
-                  alpha: wallpaperScrimAlpha(
+                  alpha: wallpaperOverlayAlpha(
                     palette,
                     visibility!.luminance,
                     pane: false,
+                    overlay: visibility.overlay,
                   ),
                 )
               : null,
@@ -1053,10 +1106,11 @@ class WallpaperImageLayer extends StatelessWidget {
                       : _imageSigma(source, controller.blur),
                   scrim: scrim
                       ? palette.background.withValues(
-                          alpha: wallpaperScrimAlpha(
+                          alpha: wallpaperOverlayAlpha(
                             palette,
                             controller.luminance,
                             pane: true,
+                            overlay: controller.overlay,
                           ),
                         )
                       : null,

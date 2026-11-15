@@ -18039,4 +18039,42 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get cvDatabaseEncryptedAtRest => 'データベースは保存時に暗号化されています（SQLCipher）';
+
+  @override
+  String get themeAccentTitle => '配色';
+
+  @override
+  String get themeAccentEmerald => 'エメラルド';
+
+  @override
+  String get themeAccentOcean => 'オーシャンブルー';
+
+  @override
+  String get themeAccentViolet => 'バイオレット';
+
+  @override
+  String get themeAccentRose => 'ローズ';
+
+  @override
+  String get themeAccentAmber => 'アンバー';
+
+  @override
+  String get themeAccentGraphite => 'グラファイト';
+
+  @override
+  String wallpaperOverlayValue(String value) {
+    return 'カラーオーバーレイ: $value%';
+  }
+
+  @override
+  String wallpaperOverlayAutoValue(String value) {
+    return 'カラーオーバーレイ: $value%（自動）';
+  }
+
+  @override
+  String get wallpaperOverlayAuto => '自動';
+
+  @override
+  String get wallpaperOverlayHint =>
+      '自動では、この画像の上でも文字が読みやすい濃さになります。値を下げると壁紙がよく見えますが（ターミナルでも同様）、文字が読みにくくなることがあります。';
 }

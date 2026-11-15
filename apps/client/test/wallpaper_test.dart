@@ -424,6 +424,24 @@ void main() {
       expect(WallpaperPreferences.parse('{"v":1,"blur":-3}').blur, 0);
       expect(WallpaperPreferences.parse('{"v":2,"blur":3}').blur, wallpaperDefaultBlur);
       expect(WallpaperPreferences.parse('not json').imageId, isNull);
+      // Color overlay opacity: absent or invalid stays automatic (null).
+      expect(parsed.overlay, isNull);
+      expect(WallpaperPreferences.parse('{"v":1,"overlay":"x"}').overlay, isNull);
+      expect(WallpaperPreferences.parse('{"v":1,"overlay":0}').overlay, 0);
+      expect(WallpaperPreferences.parse('{"v":1,"overlay":0.337}').overlay, .34);
+      expect(WallpaperPreferences.parse('{"v":1,"overlay":7}').overlay, 1);
+      expect(WallpaperPreferences.parse('{"v":1,"overlay":-2}').overlay, 0);
+      expect(
+        WallpaperPreferences.parse(
+          const WallpaperPreferences(overlay: .25).encode(),
+        ).overlay,
+        .25,
+      );
+      expect(
+        const WallpaperPreferences().encode(),
+        isNot(contains('overlay')),
+        reason: 'automatic writes the record earlier versions wrote',
+      );
       expect(WallpaperPreferences.parse('x' * 600).mode, WallpaperLayoutMode.window);
     });
   });
@@ -717,6 +735,61 @@ void main() {
     });
   });
 
+  test('the color overlay opacity persists and returns to automatic', () async {
+    final store = MemoryWallpaperStore();
+    final controller = WallpaperController();
+    await controller.load(store);
+    expect(controller.overlay, isNull);
+    var notified = 0;
+    controller.addListener(() => notified++);
+    controller.setOverlay(.4, persist: false); // a slider drag
+    expect(controller.overlay, .4);
+    expect(store.settingsWrites, 0);
+    controller.setOverlay(.257);
+    await controller.debugIdle;
+    expect(controller.overlay, .26);
+    expect(WallpaperPreferences.parse(store.settings).overlay, .26);
+    expect(notified, 2);
+
+    final restored = WallpaperController();
+    await restored.load(store);
+    expect(restored.overlay, .26);
+    restored.setOverlay(0);
+    await restored.debugIdle;
+    expect(WallpaperPreferences.parse(store.settings).overlay, 0);
+    restored.setOverlay(null);
+    await restored.debugIdle;
+    expect(restored.overlay, isNull);
+    expect(store.settings, isNot(contains('overlay')));
+
+    // Automatic is the contrast-driven value; a chosen one replaces it.
+    final palette = AppPalette.dark;
+    for (final pane in [true, false]) {
+      expect(
+        wallpaperOverlayAlpha(
+          palette,
+          WallpaperLuminance.unknown,
+          pane: pane,
+          overlay: null,
+        ),
+        wallpaperScrimAlpha(palette, WallpaperLuminance.unknown, pane: pane),
+      );
+      for (final chosen in [0.0, .5, 1.0]) {
+        expect(
+          wallpaperOverlayAlpha(
+            palette,
+            WallpaperLuminance.unknown,
+            pane: pane,
+            overlay: chosen,
+          ),
+          chosen,
+        );
+      }
+    }
+    controller.dispose();
+    restored.dispose();
+  });
+
   test('a failing blur bake is not retried until the input changes', () async {
     var bakes = 0;
     final controller = WallpaperController(
@@ -792,6 +865,26 @@ void main() {
       expect(find.byType(WallpaperImageLayer), findsOneWidget); // whole window
       expect(terminalOpacity(), wallpaperTerminalOpacity);
       expect(scaffoldColor(), Colors.transparent); // nested scaffolds in panes
+
+      // Color overlay opacity: the window overlay and the terminal background
+      // follow it over the whole range, and automatic restores both.
+      double windowOverlay() => Theme.of(
+        tester.element(find.byType(SessionWorkspaceView)),
+      ).scaffoldBackgroundColor.a;
+      final automatic = windowOverlay();
+      expect(automatic, greaterThan(.5));
+      await step(() async => controller.setOverlay(0, persist: false));
+      expect(windowOverlay(), 0);
+      expect(terminalOpacity(), 0);
+      await step(() async => controller.setOverlay(1, persist: false));
+      expect(windowOverlay(), 1);
+      expect(terminalOpacity(), 1);
+      await step(() async => controller.setOverlay(.3, persist: false));
+      expect(windowOverlay(), closeTo(.3, .001));
+      expect(terminalOpacity(), closeTo(.3, .001));
+      await step(() async => controller.setOverlay(null, persist: false));
+      expect(windowOverlay(), automatic);
+      expect(terminalOpacity(), wallpaperTerminalOpacity);
 
       await step(() async => controller.setMode(WallpaperLayoutMode.panes));
       expect(find.byType(WallpaperImageLayer), findsNWidgets(2)); // one per pane
@@ -877,6 +970,40 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('wallpaper_mode_panes')));
       await tester.pump();
       expect(controller.mode, WallpaperLayoutMode.panes);
+
+      // Color overlay: automatic until the slider moves; "Automatic" resets.
+      TextButton automaticButton() => tester.widget<TextButton>(
+        find.byKey(const ValueKey('wallpaper_overlay_auto')),
+      );
+      final overlay = tester.widget<Slider>(
+        find.byKey(const ValueKey('wallpaper_overlay')),
+      );
+      expect(controller.overlay, isNull);
+      expect(automaticButton().onPressed, isNull);
+      expect((overlay.min, overlay.max, overlay.divisions), (0, 100, 100));
+      expect(overlay.value, inInclusiveRange(30, 100)); // the automatic value
+      overlay.onChanged!(0);
+      await tester.pump();
+      expect(controller.overlay, 0);
+      overlay.onChanged!(100);
+      overlay.onChangeEnd!(100);
+      await tester.pump();
+      expect(controller.overlay, 1);
+      expect(
+        tester
+            .widget<Slider>(find.byKey(const ValueKey('wallpaper_overlay')))
+            .value,
+        100,
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('wallpaper_overlay_auto')),
+      );
+      await tester.tap(find.byKey(const ValueKey('wallpaper_overlay_auto')));
+      await tester.pump();
+      expect(controller.overlay, isNull);
+      expect(automaticButton().onPressed, isNull);
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.byKey(const ValueKey('wallpaper_choose')));
 
       // Unsupported content shows an error and keeps the wallpaper.
       picked = Uint8List.fromList(utf8.encode('GIF89a-not-allowed'));
