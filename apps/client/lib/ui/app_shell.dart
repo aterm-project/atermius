@@ -3212,6 +3212,7 @@ class _HostsPageState extends State<_HostsPage> {
           HostSearchField(
             fieldKey: const ValueKey('cloud_home_search'),
             controller: _homeSearch,
+            captureTyping: true,
             onChanged: (_) => setState(() {}),
             onConnect: widget.onQuickConnect,
             onSearchSubmitted: visible.isEmpty

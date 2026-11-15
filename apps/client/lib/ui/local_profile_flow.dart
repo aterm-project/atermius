@@ -5370,6 +5370,8 @@ _showMessage(
           child: HostSearchField(
             fieldKey: const ValueKey('local_home_search'),
             controller: _homeSearch,
+            captureTyping: true,
+            active: _selectedTabId == 'hosts',
             onChanged: (_) => setState(() {}),
             onConnect: (request) => unawaited(_quickConnect(request)),
             onSearchSubmitted: hosts.isEmpty
