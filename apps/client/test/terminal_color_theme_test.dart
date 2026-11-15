@@ -12,46 +12,80 @@ void main() {
     final light = buildTerminalColorTheme(VaultTerminalThemeChoice.light);
 
     expect(dark.background.toARGB32(), 0xFF0F1425);
-    // Default SSH text is grass green and independent of the blue app accent.
-    expect(dark.foreground.toARGB32(), 0xFF9BEF60);
+    // Default SSH text is grass green and independent of the app accent.
+    expect(dark.foreground.toARGB32(), 0xFF91D27B);
     expect(dark.foreground, isNot(AppColors.accent));
     expect(dark.foreground, isNot(AppColors.accentText));
     // ANSI semantics are preserved (programs keep their colors).
-    expect(dark.red.toARGB32(), 0xFFFF6888);
-    expect(dark.green.toARGB32(), 0xFF69E19C);
-    expect(dark.blue.toARGB32(), 0xFF7CA7FF);
-    expect(dark.white.toARGB32(), 0xFFE9EDFF);
+    expect(dark.red.toARGB32(), 0xFFF17B82);
+    expect(dark.green.toARGB32(), 0xFF5CD299);
+    expect(dark.blue.toARGB32(), 0xFF77A6EC);
+    expect(dark.white.toARGB32(), 0xFFD9DEE6);
     expect(light.background.toARGB32(), 0xFFF8FAFC);
     expect(light.foreground.toARGB32(), 0xFF17202D);
     expect(light.background, isNot(dark.background));
     expect(light.cursor, isNot(dark.cursor));
   });
 
-  test('default SSH text has stronger contrast and saturation', () {
+  test('default dark palette is a soft, even family, not fluorescent', () {
     final dark = buildTerminalColorTheme(VaultTerminalThemeChoice.atermDark);
     double contrast(Color a, Color b) =>
         (math.max(a.computeLuminance(), b.computeLuminance()) + .05) /
         (math.min(a.computeLuminance(), b.computeLuminance()) + .05);
-    expect(
-      contrast(dark.foreground, dark.background),
-      greaterThan(contrast(const Color(0xFF9BD477), const Color(0xFF141729))),
-    );
-    expect(
-      HSVColor.fromColor(dark.foreground).saturation,
-      greaterThan(HSVColor.fromColor(const Color(0xFF9BD477)).saturation),
-    );
-    for (final color in [
-      dark.foreground,
+    final normal = [
       dark.red,
       dark.green,
       dark.yellow,
       dark.blue,
       dark.magenta,
       dark.cyan,
-      dark.white,
-    ]) {
+    ];
+    final bright = [
+      dark.brightRed,
+      dark.brightGreen,
+      dark.brightYellow,
+      dark.brightBlue,
+      dark.brightMagenta,
+      dark.brightCyan,
+    ];
+
+    // Body text: comfortably readable, and a grass green (yellowish green)
+    // that is clearly calmer than the fluorescent 0xFF9BEF60 it replaces.
+    expect(contrast(dark.foreground, dark.background), greaterThan(7));
+    final text = _oklch(dark.foreground);
+    final fluorescent = _oklch(const Color(0xFF9BEF60));
+    expect(text.hue, inInclusiveRange(125, 145));
+    expect(text.chroma, lessThan(.15));
+    expect(text.chroma, greaterThan(.10), reason: 'still green, not grey');
+    expect(text.chroma, lessThan(fluorescent.chroma - .04));
+    expect(text.lightness, lessThan(fluorescent.lightness - .04));
+
+    // Everything a program can print stays legible.
+    for (final color in [dark.foreground, ...normal, ...bright, dark.white]) {
       expect(contrast(color, dark.background), greaterThan(4.5));
     }
+    expect(contrast(dark.brightBlack, dark.background), greaterThan(4.5));
+
+    // One family: no colour is much more saturated or much lighter than the
+    // others, and each bright colour is a lighter version of its normal one.
+    for (final color in [...normal, ...bright]) {
+      expect(_oklch(color).chroma, inInclusiveRange(.07, .15));
+    }
+    final lightness = normal.map((color) => _oklch(color).lightness);
+    expect(
+      lightness.reduce(math.max) - lightness.reduce(math.min),
+      lessThan(.14),
+    );
+    for (var i = 0; i < normal.length; i++) {
+      final base = _oklch(normal[i]), lighter = _oklch(bright[i]);
+      expect(lighter.lightness, greaterThan(base.lightness + .03));
+      final hueGap = (lighter.hue - base.hue).abs();
+      expect(math.min(hueGap, 360 - hueGap), lessThan(12));
+    }
+
+    // ANSI green is still told apart from the default text.
+    final green = _oklch(dark.green);
+    expect((green.hue - text.hue).abs(), greaterThan(15));
   });
 
   test('app theme uses the emerald-teal emphasis with legible on-colors', () {
@@ -76,4 +110,21 @@ void main() {
       greaterThan(4.5),
     );
   });
+}
+
+/// OKLCH coordinates of [color]: perceptual lightness (0..1), chroma and hue
+/// in degrees.
+({double lightness, double chroma, double hue}) _oklch(Color color) {
+  double linear(double c) =>
+      c <= .04045 ? c / 12.92 : math.pow((c + .055) / 1.055, 2.4).toDouble();
+  final r = linear(color.r), g = linear(color.g), b = linear(color.b);
+  double cbrt(double v) => math.pow(v, 1 / 3).toDouble();
+  final l = cbrt(.4122214708 * r + .5363325363 * g + .0514459929 * b);
+  final m = cbrt(.2119034982 * r + .6806995451 * g + .1073969566 * b);
+  final s = cbrt(.0883024619 * r + .2817188376 * g + .6299787005 * b);
+  final lightness = .2104542553 * l + .7936177850 * m - .0040720468 * s;
+  final a = 1.9779984951 * l - 2.4285922050 * m + .4505937099 * s;
+  final bb = .0259040371 * l + .7827717662 * m - .8086757660 * s;
+  final hue = (math.atan2(bb, a) * 180 / math.pi + 360) % 360;
+  return (lightness: lightness, chroma: math.sqrt(a * a + bb * bb), hue: hue);
 }
