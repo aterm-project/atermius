@@ -55,6 +55,8 @@ import 'ssh/ssh_service.dart';
 import 'ssh/tmux_service.dart';
 import 'terminal/terminal_collaboration_service.dart';
 import 'terminal/mirrored_terminal.dart';
+import 'terminal/terminal_scrollback.dart';
+import 'terminal/terminal_scrollback_tiers.dart';
 import 'terminal/session_log.dart';
 import 'terminal/session_recovery.dart';
 import 'terminal/connect_progress.dart';
@@ -271,7 +273,10 @@ class TerminalTabSession {
     required this.host,
     this.shellHistoryVaultId,
     this.onShellHistoryChanged,
-  }) : terminal = MirroredTerminal(maxLines: 10000);
+  }) : terminal = MirroredTerminal(
+         maxLines: terminalScrollbackLines,
+         scrollback: newTerminalScrollback(),
+       );
 
   final String id;
   final String? shellHistoryVaultId;
@@ -509,7 +514,10 @@ class _TerminalShareHostRuntime {
 /// Runtime-only observer terminal. It has no input or resize path.
 class TerminalObserverTabSession {
   TerminalObserverTabSession({required this.id, required this.handle})
-    : terminal = Terminal(maxLines: 10000);
+    : terminal = Terminal(
+        maxLines: terminalScrollbackLines,
+        scrollback: newTerminalScrollback(),
+      );
 
   final String id;
   Terminal terminal;
@@ -2892,7 +2900,11 @@ class AppController extends ChangeNotifier {
     _clearTerminalShareGrant(observer, errorMessage: null);
     // A new Terminal starts with an empty screen and scrollback. This prevents
     // old output from looking current and gives the new observer no replay.
-    observer.terminal = Terminal(maxLines: 10000);
+    disposeTerminalScrollback(observer.terminal);
+    observer.terminal = Terminal(
+      maxLines: terminalScrollbackLines,
+      scrollback: newTerminalScrollback(),
+    );
     _notifyListenersIfAlive();
 
     TerminalShareObserverSession? newHandle;
@@ -3264,6 +3276,7 @@ class AppController extends ChangeNotifier {
     observer.controlExpiryTimer?.cancel();
     observer.controlExpiryTimer = null;
     observer.terminal.onOutput = null;
+    disposeTerminalScrollback(observer.terminal);
     final controller = observer.controller;
     observer.controller = null;
     try {

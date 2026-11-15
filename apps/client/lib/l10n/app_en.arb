@@ -16139,5 +16139,43 @@
   "keywordHighlightGroupLimit": "You can add up to {max} groups.",
   "@keywordHighlightGroupLimit": {"description": "Shown when no more custom highlighting groups can be added.", "placeholders": {"max": {"type": "int"}}},
   "keywordHighlightSaveFailed": "Couldn't save keyword highlighting on this device. It applies until the app is closed.",
-  "@keywordHighlightSaveFailed": {"description": "Shown when the keyword highlighting preference could not be written to device storage."}
+  "@keywordHighlightSaveFailed": {"description": "Shown when the keyword highlighting preference could not be written to device storage."},
+  "terminalScrollbackTitle": "Scrollback",
+  "@terminalScrollbackTitle": {
+    "description": "Title of the terminal setting that chooses how many lines of earlier output a terminal keeps."
+  },
+  "terminalScrollbackDescription": "The maximum number of lines of earlier output each terminal keeps. Older lines are kept compressed in memory. Beyond the in-memory part, older history is kept encrypted in a temporary file on this device and is removed when the tab closes. Nothing is synced.",
+  "@terminalScrollbackDescription": {
+    "description": "Explains the scrollback setting on builds with a disk tier: the number of retained output lines per terminal; older lines are held compressed in memory; history beyond the in-memory part lives encrypted in a temporary file on this device that is removed when the terminal tab closes; nothing is synced."
+  },
+  "terminalScrollbackDescriptionMemoryOnly": "The maximum number of lines of earlier output each terminal keeps. Older lines are kept compressed in memory. Nothing is synced.",
+  "@terminalScrollbackDescriptionMemoryOnly": {
+    "description": "Explains the scrollback setting on builds without a disk tier (the browser build): the number of retained output lines per terminal; older lines are held compressed in memory; nothing is synced."
+  },
+  "terminalScrollbackFieldLabel": "Lines kept per terminal",
+  "@terminalScrollbackFieldLabel": {
+    "description": "Label of the dropdown that selects the scrollback length."
+  },
+  "terminalScrollbackLines": "{count} lines",
+  "@terminalScrollbackLines": {
+    "description": "A scrollback length choice. count is an already locale-formatted number that is always 10,000 or more.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "terminalScrollbackLinesDefault": "{count} lines (default)",
+  "@terminalScrollbackLinesDefault": {
+    "description": "The default scrollback length choice. count is an already locale-formatted number that is always 10,000 or more.",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "terminalScrollbackAppliesToNew": "Applies to terminals opened afterwards. Terminals that are already open keep their current scrollback.",
+  "@terminalScrollbackAppliesToNew": {
+    "description": "Note under the scrollback setting: a change only affects terminals opened after it."
+  }
 }

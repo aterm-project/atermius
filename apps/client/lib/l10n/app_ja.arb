@@ -5151,5 +5151,12 @@
   "keywordHighlightDuplicate": "このグループには既にそのキーワードがあります。",
   "keywordHighlightGroupFull": "このグループは上限（{max} 件）に達しています。",
   "keywordHighlightGroupLimit": "追加できるグループは {max} 個までです。",
-  "keywordHighlightSaveFailed": "このデバイスにキーワードのハイライト設定を保存できませんでした。アプリを閉じるまで適用されます。"
+  "keywordHighlightSaveFailed": "このデバイスにキーワードのハイライト設定を保存できませんでした。アプリを閉じるまで適用されます。",
+  "terminalScrollbackTitle": "スクロールバック",
+  "terminalScrollbackDescription": "各ターミナルが保持する過去の出力の最大行数です。古い行はメモリ内で圧縮して保持されます。メモリに収まらない、さらに古い履歴は、このデバイス上の一時ファイルに暗号化して保存され、タブを閉じると削除されます。同期は一切行われません。",
+  "terminalScrollbackDescriptionMemoryOnly": "各ターミナルが保持する過去の出力の最大行数です。古い行はメモリ内で圧縮して保持されます。同期は一切行われません。",
+  "terminalScrollbackFieldLabel": "ターミナルごとの保持行数",
+  "terminalScrollbackLines": "{count} 行",
+  "terminalScrollbackLinesDefault": "{count} 行（既定）",
+  "terminalScrollbackAppliesToNew": "以降に開くターミナルに適用されます。すでに開いているターミナルは現在の行数のままです。"
 }

@@ -19491,4 +19491,32 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get keywordHighlightSaveFailed =>
       'Не удалось сохранить подсветку ключевых слов на этом устройстве. Она действует до закрытия приложения.';
+
+  @override
+  String get terminalScrollbackTitle => 'История прокрутки';
+
+  @override
+  String get terminalScrollbackDescription =>
+      'Наибольшее число строк предыдущего вывода, которое хранит каждый терминал. Старые строки хранятся в памяти в сжатом виде. Более старая история, не помещающаяся в памяти, хранится в зашифрованном виде во временном файле на этом устройстве и удаляется при закрытии вкладки. Ничего не синхронизируется.';
+
+  @override
+  String get terminalScrollbackDescriptionMemoryOnly =>
+      'Наибольшее число строк предыдущего вывода, которое хранит каждый терминал. Старые строки хранятся в памяти в сжатом виде. Ничего не синхронизируется.';
+
+  @override
+  String get terminalScrollbackFieldLabel => 'Строк на терминал';
+
+  @override
+  String terminalScrollbackLines(String count) {
+    return '$count строк';
+  }
+
+  @override
+  String terminalScrollbackLinesDefault(String count) {
+    return '$count строк (по умолчанию)';
+  }
+
+  @override
+  String get terminalScrollbackAppliesToNew =>
+      'Применяется к терминалам, открытым после изменения. Уже открытые терминалы сохраняют текущий размер истории.';
 }

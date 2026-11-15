@@ -30735,6 +30735,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t save keyword highlighting on this device. It applies until the app is closed.'**
   String get keywordHighlightSaveFailed;
+
+  /// Title of the terminal setting that chooses how many lines of earlier output a terminal keeps.
+  ///
+  /// In en, this message translates to:
+  /// **'Scrollback'**
+  String get terminalScrollbackTitle;
+
+  /// Explains the scrollback setting on builds with a disk tier: the number of retained output lines per terminal; older lines are held compressed in memory; history beyond the in-memory part lives encrypted in a temporary file on this device that is removed when the terminal tab closes; nothing is synced.
+  ///
+  /// In en, this message translates to:
+  /// **'The maximum number of lines of earlier output each terminal keeps. Older lines are kept compressed in memory. Beyond the in-memory part, older history is kept encrypted in a temporary file on this device and is removed when the tab closes. Nothing is synced.'**
+  String get terminalScrollbackDescription;
+
+  /// Explains the scrollback setting on builds without a disk tier (the browser build): the number of retained output lines per terminal; older lines are held compressed in memory; nothing is synced.
+  ///
+  /// In en, this message translates to:
+  /// **'The maximum number of lines of earlier output each terminal keeps. Older lines are kept compressed in memory. Nothing is synced.'**
+  String get terminalScrollbackDescriptionMemoryOnly;
+
+  /// Label of the dropdown that selects the scrollback length.
+  ///
+  /// In en, this message translates to:
+  /// **'Lines kept per terminal'**
+  String get terminalScrollbackFieldLabel;
+
+  /// A scrollback length choice. count is an already locale-formatted number that is always 10,000 or more.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} lines'**
+  String terminalScrollbackLines(String count);
+
+  /// The default scrollback length choice. count is an already locale-formatted number that is always 10,000 or more.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} lines (default)'**
+  String terminalScrollbackLinesDefault(String count);
+
+  /// Note under the scrollback setting: a change only affects terminals opened after it.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to terminals opened afterwards. Terminals that are already open keep their current scrollback.'**
+  String get terminalScrollbackAppliesToNew;
 }
 
 class _AppLocalizationsDelegate

@@ -59,6 +59,9 @@ import 'storage/keyword_highlight_store.dart';
 import 'storage/terminal_palette_store.dart';
 import 'terminal/keyword_highlighter.dart';
 import 'ui/terminal_palette.dart';
+import 'storage/terminal_scrollback_store.dart';
+import 'terminal/terminal_scrollback.dart';
+import 'terminal/scrollback_spill_store.dart';
 import 'ui/app_language_settings.dart';
 import 'cloud/cloud_access_api.dart';
 import 'cloud/cloud_access_crypto.dart';
@@ -181,6 +184,16 @@ Future<void> main(List<String> arguments) async {
   // Device-local, non-secret keyword highlighting rules for terminal output;
   // terminal child windows read them too.
   await TerminalKeywordHighlighter.instance.load(createKeywordHighlightStore());
+  // Device-local scrollback length for terminals created from now on; terminal
+  // child windows read it too so their terminals use the same limit.
+  await TerminalScrollbackController.instance.load(
+    createTerminalScrollbackStore(),
+  );
+  // Scrollback that no longer fits in memory spills to encrypted temporary
+  // files. Remove what earlier processes left behind (undecryptable, their
+  // keys only ever lived in memory); files of running processes, including
+  // other terminal windows, are recognised by their lock and left alone.
+  unawaited(cleanStaleScrollbackSpill());
   if (desktopLaunch != null) {
     // A remote desktop child only renders the parent's RDP/VNC session: never
     // initialize secure storage, profiles, Sodium, Firebase or a protocol

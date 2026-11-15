@@ -4,6 +4,8 @@ import 'dart:convert';
 
 import 'package:xterm/xterm.dart';
 
+import 'terminal_scrollback_tiers.dart';
+
 class MirroredTerminalChunk {
   const MirroredTerminalChunk(this.sequence, this.data);
   final int sequence;
@@ -14,6 +16,7 @@ class MirroredTerminalChunk {
 class MirroredTerminal extends Terminal {
   MirroredTerminal({
     super.maxLines,
+    super.scrollback,
     super.onBell,
     super.onTitleChange,
     super.onIconChange,
@@ -76,6 +79,8 @@ class MirroredTerminal extends Terminal {
       _historyBytes = 0;
       mainBuffer.clear();
       altBuffer.clear();
+      // The terminal is gone for good: delete its temporary scrollback file.
+      disposeTerminalScrollback(this);
       onOutput = null;
       onResize = null;
       onPrivateOSC = null;

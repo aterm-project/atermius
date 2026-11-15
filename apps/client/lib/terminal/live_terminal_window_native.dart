@@ -10,6 +10,8 @@ import 'package:flutter/foundation.dart';
 import 'package:xterm/xterm.dart';
 import 'live_terminal_window_contract.dart';
 import 'mirrored_terminal.dart';
+import 'terminal_scrollback.dart';
+import 'terminal_scrollback_tiers.dart';
 
 const _origin = 'atermius://terminal-window';
 const _protocol = 'atermius-terminal-v1';
@@ -547,7 +549,10 @@ class _LiveTerminalClient extends LiveTerminalWindowClient {
   }
   final WebSocket _socket;
   @override
-  final Terminal terminal = Terminal(maxLines: 10000);
+  final Terminal terminal = Terminal(
+    maxLines: terminalScrollbackLines,
+    scrollback: newTerminalScrollback(),
+  );
   final _initialized = Completer<void>();
   final _closeAcknowledged = Completer<void>();
   late final StreamSubscription<dynamic> _subscription;
@@ -693,6 +698,7 @@ class _LiveTerminalClient extends LiveTerminalWindowClient {
     await _socket.close().timeout(const Duration(seconds: 1), onTimeout: () {});
     await _subscription.cancel();
     _disconnected();
+    disposeTerminalScrollback(terminal);
     if (!_notifierDisposed) dispose();
   }
 

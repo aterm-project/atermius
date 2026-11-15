@@ -62,6 +62,7 @@ import 'host_card_layout.dart';
 import 'terminal_palette.dart';
 import 'terminal_keyword_highlight_settings.dart';
 import 'terminal_palette_picker.dart';
+import 'terminal_scrollback_setting.dart';
 import 'terminal_shortcut_editor.dart';
 import '../domain/sftp_entries.dart';
 import '../domain/snippet_invocation.dart';
@@ -15739,6 +15740,7 @@ class _SettingsPage extends StatelessWidget {
               SettingsCard(
                 child: TerminalPaletteGallery(synced: app.terminalTheme),
               ),
+              const SettingsCard(child: TerminalScrollbackSetting()),
               SettingsCard(
                 semanticContainer: false,
                 child: TerminalKeywordHighlightSettings(

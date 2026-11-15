@@ -66,6 +66,8 @@ import '../ssh/host_operating_system_probe.dart';
 import '../ssh/host_operating_system_persistence.dart';
 import '../terminal/terminal_search.dart';
 import '../terminal/mirrored_terminal.dart';
+import '../terminal/terminal_scrollback.dart';
+import '../terminal/terminal_scrollback_tiers.dart';
 import '../terminal/session_log.dart';
 import '../terminal/session_recovery.dart';
 import '../terminal/connect_progress.dart';
@@ -94,6 +96,7 @@ import 'host_card_layout.dart';
 import 'terminal_palette.dart';
 import 'terminal_keyword_highlight_settings.dart';
 import 'terminal_palette_picker.dart';
+import 'terminal_scrollback_setting.dart';
 import 'terminal_shortcut_editor.dart';
 import 'terminal_keybar.dart';
 import 'workspace_mode_settings.dart';
@@ -6104,6 +6107,7 @@ _showMessage(
             SettingsCard(
               child: TerminalPaletteGallery(synced: _savedTerminalThemeChoice),
             ),
+            const SettingsCard(child: TerminalScrollbackSetting()),
             SettingsCard(
               semanticContainer: false,
               child: TerminalKeywordHighlightSettings(
@@ -7552,7 +7556,10 @@ class _LocalTerminalSession {
   Future<void> telnetReady = Future<void>.value();
   bool get isTelnet =>
       host.protocol == HostProtocol.telnet && desktop == null && console == null;
-  final terminal = MirroredTerminal(maxLines: 5000);
+  final terminal = MirroredTerminal(
+    maxLines: terminalScrollbackLines,
+    scrollback: newTerminalScrollback(),
+  );
   final connected = ValueNotifier<bool>(true);
   final viewKey = GlobalKey<_LocalSshTerminalDialogState>();
   StreamSubscription<String>? _stdout, _stderr;

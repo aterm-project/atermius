@@ -19434,4 +19434,32 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get keywordHighlightSaveFailed =>
       'Couldn\'t save keyword highlighting on this device. It applies until the app is closed.';
+
+  @override
+  String get terminalScrollbackTitle => 'Scrollback';
+
+  @override
+  String get terminalScrollbackDescription =>
+      'The maximum number of lines of earlier output each terminal keeps. Older lines are kept compressed in memory. Beyond the in-memory part, older history is kept encrypted in a temporary file on this device and is removed when the tab closes. Nothing is synced.';
+
+  @override
+  String get terminalScrollbackDescriptionMemoryOnly =>
+      'The maximum number of lines of earlier output each terminal keeps. Older lines are kept compressed in memory. Nothing is synced.';
+
+  @override
+  String get terminalScrollbackFieldLabel => 'Lines kept per terminal';
+
+  @override
+  String terminalScrollbackLines(String count) {
+    return '$count lines';
+  }
+
+  @override
+  String terminalScrollbackLinesDefault(String count) {
+    return '$count lines (default)';
+  }
+
+  @override
+  String get terminalScrollbackAppliesToNew =>
+      'Applies to terminals opened afterwards. Terminals that are already open keep their current scrollback.';
 }

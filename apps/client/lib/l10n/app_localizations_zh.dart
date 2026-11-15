@@ -17407,4 +17407,31 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get keywordHighlightSaveFailed => '无法在本设备上保存关键词高亮设置。它会一直生效到应用关闭。';
+
+  @override
+  String get terminalScrollbackTitle => '回滚缓冲区';
+
+  @override
+  String get terminalScrollbackDescription =>
+      '每个终端最多保留的历史输出行数。较早的行会以压缩形式保存在内存中。超出内存部分的更早历史会加密保存在本设备的临时文件中，并在标签页关闭时删除。不会同步任何内容。';
+
+  @override
+  String get terminalScrollbackDescriptionMemoryOnly =>
+      '每个终端最多保留的历史输出行数。较早的行会以压缩形式保存在内存中。不会同步任何内容。';
+
+  @override
+  String get terminalScrollbackFieldLabel => '每个终端保留的行数';
+
+  @override
+  String terminalScrollbackLines(String count) {
+    return '$count 行';
+  }
+
+  @override
+  String terminalScrollbackLinesDefault(String count) {
+    return '$count 行（默认）';
+  }
+
+  @override
+  String get terminalScrollbackAppliesToNew => '对之后打开的终端生效。已打开的终端保持当前的回滚行数。';
 }

@@ -16,6 +16,42 @@
 | Temporary guest SSH/RDP / 临时访客访问 | Open its URL in a supported browser / 在支持的浏览器打开链接 | Separate account-free trusted-gateway flow / 独立免账户受信网关流程 |
 | External MCP / 外部 MCP | Desktop and Android loopback service, explicit opt-in; iOS has no listener / 桌面与 Android 回环服务，显式启用；iOS 不监听 | No OS listener / 不监听系统端口 |
 
+## Terminal scrollback / 终端回滚缓冲
+
+A terminal keeps up to **100,000 lines** of earlier output by default. Settings → Theme → **Scrollback** (both the account workspace and the local profile) offers 10,000, 50,000, 100,000, 500,000, 1,000,000 and 5,000,000 lines. The choice is stored on this device only and applies to terminals opened afterwards; open terminals, detached terminal windows included, keep the limit they were created with.
+
+The history is held in three tiers so that a long scrollback does not cost the memory of that many screen lines:
+
+1. **Recent lines** (the screen plus the 2,048 lines above it) stay as they are, about 2.2 KB per 80-column line.
+2. **Older lines** are packed in blocks of 256 lines and compressed **in memory**: roughly 26 bytes per line for ordinary log output, 55 for heavily colored output, 95 for wide CJK text and 60 to 150 for lines of random characters. 100,000 lines of log output take about 7 MiB including the recent lines (about 200 MiB uncompressed). The compressed part is capped at 16 MiB per terminal.
+3. **Beyond that**, on Windows, macOS, Linux, Android and iOS, the oldest blocks move to an **encrypted temporary file** in the application cache directory, at most 512 MiB per terminal (about 26 bytes per line of log output: 1,000,000 lines leave about 9 MiB on disk, 5,000,000 about 107 MiB). Each block is sealed with XChaCha20-Poly1305 under a random key that exists only in the memory of the running terminal, so the file cannot be read by anything else or after the app exits. The file is deleted when the tab or window is closed and when the scrollback is cleared; leftovers of a crashed app are removed at the next start. Nothing is synced or uploaded. If the disk cannot be written, the terminal carries on with the in-memory part only.
+
+The browser build has no file tier: it keeps up to 32 MiB of compressed history in memory (about 1,200,000 lines of log output).
+
+Whichever limit is reached first — the line count, or the budget of the last tier — the oldest lines are dropped. Scrolling, selecting, copying, searching and MCP `terminal_read` read archived lines exactly as they were written, colors included.
+
+Two things to know:
+
+- **Resizing.** Only the recent lines are wrapped again when the window width changes. Older lines keep the wrapping they had: in a wider window they stay as narrow as they were, and in a narrower window the part beyond the right edge is hidden (also from copy and search) until the window is widened again.
+- **Search** still covers the most recent 10,000 rows, as before, and says so when results are limited.
+
+终端默认最多保留 **100,000 行**历史输出。在 设置 → 主题 → **回滚缓冲区**（账户工作区与本地资料两种模式都有）可选 10,000、50,000、100,000、500,000、1,000,000、5,000,000 行。该选项只保存在本设备，对之后打开的终端生效；已打开的终端（包括分离出去的终端窗口）沿用创建时的上限。
+
+为了让很长的历史不占用同样多屏幕行的内存，历史分三层保存：
+
+1. **最近的行**（当前屏幕加上方 2,048 行）保持原样，80 列时每行约 2.2 KB。
+2. **更早的行**每 256 行打包并**在内存中压缩**：普通日志约 26 字节/行，大量着色输出约 55，中日韩宽字符约 95，随机字符整行约 60–150。10 万行日志连同最近的行共约 7 MiB（不压缩约 200 MiB）。每个终端的压缩部分上限为 16 MiB。
+3. **再往前**，在 Windows、macOS、Linux、Android、iOS 上，最旧的块会移到应用缓存目录中的**加密临时文件**，每个终端最多 512 MiB（日志约 26 字节/行：100 万行约占 9 MiB 磁盘，500 万行约 107 MiB）。每个块用 XChaCha20-Poly1305 加密，密钥随机生成且只存在于运行中终端的内存里，因此其他程序或应用退出后都无法读取该文件。关闭标签页或窗口、清除回滚内容时文件即被删除；应用崩溃留下的文件在下次启动时清理。不会同步或上传任何内容。磁盘无法写入时，终端只用内存部分继续工作。
+
+浏览器版本没有文件层：最多在内存中保留 32 MiB 压缩历史（日志约 120 万行）。
+
+行数上限或最后一层的容量上限，先到者生效，此时丢弃最旧的行。滚动、选择、复制、搜索和 MCP `terminal_read` 读到的已归档行与写入时完全一致，包括颜色。
+
+需要了解的两点：
+
+- **调整窗口大小。** 窗口宽度变化时只有最近的行会重新折行。更早的行保持归档时的折行：窗口变宽时它们仍是原来的宽度；窗口变窄时超出右边缘的部分会被隐藏（复制和搜索也看不到），重新加宽窗口后恢复。
+- **搜索**仍然只覆盖最近 10,000 行（与之前相同），结果受限时会有提示。
+
 Chinese, Japanese, English and Russian UI catalogs are included. Application accents and terminal palettes are separate settings. / 界面包含中、日、英、俄四种语言；应用强调色与终端配色分开设置。
 
 ## Terminal keyword highlighting / 终端关键词高亮

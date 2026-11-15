@@ -18318,4 +18318,32 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get keywordHighlightSaveFailed =>
       'このデバイスにキーワードのハイライト設定を保存できませんでした。アプリを閉じるまで適用されます。';
+
+  @override
+  String get terminalScrollbackTitle => 'スクロールバック';
+
+  @override
+  String get terminalScrollbackDescription =>
+      '各ターミナルが保持する過去の出力の最大行数です。古い行はメモリ内で圧縮して保持されます。メモリに収まらない、さらに古い履歴は、このデバイス上の一時ファイルに暗号化して保存され、タブを閉じると削除されます。同期は一切行われません。';
+
+  @override
+  String get terminalScrollbackDescriptionMemoryOnly =>
+      '各ターミナルが保持する過去の出力の最大行数です。古い行はメモリ内で圧縮して保持されます。同期は一切行われません。';
+
+  @override
+  String get terminalScrollbackFieldLabel => 'ターミナルごとの保持行数';
+
+  @override
+  String terminalScrollbackLines(String count) {
+    return '$count 行';
+  }
+
+  @override
+  String terminalScrollbackLinesDefault(String count) {
+    return '$count 行（既定）';
+  }
+
+  @override
+  String get terminalScrollbackAppliesToNew =>
+      '以降に開くターミナルに適用されます。すでに開いているターミナルは現在の行数のままです。';
 }
