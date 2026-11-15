@@ -12,6 +12,8 @@ import 'window_caption.dart';
 import 'workspace_controls.dart';
 import 'fullscreen_menu.dart';
 import 'fullscreen_tabs_peek.dart';
+import 'host_system_icon.dart';
+import '../domain/models.dart' show HostRecord;
 import '../l10n/l10n.dart';
 import '../platform/fullscreen.dart';
 import '../platform/window_chrome.dart';
@@ -29,6 +31,7 @@ class WorkspaceTab {
     this.canOpenFiles = true,
     this.canDisconnect = false,
     this.icon,
+    this.host,
     this.members = const [],
   });
   final String id, title;
@@ -37,7 +40,47 @@ class WorkspaceTab {
   final bool isFile, canDetach, canOpenFiles;
   final bool canDisconnect;
   final IconData? icon;
+
+  /// The Host this tab is a session of. Its tab shows the same icon as the
+  /// Host's card on the home page ([HostSystemIcon]); [icon] is then what is
+  /// shown while the Host's operating system is not known.
+  final HostRecord? host;
   final List<WorkspaceTab> members;
+}
+
+/// The icon in front of a tab's title. A session of a Host shows the Host's
+/// home page icon: the operating system mark keeps its own colours and is
+/// dimmed while the session is not connected.
+class _TabIcon extends StatelessWidget {
+  const _TabIcon({required this.tab, required this.size, required this.color});
+  final WorkspaceTab tab;
+  final double size;
+
+  /// Colour of a plain glyph, which is how the tab shows its state.
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final glyph =
+        tab.icon ??
+        (tab.isHome
+            ? Icons.home_outlined
+            : tab.isFile
+            ? Icons.folder_outlined
+            : Icons.terminal);
+    final host = tab.host;
+    if (host == null) return Icon(glyph, size: size, color: color);
+    final icon = HostSystemIcon(
+      host: host,
+      size: size,
+      plain: true,
+      fallbackIcon: glyph,
+      fallbackColor: color,
+    );
+    return host.detectedOperatingSystem != null && !tab.isConnected
+        ? Opacity(opacity: .55, child: icon)
+        : icon;
+  }
 }
 
 enum _TabCommand {
@@ -571,9 +614,8 @@ class WorkspaceTabBar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             children: [
-              Icon(
-                tab.icon ??
-                    (tab.isFile ? Icons.folder_outlined : Icons.terminal),
+              _TabIcon(
+                tab: tab,
                 size: bar.iconSize,
                 color: tab.isConnected ? colors.primary : colors.onSurfaceVariant,
               ),
@@ -1034,13 +1076,8 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
                   )
                 else ...[
                   const SizedBox(width: 10),
-                  Icon(
-                    tab.icon ??
-                        (tab.isHome
-                            ? Icons.home_outlined
-                            : tab.isFile
-                            ? Icons.folder_outlined
-                            : Icons.terminal),
+                  _TabIcon(
+                    tab: tab,
                     size: bar.iconSize,
                     color: tab.isConnected
                         ? palette.accentText

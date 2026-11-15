@@ -2,44 +2,74 @@ import 'package:flutter/material.dart';
 
 import '../domain/host_operating_system.dart';
 import '../domain/models.dart';
+import '../telnet/telnet_ui.dart' show hostProtocolIcon;
 import 'app_theme.dart';
 import '../l10n/l10n.dart';
 
-/// Local vector marks for authenticated OS observations. Unknown endpoints use
-/// the ordinary server icon; the address/name never predicts an OS.
+/// The icon that stands for a Host: on the home page cards and on the
+/// workspace tabs of its sessions, so both always show the same picture.
+///
+/// A Host whose operating system was observed over an authenticated
+/// connection shows that system's local vector mark. Without an observation
+/// the address or name never predicts a system: a remote desktop Host shows
+/// its protocol's icon (only SSH connections observe the system, so this is
+/// what RDP and VNC Hosts show), any other Host the ordinary server icon.
 class HostSystemIcon extends StatelessWidget {
-  const HostSystemIcon({required this.host, this.size = 24, super.key})
-    : assert(size > 0);
+  const HostSystemIcon({
+    required this.host,
+    this.size = 24,
+    this.plain = false,
+    this.fallbackIcon,
+    this.fallbackColor,
+    super.key,
+  }) : assert(size > 0);
   final HostRecord host;
   final double size;
+
+  /// Only the picture, without the tooltip and semantics label naming the
+  /// operating system. For places that describe themselves, such as a tab.
+  final bool plain;
+
+  /// Icon and colour used instead of the defaults when no operating system
+  /// has been observed.
+  final IconData? fallbackIcon;
+  final Color? fallbackColor;
+
+  /// The icon of [host] when its operating system is not known.
+  static IconData unidentifiedIcon(HostRecord host) => host.protocol.isTerminal
+      ? Icons.dns_outlined
+      : hostProtocolIcon(host.protocol);
 
   @override
   Widget build(BuildContext context) {
     final system = host.detectedOperatingSystem;
+    final color = _systemColor(system, context.palette.accentText);
+    final picture = system == null
+        ? Icon(
+            fallbackIcon ?? unidentifiedIcon(host),
+            size: size,
+            color: fallbackColor ?? color,
+          )
+        : {
+            HostOperatingSystemFamily.solaris,
+            HostOperatingSystemFamily.aix,
+            HostOperatingSystemFamily.unix,
+          }.contains(system.family)
+        ? Icon(Icons.computer_outlined, size: size, color: color)
+        : CustomPaint(
+            size: Size.square(size),
+            painter: _SystemMark(system.family, color),
+          );
+    if (plain) return picture;
     final label = system == null
         ? context.l10n.operatingSystemNotIdentifiedYet
         : system.version != null &&
               !system.displayName.contains(system.version!)
         ? '${system.displayName} · ${system.version}'
         : system.displayName;
-    final color = _systemColor(system, context.palette.accentText);
     return Semantics(
       label: context.l10n.operatingSystemLabel(label),
-      child: Tooltip(
-        message: label,
-        child: system == null
-            ? Icon(Icons.dns_outlined, size: size, color: color)
-            : {
-                HostOperatingSystemFamily.solaris,
-                HostOperatingSystemFamily.aix,
-                HostOperatingSystemFamily.unix,
-              }.contains(system.family)
-            ? Icon(Icons.computer_outlined, size: size, color: color)
-            : CustomPaint(
-                size: Size.square(size),
-                painter: _SystemMark(system.family, color),
-              ),
-      ),
+      child: Tooltip(message: label, child: picture),
     );
   }
 }

@@ -4707,6 +4707,15 @@ _showMessage(
                       id: session.id,
                       title: session.host.name,
                       icon: hostSessionIcon(session.host.protocol),
+                      // The current record, so the tab follows the home
+                      // page card when the operating system is identified
+                      // during this very session.
+                      host: session.console != null
+                          ? null
+                          : _hosts
+                                    .where((host) => host.id == session.host.id)
+                                    .firstOrNull ??
+                                session.host,
                       isConnected: session.connected.value,
                       canDisconnect: session.console == null && session.desktop == null &&
                           (session.connected.value || session.telnetState == 'connecting' ||

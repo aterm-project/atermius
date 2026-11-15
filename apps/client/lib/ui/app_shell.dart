@@ -1881,6 +1881,15 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                           final protocol? => hostSessionIcon(protocol),
                           null => null,
                         },
+                        // The current record, so the tab follows the home
+                        // page card when the operating system is identified
+                        // during this very session.
+                        host: tab.console != null || tab.host == null
+                            ? null
+                            : app.hosts
+                                      .where((host) => host.id == tab.host!.id)
+                                      .firstOrNull ??
+                                  tab.host,
                         isConnected: tab.state == 'connected',
                         canDisconnect: tab.host?.protocol.isTerminal == true && tab.console == null &&
                             (tab.state == 'connected' || tab.state == 'connecting' || tab.recovery?.automaticEnabled == true),
