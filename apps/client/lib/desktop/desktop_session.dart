@@ -17,6 +17,7 @@ import 'direct/rfb.dart';
 import 'direct/rdp.dart';
 import 'guacamole_protocol.dart';
 import 'desktop_resolution.dart';
+import 'desktop_wheel.dart';
 import 'local/local_desktop.dart';
 import 'rdp_features.dart';
 import 'rdp_local_drives.dart';
@@ -824,11 +825,33 @@ class DesktopSession extends ChangeNotifier {
       if (!_closed) _direct!.send(values);
       return;
     }
-    if (!_closed)
-      _write?.call(
-        Uint8List.fromList(utf8.encode(guacamoleInstruction(values))),
-      );
+    if (_closed) return;
+    if (values[0] == 'wheel') {
+      // Guacamole knows whole vertical notches only: a press and release of
+      // its scroll buttons. Sideways units are dropped.
+      final x = values[1], y = values[2];
+      final notches = _gatewayWheel.add(values[3] as int, values[4] as int);
+      for (final bit in notches) {
+        _instruction(['mouse', x, y, _gatewayButtons | bit]);
+        _instruction(['mouse', x, y, _gatewayButtons]);
+      }
+      return;
+    }
+    if (values[0] == 'mouse') {
+      final buttons = values[3];
+      if (buttons is int) _gatewayButtons = buttons & 7;
+    }
+    _instruction(values);
   }
+
+  void _instruction(List<Object> values) => _write?.call(
+    Uint8List.fromList(utf8.encode(guacamoleInstruction(values))),
+  );
+
+  /// Gateway sessions: the buttons held by the last `mouse` command, and
+  /// wheel units counted into whole notches.
+  int _gatewayButtons = 0;
+  final _gatewayWheel = DesktopWheelNotches(horizontal: false);
 
   @visibleForTesting
   RdpFeatures? rdpFeaturesForTesting;

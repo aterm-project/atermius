@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:pointycastle/export.dart';
 
+import '../desktop_wheel.dart';
 import '../../ssh/ssh_transport_io.dart'
     if (dart.library.js_interop) '../../ssh/ssh_transport_web.dart'
     as transport;
@@ -332,6 +333,20 @@ class RfbConnection implements DirectDesktopConnection {
     _write?.call(data.buffer.asUint8List());
   }
 
+  /// Buttons held by the last `mouse` command, and wheel units counted into
+  /// whole notches.
+  int _buttons = 0;
+  final _wheel = DesktopWheelNotches();
+
+  void _pointer(int x, int y, int mask) {
+    final data = ByteData(6)
+      ..setUint8(0, 5)
+      ..setUint8(1, mask)
+      ..setUint16(2, x.clamp(0, _width - 1))
+      ..setUint16(4, y.clamp(0, _height - 1));
+    _write?.call(data.buffer.asUint8List());
+  }
+
   @override
   void send(List<Object> command) {
     if (_closed) return;
@@ -342,12 +357,17 @@ class RfbConnection implements DirectDesktopConnection {
         ..setUint32(4, command[1] as int);
       _write?.call(data.buffer.asUint8List());
     } else if (command[0] == 'mouse') {
-      final data = ByteData(6)
-        ..setUint8(0, 5)
-        ..setUint8(1, command[3] as int)
-        ..setUint16(2, (command[1] as int).clamp(0, _width - 1))
-        ..setUint16(4, (command[2] as int).clamp(0, _height - 1));
-      _write?.call(data.buffer.asUint8List());
+      final mask = command[3] as int;
+      _buttons = mask & 7;
+      _pointer(command[1] as int, command[2] as int, mask);
+    } else if (command[0] == 'wheel') {
+      // RFB has no wheel message: each whole notch is a press and release
+      // of button 4/5 (vertical) or 6/7 (horizontal).
+      final x = command[1] as int, y = command[2] as int;
+      for (final bit in _wheel.add(command[3] as int, command[4] as int)) {
+        _pointer(x, y, _buttons | bit);
+        _pointer(x, y, _buttons);
+      }
     } else if (command[0] == 'size') {
       final explicit = command.length > 3 && command[3] == true;
       final request = rfbSetDesktopSize(

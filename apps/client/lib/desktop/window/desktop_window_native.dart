@@ -17,6 +17,7 @@ import '../desktop_session.dart';
 import '../direct/connection.dart';
 import 'desktop_window_contract.dart';
 import '../../l10n/l10n.dart';
+import '../desktop_wheel.dart';
 
 // A detached desktop window is a renderer process. The parent keeps the RDP/VNC
 // session, Host record and credentials; the child receives framebuffer updates
@@ -469,6 +470,22 @@ class DesktopWindowBroker {
           _pointerY = y;
           _buttons = buttons & 7; // wheel bits are momentary
           session.send(['mouse', x, y, buttons]);
+        case 'wheel':
+          // High-resolution wheel (DesktopWheelUnits): 120 units per notch,
+          // both deltas 0 ends the gesture. Nothing stays held.
+          final x = data['x'], y = data['y'];
+          final dx = data['dx'], dy = data['dy'];
+          if (!_clientReady ||
+              x is! int ||
+              y is! int ||
+              x < 0 ||
+              y < 0 ||
+              x > size.width ||
+              y > size.height ||
+              !DesktopWheelUnits.valid(dx, dy)) {
+            throw const FormatException();
+          }
+          session.send(['wheel', x, y, dx as int, dy as int]);
         case 'paste':
           final text = data['text'];
           if (!_clientReady || text is! String) throw const FormatException();
@@ -754,6 +771,16 @@ class MirroredDesktopSession extends DesktopSession {
             'x': values[1],
             'y': values[2],
             'buttons': values[3],
+          }),
+        );
+      case 'wheel':
+        _socket.add(
+          jsonEncode({
+            'type': 'wheel',
+            'x': values[1],
+            'y': values[2],
+            'dx': values[3],
+            'dy': values[4],
           }),
         );
       case 'size':

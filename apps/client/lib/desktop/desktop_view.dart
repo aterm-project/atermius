@@ -2,6 +2,7 @@ import '../ui/app_menu.dart';
 import '../ui/session_workspace.dart';
 import '../ui/fullscreen_menu.dart';
 import '../platform/fullscreen.dart';
+import '../platform/wheel_scroll_lines.dart';
 import '../domain/models.dart';
 import 'desktop_mobile_controls.dart';
 import 'desktop_keyboard_mode.dart';
@@ -14,6 +15,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,6 +24,7 @@ import 'desktop_display.dart';
 import 'desktop_resolution.dart';
 import 'desktop_resolution_dialog.dart';
 import 'desktop_session.dart';
+import 'desktop_wheel.dart';
 import 'local/local_desktop.dart';
 import '../l10n/l10n.dart';
 import '../ui/app_density.dart';
@@ -443,8 +446,122 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     }
   }
 
+  // Touchpad gestures and the high-resolution wheel of desktop platforms and
+  // the web. Android and iOS never get here: their touch input has its own
+  // scrolling and a wheel there keeps sending single notches.
+  final _wheel = DesktopWheelAccumulator();
+  final _touchpad = DesktopTouchpadGesture();
+
+  /// Wheel units went out since the last end-of-gesture marker.
+  bool _wheelOpen = false;
+
+  /// Left Ctrl is held down remotely by this view for a touchpad pinch.
+  bool _pinchControl = false;
+  static const _controlLeft = 0xffe3, _controlRight = 0xffe4;
+
+  /// Releases that Ctrl when a pinch stops zooming without ending (fingers
+  /// resting, or a system that never reports the end); the next zoom step
+  /// presses it again.
+  Timer? _pinchIdle;
+  static const _pinchIdleAfter = Duration(seconds: 1);
+
+  DesktopWheelScale _wheelScale() => DesktopWheelScale.of(
+    platform: Theme.of(context).platform,
+    web: kIsWeb,
+    devicePixelRatio: View.of(context).devicePixelRatio,
+    windowsScrollLines: systemWheelScrollLines,
+  );
+
+  /// Diagonal of the window in logical pixels: how far from the window's
+  /// corner the fixed point of a touchpad zoom can be.
+  double _windowDiagonal() {
+    final view = View.of(context);
+    final ratio = view.devicePixelRatio;
+    if (!ratio.isFinite || ratio <= 0) return 0;
+    final size = view.physicalSize / ratio;
+    return Offset(size.width, size.height).distance;
+  }
+
+  /// Turns the remote wheel at [point] by fractional wheel [units] (x, y).
+  /// Whole units are sent; the rest waits for the next event.
+  void _turnWheel(Offset point, (double, double) units) {
+    final whole = _wheel.add(units.$1, units.$2);
+    if (whole == null) return;
+    _wheelOpen = true;
+    session.display.movePointer(point);
+    session.send([
+      'wheel',
+      point.dx.round(),
+      point.dy.round(),
+      whole.$1,
+      whole.$2,
+    ]);
+  }
+
+  /// Zooms by [steps] the way Windows reports a touchpad pinch to
+  /// applications: Ctrl held with one vertical wheel notch per step. With
+  /// [hold] Ctrl stays down until [_endWheel] (the end of the gesture, or
+  /// anything that releases input) or until the pinch has rested for
+  /// [_pinchIdleAfter]; otherwise it is released at once.
+  void _zoom(Offset point, int steps, {required bool hold}) {
+    if (steps == 0) return;
+    // A Ctrl the user holds already does the job and is theirs to release.
+    if (!_pinchControl &&
+        !_pressed.containsValue(_controlLeft) &&
+        !_pressed.containsValue(_controlRight)) {
+      session.send(['key', _controlLeft, 1]);
+      _pinchControl = true;
+    }
+    session.display.movePointer(point);
+    session.send([
+      'wheel',
+      point.dx.round(),
+      point.dy.round(),
+      0,
+      steps.clamp(-32, 32).toInt() * DesktopWheelUnits.notch,
+    ]);
+    if (!hold) {
+      _releasePinchControl(session);
+    } else if (_pinchControl) {
+      _pinchIdle?.cancel();
+      _pinchIdle = Timer(_pinchIdleAfter, () {
+        if (mounted) _releasePinchControl(session);
+      });
+    }
+  }
+
+  void _releasePinchControl(DesktopSession receiver) {
+    _pinchIdle?.cancel();
+    _pinchIdle = null;
+    if (!_pinchControl) return;
+    _pinchControl = false;
+    // Left Ctrl pressed by the user during the pinch stays down until they
+    // release it.
+    if (_pressed.containsValue(_controlLeft)) return;
+    receiver.send(['key', _controlLeft, 0]);
+  }
+
+  /// Ends the touchpad gesture and the wheel run: releases the Ctrl of a
+  /// pinch, forgets fractional units and tells notch-counting transports to
+  /// forget theirs. Later updates of the same gesture do nothing.
+  void _endWheel(DesktopSession receiver) {
+    _touchpad.end();
+    _wheel.reset();
+    _releasePinchControl(receiver);
+    if (!_wheelOpen) return;
+    _wheelOpen = false;
+    receiver.send([
+      'wheel',
+      receiver.display.pointer.dx.round(),
+      receiver.display.pointer.dy.round(),
+      0,
+      0,
+    ]);
+  }
+
   void _release([DesktopSession? target]) {
     final receiver = target ?? session;
+    _endWheel(receiver);
     for (final key in _pressed.values) {
       receiver.send(['key', key, 0]);
     }
@@ -871,6 +988,20 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                               .clamp(0.0, covered);
                     _keyboardPan = _keyboardPan.clamp(0.0, hidden);
                     final offset = placed.translate(0, -_keyboardPan);
+                    // Where a point of this surface lies on the remote
+                    // desktop.
+                    Offset remote(Offset local) =>
+                        origin +
+                        Offset(
+                          ((local.dx - offset.dx) / scale).clamp(
+                            0,
+                            math.max(0, size.width - 1),
+                          ),
+                          ((local.dy - offset.dy) / scale).clamp(
+                            0,
+                            math.max(0, size.height - 1),
+                          ),
+                        );
                     void mouse(PointerEvent event, {int? wheel}) {
                       if (_mobilePlatform &&
                           _touch.trackpad &&
@@ -883,14 +1014,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                         );
                         return;
                       }
-                      final point =
-                          origin +
-                          Offset(
-                            ((event.localPosition.dx - offset.dx) / scale)
-                                .clamp(0, math.max(0, size.width - 1)),
-                            ((event.localPosition.dy - offset.dy) / scale)
-                                .clamp(0, math.max(0, size.height - 1)),
-                          );
+                      final point = remote(event.localPosition);
                       if (_mobilePlatform &&
                           event.kind == PointerDeviceKind.touch) {
                         if (event is PointerDownEvent) _focusAfterActivation();
@@ -965,6 +1089,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                         },
                         onExit: (_) {
                           _capture.update(hovered: false);
+                          _endWheel(session);
                           setState(() => _pointerInside = false);
                         },
                         child: Listener(
@@ -978,16 +1103,69 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                             _release();
                           },
                           onPointerSignal: (e) {
+                            final signals =
+                                GestureBinding.instance.pointerSignalResolver;
                             if (e is PointerScrollEvent) {
-                              GestureBinding.instance.pointerSignalResolver
-                                  .register(
+                              signals.register(e, (_) {
+                                if (_mobilePlatform) {
+                                  // Android and iOS: one vertical notch per
+                                  // event, as before.
+                                  mouse(
                                     e,
-                                    (_) => mouse(
-                                      e,
-                                      wheel: e.scrollDelta.dy < 0 ? 8 : 16,
-                                    ),
+                                    wheel: e.scrollDelta.dy < 0 ? 8 : 16,
                                   );
+                                  return;
+                                }
+                                // Wheels, tilt wheels and touchpads without
+                                // gesture events: as far as the device said,
+                                // on both axes.
+                                _turnWheel(
+                                  remote(e.localPosition),
+                                  _wheelScale().ofScroll(
+                                    e.scrollDelta,
+                                    wheelClick:
+                                        e.kind == PointerDeviceKind.mouse,
+                                  ),
+                                );
+                              });
+                            } else if (e is PointerScaleEvent &&
+                                !_mobilePlatform) {
+                              // A browser reports a touchpad pinch as scale
+                              // signals, which have no end.
+                              signals.register(
+                                e,
+                                (_) => _zoom(
+                                  remote(e.localPosition),
+                                  _touchpad.scaleSignal(e.scale),
+                                  hold: false,
+                                ),
+                              );
                             }
+                          },
+                          // Touchpad gestures (Windows precision touchpads,
+                          // macOS and Linux touchpads): two fingers scroll,
+                          // a pinch zooms. Taps and pointer movement arrive
+                          // as mouse events above.
+                          onPointerPanZoomStart: (_) {
+                            if (_mobilePlatform) return;
+                            _endWheel(session);
+                            _touchpad.start();
+                          },
+                          onPointerPanZoomUpdate: (e) {
+                            if (_mobilePlatform) return;
+                            final step = _touchpad.update(
+                              e.pan,
+                              e.scale,
+                              reach: _windowDiagonal(),
+                            );
+                            final point = remote(e.localPosition);
+                            if (step.pan != Offset.zero) {
+                              _turnWheel(point, _wheelScale().ofPan(step.pan));
+                            }
+                            _zoom(point, step.zoom, hold: true);
+                          },
+                          onPointerPanZoomEnd: (_) {
+                            if (!_mobilePlatform) _endWheel(session);
                           },
                           child: ClipRect(
                             child: CustomPaint(

@@ -9,6 +9,7 @@ import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import '../desktop_wheel.dart';
 import '../rdp_features.dart';
 import '../rdp_storage.dart';
 import '../rdp_storage_io.dart';
@@ -268,6 +269,31 @@ class RdpConnection implements DirectDesktopConnection {
   }
 }
 
+/// Applies a `['wheel', x, y, dx, dy]` command (see [DesktopWheelUnits]) to
+/// an RDP engine. [wheel] is the engine's high-resolution `aterm_rdp_wheel`,
+/// null in an installed engine older than that export: such an engine gets
+/// whole notches through the wheel bits of `aterm_rdp_mouse` ([mouse], with
+/// the [buttons] held), counted by [notches]. Those bits are vertical only,
+/// so [notches] must be built with `horizontal: false`.
+void rdpWheel(
+  List<dynamic> command, {
+  required void Function(int x, int y, int dx, int dy)? wheel,
+  required void Function(int x, int y, int buttons) mouse,
+  required DesktopWheelNotches notches,
+  required int buttons,
+}) {
+  final x = command[1] as int, y = command[2] as int;
+  final dx = command[3] as int, dy = command[4] as int;
+  if (wheel != null) {
+    if (dx != 0 || dy != 0) wheel(x, y, dx, dy);
+    return;
+  }
+  for (final bit in notches.add(dx, dy)) {
+    // The engine treats wheel bits as momentary; no release packet follows.
+    mouse(x, y, buttons | bit);
+  }
+}
+
 const _eventFileRequest = 1, _eventFileData = 2;
 const _eventBufferBytes = 8 * 1024 * 1024 + 64;
 
@@ -284,6 +310,10 @@ void _rdpWorker(List<dynamic> args) {
   int cursorRevision = -1, pointerRevision = 0;
   bool canResize = false;
   bool? canTouch;
+  // For engines without aterm_rdp_wheel ([rdpWheel]): the buttons held, and
+  // wheel units counted into the vertical notches aterm_rdp_mouse can send.
+  int buttons = 0;
+  final wheelNotches = DesktopWheelNotches(horizontal: false);
   Pointer<Uint32> info = nullptr, clipRevision = nullptr, eventHeader = nullptr;
   Pointer<Uint32> pointerInfo = nullptr;
   Pointer<Uint8> clipBuffer = nullptr, eventBuffer = nullptr;
@@ -421,11 +451,23 @@ void _rdpWorker(List<dynamic> args) {
             api!.key(handle, code, down, unicode ? 1 : 0);
           }
         case 'mouse':
+          buttons = (command[3] as int) & 7;
           api!.mouse(
             handle,
             command[1] as int,
             command[2] as int,
             command[3] as int,
+          );
+        case 'wheel':
+          final wheel = api!.wheel;
+          rdpWheel(
+            command,
+            wheel: wheel == null
+                ? null
+                : (x, y, dx, dy) => wheel(handle, x, y, dx, dy),
+            mouse: (x, y, mask) => api!.mouse(handle, x, y, mask),
+            notches: wheelNotches,
+            buttons: buttons,
           );
         case 'touch':
           api!.touch?.call(
@@ -1020,6 +1062,12 @@ class _RdpNative {
               int Function(Pointer<Void>, int, int, int, int)
             >('aterm_rdp_touch')
           : null,
+      wheel = library.providesSymbol('aterm_rdp_wheel')
+          ? library.lookupFunction<
+              Int32 Function(Pointer<Void>, Int32, Int32, Int32, Int32),
+              int Function(Pointer<Void>, int, int, int, int)
+            >('aterm_rdp_wheel')
+          : null,
       resize = library
           .lookupFunction<
             Int32 Function(Pointer<Void>, Uint32, Uint32),
@@ -1109,6 +1157,10 @@ class _RdpNative {
   final _NextEvent? nextEvent;
   final int Function(Pointer<Void>)? canResize, canTouch;
   final int Function(Pointer<Void>, int, int, int, int)? touch;
+
+  /// High-resolution wheel (x, y, dx, dy); null in engines that only have
+  /// the one-notch wheel bits of [mouse].
+  final int Function(Pointer<Void>, int, int, int, int)? wheel;
   final int Function(Pointer<Utf8>)? setHome;
   final void Function(Pointer<Void>) free;
 }

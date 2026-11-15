@@ -1094,6 +1094,41 @@ API int aterm_rdp_mouse(void* handle, int x, int y, UINT32 buttons) {
   c->buttons = buttons & 7;
   return ok;
 }
+// Optional export: older installed DLLs keep the one-notch wheel bits of
+// aterm_rdp_mouse. Turns the wheel at (x, y) by dx/dy signed wheel units, 120
+// per notch, in the Windows convention: dy > 0 scrolls up, dx > 0 scrolls
+// right (lib/desktop/desktop_wheel.dart). The rotation of one pointer event is
+// a 9-bit two's complement number, so a larger amount goes out as several
+// events. FreeRDP drops the horizontal ones when the server announced no
+// horizontal wheel.
+static BOOL wheel_rotate(rdpInput* input, UINT16 axis, int units) {
+  BOOL ok = TRUE;
+  while (units != 0) {
+    int step = units > 255 ? 255 : (units < -255 ? -255 : units);
+    UINT16 flags = (UINT16)(axis | ((unsigned int)step & WheelRotationMask));
+    ok = freerdp_input_send_mouse_event(input, flags, 0, 0) && ok;
+    units -= step;
+  }
+  return ok;
+}
+API int aterm_rdp_wheel(void* handle, int x, int y, int dx, int dy) {
+  AtermContext* c = (AtermContext*)handle;
+  if (!c) return 0;
+  rdpInput* input = c->context.input;
+  const int limit = 120 * 32;
+  if (x < 0) x = 0;
+  if (y < 0) y = 0;
+  if (x > 0xffff) x = 0xffff;
+  if (y > 0xffff) y = 0xffff;
+  if (dx > limit) dx = limit;
+  if (dx < -limit) dx = -limit;
+  if (dy > limit) dy = limit;
+  if (dy < -limit) dy = -limit;
+  BOOL ok = freerdp_input_send_mouse_event(input, PTR_FLAGS_MOVE, (UINT16)x, (UINT16)y);
+  ok = wheel_rotate(input, PTR_FLAGS_WHEEL, dy) && ok;
+  ok = wheel_rotate(input, PTR_FLAGS_HWHEEL, dx) && ok;
+  return ok;
+}
 // Optional exports: older installed DLLs continue to use mouse fallback.
 API int aterm_rdp_can_touch(void* handle) {
 #if defined(ATERMIUS_RDP_NATIVE_TOUCH)

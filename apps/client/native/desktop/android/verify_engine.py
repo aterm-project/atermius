@@ -40,6 +40,7 @@ REQUIRED_EXPORTS = frozenset(
         "aterm_rdp_pointer",
         "aterm_rdp_key",
         "aterm_rdp_mouse",
+        "aterm_rdp_wheel",
         "aterm_rdp_can_touch",
         "aterm_rdp_touch",
         "aterm_rdp_resize",
