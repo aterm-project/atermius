@@ -15979,5 +15979,97 @@
   "desktopImeModeUseComposed": "Switch to input method: type Chinese, Japanese and other languages",
   "@desktopImeModeUseComposed": {
     "description": "Tooltip of the input-mode button on the special-key bar of an Android remote desktop while direct key mode is active."
+  },
+  "allowInsecureServerTitle": "Allow insecure connection (insecure, development only)",
+  "@allowInsecureServerTitle": {
+    "description": "Sign-in page: label of the development-only switch that allows an insecure connection to the entered account server."
+  },
+  "allowInsecureServerWarning": "Accepts a certificate that cannot be verified, or plain http://, for this server only. Never use it with real data.",
+  "@allowInsecureServerWarning": {
+    "description": "Sign-in page: warning under the insecure-connection switch on native platforms."
+  },
+  "allowInsecureServerWarningWeb": "In a browser this can only allow a plain http:// address, and only where the browser itself permits it. Certificate errors cannot be skipped here.",
+  "@allowInsecureServerWarningWeb": {
+    "description": "Sign-in page: warning under the insecure-connection switch in a browser, where certificate errors cannot be bypassed."
+  },
+  "allowInsecureServerConfirmTitle": "Allow an insecure connection?",
+  "@allowInsecureServerConfirmTitle": {
+    "description": "Title of the confirmation dialog shown before the insecure-connection option is turned on."
+  },
+  "allowInsecureServerConfirmBody": "Atermius will connect to {origin} without verifying the server's identity: certificate errors are ignored, and an http:// address is not encrypted at all.\n\nAnyone on the network path can read or change everything that is sent, including the account password proof and your synced data.\n\nUse this only for a development server, never with real data. It applies to this server only and is stored on this device only.",
+  "@allowInsecureServerConfirmBody": {
+    "description": "Body of the confirmation dialog for the insecure-connection option on native platforms. origin is the server origin it applies to.",
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "allowInsecureServerConfirmBodyWeb": "Atermius will connect to {origin} over plain http://, without encryption and without verifying the server's identity.\n\nAnyone on the network path can read or change everything that is sent, including the account password proof and your synced data.\n\nThe browser may still block the connection, and certificate errors can never be skipped in a browser. Use this only for a development server, never with real data. It applies to this server only and is stored in this browser only.",
+  "@allowInsecureServerConfirmBodyWeb": {
+    "description": "Body of the confirmation dialog for the insecure-connection option in a browser. origin is the server origin it applies to.",
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "allowInsecureServerConfirmAction": "Allow insecure connection",
+  "@allowInsecureServerConfirmAction": {
+    "description": "Confirm button of the insecure-connection confirmation dialog."
+  },
+  "allowInsecureServerNeedsAddress": "Enter the server address first, starting with https:// or http://.",
+  "@allowInsecureServerNeedsAddress": {
+    "description": "Shown when the insecure-connection switch is turned on before a valid server address was entered."
+  },
+  "allowInsecureServerWebHttpsUnsupported": "A browser cannot skip certificate checks, so this option has no effect for an https:// address here. Trust the certificate in the browser or operating system instead.",
+  "@allowInsecureServerWebHttpsUnsupported": {
+    "description": "Shown in a browser when the insecure-connection switch is turned on for an https address, where it cannot have any effect."
+  },
+  "insecureServerConnect": "Connect (insecure)",
+  "@insecureServerConnect": {
+    "description": "Sign-in page: label of the connect button while the insecure-connection option is on (replaces 'Connect securely')."
+  },
+  "insecureServerIndicator": "Insecure connection — development only",
+  "@insecureServerIndicator": {
+    "description": "Persistent warning shown while the session uses an account server with the insecure-connection option on."
+  },
+  "insecureServerIndicatorDetails": "Details",
+  "@insecureServerIndicatorDetails": {
+    "description": "Tooltip/button of the insecure-connection indicator that opens its details."
+  },
+  "insecureServerDetailTitle": "Insecure connection",
+  "@insecureServerDetailTitle": {
+    "description": "Title of the dialog explaining the active insecure connection."
+  },
+  "insecureServerDetailBody": "This device is allowed to connect to {origin} without verifying the server's identity and, for an http:// address, without encryption.\n\nAnyone on the network path can read or change everything that is sent, including the account password proof and your synced data. Development use only.",
+  "@insecureServerDetailBody": {
+    "description": "Body of the dialog explaining the active insecure connection. origin is the server origin it applies to.",
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "insecureServerDetailTurnOff": "To turn it off, sign out, choose “Change server” on the sign-in page and connect again with the option off.",
+  "@insecureServerDetailTurnOff": {
+    "description": "Explains how to turn the insecure-connection option off again; refers to the 'Change server' button on the sign-in page."
+  },
+  "insecureServerHttpHint": "For a development server only, you can turn on “Allow insecure connection” below. Never use it for production.",
+  "@insecureServerHttpHint": {
+    "description": "Appended to the error for a refused non-loopback http server address; points at the insecure-connection option on the sign-in page."
+  },
+  "insecureServerCertificateHint": "The server's certificate could not be verified (for example self-signed, expired or issued for another name), so the connection was refused. For a development server only, you can turn on “Allow insecure connection” below. Never use it for production.",
+  "@insecureServerCertificateHint": {
+    "description": "Error shown when the server certificate could not be verified and the insecure-connection option is off."
+  },
+  "insecureServerAppliesTo": "Server: {origin}",
+  "@insecureServerAppliesTo": {
+    "description": "Names the server origin the insecure-connection option applies to.",
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
   }
 }

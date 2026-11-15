@@ -35,7 +35,7 @@ ATERMIUS_ADMIN_USERNAMES=admin@example.com
 ATERMIUS_PUBLIC_ORIGIN=http://localhost:8081
 ```
 
-将管理员用户名改为自己的值。默认不开放公共注册，第一个账户使用 bootstrap 令牌；创建组织默认要求实例管理员。HTTP 仅用于回环开发，其他电脑/手机访问应使用下节 HTTPS。
+将管理员用户名改为自己的值。默认不开放公共注册，第一个账户使用 bootstrap 令牌；创建组织默认要求实例管理员。HTTP 仅用于回环开发，其他电脑/手机访问应使用下节 HTTPS。（使用自签名证书的开发服务器，原生客户端登录页提供仅限开发使用的[允许不安全连接](../GETTING_STARTED.md#开发服务器允许不安全连接)开关；切勿用于真实数据。）
 
 ### 首次启动前生成数据库密钥
 

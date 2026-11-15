@@ -30429,6 +30429,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Switch to input method: type Chinese, Japanese and other languages'**
   String get desktopImeModeUseComposed;
+
+  /// Sign-in page: label of the development-only switch that allows an insecure connection to the entered account server.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow insecure connection (insecure, development only)'**
+  String get allowInsecureServerTitle;
+
+  /// Sign-in page: warning under the insecure-connection switch on native platforms.
+  ///
+  /// In en, this message translates to:
+  /// **'Accepts a certificate that cannot be verified, or plain http://, for this server only. Never use it with real data.'**
+  String get allowInsecureServerWarning;
+
+  /// Sign-in page: warning under the insecure-connection switch in a browser, where certificate errors cannot be bypassed.
+  ///
+  /// In en, this message translates to:
+  /// **'In a browser this can only allow a plain http:// address, and only where the browser itself permits it. Certificate errors cannot be skipped here.'**
+  String get allowInsecureServerWarningWeb;
+
+  /// Title of the confirmation dialog shown before the insecure-connection option is turned on.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow an insecure connection?'**
+  String get allowInsecureServerConfirmTitle;
+
+  /// Body of the confirmation dialog for the insecure-connection option on native platforms. origin is the server origin it applies to.
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius will connect to {origin} without verifying the server\'s identity: certificate errors are ignored, and an http:// address is not encrypted at all.\n\nAnyone on the network path can read or change everything that is sent, including the account password proof and your synced data.\n\nUse this only for a development server, never with real data. It applies to this server only and is stored on this device only.'**
+  String allowInsecureServerConfirmBody(String origin);
+
+  /// Body of the confirmation dialog for the insecure-connection option in a browser. origin is the server origin it applies to.
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius will connect to {origin} over plain http://, without encryption and without verifying the server\'s identity.\n\nAnyone on the network path can read or change everything that is sent, including the account password proof and your synced data.\n\nThe browser may still block the connection, and certificate errors can never be skipped in a browser. Use this only for a development server, never with real data. It applies to this server only and is stored in this browser only.'**
+  String allowInsecureServerConfirmBodyWeb(String origin);
+
+  /// Confirm button of the insecure-connection confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow insecure connection'**
+  String get allowInsecureServerConfirmAction;
+
+  /// Shown when the insecure-connection switch is turned on before a valid server address was entered.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the server address first, starting with https:// or http://.'**
+  String get allowInsecureServerNeedsAddress;
+
+  /// Shown in a browser when the insecure-connection switch is turned on for an https address, where it cannot have any effect.
+  ///
+  /// In en, this message translates to:
+  /// **'A browser cannot skip certificate checks, so this option has no effect for an https:// address here. Trust the certificate in the browser or operating system instead.'**
+  String get allowInsecureServerWebHttpsUnsupported;
+
+  /// Sign-in page: label of the connect button while the insecure-connection option is on (replaces 'Connect securely').
+  ///
+  /// In en, this message translates to:
+  /// **'Connect (insecure)'**
+  String get insecureServerConnect;
+
+  /// Persistent warning shown while the session uses an account server with the insecure-connection option on.
+  ///
+  /// In en, this message translates to:
+  /// **'Insecure connection — development only'**
+  String get insecureServerIndicator;
+
+  /// Tooltip/button of the insecure-connection indicator that opens its details.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get insecureServerIndicatorDetails;
+
+  /// Title of the dialog explaining the active insecure connection.
+  ///
+  /// In en, this message translates to:
+  /// **'Insecure connection'**
+  String get insecureServerDetailTitle;
+
+  /// Body of the dialog explaining the active insecure connection. origin is the server origin it applies to.
+  ///
+  /// In en, this message translates to:
+  /// **'This device is allowed to connect to {origin} without verifying the server\'s identity and, for an http:// address, without encryption.\n\nAnyone on the network path can read or change everything that is sent, including the account password proof and your synced data. Development use only.'**
+  String insecureServerDetailBody(String origin);
+
+  /// Explains how to turn the insecure-connection option off again; refers to the 'Change server' button on the sign-in page.
+  ///
+  /// In en, this message translates to:
+  /// **'To turn it off, sign out, choose “Change server” on the sign-in page and connect again with the option off.'**
+  String get insecureServerDetailTurnOff;
+
+  /// Appended to the error for a refused non-loopback http server address; points at the insecure-connection option on the sign-in page.
+  ///
+  /// In en, this message translates to:
+  /// **'For a development server only, you can turn on “Allow insecure connection” below. Never use it for production.'**
+  String get insecureServerHttpHint;
+
+  /// Error shown when the server certificate could not be verified and the insecure-connection option is off.
+  ///
+  /// In en, this message translates to:
+  /// **'The server\'s certificate could not be verified (for example self-signed, expired or issued for another name), so the connection was refused. For a development server only, you can turn on “Allow insecure connection” below. Never use it for production.'**
+  String get insecureServerCertificateHint;
+
+  /// Names the server origin the insecure-connection option applies to.
+  ///
+  /// In en, this message translates to:
+  /// **'Server: {origin}'**
+  String insecureServerAppliesTo(String origin);
 }
 
 class _AppLocalizationsDelegate

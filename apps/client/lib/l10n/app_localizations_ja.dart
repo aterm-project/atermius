@@ -18131,4 +18131,73 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get desktopImeModeUseComposed => 'IME 入力に切り替え：日本語や中国語などを入力できます';
+
+  @override
+  String get allowInsecureServerTitle => '安全でない接続を許可（安全ではありません。開発専用）';
+
+  @override
+  String get allowInsecureServerWarning =>
+      'このサーバーに限り、検証できない証明書または平文の http:// を受け入れます。実データには絶対に使用しないでください。';
+
+  @override
+  String get allowInsecureServerWarningWeb =>
+      'ブラウザーでは、平文の http:// アドレスのみを許可でき、ブラウザー自体が許可する場合に限られます。証明書エラーをここで無視することはできません。';
+
+  @override
+  String get allowInsecureServerConfirmTitle => '安全でない接続を許可しますか？';
+
+  @override
+  String allowInsecureServerConfirmBody(String origin) {
+    return 'Atermius はサーバーの身元を検証せずに $origin に接続します。証明書エラーは無視され、http:// アドレスはまったく暗号化されません。\n\nネットワーク経路上の誰もが、アカウントのパスワード証明や同期データを含む、送信されるすべての内容を読み取り、改ざんできます。\n\n開発用サーバーにのみ使用し、実データには絶対に使用しないでください。この設定はこのサーバーにのみ適用され、このデバイスにのみ保存されます。';
+  }
+
+  @override
+  String allowInsecureServerConfirmBodyWeb(String origin) {
+    return 'Atermius は暗号化もサーバーの身元の検証も行わずに、平文の http:// で $origin に接続します。\n\nネットワーク経路上の誰もが、アカウントのパスワード証明や同期データを含む、送信されるすべての内容を読み取り、改ざんできます。\n\nブラウザーが接続をブロックする場合があり、ブラウザーでは証明書エラーを無視できません。開発用サーバーにのみ使用し、実データには絶対に使用しないでください。この設定はこのサーバーにのみ適用され、このブラウザーにのみ保存されます。';
+  }
+
+  @override
+  String get allowInsecureServerConfirmAction => '安全でない接続を許可';
+
+  @override
+  String get allowInsecureServerNeedsAddress =>
+      '先に https:// または http:// で始まるサーバーアドレスを入力してください。';
+
+  @override
+  String get allowInsecureServerWebHttpsUnsupported =>
+      'ブラウザーは証明書の検証を省略できないため、ここでは https:// アドレスに対してこのオプションは効果がありません。代わりにブラウザーまたは OS で証明書を信頼してください。';
+
+  @override
+  String get insecureServerConnect => '接続（安全ではありません）';
+
+  @override
+  String get insecureServerIndicator => '安全でない接続 — 開発専用';
+
+  @override
+  String get insecureServerIndicatorDetails => '詳細';
+
+  @override
+  String get insecureServerDetailTitle => '安全でない接続';
+
+  @override
+  String insecureServerDetailBody(String origin) {
+    return 'このデバイスは、サーバーの身元を検証せずに $origin に接続することを許可されています。http:// アドレスの場合は暗号化もされません。\n\nネットワーク経路上の誰もが、アカウントのパスワード証明や同期データを含む、送信されるすべての内容を読み取り、改ざんできます。開発専用です。';
+  }
+
+  @override
+  String get insecureServerDetailTurnOff =>
+      'オフにするには、サインアウトし、サインイン画面で「サーバーを変更」を選び、このオプションをオフにして接続し直してください。';
+
+  @override
+  String get insecureServerHttpHint =>
+      '開発用サーバーに限り、下の「安全でない接続を許可」をオンにできます。本番環境では絶対に使用しないでください。';
+
+  @override
+  String get insecureServerCertificateHint =>
+      'サーバーの証明書を検証できなかったため（自己署名、期限切れ、別の名前に発行されたものなど）、接続を拒否しました。開発用サーバーに限り、下の「安全でない接続を許可」をオンにできます。本番環境では絶対に使用しないでください。';
+
+  @override
+  String insecureServerAppliesTo(String origin) {
+    return 'サーバー: $origin';
+  }
 }

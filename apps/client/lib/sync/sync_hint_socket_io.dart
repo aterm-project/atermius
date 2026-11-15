@@ -3,13 +3,20 @@ import 'dart:io';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../api/insecure_server.dart';
+import '../api/server_transport_io.dart';
 import 'sync_hint_socket.dart';
 
 Future<SyncHintSocket> connectSyncHintSocket(
   Uri uri, {
   required String origin,
+  InsecureServerPermission? insecure,
 }) async => _IoSyncHintSocket(
-  IOWebSocketChannel.connect(uri, headers: {'Origin': origin}),
+  connectServerIoWebSocket(
+    uri,
+    insecure: insecure,
+    headers: {'Origin': origin},
+  ),
 );
 
 class _IoSyncHintSocket implements SyncHintSocket {

@@ -24,6 +24,49 @@ String secureStorageNamespace(String baseUrl) {
   return '$scheme://$host$port${Uri.encodeComponent(path)}';
 }
 
+/// The server this device last connected to, with the device-local,
+/// development-only "allow insecure connection" choice made for it.
+///
+/// Both travel in the single `last_server` value so the choice can never be
+/// separated from, or outlive, the address it was given for. It is stored on
+/// this device only: never synchronised and never part of a Vault.
+@immutable
+class SavedServerSelection {
+  const SavedServerSelection({
+    required this.baseUrl,
+    this.allowInsecure = false,
+  });
+
+  final String baseUrl;
+  final bool allowInsecure;
+
+  /// A plain URL when the option is off (the format every earlier version
+  /// wrote and reads), a small JSON object only when it is on.
+  String encode() => allowInsecure
+      ? jsonEncode({'url': baseUrl, 'allow_insecure': true})
+      : baseUrl;
+
+  /// Null for a missing or unreadable value. Anything that is not exactly the
+  /// JSON shape written by [encode] is treated as a plain address with the
+  /// option off.
+  static SavedServerSelection? decode(String? stored) {
+    if (stored == null || stored.isEmpty) return null;
+    if (!stored.startsWith('{')) return SavedServerSelection(baseUrl: stored);
+    try {
+      final json = jsonDecode(stored);
+      if (json is! Map) return null;
+      final url = json['url'];
+      if (url is! String || url.isEmpty) return null;
+      return SavedServerSelection(
+        baseUrl: url,
+        allowInsecure: json['allow_insecure'] == true,
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+}
+
 class ServerIdentityPin {
   const ServerIdentityPin({
     required this.instanceId,
@@ -984,4 +1027,13 @@ class ClientSecureStore {
       _storage.write(key: 'atermius.v1.last_server', value: baseUrl);
 
   Future<String?> lastServer() => _storage.read(key: 'atermius.v1.last_server');
+
+  /// Saves the server address together with the device-local insecure-option
+  /// choice for exactly that address. Saving any server without the option
+  /// therefore also forgets a choice made for a previous one.
+  Future<void> saveLastServerSelection(SavedServerSelection selection) =>
+      saveLastServer(selection.encode());
+
+  Future<SavedServerSelection?> lastServerSelection() async =>
+      SavedServerSelection.decode(await lastServer());
 }

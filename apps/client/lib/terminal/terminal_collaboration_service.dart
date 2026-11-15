@@ -196,7 +196,12 @@ class TerminalCollaborationService {
     @visibleForTesting DateTime Function()? now,
   }) : _crypto = TerminalCollaborationCrypto(crypto.sodium),
        _channelFactory =
-           channelFactory ?? createTerminalCollaborationWebSocketChannel,
+           channelFactory ??
+           ((uri) => createTerminalCollaborationWebSocketChannel(
+             uri,
+             // Same development-only, origin-scoped permission as the API.
+             insecure: api.insecureServer,
+           )),
        _bufferedAmountProvider =
            bufferedAmountProvider ??
            terminalCollaborationWebSocketBufferedAmount,

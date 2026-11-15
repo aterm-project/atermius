@@ -35,7 +35,7 @@ ATERMIUS_ADMIN_USERNAMES=admin@example.com
 ATERMIUS_PUBLIC_ORIGIN=http://localhost:8081
 ```
 
-Use your intended administrator username. Registration stays closed by default; the first account uses a bootstrap token. Organization creation defaults to configured instance administrators. HTTP is only for loopback development; another computer or phone needs the HTTPS setup below.
+Use your intended administrator username. Registration stays closed by default; the first account uses a bootstrap token. Organization creation defaults to configured instance administrators. HTTP is only for loopback development; another computer or phone needs the HTTPS setup below. (For a development server with a self-signed certificate, native clients have a development-only [Allow insecure connection](../GETTING_STARTED.en.md#development-servers-allow-insecure-connection) switch on the sign-in page; never use it for real data.)
 
 ### Generate the database key before the first start
 

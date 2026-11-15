@@ -23,6 +23,8 @@ import 'auth/session_credentials.dart';
 import 'auth/session_refresh_lock.dart';
 import 'auth/session_update_notifier.dart';
 import 'api/api_client.dart';
+import 'api/insecure_server.dart';
+import 'api/server_transport.dart';
 import 'attachments/attachment_file_saver.dart';
 import 'attachments/attachment_upload_source.dart';
 import 'attachments/host_attachment_service.dart';
@@ -71,6 +73,7 @@ import 'storage/sync_preference_store.dart';
 import 'sync/auto_sync.dart';
 import 'mobile_push/mobile_push_registration.dart';
 import 'sync/sync_hint_client.dart';
+import 'sync/sync_hint_socket_factory.dart';
 import 'sync/locked_sync_receiver.dart';
 import 'sync/known_host_decision_lock.dart';
 import 'sync/device_redaction_capability_publisher.dart';
@@ -556,6 +559,7 @@ class PendingInstanceIdentityRecovery {
     required this.candidate,
     required this.pinnedFingerprint,
     required this.candidateFingerprint,
+    this.insecureServerOrigin,
   });
 
   final String baseUrl;
@@ -563,6 +567,10 @@ class PendingInstanceIdentityRecovery {
   final InstanceInfo candidate;
   final String pinnedFingerprint;
   final String candidateFingerprint;
+
+  /// Non-null when the server under review was contacted with the
+  /// development-only insecure option; confirming keeps using it.
+  final String? insecureServerOrigin;
 }
 
 class InstanceIdentityRecoveryRequiredException implements Exception {
@@ -1065,6 +1073,7 @@ class AppController extends ChangeNotifier {
     this.adminRestorePollIntervalForTesting = const Duration(seconds: 5),
     @visibleForTesting this.adminRestorePollMaxAttemptsForTesting = 120,
     @visibleForTesting this.apiClientFactoryForTesting,
+    @visibleForTesting this.insecureApiClientFactoryForTesting,
     @visibleForTesting MobilePushRegistration? mobilePushRegistrationForTesting,
     @visibleForTesting this.mobilePushAutoSyncForTesting,
     @visibleForTesting this.desktopConnectionForTesting,
@@ -1106,6 +1115,14 @@ class AppController extends ChangeNotifier {
           (await _requireApi().createNotificationTicket()).ticket,
       onHint: _handleSyncHint,
       refreshSession: _refreshSessionForSyncHint,
+      // The hint socket goes to the account server, so it gets the same
+      // development-only permission. It is scoped to that server's origin and
+      // is ignored for any other address.
+      connect: (uri, {required origin}) => connectSyncHintSocket(
+        uri,
+        origin: origin,
+        insecure: api?.insecureServer,
+      ),
     );
     databaseQuarantineRegistry.addListener(_onDatabaseQuarantineChanged);
     _onDatabaseQuarantineChanged();
@@ -1133,6 +1150,11 @@ class AppController extends ChangeNotifier {
   final int adminRestorePollMaxAttemptsForTesting;
   @visibleForTesting
   final ApiClient Function(String baseUrl)? apiClientFactoryForTesting;
+
+  /// As [apiClientFactoryForTesting], for a server configured with the
+  /// development-only insecure option on.
+  @visibleForTesting
+  final ApiClient Function(String baseUrl)? insecureApiClientFactoryForTesting;
   final MobilePushRegistration _mobilePushRegistration;
   @visibleForTesting
   final Future<void> Function()? mobilePushAutoSyncForTesting;
@@ -3432,9 +3454,16 @@ class AppController extends ChangeNotifier {
     restoringStoredSession = true;
     notifyListeners();
     try {
-      serverUrl = await secureStore.lastServer();
-      if (serverUrl != null) {
-        await configureServer(serverUrl!, showBusy: false);
+      final saved = await secureStore.lastServerSelection();
+      serverUrl = saved?.baseUrl;
+      if (saved != null) {
+        // The insecure-option choice is restored only together with the exact
+        // address it was saved for.
+        if (saved.allowInsecure) {
+          await configureInsecureServer(saved.baseUrl, showBusy: false);
+        } else {
+          await configureServer(saved.baseUrl, showBusy: false);
+        }
         await _restoreStoredSessionLocked();
       } else {
         notifyListeners();
@@ -3756,7 +3785,28 @@ class AppController extends ChangeNotifier {
     if (isCurrent()) await _rememberAccountKey();
   }
 
-  Future<void> configureServer(String value, {bool showBusy = true}) async {
+  /// The development-only permission of the server in use, or null. Bound to
+  /// that server's origin; a different or newly configured server never
+  /// inherits it.
+  InsecureServerPermission? get insecureServer => api?.insecureServer;
+
+  /// Origin shown by the persistent "insecure connection" indicator.
+  String? get insecureServerOrigin => insecureServer?.origin;
+
+  Future<void> configureServer(String value, {bool showBusy = true}) =>
+      _configureServer(value, showBusy: showBusy, allowInsecure: false);
+
+  /// As [configureServer], with the user's explicit, confirmed,
+  /// development-only opt-in for exactly this server address (see
+  /// [ApiClient.insecureServer]). Never call it without that confirmation.
+  Future<void> configureInsecureServer(String value, {bool showBusy = true}) =>
+      _configureServer(value, showBusy: showBusy, allowInsecure: true);
+
+  Future<void> _configureServer(
+    String value, {
+    required bool showBusy,
+    required bool allowInsecure,
+  }) async {
     if (_confirmingInstanceIdentityRecovery) {
       throw StateError(currentL10n.serverIdentityConfirmationIsInProgress3);
     }
@@ -3770,8 +3820,10 @@ class AppController extends ChangeNotifier {
     try {
       _syncHints.stop();
       candidate =
-          apiClientFactoryForTesting?.call(normalized) ??
-          ApiClient(baseUrl: normalized);
+          (allowInsecure
+              ? insecureApiClientFactoryForTesting?.call(normalized)
+              : apiClientFactoryForTesting?.call(normalized)) ??
+          ApiClient(baseUrl: normalized, allowInsecure: allowInsecure);
       final candidateInfo = await candidate.fetchInstance();
       final previousPin = await _verifyInstanceIdentity(
         candidate.baseUrl,
@@ -3798,11 +3850,26 @@ class AppController extends ChangeNotifier {
       if (candidate != null && !identical(api, candidate)) candidate.close();
       errorMessage = error is InstanceIdentityRecoveryRequiredException
           ? _instanceIdentityRecoveryMessage
-          : friendlyError(error);
+          : _serverConnectionError(error, allowInsecure: allowInsecure);
       rethrow;
     } finally {
       _setBusy(false);
     }
+  }
+
+  /// With the insecure option off, a refused plain-HTTP address or an
+  /// untrusted certificate points at the option instead of only reporting the
+  /// failure. Nothing is relaxed here.
+  String _serverConnectionError(Object error, {required bool allowInsecure}) {
+    if (!allowInsecure) {
+      if (error is ServerUrlRequiresHttpsException) {
+        return '${friendlyError(error)} ${currentL10n.insecureServerHttpHint}';
+      }
+      if (isUntrustedCertificateError(error)) {
+        return currentL10n.insecureServerCertificateHint;
+      }
+    }
+    return friendlyError(error);
   }
 
   Future<void> _activateConfiguredServer(
@@ -3855,7 +3922,12 @@ class AppController extends ChangeNotifier {
       // fenced until the candidate is installed so there is no interval where
       // an old session can start a new request against the old API.
       _vaultLoadsBlocked = true;
-      await secureStore.saveLastServer(candidate.baseUrl);
+      await secureStore.saveLastServerSelection(
+        SavedServerSelection(
+          baseUrl: candidate.baseUrl,
+          allowInsecure: candidate.insecureServer != null,
+        ),
+      );
       if (!activationIsCurrent() || !identical(api, previousApi)) {
         throw StateError(currentL10n.serverActivationWasSuperseded);
       }
@@ -3993,6 +4065,7 @@ class AppController extends ChangeNotifier {
       candidate: info,
       pinnedFingerprint: pinnedFingerprint,
       candidateFingerprint: candidateFingerprint,
+      insecureServerOrigin: api.insecureServer?.origin,
     );
   }
 

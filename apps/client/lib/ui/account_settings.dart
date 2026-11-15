@@ -7,6 +7,7 @@ import '../l10n/l10n.dart';
 import 'credential_visibility/credential_visibility_widgets.dart';
 import '../storage/workspace_mode.dart';
 import 'app_motion.dart';
+import 'insecure_server_widgets.dart';
 import 'settings_scaffold.dart';
 import 'sync_settings.dart';
 import 'workspace_mode_settings.dart';
@@ -29,6 +30,7 @@ class AccountSessionSummary {
     required this.deviceId,
     required this.vaultName,
     required this.instanceAdmin,
+    this.insecureServerOrigin,
   });
 
   factory AccountSessionSummary.fromController(AppController app) {
@@ -40,6 +42,7 @@ class AccountSessionSummary {
       deviceId: app.identity?.deviceId ?? app.session?.deviceId,
       vaultName: vault == null ? null : app.vaultNameFor(vault.id),
       instanceAdmin: app.isInstanceAdmin,
+      insecureServerOrigin: app.insecureServerOrigin,
     );
   }
 
@@ -49,6 +52,10 @@ class AccountSessionSummary {
   final String? deviceId;
   final String? vaultName;
   final bool instanceAdmin;
+
+  /// Origin of the account server when this session uses the development-only
+  /// insecure connection option; null otherwise.
+  final String? insecureServerOrigin;
 }
 
 /// Account category for a signed-in, unlocked account workspace. Every action
@@ -230,6 +237,14 @@ class _AccountSettingsViewState extends State<AccountSettingsView> {
                 value: summary.serverUrl ?? '—',
                 valueKey: const ValueKey('account_settings_server'),
               ),
+              if (summary.insecureServerOrigin case final insecureOrigin?)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: InsecureServerIndicator(
+                    key: const ValueKey('account_settings_insecure_server'),
+                    origin: insecureOrigin,
+                  ),
+                ),
               _AccountDetailRow(
                 label: l10n.accountSettingsSignedInAs,
                 value: summary.username ?? '—',

@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import '../attachments/attachment_file_saver.dart'
     show supportsStreamingAttachmentSave;
 import 'browser_offline_signal.dart' as browser;
+import 'insecure_server.dart';
+import 'server_transport.dart';
 import '../domain/conflict_feed.dart';
 import '../l10n/l10n.dart';
 
@@ -4611,32 +4613,63 @@ class DownloadedVaultObject {
 
 bool _isDecimal(String value) => RegExp(r'^(0|[1-9][0-9]*)$').hasMatch(value);
 
+/// A non-loopback `http://` server address was entered without the explicit
+/// development-only opt-in. Same text as the plain [FormatException] it
+/// replaces, so callers can recognise the case without parsing a message.
+class ServerUrlRequiresHttpsException extends FormatException {
+  const ServerUrlRequiresHttpsException()
+    : super(
+        'Remote server URLs must use HTTPS. HTTP is allowed only for localhost development.',
+      );
+}
+
 class ApiClient {
+  /// [allowInsecure] is the user's explicit, development-only opt-in for this
+  /// one server: it permits a non-loopback `http://` address and, on native
+  /// platforms, a certificate that fails validation for exactly this origin.
+  /// See [insecureServer] for what it actually grants.
   ApiClient({
     http.Client? client,
     required String baseUrl,
+    bool allowInsecure = false,
     @visibleForTesting
-    this.controlPlaneResponseBodyTimeout = const Duration(seconds: 30),
-  }) : _client = client ?? http.Client(),
-       baseUrl = _normalize(baseUrl);
+    Duration controlPlaneResponseBodyTimeout = const Duration(seconds: 30),
+  }) : this._(
+         client,
+         _normalize(baseUrl, allowInsecure: allowInsecure),
+         allowInsecure ? InsecureServerPermission.forBaseUrl(baseUrl) : null,
+         controlPlaneResponseBodyTimeout,
+       );
+
+  ApiClient._(
+    http.Client? client,
+    this.baseUrl,
+    this.insecureServer,
+    this.controlPlaneResponseBodyTimeout,
+  ) : _client = client ?? createServerHttpClient(insecureServer);
 
   final http.Client _client;
   final String baseUrl;
+
+  /// Non-null only while the development-only insecure option is in effect
+  /// for this server. Every connection this client's owner opens to the
+  /// server (HTTP and WebSocket) must be given this value, and nothing else
+  /// may reuse it: it is scoped to this base URL's scheme, host and port.
+  final InsecureServerPermission? insecureServer;
+
   @visibleForTesting
   final Duration controlPlaneResponseBodyTimeout;
   String? accessToken;
 
-  static String _normalize(String value) {
+  static String _normalize(String value, {required bool allowInsecure}) {
     final uri = Uri.parse(value.trim());
     if (!uri.hasScheme || (uri.scheme != 'https' && uri.scheme != 'http')) {
       throw const FormatException(
         'Server URL must use https:// or a loopback http:// address.',
       );
     }
-    if (uri.scheme == 'http' && !_isLoopback(uri.host)) {
-      throw const FormatException(
-        'Remote server URLs must use HTTPS. HTTP is allowed only for localhost development.',
-      );
+    if (uri.scheme == 'http' && !_isLoopback(uri.host) && !allowInsecure) {
+      throw const ServerUrlRequiresHttpsException();
     }
     if (uri.userInfo.isNotEmpty ||
         uri.query.isNotEmpty ||
@@ -4771,7 +4804,7 @@ class ApiClient {
       final root = Uri.parse(baseUrl);
       final websocketScheme = switch (root.scheme) {
         'https' => 'wss',
-        'http' when _isLoopback(root.host) => 'ws',
+        'http' when _isLoopback(root.host) || insecureServer != null => 'ws',
         'http' => throw const FormatException(
           'Terminal collaboration requires HTTPS outside localhost development.',
         ),
@@ -6533,7 +6566,7 @@ class ApiClient {
     final base = Uri.parse(baseUrl);
     final websocketScheme = switch (base.scheme) {
       'https' => 'wss',
-      'http' when _isLoopback(base.host) => 'ws',
+      'http' when _isLoopback(base.host) || insecureServer != null => 'ws',
       'http' => throw const FormatException(
         'SSH relay requires HTTPS outside localhost development.',
       ),

@@ -5,16 +5,25 @@ import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../api/insecure_server.dart';
+import '../api/server_transport.dart';
+
+/// [insecure] is the account server's development-only permission
+/// ([ApiClient.insecureServer]). It only relaxes the checks for a relay
+/// endpoint on exactly that origin.
 Future<SSHSocket> connectRelaySocket(
   Uri relayUri,
   String singleUseTicket, {
+  InsecureServerPermission? insecure,
   @visibleForTesting WebSocketChannel Function(Uri)? channelFactory,
   @visibleForTesting Duration timeout = const Duration(seconds: 15),
 }) async {
-  _validateRelayUri(relayUri);
+  _validateRelayUri(relayUri, insecure);
   _validateTicket(singleUseTicket);
 
-  final channel = (channelFactory ?? WebSocketChannel.connect)(relayUri);
+  final channel = channelFactory != null
+      ? channelFactory(relayUri)
+      : connectServerWebSocket(relayUri, insecure: insecure);
   try {
     await channel.ready.timeout(timeout);
     // The ticket is sent in the first frame, never in the URL or a
@@ -28,7 +37,7 @@ Future<SSHSocket> connectRelaySocket(
   }
 }
 
-void _validateRelayUri(Uri uri) {
+void _validateRelayUri(Uri uri, InsecureServerPermission? insecure) {
   final path = uri.pathSegments;
   final isRelayPath =
       path.length >= 3 &&
@@ -42,11 +51,15 @@ void _validateRelayUri(Uri uri) {
         '::1',
         '[::1]',
       }.contains(uri.host.toLowerCase());
+  // Plain ws:// beyond loopback only for the one origin the user explicitly
+  // allowed as an insecure development server.
+  final isAllowedInsecureServer =
+      uri.scheme == 'ws' && insecure != null && insecure.permitsUri(uri);
   if (uri.userInfo.isNotEmpty ||
       uri.hasQuery ||
       uri.hasFragment ||
       !isRelayPath ||
-      (!isSecure && !isLocalDevelopment)) {
+      (!isSecure && !isLocalDevelopment && !isAllowedInsecureServer)) {
     throw const FormatException('Invalid or insecure SSH relay endpoint.');
   }
 }

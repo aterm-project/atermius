@@ -101,6 +101,7 @@ import 'connect_progress_view.dart';
 import 'transfer_dialog.dart';
 import '../platform/application_windows.dart';
 import 'new_window.dart';
+import 'insecure_server_widgets.dart';
 import 'password_field.dart';
 import 'sftp_text_editor_dialog.dart';
 import '../web_update/web_app_update_factory.dart';
@@ -1938,6 +1939,14 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
               ),
               // credential-visibility: one-time mode notice (zero size).
               CredentialVisibilityNoticeHost(app: app),
+              // Development-only insecure server: always visible, on every
+              // page, and never dismissible while the session uses it.
+              if (app.insecureServerOrigin case final insecureOrigin?)
+                InsecureServerIndicator(
+                  key: const ValueKey('insecure_server_banner'),
+                  origin: insecureOrigin,
+                  strip: true,
+                ),
               if (app.databaseRecoveryRequired)
                 Container(
                   key: const ValueKey('database_recovery_required'),

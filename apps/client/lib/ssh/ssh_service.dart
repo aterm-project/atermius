@@ -861,7 +861,7 @@ class SshService {
     SshBackgroundKeepalive? backgroundKeepalive,
   }) : _useRelay = useRelay ?? kIsWeb,
        _backgroundKeepalive = backgroundKeepalive,
-       _relaySocketConnector = relaySocketConnector ?? connectRelaySocket,
+       _relaySocketConnectorOverride = relaySocketConnector,
        _directSocketConnector = directSocketConnector ?? connectDirect,
        _sshClientFactory = sshClientFactory ?? _createSshClient,
        _knownHostDecisionLock = knownHostDecisionLock;
@@ -871,7 +871,7 @@ class SshService {
   final ApiClient? api;
   final String deviceId;
   final bool _useRelay;
-  final RelaySocketConnector _relaySocketConnector;
+  final RelaySocketConnector? _relaySocketConnectorOverride;
   final SshDirectSocketConnector _directSocketConnector;
   final SshClientFactory _sshClientFactory;
   final KnownHostDecisionLock? _knownHostDecisionLock;
@@ -1105,7 +1105,14 @@ class SshService {
     // imported conditionally; native targets never compile web-only APIs.
     try {
       return await attempt.acquire<SSHSocket>(
-        () => _relaySocketConnector(api.relayUri(), ticket.value),
+        () => _relaySocketConnectorOverride != null
+            ? _relaySocketConnectorOverride(api.relayUri(), ticket.value)
+            : connectRelaySocket(
+                api.relayUri(),
+                ticket.value,
+                // Same development-only, origin-scoped permission as the API.
+                insecure: api.insecureServer,
+              ),
         (socket) => socket.close(),
         timeout: const Duration(seconds: 18),
       );

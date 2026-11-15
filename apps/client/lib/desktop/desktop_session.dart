@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../api/api_client.dart';
+import '../api/server_transport.dart';
 import '../domain/models.dart';
 import '../ssh/ssh_transport.dart' as transport;
 import 'desktop_display.dart';
@@ -370,8 +371,10 @@ class DesktopSession extends ChangeNotifier {
       final relay = api.relayUri();
       final segments = relay.pathSegments.toList();
       segments[segments.length - 3] = 'desktop';
-      final channel = WebSocketChannel.connect(
+      final channel = connectServerWebSocket(
         relay.replace(pathSegments: segments),
+        // Same development-only, origin-scoped permission as the API.
+        insecure: api.insecureServer,
       );
       _channel = channel;
       await channel.ready.timeout(const Duration(seconds: 15));

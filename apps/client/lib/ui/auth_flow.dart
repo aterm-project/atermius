@@ -1,13 +1,16 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../api/api_client.dart';
+import '../api/insecure_server.dart';
 import '../app_controller.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import '../l10n/l10n.dart';
 import 'app_language_settings.dart';
 import 'app_density.dart';
+import 'insecure_server_widgets.dart';
 import 'password_field.dart';
 import 'credential_visibility/credential_visibility_widgets.dart';
 
@@ -28,9 +31,17 @@ class _RecoveryInput {
 }
 
 class AuthFlow extends StatefulWidget {
-  const AuthFlow({required this.controller, super.key});
+  const AuthFlow({
+    required this.controller,
+    @visibleForTesting this.webForTesting,
+    super.key,
+  });
 
   final AppController controller;
+
+  /// Overrides browser detection for the insecure-connection option, whose
+  /// wording and abilities differ in a browser.
+  final bool? webForTesting;
 
   @override
   State<AuthFlow> createState() => _AuthFlowState();
@@ -53,23 +64,85 @@ class _AuthFlowState extends State<AuthFlow> {
   MfaLoginChallenge? _loginChallenge;
   bool _useMfaRecoveryCode = false;
 
+  /// Origin (scheme, host and port) for which the development-only insecure
+  /// option was confirmed. The option counts as on only while the address
+  /// field still names exactly this origin, so it can never follow the user
+  /// to a different server.
+  String? _insecureOrigin;
+  bool _allowInsecure = false;
+
   AppController get app => widget.controller;
+
+  bool get _isWeb => widget.webForTesting ?? kIsWeb;
 
   @override
   void initState() {
     super.initState();
     _server.text = app.serverUrl ?? '';
+    // A server that is already in use with the option keeps showing it as on
+    // for that same address; this is where it can be switched off again.
+    _insecureOrigin = app.insecureServerOrigin;
+    _allowInsecure = _insecureAppliesToAddress();
+    _server.addListener(_onServerAddressChanged);
   }
 
   @override
   void didUpdateWidget(covariant AuthFlow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_server.text.isEmpty && app.serverUrl != null)
+    if (_server.text.isEmpty && app.serverUrl != null) {
+      _insecureOrigin = app.insecureServerOrigin;
       _server.text = app.serverUrl!;
+    }
+  }
+
+  bool _insecureAppliesToAddress() =>
+      _insecureOrigin != null &&
+      serverOriginOf(_server.text) == _insecureOrigin;
+
+  void _onServerAddressChanged() {
+    final allow = _insecureAppliesToAddress();
+    if (allow != _allowInsecure && mounted) {
+      setState(() => _allowInsecure = allow);
+    }
+  }
+
+  Future<void> _setAllowInsecure(bool value) async {
+    if (!value) {
+      setState(() {
+        _insecureOrigin = null;
+        _allowInsecure = false;
+      });
+      return;
+    }
+    final origin = serverOriginOf(_server.text);
+    if (origin == null) {
+      _showError(context.l10n.allowInsecureServerNeedsAddress);
+      return;
+    }
+    if (_isWeb && Uri.parse(origin).scheme == 'https') {
+      // A browser cannot skip certificate validation: do not pretend.
+      _showError(context.l10n.allowInsecureServerWebHttpsUnsupported);
+      return;
+    }
+    final confirmed = await confirmAllowInsecureServer(
+      context,
+      origin: origin,
+      web: _isWeb,
+    );
+    // The dialog is an await: the confirmation only counts for the origin it
+    // named, and only if the field still names it.
+    if (!confirmed || !mounted || serverOriginOf(_server.text) != origin) {
+      return;
+    }
+    setState(() {
+      _insecureOrigin = origin;
+      _allowInsecure = true;
+    });
   }
 
   @override
   void dispose() {
+    _server.removeListener(_onServerAddressChanged);
     _server.dispose();
     _username.dispose();
     _password.dispose();
@@ -198,12 +271,18 @@ class _AuthFlowState extends State<AuthFlow> {
             ),
           ),
           const SizedBox(width: 13),
-          const Text(
-            'Atermius',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -.4,
+          // Flexible so the brand row cannot overflow a narrow sign-in page.
+          const Flexible(
+            child: Text(
+              'Atermius',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -.4,
+              ),
             ),
           ),
           const SizedBox(width: 9),
@@ -281,6 +360,13 @@ class _AuthFlowState extends State<AuthFlow> {
           style: TextStyle(color: context.palette.muted, height: 1.5),
         ),
         const SizedBox(height: 24),
+        if (app.insecureServerOrigin case final insecureOrigin?) ...[
+          InsecureServerIndicator(
+            key: const ValueKey('insecure_server_indicator'),
+            origin: insecureOrigin,
+          ),
+          const SizedBox(height: 16),
+        ],
         if (stage == ClientStage.server) _serverForm(),
         if (stage == ClientStage.login) _loginForm(),
         if (stage == ClientStage.register) _registerForm(),
@@ -340,11 +426,25 @@ class _AuthFlowState extends State<AuthFlow> {
         ),
         onSubmitted: (_) => _connect(),
       ),
+      const SizedBox(height: 12),
+      AllowInsecureServerOption(
+        value: _allowInsecure,
+        onChanged: app.busy ? null : (value) => _setAllowInsecure(value),
+        web: _isWeb,
+      ),
       const SizedBox(height: 16),
       FilledButton.icon(
         onPressed: app.busy ? null : _connect,
-        icon: const Icon(Icons.arrow_forward_rounded),
-        label: Text(context.l10n.connectSecurely),
+        icon: Icon(
+          _allowInsecure
+              ? Icons.warning_amber_rounded
+              : Icons.arrow_forward_rounded,
+        ),
+        label: Text(
+          _allowInsecure
+              ? context.l10n.insecureServerConnect
+              : context.l10n.connectSecurely,
+        ),
       ),
       const SizedBox(height: 12),
       Text(
@@ -697,7 +797,11 @@ class _AuthFlowState extends State<AuthFlow> {
   Future<void> _connect() async {
     FocusScope.of(context).unfocus();
     try {
-      await app.configureServer(_server.text);
+      if (_allowInsecure) {
+        await app.configureInsecureServer(_server.text);
+      } else {
+        await app.configureServer(_server.text);
+      }
     } catch (_) {
       if (mounted) {
         _showError(app.errorMessage ?? context.l10n.couldntConnectToTheServer);
@@ -1208,6 +1312,13 @@ class _InstanceIdentityRollbackRecoveryState
               style: const TextStyle(fontSize: 12, height: 1.45),
             ),
             const SizedBox(height: 12),
+            if (recovery.insecureServerOrigin case final insecureOrigin?) ...[
+              InsecureServerIndicator(
+                key: const ValueKey('insecure_server_recovery_indicator'),
+                origin: insecureOrigin,
+              ),
+              const SizedBox(height: 10),
+            ],
             _identityDetail(context.l10n.serverUrl, recovery.baseUrl),
             _identityDetail(
               context.l10n.instanceId,

@@ -19241,4 +19241,75 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get desktopImeModeUseComposed =>
       'Switch to input method: type Chinese, Japanese and other languages';
+
+  @override
+  String get allowInsecureServerTitle =>
+      'Allow insecure connection (insecure, development only)';
+
+  @override
+  String get allowInsecureServerWarning =>
+      'Accepts a certificate that cannot be verified, or plain http://, for this server only. Never use it with real data.';
+
+  @override
+  String get allowInsecureServerWarningWeb =>
+      'In a browser this can only allow a plain http:// address, and only where the browser itself permits it. Certificate errors cannot be skipped here.';
+
+  @override
+  String get allowInsecureServerConfirmTitle => 'Allow an insecure connection?';
+
+  @override
+  String allowInsecureServerConfirmBody(String origin) {
+    return 'Atermius will connect to $origin without verifying the server\'s identity: certificate errors are ignored, and an http:// address is not encrypted at all.\n\nAnyone on the network path can read or change everything that is sent, including the account password proof and your synced data.\n\nUse this only for a development server, never with real data. It applies to this server only and is stored on this device only.';
+  }
+
+  @override
+  String allowInsecureServerConfirmBodyWeb(String origin) {
+    return 'Atermius will connect to $origin over plain http://, without encryption and without verifying the server\'s identity.\n\nAnyone on the network path can read or change everything that is sent, including the account password proof and your synced data.\n\nThe browser may still block the connection, and certificate errors can never be skipped in a browser. Use this only for a development server, never with real data. It applies to this server only and is stored in this browser only.';
+  }
+
+  @override
+  String get allowInsecureServerConfirmAction => 'Allow insecure connection';
+
+  @override
+  String get allowInsecureServerNeedsAddress =>
+      'Enter the server address first, starting with https:// or http://.';
+
+  @override
+  String get allowInsecureServerWebHttpsUnsupported =>
+      'A browser cannot skip certificate checks, so this option has no effect for an https:// address here. Trust the certificate in the browser or operating system instead.';
+
+  @override
+  String get insecureServerConnect => 'Connect (insecure)';
+
+  @override
+  String get insecureServerIndicator =>
+      'Insecure connection — development only';
+
+  @override
+  String get insecureServerIndicatorDetails => 'Details';
+
+  @override
+  String get insecureServerDetailTitle => 'Insecure connection';
+
+  @override
+  String insecureServerDetailBody(String origin) {
+    return 'This device is allowed to connect to $origin without verifying the server\'s identity and, for an http:// address, without encryption.\n\nAnyone on the network path can read or change everything that is sent, including the account password proof and your synced data. Development use only.';
+  }
+
+  @override
+  String get insecureServerDetailTurnOff =>
+      'To turn it off, sign out, choose “Change server” on the sign-in page and connect again with the option off.';
+
+  @override
+  String get insecureServerHttpHint =>
+      'For a development server only, you can turn on “Allow insecure connection” below. Never use it for production.';
+
+  @override
+  String get insecureServerCertificateHint =>
+      'The server\'s certificate could not be verified (for example self-signed, expired or issued for another name), so the connection was refused. For a development server only, you can turn on “Allow insecure connection” below. Never use it for production.';
+
+  @override
+  String insecureServerAppliesTo(String origin) {
+    return 'Server: $origin';
+  }
 }

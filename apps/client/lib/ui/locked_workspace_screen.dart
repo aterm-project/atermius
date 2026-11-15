@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../l10n/l10n.dart';
 import 'app_density.dart';
+import 'insecure_server_widgets.dart';
 import 'password_field.dart';
 
 class LockedWorkspaceScreen extends StatefulWidget {
@@ -99,6 +100,14 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
                             context.l10n.yourAccountStaysSignedInWhile,
                             textAlign: TextAlign.center,
                           ),
+                          if (app.insecureServerOrigin
+                              case final insecureOrigin?) ...[
+                            const SizedBox(height: 14),
+                            InsecureServerIndicator(
+                              key: const ValueKey('insecure_server_indicator'),
+                              origin: insecureOrigin,
+                            ),
+                          ],
                           const SizedBox(height: 18),
                           Semantics(
                             container: true,

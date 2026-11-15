@@ -8,6 +8,17 @@ Use a **local profile** for work kept on this device, or a **server account** fo
 
 For server mode, enter your instance's exact HTTPS origin. HTTP is a loopback-only development option. The first account needs the operator's one-use bootstrap token; later accounts follow the server's registration/invitation policy. An organization join link does not bypass account registration. Keep the recovery material created by the account flow somewhere you can recover independently of this device.
 
+### Development servers: "Allow insecure connection"
+
+For development only, the sign-in page has an **Allow insecure connection** switch below the server address. It is off by default and asks for confirmation. Turned on for one server, it lets this device connect to that exact address (scheme, host and port) although its certificate cannot be verified (for example a self-signed or internal-CA certificate), or over plain `http://` to a non-loopback address. Never use it with real data: anyone on the network path can read or change everything that is sent, including the account password proof and synchronized data.
+
+- It applies to that one server only. Every other server, SSH host keys, RDP certificate prompts and the end-to-end encryption of Vault data are unchanged.
+- It is stored with the saved server on this device only; it is not synchronized and is not part of a Vault. Changing to another server address does not carry it over. To turn it off, sign out, choose **Change server** and connect again with the switch off.
+- While it is in use, an "Insecure connection — development only" warning stays on the sign-in page, the locked screen, the workspace and Account settings; it shows the server it applies to and cannot be dismissed.
+- A browser cannot skip certificate checks and blocks mixed content, so in the Web client the switch can only allow a plain `http://` server where the browser itself permits it. For a self-signed HTTPS development server, trust the certificate in the browser or operating system, or use a native client.
+
+For anything but development, give the server a certificate the device trusts instead; see the [server guide](install/server.en.md).
+
 ## 2. Save a Host
 
 Open Home and add a Host. Set its label, protocol, address and port, then enter the username/password or choose a saved private key in the Host editor. Authentication remains associated with the Host; the Keychain entry manages reusable login keys. Review inherited group/jump-host dependencies when using them.

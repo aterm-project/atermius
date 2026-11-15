@@ -58,7 +58,10 @@ Future<TelnetByteChannel> connectTelnetViaRelay({
           .timeout(const Duration(seconds: 15)))
       .value,
   relayUri: api.relayUri,
-  relaySocketConnector: relaySocketConnector ?? connectRelaySocket,
+  relaySocketConnector:
+      relaySocketConnector ??
+      (uri, ticket) =>
+          connectRelaySocket(uri, ticket, insecure: api.insecureServer),
 );
 
 /// Relay connection steps with injectable ticket issuance (tests).

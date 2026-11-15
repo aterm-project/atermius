@@ -17223,4 +17223,72 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get desktopImeModeUseComposed => '切换为输入法：可输入中文、日文等各种语言';
+
+  @override
+  String get allowInsecureServerTitle => '允许不安全连接（不安全，仅限开发使用）';
+
+  @override
+  String get allowInsecureServerWarning =>
+      '仅对此服务器接受无法验证的证书或明文 http://。切勿用于真实数据。';
+
+  @override
+  String get allowInsecureServerWarningWeb =>
+      '在浏览器中，此选项只能允许明文 http:// 地址，且仅在浏览器本身允许时有效。浏览器中无法跳过证书错误。';
+
+  @override
+  String get allowInsecureServerConfirmTitle => '允许不安全连接？';
+
+  @override
+  String allowInsecureServerConfirmBody(String origin) {
+    return 'Atermius 将在不验证服务器身份的情况下连接 $origin：证书错误会被忽略，http:// 地址则完全不加密。\n\n网络路径上的任何人都可以读取或篡改传输的全部内容，包括账户密码证明和你的同步数据。\n\n仅用于开发服务器，切勿用于真实数据。此设置只对这台服务器生效，且只保存在本设备上。';
+  }
+
+  @override
+  String allowInsecureServerConfirmBodyWeb(String origin) {
+    return 'Atermius 将通过明文 http:// 连接 $origin，既不加密，也不验证服务器身份。\n\n网络路径上的任何人都可以读取或篡改传输的全部内容，包括账户密码证明和你的同步数据。\n\n浏览器仍可能阻止该连接，并且浏览器中永远无法跳过证书错误。仅用于开发服务器，切勿用于真实数据。此设置只对这台服务器生效，且只保存在此浏览器中。';
+  }
+
+  @override
+  String get allowInsecureServerConfirmAction => '允许不安全连接';
+
+  @override
+  String get allowInsecureServerNeedsAddress =>
+      '请先填写服务器地址，以 https:// 或 http:// 开头。';
+
+  @override
+  String get allowInsecureServerWebHttpsUnsupported =>
+      '浏览器无法跳过证书检查，因此此选项对这里的 https:// 地址无效。请改为在浏览器或操作系统中信任该证书。';
+
+  @override
+  String get insecureServerConnect => '连接（不安全）';
+
+  @override
+  String get insecureServerIndicator => '不安全连接 — 仅限开发使用';
+
+  @override
+  String get insecureServerIndicatorDetails => '详情';
+
+  @override
+  String get insecureServerDetailTitle => '不安全连接';
+
+  @override
+  String insecureServerDetailBody(String origin) {
+    return '本设备已被允许在不验证服务器身份的情况下连接 $origin；如果是 http:// 地址，则完全不加密。\n\n网络路径上的任何人都可以读取或篡改传输的全部内容，包括账户密码证明和你的同步数据。仅限开发使用。';
+  }
+
+  @override
+  String get insecureServerDetailTurnOff =>
+      '如需关闭：退出登录，在登录页选择“更换服务器”，然后在关闭此选项的情况下重新连接。';
+
+  @override
+  String get insecureServerHttpHint => '仅对开发服务器，可以在下方开启“允许不安全连接”。切勿用于生产环境。';
+
+  @override
+  String get insecureServerCertificateHint =>
+      '无法验证服务器证书（例如自签名、已过期或颁发给其他名称），因此已拒绝连接。仅对开发服务器，可以在下方开启“允许不安全连接”。切勿用于生产环境。';
+
+  @override
+  String insecureServerAppliesTo(String origin) {
+    return '服务器：$origin';
+  }
 }

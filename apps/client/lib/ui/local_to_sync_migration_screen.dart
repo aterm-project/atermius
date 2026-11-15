@@ -19,6 +19,7 @@ import 'app_motion.dart';
 import 'app_theme.dart';
 import '../l10n/l10n.dart';
 import 'app_density.dart';
+import 'insecure_server_widgets.dart';
 import 'password_field.dart';
 
 const _migrationUuid = Uuid();
@@ -874,6 +875,16 @@ class _LocalToSyncMigrationScreenState
                   style: TextStyle(color: context.palette.muted, height: 1.5),
                 ),
                 const SizedBox(height: 18),
+                // The records are uploaded to the signed-in account server:
+                // keep its development-only insecure state in view here too.
+                if (widget.controller.insecureServerOrigin
+                    case final insecureOrigin?) ...[
+                  InsecureServerIndicator(
+                    key: const ValueKey('insecure_server_indicator'),
+                    origin: insecureOrigin,
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 if (_loadingProfiles)
                   const Center(child: CircularProgressIndicator())
                 else if (_profile == null)
