@@ -3,7 +3,8 @@ import 'dart:math' show max;
 import 'package:xterm/src/base/observable.dart';
 import 'package:xterm/src/core/buffer/buffer.dart';
 import 'package:xterm/src/core/buffer/cell_offset.dart';
-import 'package:xterm/src/core/buffer/line.dart';
+import 'package:xterm/src/core/buffer/lines.dart';
+import 'package:xterm/src/core/buffer/scrollback/options.dart';
 import 'package:xterm/src/core/cursor.dart';
 import 'package:xterm/src/core/escape/emitter.dart';
 import 'package:xterm/src/core/escape/handler.dart';
@@ -18,7 +19,6 @@ import 'package:xterm/src/core/platform.dart';
 import 'package:xterm/src/core/state.dart';
 import 'package:xterm/src/core/tabs.dart';
 import 'package:xterm/src/utils/ascii.dart';
-import 'package:xterm/src/utils/circular_buffer.dart';
 
 /// [Terminal] is an interface to interact with command line applications. It
 /// translates escape sequences from the application into updates to the
@@ -29,6 +29,13 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   /// The number of lines that the scrollback buffer can hold. If the buffer
   /// exceeds this size, the lines at the top of the buffer will be removed.
   final int maxLines;
+
+  /// How the scrollback is held in memory. By default only the most recent
+  /// lines are plain lines; older ones are kept in a compact compressed
+  /// archive and restored transparently when they are read, so [maxLines] can
+  /// be large without the memory cost of that many plain lines. See
+  /// [ScrollbackOptions].
+  final ScrollbackOptions scrollback;
 
   /// Function that is called when the program requests the terminal to ring
   /// the bell. If not set, the terminal will do nothing.
@@ -72,6 +79,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
 
   Terminal({
     this.maxLines = 1000,
+    this.scrollback = const ScrollbackOptions(),
     this.onBell,
     this.onTitleChange,
     this.onIconChange,
@@ -96,6 +104,8 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
     maxLines: maxLines,
     isAltBuffer: false,
     wordSeparators: wordSeparators,
+    scrollback: scrollback,
+    onLinesDropped: notifyListeners,
   );
 
   late final _altBuffer = Buffer(
@@ -214,7 +224,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   bool get isUsingAltBuffer => _buffer == _altBuffer;
 
   /// Lines of the active buffer.
-  IndexAwareCircularBuffer<BufferLine> get lines => _buffer.lines;
+  BufferLines get lines => _buffer.lines;
 
   /// Whether the terminal performs reflow when the viewport size changes or
   /// simply truncates lines. true by default.

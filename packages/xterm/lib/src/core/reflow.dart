@@ -1,5 +1,4 @@
 import 'package:xterm/src/core/buffer/line.dart';
-import 'package:xterm/src/utils/circular_buffer.dart';
 
 class _LineBuilder {
   _LineBuilder([this._capacity = 80]) {
@@ -160,8 +159,11 @@ class _LineReflow {
   }
 }
 
-List<BufferLine> reflow(
-  IndexAwareCircularBuffer<BufferLine> lines,
+/// Wraps [lines] again for a view that changed from [oldWidth] to [newWidth]
+/// columns. Lines of [lines] are reused in the result where possible, and
+/// anchors move to the lines that hold their cells afterwards.
+List<BufferLine> reflowLines(
+  List<BufferLine> lines,
   int oldWidth,
   int newWidth,
 ) {

@@ -2,13 +2,13 @@ import 'dart:math' show max, min;
 
 import 'package:xterm/src/core/buffer/cell_offset.dart';
 import 'package:xterm/src/core/buffer/line.dart';
+import 'package:xterm/src/core/buffer/lines.dart';
+import 'package:xterm/src/core/buffer/scrollback/options.dart';
 import 'package:xterm/src/core/buffer/range_line.dart';
 import 'package:xterm/src/core/buffer/range.dart';
 import 'package:xterm/src/core/charset.dart';
 import 'package:xterm/src/core/cursor.dart';
-import 'package:xterm/src/core/reflow.dart';
 import 'package:xterm/src/core/state.dart';
-import 'package:xterm/src/utils/circular_buffer.dart';
 import 'package:xterm/src/utils/unicode_v11.dart';
 
 class Buffer {
@@ -22,12 +22,22 @@ class Buffer {
   /// defaults to [defaultWordSeparators].
   final Set<int>? wordSeparators;
 
+  /// How the scrollback of this buffer is held, see [ScrollbackOptions]. The
+  /// alternate screen has no scrollback and never archives anything.
+  final ScrollbackOptions scrollback;
+
+  /// Called when lines were dropped from the scrollback outside of a call
+  /// into this buffer, see [BufferLines.onLinesDropped].
+  final void Function()? onLinesDropped;
+
   Buffer(
     this.terminal, {
     required this.maxLines,
     required this.isAltBuffer,
     this.wordSeparators,
-  }) {
+    ScrollbackOptions scrollback = const ScrollbackOptions(),
+    this.onLinesDropped,
+  }) : scrollback = isAltBuffer ? const ScrollbackOptions.plain() : scrollback {
     for (int i = 0; i < terminal.viewHeight; i++) {
       lines.push(_newEmptyLine());
     }
@@ -59,7 +69,17 @@ class Buffer {
 
   /// lines of the buffer. the length of [lines] should always be equal or
   /// greater than [viewHeight].
-  late final lines = IndexAwareCircularBuffer<BufferLine>(maxLines);
+  ///
+  /// Only the most recent lines are held as plain [BufferLine]s; older ones
+  /// live in a compressed archive and are restored when read, see
+  /// [BufferLines].
+  late final lines = BufferLines(
+    maxLines,
+    options: scrollback,
+    viewWidth: terminal.viewWidth,
+    viewportLines: terminal.viewHeight,
+    onLinesDropped: onLinesDropped,
+  );
 
   /// Total number of lines in the buffer. Always equal or greater than
   /// [viewHeight].
@@ -362,7 +382,8 @@ class Buffer {
     currentLine.removeCells(start, count, terminal.cursor);
   }
 
-  /// Remove all lines above the top of the viewport.
+  /// Remove all lines above the top of the viewport, including the archived
+  /// ones and whatever of them was handed to a [ScrollbackBlockStore].
   void clearScrollback() {
     if (height <= viewHeight) {
       return;
@@ -435,6 +456,11 @@ class Buffer {
   }
 
   void resize(int oldWidth, int oldHeight, int newWidth, int newHeight) {
+    // The viewport is modified in place, so all of it must be plain lines,
+    // also the part that a taller view uncovers from the scrollback.
+    lines.viewportLines = newHeight;
+    lines.ensureHot(max(oldHeight, newHeight));
+
     // 1. Adjust the height.
     if (newHeight > oldHeight) {
       // Grow larger
@@ -463,15 +489,17 @@ class Buffer {
     // 2. Adjust the width.
     if (newWidth != oldWidth) {
       if (terminal.reflowEnabled && !isAltBuffer) {
-        final reflowResult = reflow(lines, oldWidth, newWidth);
+        // Only the hot window is wrapped again. Archived lines keep the
+        // wrapping they were archived with, see [BufferLines.reflow].
+        lines.reflow(oldWidth, newWidth);
 
-        while (reflowResult.length < newHeight) {
-          reflowResult.add(_newEmptyLine(newWidth));
+        // Joining wrapped lines can leave less than a screen of plain lines.
+        lines.ensureHot(newHeight);
+        while (lines.length < newHeight) {
+          lines.push(_newEmptyLine(newWidth));
         }
-
-        lines.replaceWith(reflowResult);
       } else {
-        lines.forEach((item) => item.resize(newWidth));
+        lines.resizeLines(newWidth);
       }
     }
   }

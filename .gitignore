@@ -44,3 +44,5 @@ PROJECT_PLAN.md
 # Synthetic test fixtures referenced by Rust tests, never deployment credentials.
 !server/tests/fixtures/fcm_test_private.pem
 !server/tests/fixtures/apns_test_public.pem
+# The vendored xterm package is a library; the application lockfile decides.
+/packages/xterm/pubspec.lock

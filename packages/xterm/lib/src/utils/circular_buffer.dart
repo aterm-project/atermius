@@ -1,5 +1,17 @@
+/// Something that holds [IndexedItem]s and can tell them where they are.
+///
+/// Items remember an absolute sequence number that never changes while they
+/// stay in the same place relative to their neighbours. The owner only moves
+/// [absoluteStartIndex] forward when items are dropped from the front, which
+/// shifts the [IndexedItem.index] of every remaining item at once.
+abstract class IndexedItemOwner {
+  /// The absolute sequence number of the item at index 0.
+  int get absoluteStartIndex;
+}
+
 /// A circular buffer in which elements know their index in the buffer.
-class IndexAwareCircularBuffer<T extends IndexedItem> {
+class IndexAwareCircularBuffer<T extends IndexedItem>
+    implements IndexedItemOwner {
   /// Creates a new circular list with the specified [maxLength].
   IndexAwareCircularBuffer(int maxLength)
       : _array = List<T?>.filled(maxLength, null);
@@ -17,6 +29,9 @@ class IndexAwareCircularBuffer<T extends IndexedItem> {
   /// The start index of this list, including items that has been dropped in
   /// overflow
   var _absoluteStartIndex = 0;
+
+  @override
+  int get absoluteStartIndex => _absoluteStartIndex;
 
   /// Gets the cyclic index for the specified regular index. The cyclic index
   /// can then be used on the backing array to get the element associated with
@@ -282,13 +297,34 @@ class IndexAwareCircularBuffer<T extends IndexedItem> {
 }
 
 mixin IndexedItem {
-  IndexAwareCircularBuffer? _owner;
+  IndexedItemOwner? _owner;
 
   int? _absoluteIndex;
 
   /// The index of this item in the buffer. Must only be accessed when
   /// [attached] is true.
-  int get index => _absoluteIndex! - _owner!._absoluteStartIndex;
+  int get index => _absoluteIndex! - _owner!.absoluteStartIndex;
+
+  /// What currently holds this item, or null when detached.
+  IndexedItemOwner? get owner => _owner;
+
+  /// The absolute sequence number of this item in its owner, or null when
+  /// detached. Unlike [index] it does not change when items in front of this
+  /// one are dropped.
+  int? get absoluteIndex => _absoluteIndex;
+
+  /// Places this item at [absoluteIndex] of [owner]. For owners that are not
+  /// an [IndexAwareCircularBuffer].
+  void attachTo(IndexedItemOwner owner, int absoluteIndex) {
+    _owner = owner;
+    _absoluteIndex = absoluteIndex;
+  }
+
+  /// Marks this item as no longer held by its owner.
+  void detachFromOwner() {
+    _owner = null;
+    _absoluteIndex = null;
+  }
 
   /// Whether this item is currently stored in a buffer.
   bool get attached => _owner != null;
@@ -310,6 +346,6 @@ mixin IndexedItem {
   /// Moves this item to [newIndex] in the buffer.
   void _move(int newIndex) {
     assert(attached);
-    _absoluteIndex = _owner!._absoluteStartIndex + newIndex;
+    _absoluteIndex = _owner!.absoluteStartIndex + newIndex;
   }
 }

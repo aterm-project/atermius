@@ -23,6 +23,19 @@ class BufferLine with IndexedItem {
     this.isWrapped = false,
   }) : _data = Uint32List(_calcCapacity(_length) * _cellSize);
 
+  /// Creates a line around existing cell [data] (four words per cell:
+  /// foreground, background, attributes, content) that shows the first
+  /// [length] cells. [data] must hold at least [length] cells and is owned by
+  /// the line afterwards. Used to restore lines from the scrollback archive
+  /// without the capacity rounding of the default constructor.
+  BufferLine.fromData(
+    Uint32List data,
+    int length, {
+    this.isWrapped = false,
+  })  : assert(data.length >= length * _cellSize),
+        _data = data,
+        _length = length;
+
   int _length;
 
   Uint32List _data;

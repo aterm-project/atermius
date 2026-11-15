@@ -88,3 +88,27 @@ changes here. The application selects this package through the path override in
   view repaints when the decorator notifies. The package holds no keyword logic;
   Atermius' keyword highlighting lives in `apps/client/lib/terminal/`. Covered by
   `apps/client/test/terminal_keyword_highlight_paint_test.dart`.
+- Long scrollback (`lib/src/core/buffer/lines.dart`, `lib/src/core/buffer/scrollback/`):
+  `Buffer.lines` is a `BufferLines` instead of an
+  `IndexAwareCircularBuffer<BufferLine>`. It has the same list API, but only the
+  viewport and the `ScrollbackOptions.hotLines` (2,048) lines above it are plain
+  `BufferLine`s. Older lines are moved, 256 at a time, into blocks that are
+  serialized column-wise (`line_block.dart`, lossless for every visible cell) and
+  compressed (`dart:io` zlib; pure-Dart deflate from `package:archive` where
+  `dart:io` is missing), and are restored through a four-block cache when read.
+  Blocks over the memory budget go to an optional `ScrollbackBlockStore` provided
+  by the application (the package itself does no file IO or cryptography) or are
+  dropped, oldest first. Lines keep an absolute index across tiers, so
+  `BufferLine.index` and `CellAnchor`s stay valid; lines that carry anchors are
+  kept as objects. `Buffer.resize` wraps only the hot lines again; archived lines
+  are shown with the wrapping they were archived with, clipped to the view width.
+  `ScrollbackOptions.plain()` restores the old all-plain behaviour, and the
+  alternate screen always uses it. `reflow()` became `reflowLines()` and takes a
+  list. `IndexedItem` got an `IndexedItemOwner` interface so that owners other
+  than `IndexAwareCircularBuffer` can hold lines; a line that is assigned to a
+  second index (`lines[i] = lines[i + 1]`, as `scrollUp` does) is no longer
+  detached when its old slot is overwritten, and `trimStart` now detaches what it
+  drops and renumbers the rest. The `archive` dependency was added and the unused
+  dev dependencies (mockito, build_runner, dart_code_metrics, lints) were removed
+  so that `flutter pub get` and `flutter test` work in this directory. Covered by
+  `test/scrollback/` here and `apps/client/test/terminal_long_scrollback_test.dart`.
