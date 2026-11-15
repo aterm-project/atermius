@@ -25,6 +25,13 @@
 // a key already down locally stays local until its release. Ctrl+Alt+Del
 // cannot be captured.
 //
+// "setLocalIme" covers the keys no hook is needed for: while a remote desktop
+// has the keyboard focus, Dart turns the local input method off for this
+// window, so letters reach the remote computer and its own input method
+// composes them. Otherwise the local one would take every key it uses (they
+// arrive as VK_PROCESSKEY, which Flutter drops). Terminals and text fields
+// have it on again as soon as they get the focus.
+//
 // The hook runs on a dedicated thread with its own message loop, so a busy
 // UI thread (which also runs Dart) can never make Windows time it out. That
 // thread decides every event on its own and posts captured keys to the
@@ -34,7 +41,9 @@
 // Key data only travels in memory to Dart; it is never logged or stored.
 class KeyboardCapture {
 public:
-  KeyboardCapture(flutter::BinaryMessenger *messenger, HWND window);
+  // |window| is the top-level window, |view| the Flutter view inside it that
+  // owns the keyboard focus.
+  KeyboardCapture(flutter::BinaryMessenger *messenger, HWND window, HWND view);
   ~KeyboardCapture();
 
   KeyboardCapture(const KeyboardCapture &) = delete;
@@ -69,11 +78,15 @@ private:
   void Forward(WPARAM packed, LPARAM data);
   void SendKey(UINT vk, bool down, UINT scan, bool extended, int modifiers);
   void SetActive(bool active);
+  void SetLocalIme(bool enabled);
   void ReleaseKeys();
   void UpdateHook(bool reinstall);
 
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
   const HWND window_;
+  const HWND view_;
+  // False while a remote desktop has the keyboard focus (see SetLocalIme).
+  bool local_ime_ = true;
   // Created on first arming; joined by Shutdown().
   std::unique_ptr<HookThread> hook_;
   bool armed_ = false;

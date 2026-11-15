@@ -35,7 +35,8 @@ bool FlutterWindow::OnCreate() {
   geometry_channel_ = std::make_unique<WindowGeometryChannel>(
       flutter_controller_->engine()->messenger(), [this]() { return GetHandle(); });
   keyboard_capture_ = std::make_unique<KeyboardCapture>(
-      flutter_controller_->engine()->messenger(), GetHandle());
+      flutter_controller_->engine()->messenger(), GetHandle(),
+      flutter_controller_->view()->GetNativeWindow());
   chrome_channel_ =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           flutter_controller_->engine()->messenger(), "atermius/window_chrome",

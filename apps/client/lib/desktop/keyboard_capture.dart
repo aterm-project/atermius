@@ -30,6 +30,14 @@ bool keyboardCaptureAvailable([TargetPlatform? platform]) =>
 bool _pointerRule(TargetPlatform platform) =>
     platform == TargetPlatform.windows || platform == TargetPlatform.macOS;
 
+/// Windows keeps the local input method attached to a window without a text
+/// field: it would take the keys it composes with before Flutter sees them,
+/// and the remote computer would get nothing. The runner turns it off while a
+/// remote desktop has the keyboard focus, so the remote input method composes
+/// instead. The other platforms only run theirs for a focused text field.
+bool _localImeRule(TargetPlatform platform) =>
+    !kIsWeb && platform == TargetPlatform.windows;
+
 typedef KeyboardCaptureSend = void Function(int keysym, bool down);
 
 /// One remote-desktop view that can receive captured keys.
@@ -132,6 +140,11 @@ class KeyboardCaptureController extends ChangeNotifier {
   int _selections = 0;
   bool _disposed = false, _attached = false, _channelMissing = false;
   bool _sentArmed = false;
+
+  /// Windows: whether the runner was last told to leave the local input
+  /// method on. It is off exactly while a remote desktop has the keyboard
+  /// focus, whatever [mode] is; terminals and text fields keep it.
+  bool _sentLocalIme = true;
   final _targets = <KeyboardCaptureTarget>[];
   KeyboardCaptureTarget? _armed;
   FullscreenController? _fullscreen;
@@ -288,6 +301,27 @@ class KeyboardCaptureController extends ChangeNotifier {
       _sentArmed = armed;
       unawaited(_invoke('configure', {'armed': armed}));
     }
+    _setLocalIme(!_targets.any((target) => target._focused));
+  }
+
+  void _setLocalIme(bool enabled) {
+    if (enabled == _sentLocalIme ||
+        _channelMissing ||
+        !_localImeRule(defaultTargetPlatform)) {
+      return;
+    }
+    _sentLocalIme = enabled;
+    unawaited(() async {
+      try {
+        await _channel.invokeMethod<Object?>('setLocalIme', {
+          'enabled': enabled,
+        });
+      } on MissingPluginException {
+        // A runner without it: the local input method simply stays on.
+      } on PlatformException {
+        // Likewise; shortcut capture does not depend on this call.
+      }
+    }());
   }
 
   void _releaseHeld(KeyboardCaptureTarget target) {
@@ -520,6 +554,7 @@ class KeyboardCaptureController extends ChangeNotifier {
       _sentArmed = false;
       unawaited(_invoke('configure', {'armed': false}));
     }
+    _setLocalIme(true);
     _disposed = true;
     if (_attached) _channel.setMethodCallHandler(null);
     super.dispose();

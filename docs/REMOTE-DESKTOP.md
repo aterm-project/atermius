@@ -76,6 +76,10 @@ On Android/iOS, pull a tab down to lift it from a scrolling strip, then drag to 
 
 VNC IME text retains legacy Latin-1 keysyms where available, and uses Unicode keysyms for additional characters, as required for maximum compatibility by [RFC 6143 §7.5.4](https://www.rfc-editor.org/rfc/rfc6143.html#section-7.5.4). RDP uses Unicode text events when no soft modifier is active.
 
+On Windows, the local input method is switched off while an RDP or VNC desktop has the keyboard focus, so every key reaches the remote computer and its own input method composes the text (as in the Windows Remote Desktop client). SSH and Telnet terminals, and every text field, keep the local input method; it is back as soon as one of them takes the focus.
+
+Windows 上，RDP 或 VNC 桌面获得键盘焦点时会关闭本机输入法，按键原样送到远程电脑，由远程电脑自己的输入法组字（与 Windows 自带的远程桌面一致）。SSH、Telnet 终端和所有文本框仍使用本机输入法，焦点回到它们时立即恢复。
+
 ## Storage mappings and direct touch
 
 On Windows and Android, RDP maps this device's local disks by default. Each Host has a switch to turn this off. The switch is stored only on this device and is not synchronized with the Host, so a choice made on one device never exposes another device's disks. The file is kept out of Android Auto Backup and device transfer, and on Windows it lives under Local AppData rather than the roaming profile. The switch fails closed: a choice that could not be saved stays in force in that window and is written again later, and the editor says so. If the stored choices exist but cannot be read, no local disks are mapped until they can be, with a notice. At connect time the app lists the volumes present at that moment and sends each one as an explicit mapping. The engine never enables FreeRDP's all-drives or home-drive redirection, and it does not add drives inserted during the session.

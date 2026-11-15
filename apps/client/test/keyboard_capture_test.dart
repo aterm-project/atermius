@@ -56,6 +56,13 @@ class _Native {
       if (call.method == 'configure')
         (call.arguments as Map<Object?, Object?>)['armed']! as bool,
   ];
+
+  /// Windows: every "leave the local input method on/off" the runner got.
+  List<bool> get localIme => [
+    for (final call in calls)
+      if (call.method == 'setLocalIme')
+        (call.arguments as Map<Object?, Object?>)['enabled']! as bool,
+  ];
 }
 
 void _uninstall() => TestDefaultBinaryMessengerBinding
@@ -251,6 +258,80 @@ void main() {
         expect(remoteDesktopSettingsAvailable(platform), isTrue);
         expect(keyboardCaptureAvailable(platform), isTrue);
       }
+    });
+  });
+
+  group('local input method', () {
+    test('Windows turns it off while a remote desktop has the focus', () async {
+      _platform(TargetPlatform.windows);
+      final native = _Native()..install();
+      final capture = KeyboardCaptureController();
+      await capture.load(MemoryKeyboardCaptureStore('off'));
+      final first = capture.register(_Sent().call);
+      final second = capture.register(_Sent().call);
+      expect(native.localIme, isEmpty, reason: 'on until a desktop is focused');
+      // Neither the pointer, the capture mode nor the connection state
+      // matter: typed letters go to the remote as soon as it has the focus.
+      first.update(focused: true, enabled: false);
+      expect(native.localIme, [false]);
+      first.update(hovered: true, enabled: true);
+      await capture.select(KeyboardCaptureMode.focused);
+      expect(native.localIme, [false]);
+      // Focus moves to the other desktop in one step: it stays off.
+      second.update(focused: true);
+      first.update(focused: false);
+      expect(native.localIme, [false]);
+      // A terminal or a text field took the focus: they keep it.
+      second.update(focused: false);
+      expect(native.localIme, [false, true]);
+      first.update(focused: true);
+      first.unregister();
+      expect(native.localIme, [false, true, false, true]);
+      second.update(focused: true);
+      capture.dispose();
+      expect(native.localIme, [false, true, false, true, false, true]);
+      second.update(focused: false);
+      expect(native.localIme, hasLength(6), reason: 'disposed is inert');
+    });
+
+    for (final platform in [
+      TargetPlatform.macOS,
+      TargetPlatform.android,
+      TargetPlatform.iOS,
+      TargetPlatform.linux,
+    ]) {
+      test('${platform.name} leaves it to the focused text field', () async {
+        _platform(platform);
+        final native = _Native()..install();
+        final capture = controller();
+        final target = capture.register(_Sent().call);
+        target.update(focused: true, hovered: true);
+        target.update(focused: false);
+        await pumpEventQueue();
+        expect(native.localIme, isEmpty);
+      });
+    }
+
+    test('a runner without it keeps shortcut capture working', () async {
+      _platform(TargetPlatform.windows);
+      final calls = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(_channel, (call) async {
+            calls.add(call.method);
+            if (call.method == 'setLocalIme') throw MissingPluginException();
+            return {'supported': true, 'permission': 'notRequired'};
+          });
+      final capture = controller();
+      final target = capture.register(_Sent().call);
+      target.update(focused: true, hovered: true);
+      await pumpEventQueue();
+      expect(calls, containsAll(['configure', 'setLocalIme']));
+      expect(capture.supported, isTrue);
+      expect(target.armed, isTrue);
+      target.update(hovered: false);
+      target.update(hovered: true);
+      await pumpEventQueue();
+      expect(calls.where((method) => method == 'configure'), hasLength(3));
     });
   });
 
@@ -932,6 +1013,52 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.delete);
       expect(target.keys, [(0xffff, true), (0xffff, true), (0xffff, false)]);
       await close(tester, session);
+    });
+
+    testWidgets('Windows gives the local input method back to a text field', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      try {
+        final native = _Native()..install();
+        final capture = KeyboardCaptureController();
+        KeyboardCaptureController.debugInstance = capture;
+        addTearDown(() {
+          KeyboardCaptureController.debugInstance = null;
+          capture.dispose();
+        });
+        final (session, _) = await connect(tester);
+        final field = FocusNode();
+        addTearDown(field.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  TextField(focusNode: field),
+                  SizedBox(
+                    width: 400,
+                    height: 300,
+                    child: DesktopView(session: session),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(native.localIme, [false], reason: 'the desktop autofocuses');
+        field.requestFocus();
+        await tester.pump();
+        expect(native.localIme, [false, true]);
+        await tester.tapAt(const Offset(200, 250));
+        await tester.pump();
+        expect(native.localIme, [false, true, false]);
+        await close(tester, session);
+        expect(native.localIme, [false, true, false, true]);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
 
     testWidgets('Windows arms under the pointer and releases on exit', (

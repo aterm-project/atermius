@@ -2,6 +2,8 @@
 
 #include <flutter/standard_method_codec.h>
 
+#include <imm.h>
+
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -493,8 +495,8 @@ void KeyboardCapture::HookThread::HookLost() const {
 }
 
 KeyboardCapture::KeyboardCapture(flutter::BinaryMessenger *messenger,
-                                 HWND window)
-    : window_(window) {
+                                 HWND window, HWND view)
+    : window_(window), view_(view) {
   active_ = window_ && GetForegroundWindow() == window_;
   channel_ = std::make_unique<flutter::MethodChannel<EncodableValue>>(
       messenger, "atermius/keyboard_capture",
@@ -534,6 +536,20 @@ void KeyboardCapture::HandleCall(
       ReleaseKeys();
     }
     UpdateHook(/*reinstall=*/true);
+    result->Success(State(false));
+  } else if (method == "setLocalIme") {
+    const auto args = call.arguments();
+    const auto map = args ? std::get_if<EncodableMap>(args) : nullptr;
+    if (!map) {
+      result->Error("invalid_arguments", "Expected enabled boolean");
+      return;
+    }
+    const auto item = map->find(EncodableValue("enabled"));
+    if (item == map->end() || !std::holds_alternative<bool>(item->second)) {
+      result->Error("invalid_arguments", "Expected enabled boolean");
+      return;
+    }
+    SetLocalIme(std::get<bool>(item->second) || shut_down_);
     result->Success(State(false));
   } else if (method == "getState") {
     result->Success(State(true));
@@ -591,6 +607,7 @@ void KeyboardCapture::Shutdown() {
   }
   armed_ = false;
   ReleaseKeys();
+  SetLocalIme(true);
   shut_down_ = true;
   pending_.clear();
   // Removes the hook (also for keys still held) and joins its thread.
@@ -707,6 +724,33 @@ void KeyboardCapture::SetActive(bool active) {
         "windowFocus", std::make_unique<EncodableValue>(EncodableMap{
                            {EncodableValue("focused"), EncodableValue(active)},
                        }));
+  }
+}
+
+// The input context belongs to the window that has the keyboard focus, which
+// is the Flutter view; the top-level window follows it in case the focus is
+// ever left there. Must run on the thread that owns the windows.
+void KeyboardCapture::SetLocalIme(bool enabled) {
+  if (local_ime_ == enabled) {
+    return;
+  }
+  local_ime_ = enabled;
+  for (HWND const target : {view_, window_}) {
+    if (!target || !IsWindow(target)) {
+      continue;
+    }
+    if (enabled) {
+      ImmAssociateContextEx(target, nullptr, IACE_DEFAULT);
+      continue;
+    }
+    // Text being composed locally has no receiver: drop it, or its candidate
+    // window would stay open over the remote desktop.
+    if (HIMC const context = ImmGetContext(target)) {
+      ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
+      ImmNotifyIME(context, NI_CLOSECANDIDATE, 0, 0);
+      ImmReleaseContext(target, context);
+    }
+    ImmAssociateContextEx(target, nullptr, 0);
   }
 }
 
