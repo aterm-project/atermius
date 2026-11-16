@@ -1,15 +1,19 @@
 import 'app_menu.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:intl/intl.dart';
 
 import '../domain/models.dart';
 import '../l10n/l10n.dart';
 import '../ssh/openssh_certificate.dart';
 import 'app_theme.dart';
+import 'ios_native/ios_native.dart';
 
 /// Upper bound for an imported private key / certificate file.
 const int keychainMaxImportBytes = 256 * 1024;
@@ -234,6 +238,45 @@ class _KeychainCertificateFieldState extends State<KeychainCertificateField> {
             bad = true;
           }
         }
+        if (isIosPhone(context)) {
+          final c = IosColors.of(context);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              IosTextFieldRow(
+                fieldKey: const ValueKey('keychain_certificate'),
+                controller: widget.controller,
+                label: l10n.r7NavCertificateOptional,
+                placeholder: l10n.r7NavCertificateHelper,
+                minLines: 1,
+                maxLines: 4,
+                mono: true,
+              ),
+              IosListActionRow(
+                key: const ValueKey('keychain_certificate_import'),
+                icon: Icons.upload_file_rounded,
+                label: l10n.r7NavImportCertificateFile,
+                onTap: _import,
+              ),
+              if (status != null || _importError != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    IosMetrics.rowPaddingH,
+                    4,
+                    IosMetrics.rowPaddingH,
+                    8,
+                  ),
+                  child: Text(
+                    _importError ?? status!,
+                    key: const ValueKey('keychain_certificate_status'),
+                    style: IosType.footnote.copyWith(
+                      color: _importError != null || bad ? c.warning : c.tint,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -332,6 +375,8 @@ class KeychainPage extends StatefulWidget {
     this.onRetry,
     this.scopeLabel,
     this.footer,
+    this.onOpenKnownHosts,
+    this.backLabel,
   });
 
   final List<KeychainEntry> entries;
@@ -350,6 +395,10 @@ class KeychainPage extends StatefulWidget {
   final ValueChanged<KeychainEntry> onDelete;
   final String? scopeLabel;
   final Widget? footer;
+
+  /// iOS Phone 首组「已知主机」入口回调；若未显式传入，自动从 [IosWorkspaceScope] 查找。
+  final VoidCallback? onOpenKnownHosts;
+  final String? backLabel;
 
   @override
   State<KeychainPage> createState() => _KeychainPageState();
@@ -381,11 +430,243 @@ class _KeychainPageState extends State<KeychainPage> {
         entry.usedBy.any((label) => label.toLowerCase().contains(q));
   }
 
+  VoidCallback? _resolveKnownHostsCallback(BuildContext context) {
+    if (widget.onOpenKnownHosts != null) return widget.onOpenKnownHosts;
+    final scope = IosWorkspaceScope.maybeOf(context);
+    if (scope == null) return null;
+    for (final section in [...scope.moreMenu, ...scope.addMenu]) {
+      for (final action in section) {
+        if (action.id.contains('known_host')) {
+          return action.enabled ? () => unawaited(Future.sync(action.run)) : null;
+        }
+      }
+    }
+    return null;
+  }
+
+  Widget _buildIosPhone(BuildContext context, List<KeychainEntry> rows) {
+    final c = IosColors.of(context);
+    final l10n = context.l10n;
+    final isSubpage = ModalRoute.of(context)?.canPop ?? false;
+    final knownHostsCallback = _resolveKnownHostsCallback(context);
+    final hasKnownHostsEntry =
+        widget.onOpenKnownHosts != null ||
+        (IosWorkspaceScope.maybeOf(context)?.moreMenu
+                .expand((s) => s)
+                .any((a) => a.id.contains('known_host')) ??
+            false);
+
+    final searchField = buildIosSearchTextField(
+      context,
+      key: const ValueKey('keychain_search'),
+      controller: _search,
+      placeholder: l10n.r7NavKeychainSearchHint,
+      onChanged: (_) => setState(() {}),
+      onSuffixTap: () => setState(() {}),
+    );
+
+    final addButton = IosBarButton(
+      key: widget.addButtonKey ?? const ValueKey('keychain_add'),
+      icon: IosIcons.add,
+      semanticLabel: l10n.r7NavAdd,
+      onPressed: widget.canWrite && !widget.busy ? widget.onAdd : null,
+    );
+
+    final trailing = widget.busy
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CupertinoActivityIndicator(),
+              const SizedBox(width: 8),
+              addButton,
+            ],
+          )
+        : addButton;
+
+    final slivers = <Widget>[];
+
+    if (isSubpage) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              IosMetrics.sectionMargin,
+              0,
+              IosMetrics.sectionMargin,
+              12,
+            ),
+            child: searchField,
+          ),
+        ),
+      );
+    }
+
+    if (widget.error != null) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: IosListSection(
+            separatorIndent: IosListSection.indentForIcon(),
+            children: [
+              IosListRow(
+                leading: IosIconTile(icon: IosIcons.warning, color: c.warning),
+                title: Text(
+                  widget.error!,
+                  key: const ValueKey('keychain_error'),
+                ),
+              ),
+              if (widget.onRetry != null)
+                IosListActionRow(
+                  icon: Icons.refresh_rounded,
+                  label: l10n.retryRefresh,
+                  onTap: widget.onRetry,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 分段过滤（全部 / 密码 / 密钥 / 证书）
+    slivers.add(
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IosMetrics.sectionMargin,
+            0,
+            IosMetrics.sectionMargin,
+            18,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: CupertinoSlidingSegmentedControl<KeychainFilter>(
+              groupValue: _filter,
+              backgroundColor: c.fill,
+              thumbColor: c.isDark ? const Color(0xFF636366) : Colors.white,
+              onValueChanged: (next) {
+                if (next == null) return;
+                HapticFeedback.selectionClick().catchError((Object _) {});
+                setState(() => _filter = next);
+              },
+              children: {
+                for (final filter in KeychainFilter.values)
+                  filter: Padding(
+                    key: ValueKey('keychain_filter_${filter.name}'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 6,
+                    ),
+                    child: Text(
+                      switch (filter) {
+                        KeychainFilter.all => l10n.r7NavLogFilterAll,
+                        KeychainFilter.passwords => l10n.r7NavFilterPasswords,
+                        KeychainFilter.keys => l10n.r7NavFilterKeys,
+                        KeychainFilter.certificates =>
+                          l10n.r7NavFilterCertificates,
+                      },
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: IosType.footnote.copyWith(
+                        color: c.label,
+                        fontWeight: _filter == filter
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // 首组：「已知主机」信任管理入口
+    if (hasKnownHostsEntry) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: IosListSection(
+            separatorIndent: IosListSection.indentForIcon(),
+            children: [
+              IosListRow(
+                key: const ValueKey('keychain_known_hosts_row'),
+                leading: IosIconTile(icon: IosIcons.verified, color: c.green),
+                title: Text(l10n.knownHost),
+                subtitle: Text(l10n.manageSshHostKeyTrust),
+                accessory: IosRowAccessory.chevron,
+                enabled: !widget.busy && knownHostsCallback != null,
+                onTap: !widget.busy ? knownHostsCallback : null,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 次组：「凭据」列表或空状态
+    if (rows.isEmpty) {
+      slivers.add(
+        SliverIosEmptyState(
+          child: IosEmptyState(
+            key: const ValueKey('keychain_empty'),
+            icon: IosIcons.keychain,
+            title: widget.entries.isEmpty
+                ? (widget.emptyText ?? l10n.r7NavKeychainEmpty)
+                : l10n.r7NavLogNoMatches,
+            message: widget.scopeLabel ?? l10n.r7NavKeychainSubtitle,
+            actionLabel: widget.entries.isEmpty && widget.canWrite
+                ? l10n.r7NavAdd
+                : null,
+            onAction: widget.canWrite && !widget.busy ? widget.onAdd : null,
+          ),
+        ),
+      );
+    } else {
+      final enabled = widget.canWrite && !widget.busy;
+      slivers.add(
+        SliverToBoxAdapter(
+          child: IosListSection(
+            key: const ValueKey('keychain_list'),
+            header: l10n.credentials,
+            footer: widget.scopeLabel,
+            separatorIndent: IosListSection.indentForIcon(),
+            children: [
+              for (final entry in rows)
+                _IosKeychainRow(
+                  rowKeyPrefix: widget.rowKeyPrefix,
+                  entry: entry,
+                  enabled: enabled,
+                  onEdit: () => widget.onEdit(entry),
+                  onDelete: () => widget.onDelete(entry),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return KeyedSubtree(
+      key: const ValueKey('keychain_page'),
+      child: IosLargeTitlePage(
+        title: l10n.r7NavKeychain,
+        largeTitle: !isSubpage,
+        showBackButton: isSubpage,
+        backLabel: widget.backLabel,
+        trailing: trailing,
+        searchField: isSubpage ? null : searchField,
+        onRefresh: IosWorkspaceScope.maybeOf(context)?.refresh,
+        slivers: slivers,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final rows = widget.entries.where(_matches).toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (isIosPhone(context)) {
+      return _buildIosPhone(context, rows);
+    }
     return Column(
       key: const ValueKey('keychain_page'),
       children: [
@@ -624,6 +905,148 @@ class _KeychainRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _IosKeychainRow extends StatelessWidget {
+  const _IosKeychainRow({
+    required this.entry,
+    required this.enabled,
+    required this.onEdit,
+    required this.onDelete,
+    required this.rowKeyPrefix,
+  });
+
+  final KeychainEntry entry;
+  final bool enabled;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final String rowKeyPrefix;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IosColors.of(context);
+    final l10n = context.l10n;
+    final cert = tryParseCertificate(entry.certificate);
+    final kindLabel = entry.kind == AuthKind.password
+        ? l10n.r7NavKindPassword
+        : cert != null
+        ? l10n.r7NavKindKeyWithCertificate
+        : l10n.r7NavKindPrivateKey;
+    final referenced = entry.usedBy.isNotEmpty;
+    final certInvalid = cert != null && !cert.isValidAt(DateTime.now());
+    final usageText = referenced
+        ? l10n.r7NavUsedBy(entry.usedBy.length, entry.usedBy.take(2).join(', '))
+        : l10n.r7NavNotUsed;
+
+    final subtitleParts = <String>[
+      if (entry.username.isNotEmpty) entry.username,
+      kindLabel,
+      usageText,
+    ];
+
+    final iconData = entry.kind == AuthKind.password
+        ? Icons.password_rounded
+        : cert != null
+        ? Icons.workspace_premium_rounded
+        : IosIcons.keychain;
+
+    Widget buildRow({required bool inPreview}) => IosListRow(
+      key: inPreview ? null : ValueKey('$rowKeyPrefix${entry.id}'),
+      minHeight: IosMetrics.hostRowHeight,
+      leading: IosIconTile(
+        icon: iconData,
+        color: c.yellow,
+        glyphColor: const Color(0xFF1C1C1E),
+      ),
+      title: Text(entry.name),
+      titleTrailing: certInvalid
+          ? IosStatusDot(color: c.warning, size: 8)
+          : null,
+      subtitle: Text(
+        subtitleParts.join(' · '),
+        key: inPreview ? null : ValueKey('keychain_usage_${entry.id}'),
+      ),
+      accessory: IosRowAccessory.chevron,
+      enabled: enabled,
+      onTap: inPreview || !enabled ? null : onEdit,
+    );
+
+    final contextActions = <Widget>[
+      if (enabled) ...[
+        Builder(
+          builder: (menuCtx) => CupertinoContextMenuAction(
+            trailingIcon: IosIcons.edit,
+            onPressed: () {
+              Navigator.of(menuCtx).pop();
+              onEdit();
+            },
+            child: Text(l10n.editCredential),
+          ),
+        ),
+        Builder(
+          builder: (menuCtx) => CupertinoContextMenuAction(
+            isDestructiveAction: true,
+            trailingIcon: IosIcons.delete,
+            onPressed: () {
+              Navigator.of(menuCtx).pop();
+              onDelete();
+            },
+            child: Text(l10n.deleteCredential),
+          ),
+        ),
+      ],
+    ];
+
+    final Widget withContextMenu = contextActions.isEmpty
+        ? buildRow(inPreview: false)
+        : CupertinoContextMenu.builder(
+            actions: contextActions,
+            builder: (ctx, animation) {
+              if (animation.value < CupertinoContextMenu.animationOpensAt) {
+                return buildRow(inPreview: false);
+              }
+              final maxW =
+                  (MediaQuery.sizeOf(ctx).width - 40).clamp(240.0, 360.0);
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxW),
+                  child: ClipRSuperellipse(
+                    borderRadius: BorderRadius.circular(IosMetrics.groupRadius),
+                    child: Material(
+                      color: c.cell,
+                      child: SingleChildScrollView(
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: buildRow(inPreview: true),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+
+    return IosSwipeActionCell(
+      enabled: enabled,
+      trailing: [
+        IosSwipeAction(
+          key: ValueKey('ios_keychain_swipe_delete_${entry.id}'),
+          label: l10n.delete,
+          icon: IosIcons.delete,
+          color: c.destructive,
+          destructive: true,
+          onTap: onDelete,
+        ),
+        IosSwipeAction(
+          key: ValueKey('ios_keychain_swipe_edit_${entry.id}'),
+          label: l10n.edit,
+          icon: IosIcons.edit,
+          color: c.gray,
+          onTap: onEdit,
+        ),
+      ],
+      child: withContextMenu,
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -45,7 +46,7 @@ class TerminalView extends StatefulWidget {
     this.keyboardAppearance = Brightness.dark,
     this.cursorType = TerminalCursorType.block,
     this.alwaysShowCursor = false,
-    this.deleteDetection = false,
+    this.deleteDetection,
     this.shortcuts,
     this.onKeyEvent,
     this.readOnly = false,
@@ -119,10 +120,10 @@ class TerminalView extends StatefulWidget {
   /// [false] by default.
   final bool alwaysShowCursor;
 
-  /// Workaround to detect delete key for platforms and IMEs that does not
-  /// emit hardware delete event. Prefered on mobile platforms. [false] by
-  /// default.
-  final bool deleteDetection;
+  /// Workaround to detect delete key for platforms and IMEs that do not
+  /// emit hardware delete events. Automatically enabled on native iOS and
+  /// Android when omitted (`null`).
+  final bool? deleteDetection;
 
   /// Shortcuts for this terminal. This has higher priority than input handler
   /// of the terminal If not provided, [defaultTerminalShortcuts] will be used.
@@ -275,16 +276,35 @@ class TerminalViewState extends State<TerminalView> {
     );
 
     if (!widget.hardwareKeyboardOnly) {
+      final effectiveDeleteDetection =
+          widget.deleteDetection ??
+          (!kIsWeb &&
+              (defaultTargetPlatform == TargetPlatform.iOS ||
+                  defaultTargetPlatform == TargetPlatform.android));
       child = CustomTextEdit(
         key: _customTextEditKey,
         focusNode: _focusNode,
         autofocus: widget.autofocus,
         inputType: widget.keyboardType,
         keyboardAppearance: widget.keyboardAppearance,
-        deleteDetection: widget.deleteDetection,
+        deleteDetection: effectiveDeleteDetection,
         onInsert: _onInsert,
         onDelete: () {
           _scrollToBottom();
+          // Allow client soft-modifier handlers (e.g. TerminalKeybar Ctrl/Alt)
+          // to intercept soft-keyboard Backspace first.
+          final syntheticBackspace = const KeyDownEvent(
+            physicalKey: PhysicalKeyboardKey.backspace,
+            logicalKey: LogicalKeyboardKey.backspace,
+            timeStamp: Duration.zero,
+          );
+          final override = widget.onKeyEvent?.call(
+            _focusNode,
+            syntheticBackspace,
+          );
+          if (override == KeyEventResult.handled) {
+            return;
+          }
           widget.terminal.keyInput(TerminalKey.backspace);
         },
         onComposing: _onComposing,

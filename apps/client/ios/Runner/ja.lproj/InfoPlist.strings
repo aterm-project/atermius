@@ -1,3 +1,9 @@
 "CFBundleDisplayName" = "Atermius";
 "CFBundleName" = "Atermius";
-"NSLocalNetworkUsageDescription" = "Atermius はローカルネットワーク上の SSH、SFTP、RDP、VNC、MCP ホストに接続します。";
+"NSAppleMusicUsageDescription" = "Atermius はホストへの添付や SFTP、SCP、RDP でのファイル転送のためにローカルのオーディオやメディアファイルを選択した際にのみメディアライブラリにアクセスします。";
+"NSCameraUsageDescription" = "Atermius はサーバー機器ラベルや設定メモの写真を撮影してホストに添付する際、またはカスタム壁紙を撮影する際にカメラを使用します。";
+"NSFaceIDUsageDescription" = "Atermius は暗号化されたローカル保管庫、SSH 秘密鍵、および保存されたホスト資格情報のロックを解除するために Face ID を使用します。";
+"NSLocalNetworkUsageDescription" = "Atermius はローカルネットワーク上の SSH、SFTP、Telnet、RDP、VNC、および MCP ホストに接続するためにローカルネットワークを使用します。";
+"NSLocationWhenInUseUsageDescription" = "Atermius はホスト添付用の写真を撮影して位置情報メタデータの記録を選択した場合にのみ、使用中の位置情報にアクセスします。";
+"NSPhotoLibraryAddUsageDescription" = "Atermius はエクスポートしたホストの添付画像やリモートセッションからダウンロードした画像を、操作に応じて写真ライブラリに保存します。";
+"NSPhotoLibraryUsageDescription" = "Atermius はカスタム端末壁紙の画像選択、ホストへの画像添付、または SFTP、SCP、RDP でのファイル転送を行う際に写真ライブラリにアクセスします。";

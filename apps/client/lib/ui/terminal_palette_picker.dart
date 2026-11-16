@@ -1,11 +1,16 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
 
 import '../domain/vault_preference.dart';
 import '../l10n/l10n.dart';
 import 'app_theme.dart';
+import 'apple_hig.dart';
+import 'ios_native/ios_native.dart';
+import 'settings_scaffold.dart';
 import 'terminal_color_theme.dart';
 import 'terminal_palette.dart';
 
@@ -152,6 +157,95 @@ class TerminalPaletteTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isIosPhone(context)) {
+      final colors = IosColors.of(context);
+      final hairline = IosMetrics.hairline(context);
+      return Semantics(
+        container: true,
+        button: true,
+        selected: selected,
+        inMutuallyExclusiveGroup: true,
+        enabled: onSelected != null,
+        label: subtitle == null ? name : '$name, $subtitle',
+        onTap: onSelected,
+        child: ExcludeSemantics(
+          child: SizedBox(
+            width: width,
+            child: ClipRSuperellipse(
+              borderRadius: BorderRadius.circular(14),
+              child: DecoratedBox(
+                position: DecorationPosition.foreground,
+                decoration: ShapeDecoration(
+                  shape: RoundedSuperellipseBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(
+                      color: selected ? colors.tint : colors.separator,
+                      width: selected ? 2 : hairline,
+                    ),
+                  ),
+                ),
+                child: IosPressable(
+                  color: colors.fill,
+                  enabled: onSelected != null,
+                  onTap: onSelected == null
+                      ? null
+                      : () {
+                          AppleHaptics.selection(context);
+                          onSelected!();
+                        },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TerminalPalettePreview(theme: theme),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 6, 8, 7),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: IosType.footnote.copyWith(
+                                      color: colors.label,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (subtitle case final subtitle?)
+                                    Text(
+                                      subtitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: IosType.caption1.copyWith(
+                                        color: colors.secondaryLabel,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            if (selected)
+                              Icon(
+                                IosIcons.success,
+                                size: 17,
+                                color: colors.tint,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     final colors = Theme.of(context).colorScheme;
     return Semantics(
       container: true,
@@ -269,46 +363,61 @@ class TerminalSyncedThemeSelector extends StatelessWidget {
       listenable: controller,
       builder: (context, _) {
         final overlay = persisted == null ? null : controller.preset;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
+        final iosPhone = isIosPhone(context);
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final tileWidth = iosPhone && constraints.maxWidth.isFinite
+                ? math.max(120.0, (constraints.maxWidth - 10) / 2)
+                : 172.0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                for (final choice in VaultTerminalThemeChoice.values)
-                  TerminalPaletteTile(
-                    key: ValueKey('terminal-theme-option-${choice.value}'),
-                    theme: buildTerminalColorTheme(choice),
-                    name: choice.label,
-                    selected: choice == selected,
-                    onSelected: onSelected == null
-                        ? null
-                        : () {
-                            if (choice == persisted) controller.followSynced();
-                            onSelected!(choice);
-                          },
-                  ),
-              ],
-            ),
-            if (overlay != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    context.l10n.settingsThemeOverlayActive(overlay.name),
-                    key: const ValueKey('terminal_theme_overlay_notice'),
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.35,
-                      color: context.palette.orange,
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final choice in VaultTerminalThemeChoice.values)
+                      TerminalPaletteTile(
+                        key: ValueKey('terminal-theme-option-${choice.value}'),
+                        theme: buildTerminalColorTheme(choice),
+                        name: choice.label,
+                        selected: choice == selected,
+                        width: tileWidth,
+                        onSelected: onSelected == null
+                            ? null
+                            : () {
+                                if (choice == persisted) {
+                                  controller.followSynced();
+                                }
+                                onSelected!(choice);
+                              },
+                      ),
+                  ],
+                ),
+                if (overlay != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        context.l10n.settingsThemeOverlayActive(overlay.name),
+                        key: const ValueKey('terminal_theme_overlay_notice'),
+                        style: iosPhone
+                            ? IosType.footnote.copyWith(
+                                color: IosColors.of(context).warning,
+                              )
+                            : TextStyle(
+                                fontSize: 12,
+                                height: 1.35,
+                                color: context.palette.orange,
+                              ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         );
       },
     );
@@ -320,7 +429,8 @@ enum _PaletteFilter { all, dark, light }
 /// Device-local palette gallery: search, dark/light filter and live previews
 /// of all presets plus "follow the synced theme". Selection applies at once
 /// to every terminal on this device and persists across launches.
-class TerminalPaletteGallery extends StatefulWidget {
+class TerminalPaletteGallery extends StatefulWidget
+    with IosFlushSettingsChild {
   const TerminalPaletteGallery({
     required this.synced,
     this.controller,
@@ -360,10 +470,205 @@ class _TerminalPaletteGalleryState extends State<TerminalPaletteGallery> {
     };
   }
 
+  Widget _buildIos(BuildContext context) {
+    final l10n = context.l10n;
+    final colors = IosColors.of(context);
+    final active = _palettes.preset;
+    final presets = terminalPalettePresets.values
+        .where(_matches)
+        .toList(growable: false);
+    final showSynced = _query.text.trim().isEmpty;
+
+    return Padding(
+      key: const ValueKey('terminal_palette_gallery'),
+      padding: const EdgeInsets.all(IosMetrics.rowPaddingH),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              IosIconTile(
+                icon: Icons.color_lens_rounded,
+                color: colors.green,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n.r7UiPaletteGalleryTitle,
+                  style: IosType.headline.copyWith(color: colors.label),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            l10n.r7UiPaletteGalleryDescription,
+            style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+          ),
+          const SizedBox(height: 12),
+          ClipRSuperellipse(
+            borderRadius: BorderRadius.circular(14),
+            child: TerminalPalettePreview(
+              key: const ValueKey('terminal_palette_active_preview'),
+              theme: _palettes.resolve(widget.synced),
+              height: 76,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              active == null
+                  ? l10n.r7UiPaletteFollowingSynced
+                  : l10n.r7UiPaletteActiveOverride(active.name),
+              key: const ValueKey('terminal_palette_status'),
+              style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+            ),
+          ),
+          if (_palettes.writeFailed)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                l10n.r7UiPaletteSaveFailed,
+                key: const ValueKey('terminal_palette_save_failed'),
+                style: IosType.footnote.copyWith(color: colors.warning),
+              ),
+            ),
+          const SizedBox(height: 12),
+          IosSearchField(
+            fieldKey: const ValueKey('terminal_palette_search'),
+            controller: _query,
+            placeholder: l10n.r7UiPaletteSearchHint,
+            onChanged: (_) => setState(() {}),
+            onSuffixTap: () => setState(() {}),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoSlidingSegmentedControl<_PaletteFilter>(
+              key: const ValueKey('terminal_palette_filter'),
+              groupValue: _filter,
+              backgroundColor: colors.fill,
+              thumbColor: colors.isDark
+                  ? const Color(0xFF636366)
+                  : Colors.white,
+              onValueChanged: (next) {
+                if (next == null || next == _filter) return;
+                AppleHaptics.selection(context);
+                setState(() => _filter = next);
+              },
+              children: {
+                _PaletteFilter.all: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  child: Text(
+                    l10n.r7UiPaletteFilterAll,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IosType.footnote.copyWith(
+                      color: colors.label,
+                      fontWeight: _filter == _PaletteFilter.all
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                _PaletteFilter.dark: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  child: Text(
+                    l10n.r7UiPaletteFilterDark,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IosType.footnote.copyWith(
+                      color: colors.label,
+                      fontWeight: _filter == _PaletteFilter.dark
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                _PaletteFilter.light: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  child: Text(
+                    l10n.r7UiPaletteFilterLight,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IosType.footnote.copyWith(
+                      color: colors.label,
+                      fontWeight: _filter == _PaletteFilter.light
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (!showSynced && presets.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                l10n.r7UiPaletteNoMatches,
+                key: const ValueKey('terminal_palette_no_matches'),
+                style: IosType.subheadline.copyWith(
+                  color: colors.secondaryLabel,
+                ),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final tileWidth = constraints.maxWidth.isFinite
+                    ? math.max(120.0, (constraints.maxWidth - 10) / 2)
+                    : 172.0;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    if (showSynced)
+                      TerminalPaletteTile(
+                        key: const ValueKey('terminal_palette_option_synced'),
+                        theme: buildTerminalColorTheme(widget.synced),
+                        name: l10n.r7UiPaletteFollowSynced(widget.synced.label),
+                        selected: active == null,
+                        width: tileWidth,
+                        onSelected: () => unawaited(_palettes.select(null)),
+                      ),
+                    for (final spec in presets)
+                      TerminalPaletteTile(
+                        key: ValueKey('terminal_palette_option_${spec.id}'),
+                        theme: _palettes.presetTheme(spec),
+                        name: spec.name,
+                        selected: active?.id == spec.id,
+                        width: tileWidth,
+                        onSelected: () => unawaited(_palettes.select(spec.id)),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: _palettes,
     builder: (context, _) {
+      if (isIosPhone(context)) {
+        return _buildIos(context);
+      }
       final l10n = context.l10n;
       final active = _palettes.preset;
       final presets = terminalPalettePresets.values

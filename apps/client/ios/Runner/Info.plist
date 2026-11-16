@@ -37,8 +37,20 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>Atermius accesses your media library only when you select local audio or media files to attach to a host or transfer over SFTP, SCP, or RDP.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Atermius uses the camera when you take photos to attach hardware labels or configuration notes to a host record, or capture a custom workspace wallpaper.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Atermius uses Face ID to authenticate and unlock your encrypted local vault, SSH private keys, and saved host credentials.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Atermius connects to SSH, SFTP, RDP, VNC, and MCP hosts on your local network.</string>
+	<string>Atermius connects to SSH, SFTP, Telnet, RDP, VNC, and MCP hosts on your local network.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Atermius accesses your location while using the app only if you choose to include location metadata when capturing host attachment photos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Atermius saves exported host attachments and downloaded remote session images to your photo library when requested.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Atermius accesses your photo library when you choose an image for a custom terminal wallpaper, attach images to a host record, or transfer files over SFTP, SCP, or RDP.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -85,5 +97,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
 </dict>
 </plist>

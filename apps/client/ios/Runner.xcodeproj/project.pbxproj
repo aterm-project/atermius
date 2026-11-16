@@ -18,6 +18,7 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		97C148001CF9000F007C117D /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 97C148011CF9000F007C117D /* InfoPlist.strings */; };
+		97C148081CF9000F007C117D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 97C148091CF9000F007C117D /* PrivacyInfo.xcprivacy */; };
 		F43895A158E3D6DB32486D65 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6871FF3B8783FEC0B560903D /* Pods_Runner.framework */; };
 /* End PBXBuildFile section */
 
@@ -72,6 +73,7 @@
 		97C148051CF9000F007C117D /* ru */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		97C148061CF9000F007C117D /* Runner.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		97C148071CF9000F007C117D /* RunnerPush.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = RunnerPush.entitlements; sourceTree = "<group>"; };
+		97C148091CF9000F007C117D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		D6F7AE38BC9CC8CF3035D80A /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		DDDDD457C2C3744C0048F9F0 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		E21F9F0A3D3549F3B662C2D0 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
@@ -156,6 +158,7 @@
 				97C146FD1CF9000F007C117D /* Assets.xcassets */,
 				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
 				97C147021CF9000F007C117D /* Info.plist */,
+				97C148091CF9000F007C117D /* PrivacyInfo.xcprivacy */,
 				97C148011CF9000F007C117D /* InfoPlist.strings */,
 				97C148061CF9000F007C117D /* Runner.entitlements */,
 				97C148071CF9000F007C117D /* RunnerPush.entitlements */,
@@ -294,6 +297,7 @@
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 				97C148001CF9000F007C117D /* InfoPlist.strings in Resources */,
+				97C148081CF9000F007C117D /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

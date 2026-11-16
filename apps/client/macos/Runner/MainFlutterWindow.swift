@@ -240,6 +240,11 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   }
 
   override func awakeFromNib() {
+    NSWindow.allowsAutomaticWindowTabbing = false
+    self.tabbingMode = .disallowed
+    self.appearance = NSAppearance(named: .darkAqua)
+    self.backgroundColor = NSColor(srgbRed: 0x0B / 255.0, green: 0x0F / 255.0, blue: 0x10 / 255.0, alpha: 1.0)
+
     let project = FlutterDartProject()
     let dartArgs = Self.extractDartEntrypointArguments(CommandLine.arguments)
     if !dartArgs.isEmpty {
@@ -276,6 +281,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     isMovableByWindowBackground = false
     if #available(macOS 11.0, *) {
       toolbarStyle = .unifiedCompact
+      self.titlebarSeparatorStyle = .none
     }
   }
 

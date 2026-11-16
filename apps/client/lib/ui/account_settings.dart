@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
@@ -8,6 +9,7 @@ import 'credential_visibility/credential_visibility_widgets.dart';
 import '../storage/workspace_mode.dart';
 import 'app_motion.dart';
 import 'insecure_server_widgets.dart';
+import 'ios_native/ios_native.dart';
 import 'settings_scaffold.dart';
 import 'sync_settings.dart';
 import 'workspace_mode_settings.dart';
@@ -169,16 +171,187 @@ class _AccountSettingsViewState extends State<AccountSettingsView> {
     confirmLabel: context.l10n.switchToLocalMode,
   );
 
+  Widget _buildIos(
+    BuildContext context, {
+    required AccountSessionSummary summary,
+    required WorkspaceModeScope? scope,
+    required bool disabled,
+    required bool canSwitchMode,
+  }) {
+    final l10n = context.l10n;
+    final colors = IosColors.of(context);
+    final hairline = IosMetrics.hairline(context);
+    final detailItems = <(String, String, Key?)>[
+      (l10n.accountSettingsCurrentMode, l10n.accountSettingsModeAccount, null),
+      (
+        l10n.accountSettingsServer,
+        summary.serverUrl ?? '—',
+        const ValueKey('account_settings_server'),
+      ),
+      (l10n.accountSettingsSignedInAs, summary.username ?? '—', null),
+      (l10n.accountId, summary.accountId ?? '—', null),
+      (l10n.deviceId, summary.deviceId ?? '—', null),
+      (
+        l10n.accountSettingsActiveVault,
+        summary.vaultName ?? l10n.accountSettingsNoVault,
+        null,
+      ),
+    ];
+
+    Widget separator([double start = IosMetrics.rowPaddingH]) => Padding(
+      padding: EdgeInsetsDirectional.only(start: start),
+      child: SizedBox(height: hairline, child: ColoredBox(color: colors.separator)),
+    );
+
+    return SettingsCards(
+      children: [
+        SettingsCard(
+          iosPadding: EdgeInsets.zero,
+          child: Column(
+            key: const ValueKey('account_settings_signed_in'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(IosMetrics.rowPaddingH),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    IosIconTile(
+                      icon: Icons.person_rounded,
+                      color: colors.blue,
+                      size: 48,
+                      radius: 14,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            summary.username ?? summary.accountId ?? '—',
+                            key: const ValueKey('account_settings_identity'),
+                            style: IosType.title3.copyWith(color: colors.label),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            l10n.accountSettingsSessionUnlocked,
+                            style: IosType.footnote.copyWith(
+                              color: colors.secondaryLabel,
+                            ),
+                          ),
+                          if (summary.instanceAdmin) ...[
+                            const SizedBox(height: 8),
+                            _IosAccountBadge(
+                              key: const ValueKey(
+                                'account_settings_admin_badge',
+                              ),
+                              icon: Icons.admin_panel_settings_rounded,
+                              label: l10n.accountSettingsInstanceAdmin,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              separator(0),
+              for (var i = 0; i < detailItems.length; i++) ...[
+                if (i > 0) separator(),
+                _IosAccountDetailRow(
+                  label: detailItems[i].$1,
+                  value: detailItems[i].$2,
+                  valueKey: detailItems[i].$3,
+                ),
+              ],
+            ],
+          ),
+        ),
+        ?widget.syncControls,
+        ?widget.cloudAccessControls,
+        SettingsCard(
+          iosPadding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              IosListRow(
+                key: const ValueKey('account_settings_open_security'),
+                leading: IosIconTile(
+                  icon: Icons.shield_rounded,
+                  color: colors.red,
+                ),
+                title: Text(l10n.accountSettingsSecurityAction),
+                accessory: IosRowAccessory.chevron,
+                onTap: () => SettingsScaffold.selectSection(
+                  context,
+                  accountSecuritySectionId,
+                ),
+              ),
+              separator(IosListSection.indentForIcon()),
+              IosListRow(
+                key: const ValueKey('account_settings_lock'),
+                tinted: true,
+                enabled: !disabled,
+                leading: Icon(IosIcons.lock, size: 22, color: colors.tint),
+                title: Text(l10n.lockWorkspace),
+                trailing: disabled
+                    ? const CupertinoActivityIndicator(radius: 9)
+                    : null,
+                onTap: disabled ? null : () => _run(widget.onLock),
+              ),
+              if (scope != null && scope.mode == WorkspaceMode.server) ...[
+                separator(),
+                IosListActionRow(
+                  key: const ValueKey('account_settings_switch_local'),
+                  label: l10n.switchToLocalMode,
+                  icon: Icons.swap_horiz_rounded,
+                  onTap: disabled || !canSwitchMode
+                      ? null
+                      : () => _switchToLocal(scope),
+                ),
+              ],
+              separator(),
+              IosListActionRow(
+                key: const ValueKey('account_settings_sign_out'),
+                label: l10n.signOut,
+                icon: Icons.logout_rounded,
+                destructive: true,
+                onTap: disabled
+                    ? null
+                    : () => _run(
+                        widget.onSignOut,
+                        confirmTitle: l10n.accountSettingsSignOutTitle,
+                        confirmBody: l10n.accountSettingsSignOutBody,
+                        confirmLabel: l10n.signOut,
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final summary = widget.summary;
     final scope = WorkspaceModeScope.of(context);
     final disabled = _acting || widget.busy;
     final canSwitchMode =
         scope != null && scope.mode == WorkspaceMode.server && !scope.busy;
+    if (isIosPhone(context)) {
+      return _buildIos(
+        context,
+        summary: summary,
+        scope: scope,
+        disabled: disabled,
+        canSwitchMode: canSwitchMode,
+      );
+    }
+
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return SettingsCards(
       children: [
         SettingsCard(
@@ -365,7 +538,10 @@ class _LocalAccountSettingsPanelState extends State<LocalAccountSettingsPanel> {
       await widget.onSignIn();
     } on Object {
       if (mounted) {
-        _showAccountMessage(context, context.l10n.couldntSwitchTheWorkspaceModeCheck);
+        _showAccountMessage(
+          context,
+          context.l10n.couldntSwitchTheWorkspaceModeCheck,
+        );
       }
     } finally {
       if (mounted) setState(() => _switching = false);
@@ -375,10 +551,77 @@ class _LocalAccountSettingsPanelState extends State<LocalAccountSettingsPanel> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final scope = WorkspaceModeScope.of(context);
     final busy = _switching || (scope?.busy ?? false);
+    if (isIosPhone(context)) {
+      final colors = IosColors.of(context);
+      final hairline = IosMetrics.hairline(context);
+      return SettingsCard(
+        iosPadding: EdgeInsets.zero,
+        child: Column(
+          key: const ValueKey('account_settings_local'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(IosMetrics.rowPaddingH),
+              child: Row(
+                children: [
+                  IosIconTile(
+                    icon: Icons.person_outline_rounded,
+                    color: colors.gray,
+                    size: 44,
+                    radius: 12,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      l10n.accountSettingsLocalNotSignedIn,
+                      style: IosType.headline.copyWith(color: colors.label),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: hairline,
+              child: ColoredBox(color: colors.separator),
+            ),
+            _IosAccountDetailRow(
+              label: l10n.accountSettingsCurrentMode,
+              value: l10n.accountSettingsModeLocal,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IosMetrics.rowPaddingH,
+                0,
+                IosMetrics.rowPaddingH,
+                12,
+              ),
+              child: Text(
+                l10n.accountSettingsLocalSyncRequiresAccount,
+                style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+              ),
+            ),
+            SizedBox(
+              height: hairline,
+              child: ColoredBox(color: colors.separator),
+            ),
+            IosListRow(
+              key: const ValueKey('account_settings_local_sign_in'),
+              tinted: true,
+              enabled: !busy,
+              leading: Icon(Icons.login_rounded, size: 22, color: colors.tint),
+              title: Text(l10n.accountSettingsSignIn),
+              trailing: busy ? const CupertinoActivityIndicator(radius: 9) : null,
+              onTap: busy ? null : _signIn,
+            ),
+          ],
+        ),
+      );
+    }
+
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return SettingsCard(
       child: Column(
         key: const ValueKey('account_settings_local'),
@@ -426,6 +669,104 @@ class _LocalAccountSettingsPanelState extends State<LocalAccountSettingsPanel> {
             const LinearProgressIndicator(),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _IosAccountDetailRow extends StatelessWidget {
+  const _IosAccountDetailRow({
+    required this.label,
+    required this.value,
+    this.valueKey,
+  });
+
+  final String label;
+  final String value;
+  final Key? valueKey;
+
+  static const _stackBelow = 300.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = IosColors.of(context);
+    final labelText = Text(
+      label,
+      style: IosType.subheadline.copyWith(color: colors.label),
+    );
+    final valueText = SelectableText(
+      value,
+      key: valueKey,
+      style: IosType.subheadline.copyWith(color: colors.secondaryLabel),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: IosMetrics.rowPaddingH,
+        vertical: 10,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < _stackBelow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [labelText, const SizedBox(height: 2), valueText],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 112, child: labelText),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: valueText,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _IosAccountBadge extends StatelessWidget {
+  const _IosAccountBadge({
+    required this.icon,
+    required this.label,
+    super.key,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = IosColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.tint.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: colors.tint),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                style: IosType.caption1.copyWith(
+                  color: colors.tint,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -554,6 +895,10 @@ Future<bool> _confirmAccountAction(
 }
 
 void _showAccountMessage(BuildContext context, String message) {
+  if (isIosPhone(context)) {
+    IosToast.show(context, message, kind: IosToastKind.error);
+    return;
+  }
   ScaffoldMessenger.maybeOf(context)?.showSnackBar(
     SnackBar(content: Text(message)),
   );

@@ -1,3 +1,9 @@
 "CFBundleDisplayName" = "Atermius";
 "CFBundleName" = "Atermius";
-"NSLocalNetworkUsageDescription" = "Atermius 需要访问局域网以连接本地网络中的 SSH、SFTP、RDP、VNC 和 MCP 主机。";
+"NSAppleMusicUsageDescription" = "仅当您通过选择器选取本机音频或媒体文件作为主机附件，或通过 SFTP、SCP、RDP 传输文件时，Atermius 才会访问媒体资料库。";
+"NSCameraUsageDescription" = "Atermius 在您拍摄服务器硬件标签或配置说明作为主机附件，或拍摄自定义工作区背景图片时按需使用相机。";
+"NSFaceIDUsageDescription" = "Atermius 使用面容 ID 验证您的身份，以解锁本地加密配置库、SSH 私钥及已保存的主机登录凭据。";
+"NSLocalNetworkUsageDescription" = "Atermius 需要访问局域网以连接本地网络中的 SSH、SFTP、Telnet、RDP、VNC 和 MCP 主机。";
+"NSLocationWhenInUseUsageDescription" = "仅当您在拍摄主机现场附件照片并选择附带拍摄位置元数据时，Atermius 才会在使用应用期间访问位置信息。";
+"NSPhotoLibraryAddUsageDescription" = "Atermius 在您主动保存导出的主机图片附件或远程会话下载的图像时，将其写入系统照片图库。";
+"NSPhotoLibraryUsageDescription" = "Atermius 在您选择照片设置自定义终端背景壁纸、添加主机图片附件或通过 SFTP、SCP、RDP 传输图片时按需访问照片图库。";

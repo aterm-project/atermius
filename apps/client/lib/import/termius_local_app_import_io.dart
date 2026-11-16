@@ -555,6 +555,7 @@ const _failureRank = <TermiusLocalImportFailure, int>{
 Future<({TermiusImportDocument document, String sourceLabel})>
 loadLocalTermiusAppDocument({
   String? customDataDir,
+  bool onlyLabeled = false,
   @visibleForTesting int maxSnapshotBytes = _maxLevelDbSnapshotTotalBytes,
 }) async {
   final List<Directory> candidates;
@@ -589,6 +590,7 @@ loadLocalTermiusAppDocument({
           sodium,
           keys,
           maxSnapshotBytes,
+          onlyLabeled: onlyLabeled,
         );
       } on TermiusLocalImportException catch (error) {
         if (worst == null ||
@@ -608,8 +610,9 @@ _loadFromLevelDbDir(
   Directory levelDbDir,
   SodiumSumo sodium,
   _LocalKeyCache keys,
-  int maxSnapshotBytes,
-) async {
+  int maxSnapshotBytes, {
+  bool onlyLabeled = false,
+}) async {
   Uint8List? keyBytes;
   TermiusVaultDecryptor? decryptor;
 
@@ -642,7 +645,11 @@ _loadFromLevelDbDir(
     );
     decryptor = TermiusVaultDecryptor(sodium, keyBytes);
 
-    final document = buildTermiusDocumentFromLocalTables(rawTables, decryptor);
+    final document = buildTermiusDocumentFromLocalTables(
+      rawTables,
+      decryptor,
+      onlyLabeled: onlyLabeled,
+    );
     if (document.rows.isEmpty) {
       throw const TermiusLocalImportException(
         TermiusLocalImportFailure.emptyDatabase,

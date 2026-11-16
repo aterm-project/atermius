@@ -23,7 +23,11 @@ class TermiusLocalImportException implements Exception {
 bool hasLocalTermiusInstallation() => false;
 
 Future<({TermiusImportDocument document, String sourceLabel})>
-loadLocalTermiusAppDocument({String? customDataDir, int? maxSnapshotBytes}) =>
+loadLocalTermiusAppDocument({
+  String? customDataDir,
+  bool onlyLabeled = false,
+  int? maxSnapshotBytes,
+}) =>
     Future.error(
       const TermiusLocalImportException(TermiusLocalImportFailure.notInstalled),
     );

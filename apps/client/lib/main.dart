@@ -9,6 +9,8 @@ import 'storage/rdp_local_drives_store.dart';
 
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart'
+    show CupertinoActivityIndicator, CupertinoButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sodium/sodium_sumo.dart';
@@ -44,6 +46,8 @@ import 'storage/insecure_web_storage_stub.dart'
     as insecure_web_storage;
 import 'ui/app_shell.dart';
 import 'ui/app_theme.dart';
+import 'ui/apple_hig.dart';
+import 'ui/ios_native/ios_native.dart';
 import 'ui/auth_flow.dart';
 import 'ui/browser_storage_status_card.dart';
 import 'ui/local_profile_flow.dart';
@@ -127,6 +131,7 @@ Future<void> main(List<String> arguments) async {
       AppThemeModeBuilder(
         builder: (context, themeMode) => AppLanguageHost(
           builder: (context, locale) => MaterialApp(
+            scrollBehavior: const AppleScrollBehavior(),
             locale: locale,
             localizationsDelegates: AppLocalizationSetup.delegates,
             supportedLocales: AppLocalizationSetup.locales,
@@ -210,6 +215,7 @@ Future<void> main(List<String> arguments) async {
           builder: (context, locale) => MaterialApp(
             onGenerateTitle: (context) => context.l10n.atermiusRemoteDesktop,
             debugShowCheckedModeBanner: false,
+            scrollBehavior: const AppleScrollBehavior(),
             locale: locale,
             localizationsDelegates: AppLocalizationSetup.delegates,
             supportedLocales: AppLocalizationSetup.locales,
@@ -246,6 +252,7 @@ Future<void> main(List<String> arguments) async {
           builder: (context, locale) => MaterialApp(
             onGenerateTitle: (context) => context.l10n.atermiusTerminal,
             debugShowCheckedModeBanner: false,
+            scrollBehavior: const AppleScrollBehavior(),
             locale: locale,
             localizationsDelegates: AppLocalizationSetup.delegates,
             supportedLocales: AppLocalizationSetup.locales,
@@ -361,6 +368,7 @@ class _AtermiusStartupState extends State<AtermiusStartup> {
         builder: (context, locale) => MaterialApp(
           title: 'Atermius',
           debugShowCheckedModeBanner: false,
+          scrollBehavior: const AppleScrollBehavior(),
           locale: locale,
           localizationsDelegates: AppLocalizationSetup.delegates,
           supportedLocales: AppLocalizationSetup.locales,
@@ -409,6 +417,69 @@ class _StartupRecovery extends StatelessWidget {
         : unsupportedStorage
         ? context.l10n.atermiusNeedsReliablePersistentBrowserStorage
         : context.l10n.theSecurityComponentsOrLocalStorage;
+
+    if (isIosPhone(context)) {
+      final c = IosColors.of(context);
+      return Scaffold(
+        backgroundColor: c.groupedBackground,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Semantics(
+                container: true,
+                liveRegion: !starting,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IosIconTile(
+                      icon: starting
+                          ? Icons.lock_clock_rounded
+                          : IosIcons.lock,
+                      color: starting ? c.tint : c.warning,
+                      size: 64,
+                      radius: 18,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: IosType.title2.copyWith(color: c.label),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      description,
+                      textAlign: TextAlign.center,
+                      style: IosType.subheadline.copyWith(
+                        color: c.secondaryLabel,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    if (starting)
+                      const CupertinoActivityIndicator(radius: 13)
+                    else
+                      CupertinoButton(
+                        key: const ValueKey('startup_retry'),
+                        color: c.tint,
+                        borderRadius: BorderRadius.circular(14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        onPressed: onRetry,
+                        child: Text(
+                          context.l10n.retry,
+                          style: IosType.headline.copyWith(color: c.onTint),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       body: Center(
@@ -776,6 +847,7 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
   Widget _buildApp(Locale locale, ThemeMode themeMode) => MaterialApp(
     title: 'Atermius',
     debugShowCheckedModeBanner: false,
+    scrollBehavior: const AppleScrollBehavior(),
     locale: locale,
     localizationsDelegates: AppLocalizationSetup.delegates,
     supportedLocales: AppLocalizationSetup.locales,
@@ -979,9 +1051,12 @@ class _ProfileModeChooser extends StatelessWidget {
                       Container(
                         width: 44,
                         height: 44,
-                        decoration: BoxDecoration(
+                        decoration: ShapeDecoration(
                           color: context.palette.lime,
-                          borderRadius: BorderRadius.circular(14),
+                          shape: appleSquircleBorder(
+                            BorderRadius.circular(14),
+                            platform: Theme.of(context).platform,
+                          ),
                         ),
                         child: Icon(
                           Icons.terminal_rounded,

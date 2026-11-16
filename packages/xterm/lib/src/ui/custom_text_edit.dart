@@ -71,6 +71,13 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
       widget.focusNode.addListener(_onFocusChange);
     }
 
+    if (oldWidget.deleteDetection != widget.deleteDetection) {
+      _currentEditingState = _initEditingState;
+      if (hasInputConnection) {
+        _connection!.setEditingState(_initEditingState);
+      }
+    }
+
     if (!_shouldCreateInputConnection) {
       _closeInputConnectionIfNeeded();
     } else {
@@ -194,9 +201,17 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
     _openOrCloseInputConnectionIfNeeded();
   }
 
+  int _lastHardwareBackspaceMicros = 0;
+
   KeyEventResult _onKeyEvent(FocusNode focusNode, KeyEvent event) {
     if (_currentEditingState.composing.isCollapsed) {
-      return widget.onKeyEvent(focusNode, event);
+      final result = widget.onKeyEvent(focusNode, event);
+      if (result == KeyEventResult.handled &&
+          event is! KeyUpEvent &&
+          event.logicalKey == LogicalKeyboardKey.backspace) {
+        _lastHardwareBackspaceMicros = DateTime.now().microsecondsSinceEpoch;
+      }
+      return result;
     }
 
     return KeyEventResult.skipRemainingHandlers;
@@ -252,10 +267,12 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
     }
   }
 
+  static const _sentinel = '\u200b\u200b';
+
   TextEditingValue get _initEditingState => widget.deleteDetection
       ? const TextEditingValue(
-          text: '  ',
-          selection: TextSelection.collapsed(offset: 2),
+          text: _sentinel,
+          selection: TextSelection.collapsed(offset: _sentinel.length),
         )
       : const TextEditingValue(
           text: '',
@@ -288,20 +305,33 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
 
     widget.onComposing(null);
 
-    if (_currentEditingState.text.length < _initEditingState.text.length) {
-      widget.onDelete();
-    } else {
-      final textDelta = _currentEditingState.text.substring(
-        _initEditingState.text.length,
-      );
+    final initLen = _initEditingState.text.length;
+    final currText = _currentEditingState.text;
+    final stripped = widget.deleteDetection
+        ? currText.replaceAll('\u200b', '')
+        : currText;
 
-      widget.onInsert(textDelta);
+    if (widget.deleteDetection && stripped.isEmpty && currText.length < initLen) {
+      final nowMicros = DateTime.now().microsecondsSinceEpoch;
+      final duplicateHardwareBackspace =
+          nowMicros - _lastHardwareBackspaceMicros < 24000;
+      if (!duplicateHardwareBackspace) {
+        final deletedCount = initLen - currText.length;
+        for (var i = 0; i < deletedCount; i++) {
+          widget.onDelete();
+        }
+      }
+    } else if (stripped.isNotEmpty) {
+      widget.onInsert(stripped);
     }
 
-    // Reset editing state if composing is done
+    // Reset editing state if composing is done so subsequent Backspace taps
+    // always have sentinel characters available to delete.
     if (_currentEditingState.composing.isCollapsed &&
-        _currentEditingState.text != _initEditingState.text) {
-      _connection!.setEditingState(_initEditingState);
+        (_currentEditingState.text != _initEditingState.text ||
+            _currentEditingState.selection != _initEditingState.selection)) {
+      _currentEditingState = _initEditingState;
+      _connection?.setEditingState(_initEditingState);
     }
   }
 

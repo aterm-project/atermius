@@ -3,6 +3,12 @@ import 'app_menu.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart'
+    show
+        CupertinoActivityIndicator,
+        CupertinoSlidingSegmentedControl,
+        CupertinoTextField,
+        OverlayVisibilityMode;
 import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +20,9 @@ import '../terminal/terminal_tools.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import 'app_density.dart';
+import 'apple_hig.dart' show AppleHaptics;
+import 'ios_native/ios_native.dart';
+import 'workspace_controls.dart' show WorkspaceAction;
 import '../l10n/l10n.dart';
 
 /// Keep the terminal child mounted across opening/closing and width changes.
@@ -74,11 +83,30 @@ class _TerminalToolsLayoutState extends State<TerminalToolsLayout> {
     builder: (context, constraints) => ValueListenableBuilder<double>(
       valueListenable: _preferred,
       builder: (context, preferred, _) {
+        final iosPhone = isIosPhone(context);
+        final sidebar = widget.sidebar;
+        if (iosPhone) {
+          final closeCallback = sidebar is TerminalToolsSidebar
+              ? sidebar.onClose
+              : null;
+          return Stack(
+            children: [
+              Positioned.fill(child: widget.child),
+              if (sidebar != null)
+                Positioned.fill(
+                  child: _IosTerminalToolsSheet(
+                    maxHeight: constraints.maxHeight,
+                    onDismiss: closeCallback,
+                    child: KeyedSubtree(key: _sidebarKey, child: sidebar),
+                  ),
+                ),
+            ],
+          );
+        }
         final viewport = constraints.maxWidth;
         final bounds = TerminalToolsLayout.widthBounds(viewport);
         final width = preferred.clamp(bounds.min, bounds.max).toDouble();
         final docked = viewport >= TerminalToolsLayout.dockBreakpoint;
-        final sidebar = widget.sidebar;
         final extent = _touch(context) ? 20.0 : 8.0;
         final inset = _touch(context) ? 4.0 : 3.0;
         final handleLeft = viewport.isFinite
@@ -123,6 +151,179 @@ class _TerminalToolsLayoutState extends State<TerminalToolsLayout> {
       },
     ),
   );
+}
+
+/// iOS Phone 终端工具底部毛玻璃 Sheet：支持半屏 / 全屏两档 detent 跟手切换与下拉收起。
+class _IosTerminalToolsSheet extends StatefulWidget {
+  const _IosTerminalToolsSheet({
+    required this.maxHeight,
+    required this.child,
+    this.onDismiss,
+  });
+
+  final double maxHeight;
+  final Widget child;
+  final VoidCallback? onDismiss;
+
+  @override
+  State<_IosTerminalToolsSheet> createState() => _IosTerminalToolsSheetState();
+}
+
+class _IosTerminalToolsSheetState extends State<_IosTerminalToolsSheet> {
+  static const double _halfDetent = 0.54;
+  static const double _compactHalfDetent = 0.72;
+  static const double _fullDetent = 0.94;
+
+  bool _expandedToFull = false;
+  double? _dragFraction;
+
+  double _restingFraction(BuildContext context) {
+    if (_expandedToFull) return _fullDetent;
+    return isIosCompactHeight(context) ? _compactHalfDetent : _halfDetent;
+  }
+
+  void _onDragStart(DragStartDetails _) {
+    setState(() => _dragFraction = _restingFraction(context));
+  }
+
+  void _onDragUpdate(DragUpdateDetails details, double totalHeight) {
+    if (totalHeight <= 0) return;
+    final current = _dragFraction ?? _restingFraction(context);
+    final next = (current - details.delta.dy / totalHeight).clamp(0.22, 0.96);
+    setState(() => _dragFraction = next);
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    final half = isIosCompactHeight(context) ? _compactHalfDetent : _halfDetent;
+    final current = _dragFraction ?? _restingFraction(context);
+    setState(() => _dragFraction = null);
+
+    // 快速向下甩动或拖至半屏明显下方时直接收起面板
+    if (velocity > 850 || (current < half - 0.16 && velocity >= -100)) {
+      if (_expandedToFull && velocity <= 1300 && current >= half * 0.85) {
+        AppleHaptics.selection(context);
+        setState(() => _expandedToFull = false);
+        return;
+      }
+      if (widget.onDismiss != null) {
+        AppleHaptics.light(context);
+        widget.onDismiss!();
+        return;
+      }
+    }
+
+    final shouldExpand = velocity < -450
+        ? true
+        : velocity > 450
+        ? false
+        : current >= (half + _fullDetent) / 2;
+    if (shouldExpand != _expandedToFull) {
+      AppleHaptics.selection(context);
+      setState(() => _expandedToFull = shouldExpand);
+    }
+  }
+
+  void _toggleDetent() {
+    AppleHaptics.selection(context);
+    setState(() => _expandedToFull = !_expandedToFull);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IosColors.of(context);
+    final glass = iosGlassEnabled(context);
+    final available = widget.maxHeight.isFinite && widget.maxHeight > 0
+        ? widget.maxHeight
+        : MediaQuery.sizeOf(context).height;
+    final fraction = _dragFraction ?? _restingFraction(context);
+    final targetHeight = (available * fraction)
+        .clamp(math.min(180.0, available), available)
+        .toDouble();
+    final sheetFill = c.isDark
+        ? const Color(0xD91C1C1E)
+        : const Color(0xEBFFFFFF);
+
+    Widget sheetSurface = ColoredBox(
+      color: glass ? sheetFill : c.groupedBackground,
+      child: Column(
+        children: [
+          GestureDetector(
+            key: const ValueKey('ios-terminal-tools-grabber'),
+            behavior: HitTestBehavior.opaque,
+            onTap: _toggleDetent,
+            onVerticalDragStart: _onDragStart,
+            onVerticalDragUpdate: (d) => _onDragUpdate(d, available),
+            onVerticalDragEnd: _onDragEnd,
+            onVerticalDragCancel: () => setState(() => _dragFraction = null),
+            child: const SizedBox(
+              width: double.infinity,
+              height: 22,
+              child: IosSheetGrabber(),
+            ),
+          ),
+          Expanded(child: widget.child),
+        ],
+      ),
+    );
+
+    if (glass) {
+      sheetSurface = BackdropFilter.grouped(
+        filter: iosGlassFilter(sigma: 24),
+        child: sheetSurface,
+      );
+    }
+
+    return Stack(
+      children: [
+        if (widget.onDismiss != null)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.onDismiss,
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: c.isDark ? 0.32 : 0.18),
+              ),
+            ),
+          ),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: AnimatedContainer(
+            duration: _dragFraction != null
+                ? Duration.zero
+                : const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            width: double.infinity,
+            height: targetHeight,
+            decoration: ShapeDecoration(
+              shape: RoundedSuperellipseBorder(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+                side: BorderSide(
+                  color: glass ? c.glassRimStrong : c.separator,
+                  width: IosMetrics.hairline(context),
+                ),
+              ),
+              shadows: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: c.isDark ? 0.42 : 0.14),
+                  blurRadius: 28,
+                  offset: const Offset(0, -6),
+                ),
+              ],
+            ),
+            child: ClipRSuperellipse(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
+              child: sheetSurface,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 /// Left-edge sidebar splitter. Dragging left widens the sidebar.
@@ -394,6 +595,80 @@ class TerminalToolsSectionTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isIosPhone(context)) {
+      final c = IosColors.of(context);
+      return Column(
+        key: const ValueKey('terminal-tools-sections'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CupertinoSlidingSegmentedControl<TerminalToolsSection>(
+            groupValue: section,
+            backgroundColor: c.fill,
+            thumbColor: c.isDark ? const Color(0xFF636366) : Colors.white,
+            onValueChanged: (value) {
+              if (value != null) {
+                AppleHaptics.selection(context);
+                onSection(value);
+              }
+            },
+            children: {
+              for (final value in TerminalToolsSection.values)
+                value: Semantics(
+                  container: true,
+                  button: true,
+                  selected: value == section,
+                  inMutuallyExclusiveGroup: true,
+                  label: labelFor(context, value),
+                  child: Padding(
+                    key: ValueKey('terminal-tools-section-${value.name}'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 7,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          switch (value) {
+                            TerminalToolsSection.search => IosIcons.search,
+                            TerminalToolsSection.commands => IosIcons.bolt,
+                            TerminalToolsSection.history =>
+                              Icons.history_rounded,
+                          },
+                          size: 15,
+                          color: c.label,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            labelFor(context, value),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: IosType.footnote.copyWith(
+                              color: c.label,
+                              fontWeight: value == section
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            },
+          ),
+          Offstage(
+            child: Text(
+              labelFor(context, section),
+              key: const ValueKey('terminal-tools-section-title'),
+            ),
+          ),
+        ],
+      );
+    }
     final colors = Theme.of(context).colorScheme;
     return Row(
       key: const ValueKey('terminal-tools-sections'),
@@ -567,75 +842,602 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
   }
 
   @override
-  Widget build(BuildContext context) => Material(
-    key: const ValueKey('terminal-tools-sidebar'),
-    color: context.palette.surface,
-    shape: Border(left: BorderSide(color: context.palette.line)),
-    child: CustomScrollView(
-      key: const ValueKey('terminal-tools-scroll'),
-      slivers: [
-        // Section tabs and close share one compact row that stays pinned so
-        // close never scrolls away in short (keyboard-open) viewports.
-        PinnedHeaderSliver(
-          child: ColoredBox(
-            color: context.palette.surface,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 4, 2),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TerminalToolsSectionTabs(
-                      section: widget.section,
-                      onSection: (value) {
-                        if (value == widget.section) return;
-                        if (widget.section == TerminalToolsSection.search) {
-                          _remember();
-                        }
-                        setState(() {
-                          _filter = '';
-                          _error = null;
-                        });
-                        widget.onSection(value);
-                      },
+  Widget build(BuildContext context) {
+    if (isIosPhone(context)) return _buildIos(context);
+    return Material(
+      key: const ValueKey('terminal-tools-sidebar'),
+      color: context.palette.surface,
+      shape: Border(left: BorderSide(color: context.palette.line)),
+      child: CustomScrollView(
+        key: const ValueKey('terminal-tools-scroll'),
+        slivers: [
+          // Section tabs and close share one compact row that stays pinned so
+          // close never scrolls away in short (keyboard-open) viewports.
+          PinnedHeaderSliver(
+            child: ColoredBox(
+              color: context.palette.surface,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 4, 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TerminalToolsSectionTabs(
+                        section: widget.section,
+                        onSection: (value) {
+                          if (value == widget.section) return;
+                          if (widget.section == TerminalToolsSection.search) {
+                            _remember();
+                          }
+                          setState(() {
+                            _filter = '';
+                            _error = null;
+                          });
+                          widget.onSection(value);
+                        },
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: context.l10n.closeSidebar,
-                    key: const ValueKey('terminal-tools-close'),
-                    visualDensity: _touch(context)
-                        ? null
-                        : VisualDensity.compact,
-                    onPressed: () {
-                      _remember();
-                      widget.onClose();
-                    },
-                    icon: const Icon(Icons.close, size: 18),
-                  ),
-                ],
+                    IconButton(
+                      tooltip: context.l10n.closeSidebar,
+                      key: const ValueKey('terminal-tools-close'),
+                      visualDensity: _touch(context)
+                          ? null
+                          : VisualDensity.compact,
+                      onPressed: () {
+                        _remember();
+                        widget.onClose();
+                      },
+                      icon: const Icon(Icons.close, size: 18),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_busy) const SliverToBoxAdapter(child: LinearProgressIndicator()),
+          if (_error != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: context.palette.red),
+                ),
+              ),
+            ),
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+          ...switch (widget.section) {
+            TerminalToolsSection.search => _search(),
+            TerminalToolsSection.commands => _quickCommands(),
+            TerminalToolsSection.history => _history(),
+          },
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIos(BuildContext context) {
+    final c = IosColors.of(context);
+    return Material(
+      key: const ValueKey('terminal-tools-sidebar'),
+      type: MaterialType.transparency,
+      child: CustomScrollView(
+        key: const ValueKey('terminal-tools-scroll'),
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        slivers: [
+          PinnedHeaderSliver(
+            child: ColoredBox(
+              color: c.isDark
+                  ? const Color(0xE61C1C1E)
+                  : const Color(0xF2FFFFFF),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 10, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TerminalToolsSectionTabs(
+                        section: widget.section,
+                        onSection: (value) {
+                          if (value == widget.section) return;
+                          if (widget.section == TerminalToolsSection.search) {
+                            _remember();
+                          }
+                          setState(() {
+                            _filter = '';
+                            _error = null;
+                          });
+                          widget.onSection(value);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Semantics(
+                      button: true,
+                      label: context.l10n.closeSidebar,
+                      child: GestureDetector(
+                        key: const ValueKey('terminal-tools-close'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          AppleHaptics.light(context);
+                          _remember();
+                          widget.onClose();
+                        },
+                        child: SizedBox.square(
+                          dimension: 44,
+                          child: Center(
+                            child: SizedBox.square(
+                              dimension: 30,
+                              child: DecoratedBox(
+                                decoration: ShapeDecoration(
+                                  color: c.fill,
+                                  shape: const CircleBorder(),
+                                ),
+                                child: Icon(
+                                  IosIcons.close,
+                                  size: 17,
+                                  color: c.secondaryLabel,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_busy)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Center(child: CupertinoActivityIndicator()),
+              ),
+            ),
+          if (_error != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Text(
+                  _error!,
+                  style: IosType.footnote.copyWith(color: c.destructive),
+                ),
+              ),
+            ),
+          const SliverToBoxAdapter(child: SizedBox(height: 6)),
+          ...switch (widget.section) {
+            TerminalToolsSection.search => _iosSearch(context, c),
+            TerminalToolsSection.commands => _iosQuickCommands(context, c),
+            TerminalToolsSection.history => _iosHistory(context, c),
+          },
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.paddingOf(context).bottom + 24,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _iosSearch(BuildContext context, IosColors c) => [
+    SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Focus(
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.escape) {
+              _remember();
+              widget.onClose();
+              return KeyEventResult.handled;
+            }
+            return widget.onSearchKey?.call(node, event) ??
+                KeyEventResult.ignored;
+          },
+          child: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: widget.query,
+            builder: (context, value, _) => DecoratedBox(
+              decoration: ShapeDecoration(
+                color: c.fill,
+                shape: const StadiumBorder(),
+              ),
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 6, 4),
+                child: Row(
+                  children: [
+                    Icon(IosIcons.search, size: 18, color: c.secondaryLabel),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: CupertinoTextField(
+                        key: const ValueKey('terminal-sidebar-query'),
+                        controller: widget.query,
+                        focusNode: widget.queryFocus,
+                        autofocus: true,
+                        maxLength: terminalSearchMaxQueryGraphemes,
+                        maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                        onChanged: widget.onQuery,
+                        onSubmitted: (_) => _move(widget.next),
+                        textInputAction: TextInputAction.search,
+                        autocorrect: false,
+                        clearButtonMode: OverlayVisibilityMode.never,
+                        decoration: null,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        placeholder: context.l10n.searchCurrentTerminalOutput,
+                        placeholderStyle: IosType.subheadline.copyWith(
+                          color: c.secondaryLabel,
+                        ),
+                        style: IosType.body.copyWith(color: c.label),
+                        cursorColor: c.tint,
+                      ),
+                    ),
+                    if (value.text.isNotEmpty)
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          widget.query.clear();
+                          widget.onQuery('');
+                        },
+                        child: SizedBox.square(
+                          dimension: 34,
+                          child: Icon(
+                            IosIcons.clear,
+                            size: 18,
+                            color: c.secondaryLabel,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-        if (_busy) const SliverToBoxAdapter(child: LinearProgressIndicator()),
-        if (_error != null)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
+      ),
+    ),
+    SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 12, 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  widget.searchStatus,
+                  style: IosType.footnote.copyWith(color: c.secondaryLabel),
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: context.l10n.previousMatch,
+              onPressed: widget.previous == null
+                  ? null
+                  : () {
+                      AppleHaptics.selection(context);
+                      _move(widget.previous);
+                    },
+              icon: Icon(
+                Icons.keyboard_arrow_up_rounded,
+                size: 24,
+                color: widget.previous == null ? c.tertiaryLabel : c.tint,
+              ),
+            ),
+            IconButton(
+              tooltip: context.l10n.nextMatch,
+              onPressed: widget.next == null
+                  ? null
+                  : () {
+                      AppleHaptics.selection(context);
+                      _move(widget.next);
+                    },
+              icon: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 24,
+                color: widget.next == null ? c.tertiaryLabel : c.tint,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+    if (widget.searchHistory.items.isEmpty)
+      SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              context.l10n.searchTermsAreRecordedWhenYou,
+              textAlign: TextAlign.center,
+              style: IosType.subheadline.copyWith(color: c.secondaryLabel),
+            ),
+          ),
+        ),
+      )
+    else
+      SliverToBoxAdapter(
+        child: IosListSection(
+          headerWidget: IosSectionHeader(
+            context.l10n.searchHistory,
+            trailing: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(widget.searchHistory.clear),
               child: Text(
-                _error!,
-                style: TextStyle(color: context.palette.red),
+                context.l10n.clear,
+                style: IosType.footnote.copyWith(
+                  color: c.tint,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
-        const SliverToBoxAdapter(child: SizedBox(height: 8)),
-        ...switch (widget.section) {
-          TerminalToolsSection.search => _search(),
-          TerminalToolsSection.commands => _quickCommands(),
-          TerminalToolsSection.history => _history(),
-        },
-      ],
+          children: [
+            for (final value in widget.searchHistory.items)
+              IosListRow(
+                leading: Icon(
+                  Icons.history_rounded,
+                  size: 18,
+                  color: c.secondaryLabel,
+                ),
+                title: Text(value),
+                trailing: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () =>
+                      setState(() => widget.searchHistory.remove(value)),
+                  child: SizedBox.square(
+                    dimension: 36,
+                    child: Icon(
+                      IosIcons.close,
+                      size: 16,
+                      color: c.tertiaryLabel,
+                    ),
+                  ),
+                ),
+                onTap: () {
+                  widget.query.text = value;
+                  widget.onQuery(value);
+                  _remember();
+                  widget.queryFocus.requestFocus();
+                },
+              ),
+          ],
+        ),
+      ),
+  ];
+
+  Widget _iosFilterField(BuildContext context, IosColors c, String hint) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: DecoratedBox(
+          decoration: ShapeDecoration(
+            color: c.fill,
+            shape: const StadiumBorder(),
+          ),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 12, 4),
+            child: Row(
+              children: [
+                Icon(IosIcons.search, size: 18, color: c.secondaryLabel),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: CupertinoTextField(
+                    key: ValueKey('terminal-${widget.section.name}-filter'),
+                    autofocus: false,
+                    onChanged: (value) => setState(() => _filter = value),
+                    autocorrect: false,
+                    clearButtonMode: OverlayVisibilityMode.never,
+                    decoration: null,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    placeholder: hint,
+                    placeholderStyle: IosType.subheadline.copyWith(
+                      color: c.secondaryLabel,
+                    ),
+                    style: IosType.body.copyWith(color: c.label),
+                    cursorColor: c.tint,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  List<Widget> _iosQuickCommands(BuildContext context, IosColors c) => [
+    SliverToBoxAdapter(
+      child: _iosFilterField(context, c, context.l10n.filterByNameOrCommand),
     ),
-  );
+    SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 12, 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                context.l10n.saveEncryptedAsSnippets,
+                style: IosType.footnote.copyWith(color: c.secondaryLabel),
+              ),
+            ),
+            IconButton(
+              tooltip: context.l10n.refreshQuickCommands,
+              onPressed: () => setState(() => _commands = null),
+              icon: Icon(Icons.refresh_rounded, size: 20, color: c.tint),
+            ),
+            IconButton(
+              key: const ValueKey('terminal-quick-add'),
+              tooltip: context.l10n.addQuickCommand,
+              onPressed: _busy
+                  ? null
+                  : () => _action(() => widget.editCommand(null), reload: true),
+              icon: Icon(
+                IosIcons.add,
+                size: 22,
+                color: _busy ? c.tertiaryLabel : c.tint,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+    FutureBuilder<List<TerminalCommandItem>>(
+      future: _commands ??= widget.loadCommands(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  context.l10n.couldntReadQuickCommandsRefreshAnd,
+                  textAlign: TextAlign.center,
+                  style: IosType.subheadline.copyWith(color: c.secondaryLabel),
+                ),
+              ),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: CupertinoActivityIndicator()),
+          );
+        }
+        return _iosCommandSection(
+          context,
+          c,
+          _filtered(snapshot.data!),
+          editable: true,
+          footer: context.l10n.clickToInsertPressEnterTo,
+        );
+      },
+    ),
+  ];
+
+  List<Widget> _iosHistory(BuildContext context, IosColors c) => [
+    SliverToBoxAdapter(
+      child: _iosFilterField(context, c, context.l10n.filterInputHistory),
+    ),
+    SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: IosListSection(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            IosListActionRow(
+              icon: Icons.tune_rounded,
+              label: context.l10n.recordingSettings,
+              onTap: _busy ? null : () => _action(widget.onConfigureHistory),
+            ),
+            IosListActionRow(
+              icon: IosIcons.delete,
+              label: context.l10n.clearLocalHistory,
+              destructive: true,
+              onTap: _busy ? null : () => _action(widget.onClearHistory),
+            ),
+          ],
+        ),
+      ),
+    ),
+    _iosCommandSection(
+      context,
+      c,
+      _filtered(widget.history()),
+      footer:
+          widget.historyNotice?.call() ??
+          context.l10n.showsCommandsCompletedOnTheCurrent,
+    ),
+  ];
+
+  Widget _iosCommandSection(
+    BuildContext context,
+    IosColors c,
+    List<TerminalCommandItem> items, {
+    bool editable = false,
+    String? footer,
+  }) {
+    if (items.isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              context.l10n.noMatchingEntries,
+              style: IosType.subheadline.copyWith(color: c.secondaryLabel),
+            ),
+          ),
+        ),
+      );
+    }
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: IosListSection(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          footer: footer,
+          children: [
+            for (final item in items)
+              IosListRow(
+                key: ValueKey('terminal-command-${item.id}'),
+                title: Text(item.title),
+                subtitle: Text(item.command, maxLines: 2),
+                monoSubtitle: true,
+                onTap: () {
+                  AppleHaptics.light(context);
+                  _insert(item.command);
+                },
+                trailing: editable
+                    ? IosPullDownButton(
+                        semanticLabel: context.l10n.quickCommandActions,
+                        sections: () => [
+                          [
+                            WorkspaceAction(
+                              'edit_cmd_${item.id}',
+                              context.l10n.edit,
+                              IosIcons.edit,
+                              () => _action(
+                                () => widget.editCommand(item),
+                                reload: true,
+                              ),
+                            ),
+                          ],
+                          [
+                            WorkspaceAction(
+                              'delete_cmd_${item.id}',
+                              context.l10n.delete,
+                              IosIcons.delete,
+                              () => _action(
+                                () => widget.deleteCommand(item),
+                                reload: true,
+                              ),
+                              destructive: true,
+                            ),
+                          ],
+                        ],
+                        child: SizedBox.square(
+                          dimension: 40,
+                          child: Icon(
+                            IosIcons.more,
+                            size: 20,
+                            color: c.secondaryLabel,
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        Icons.north_west_rounded,
+                        size: 17,
+                        color: c.tertiaryLabel,
+                      ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   List<Widget> _search() => [
     SliverToBoxAdapter(
@@ -1015,66 +1817,108 @@ Future<SnippetRecord?> editTerminalQuickCommand(
   final command = TextEditingController(text: existing?.command);
   String? error;
   try {
+    final iosPhone = isIosPhone(context);
     return await showAppDialog<SnippetRecord>(
       context: context,
+      motion: iosPhone ? AppDialogMotion.sideSheet : AppDialogMotion.center,
       builder: (context) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: Text(
-            existing == null
-                ? context.l10n.addQuickCommand
-                : context.l10n.editQuickCommand,
-          ),
-          content: SizedBox(
-            width: 460,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+        builder: (context, update) {
+          void submitQuickCommand() {
+            if (title.text.trim().isEmpty ||
+                !isSafeTerminalCommand(command.text)) {
+              update(() => error = context.l10n.enterANameAndASingle);
+              return;
+            }
+            Navigator.pop(
+              context,
+              SnippetRecord(
+                id: existing?.id ?? const Uuid().v4(),
+                title: title.text.trim(),
+                body: command.text,
+                shell: 'bash',
+              ),
+            );
+          }
+
+          if (isIosPhone(context)) {
+            return IosSheetScaffold(
+              title: existing == null
+                  ? context.l10n.addQuickCommand
+                  : context.l10n.editQuickCommand,
+              cancelLabel: context.l10n.cancel,
+              actionLabel: context.l10n.save2,
+              onAction: submitQuickCommand,
+              scrollController: PrimaryScrollController.maybeOf(context),
               children: [
-                TextField(
-                  key: const ValueKey('quick-command-title'),
-                  controller: title,
-                  autofocus: true,
-                  maxLength: 128,
-                  decoration: InputDecoration(labelText: context.l10n.name),
+                IosListSection(
+                  children: [
+                    IosTextFieldRow(
+                      fieldKey: const ValueKey('quick-command-title'),
+                      label: context.l10n.name,
+                      placeholder: context.l10n.name,
+                      controller: title,
+                      autofocus: true,
+                      inputFormatters: [LengthLimitingTextInputFormatter(128)],
+                    ),
+                    IosTextFieldRow(
+                      fieldKey: const ValueKey('quick-command-body'),
+                      label: context.l10n.singleLineCommand,
+                      placeholder: context.l10n.singleLineCommand,
+                      controller: command,
+                      mono: true,
+                      errorText: error,
+                      inputFormatters: [LengthLimitingTextInputFormatter(4096)],
+                      onSubmitted: (_) => submitQuickCommand(),
+                    ),
+                  ],
                 ),
-                TextField(
-                  key: const ValueKey('quick-command-body'),
-                  controller: command,
-                  maxLength: 4096,
-                  decoration: InputDecoration(
-                    labelText: context.l10n.singleLineCommand,
-                  ),
-                ),
-                if (error != null)
-                  Text(error!, style: TextStyle(color: context.palette.red)),
               ],
+            );
+          }
+
+          return AlertDialog(
+            title: Text(
+              existing == null
+                  ? context.l10n.addQuickCommand
+                  : context.l10n.editQuickCommand,
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(context.l10n.cancel),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (title.text.trim().isEmpty ||
-                    !isSafeTerminalCommand(command.text)) {
-                  update(() => error = context.l10n.enterANameAndASingle);
-                  return;
-                }
-                Navigator.pop(
-                  context,
-                  SnippetRecord(
-                    id: existing?.id ?? const Uuid().v4(),
-                    title: title.text.trim(),
-                    body: command.text,
-                    shell: 'bash',
+            content: SizedBox(
+              width: 460,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    key: const ValueKey('quick-command-title'),
+                    controller: title,
+                    autofocus: true,
+                    maxLength: 128,
+                    decoration: InputDecoration(labelText: context.l10n.name),
                   ),
-                );
-              },
-              child: Text(context.l10n.save2),
+                  TextField(
+                    key: const ValueKey('quick-command-body'),
+                    controller: command,
+                    maxLength: 4096,
+                    decoration: InputDecoration(
+                      labelText: context.l10n.singleLineCommand,
+                    ),
+                  ),
+                  if (error != null)
+                    Text(error!, style: TextStyle(color: context.palette.red)),
+                ],
+              ),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(context.l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: submitQuickCommand,
+                child: Text(context.l10n.save2),
+              ),
+            ],
+          );
+        },
       ),
     );
   } finally {

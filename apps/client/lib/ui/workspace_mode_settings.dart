@@ -1,9 +1,13 @@
 import 'dart:async';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-import '../storage/workspace_mode.dart';
 import '../l10n/l10n.dart';
 import '../platform/server_hosted.dart';
+import '../storage/workspace_mode.dart';
+import 'ios_native/ios_native.dart';
+import 'settings_scaffold.dart';
 
 class WorkspaceModeScope extends InheritedWidget {
   const WorkspaceModeScope({
@@ -47,9 +51,14 @@ class _ScopedWorkspaceModeSettingsState
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.maybeOf(
-          context,
-        )?.showSnackBar(SnackBar(content: Text(context.l10n.couldntSwitchTheWorkspaceModeCheck)));
+        final message = context.l10n.couldntSwitchTheWorkspaceModeCheck;
+        if (isIosPhone(context)) {
+          IosToast.show(context, message, kind: IosToastKind.error);
+        } else {
+          ScaffoldMessenger.maybeOf(
+            context,
+          )?.showSnackBar(SnackBar(content: Text(message)));
+        }
       }
     } finally {
       if (mounted) setState(() => _switching = false);
@@ -82,26 +91,98 @@ class WorkspaceModeSettings extends StatelessWidget {
   final bool busy;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(context.l10n.workspaceMode, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text(mode == WorkspaceMode.local ? context.l10n.localMode : context.l10n.cloudSyncMode),
-          const SizedBox(height: 4),
-          Text(context.l10n.theAppOpensInTheCurrent),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            key: const ValueKey('workspace_mode_switch'),
-            onPressed: busy ? null : onSwitch,
-            icon: const Icon(Icons.swap_horiz),
-            label: Text(mode == WorkspaceMode.local ? context.l10n.switchToCloudMode : context.l10n.switchToLocalMode),
-          ),
-        ],
+  Widget build(BuildContext context) {
+    if (isIosPhone(context)) {
+      final l10n = context.l10n;
+      final colors = IosColors.of(context);
+      final hairline = IosMetrics.hairline(context);
+      final currentLabel = mode == WorkspaceMode.local
+          ? l10n.localMode
+          : l10n.cloudSyncMode;
+      final switchLabel = mode == WorkspaceMode.local
+          ? l10n.switchToCloudMode
+          : l10n.switchToLocalMode;
+      return SettingsCard(
+        iosPadding: EdgeInsets.zero,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IosListRow(
+              leading: IosIconTile(
+                icon: Icons.layers_rounded,
+                color: colors.indigo,
+                size: 28,
+              ),
+              title: Text(l10n.workspaceMode),
+              value: currentLabel,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IosMetrics.rowPaddingH,
+                0,
+                IosMetrics.rowPaddingH,
+                12,
+              ),
+              child: Text(
+                l10n.theAppOpensInTheCurrent,
+                style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+              ),
+            ),
+            SizedBox(
+              height: hairline,
+              child: ColoredBox(color: colors.separator),
+            ),
+            IosListRow(
+              key: const ValueKey('workspace_mode_switch'),
+              tinted: true,
+              enabled: !busy,
+              leading: Icon(
+                Icons.swap_horiz_rounded,
+                size: 22,
+                color: colors.tint,
+              ),
+              title: Text(switchLabel),
+              trailing: busy ? const CupertinoActivityIndicator(radius: 9) : null,
+              onTap: busy ? null : () => onSwitch(),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.l10n.workspaceMode,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              mode == WorkspaceMode.local
+                  ? context.l10n.localMode
+                  : context.l10n.cloudSyncMode,
+            ),
+            const SizedBox(height: 4),
+            Text(context.l10n.theAppOpensInTheCurrent),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              key: const ValueKey('workspace_mode_switch'),
+              onPressed: busy ? null : onSwitch,
+              icon: const Icon(Icons.swap_horiz),
+              label: Text(
+                mode == WorkspaceMode.local
+                    ? context.l10n.switchToCloudMode
+                    : context.l10n.switchToLocalMode,
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

@@ -1,11 +1,14 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import '../storage/app_theme_store.dart';
 import 'app_theme.dart';
+import 'apple_hig.dart';
+import 'ios_native/ios_native.dart';
+import 'settings_scaffold.dart';
 
 /// Device-local UI theme choice. [code] is the stable persisted value; never
 /// rename it. The historic dark theme stays the default until the user picks
@@ -196,11 +199,113 @@ class AppThemeModeBuilder extends StatelessWidget {
 
 /// Appearance setting: Dark / Light / Match system and the color scheme.
 /// Applies immediately.
-class AppThemeSettings extends StatelessWidget {
+class AppThemeSettings extends StatelessWidget with IosFlushSettingsChild {
   const AppThemeSettings({this.controller, this.dense = false, super.key});
 
   final AppThemeController? controller;
   final bool dense;
+
+  Widget _buildIos(BuildContext context, AppThemeController themes) {
+    final l10n = context.l10n;
+    final colors = IosColors.of(context);
+    final current = themes.preference;
+    final systemDark =
+        MediaQuery.maybePlatformBrightnessOf(context) != Brightness.light;
+    final resolved = systemDark ? l10n.themeOptionDark : l10n.themeOptionLight;
+    return Padding(
+      key: const ValueKey('app_theme_settings'),
+      padding: const EdgeInsets.all(IosMetrics.rowPaddingH),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              IosIconTile(
+                icon: Icons.palette_rounded,
+                color: colors.blue,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l10n.themeSettingTitle,
+                  style: IosType.headline.copyWith(color: colors.label),
+                ),
+              ),
+            ],
+          ),
+          if (!dense) ...[
+            const SizedBox(height: 6),
+            Text(
+              l10n.themeSettingDescription,
+              style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Semantics(
+            container: true,
+            label: l10n.themeSettingTitle,
+            child: SizedBox(
+              width: double.infinity,
+              child: CupertinoSlidingSegmentedControl<AppThemePreference>(
+                groupValue: current,
+                backgroundColor: colors.fill,
+                thumbColor: colors.isDark
+                    ? const Color(0xFF636366)
+                    : Colors.white,
+                onValueChanged: (next) {
+                  if (next == null || next == current) return;
+                  AppleHaptics.selection(context);
+                  selectAppTheme(next, using: themes);
+                },
+                children: {
+                  for (final preference in AppThemePreference.values)
+                    preference: KeyedSubtree(
+                      key: ValueKey('app_theme_${preference.code}'),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 7,
+                        ),
+                        child: Text(
+                          preference.label(l10n),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: IosType.footnote.copyWith(
+                            color: colors.label,
+                            fontWeight: preference == current
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                },
+              ),
+            ),
+          ),
+          if (current == AppThemePreference.system) ...[
+            const SizedBox(height: 8),
+            Text(
+              l10n.themeSettingSystemResolved(resolved),
+              style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            themes.writeFailed
+                ? l10n.themeSettingSaveFailed
+                : l10n.languageSettingDevicePreference,
+            key: const ValueKey('app_theme_storage_note'),
+            style: IosType.footnote.copyWith(
+              color: themes.writeFailed ? colors.warning : colors.secondaryLabel,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +313,9 @@ class AppThemeSettings extends StatelessWidget {
     return ListenableBuilder(
       listenable: themes,
       builder: (context, _) {
+        if (isIosPhone(context)) {
+          return _buildIos(context, themes);
+        }
         final l10n = context.l10n;
         final palette = context.palette;
         final current = themes.preference;

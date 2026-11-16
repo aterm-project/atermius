@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'app_density.dart';
+import 'app_theme.dart';
+import 'apple_hig.dart';
 
 /// Shared density rules for Home host cards (cloud and local profile).
 ///
@@ -55,6 +57,15 @@ class HostCardMetrics {
   static const maxTileWidth = 300.0;
   static const spacing = 8.0;
 
+  /// Outer corner radius for host cards across desktop and touch surfaces.
+  static const cardBorderRadius = BorderRadius.all(Radius.circular(12));
+
+  /// Soft continuous-squircle radius for protocol/OS badges on Apple platforms.
+  static const appleBadgeBorderRadius = BorderRadius.all(Radius.circular(8));
+
+  /// Standard circular corner radius for protocol/OS badges on non-Apple platforms.
+  static const standardBadgeBorderRadius = BorderRadius.all(Radius.circular(6));
+
   static const titleStrut = StrutStyle(
     fontSize: titleSize,
     height: lineHeight,
@@ -70,6 +81,101 @@ class HostCardMetrics {
     height: lineHeight,
     forceStrutHeight: true,
   );
+
+  static AppPalette _paletteOf(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.extension<AppPalette>() ??
+        (theme.brightness == Brightness.dark
+            ? AppPalette.dark
+            : AppPalette.light);
+  }
+
+  /// Resolves the host card outline border: a continuous-curvature squircle
+  /// with a crisp Retina hairline stroke and subtle hover/press luminance on
+  /// Apple platforms, or a standard rounded rectangle elsewhere.
+  static OutlinedBorder cardShape(
+    BuildContext context, {
+    bool hovered = false,
+    bool pressed = false,
+  }) {
+    final platform = Theme.of(context).platform;
+    final palette = _paletteOf(context);
+    if (isAppleContext(context)) {
+      final hairline = appleHairlineWidth(context);
+      final borderColor = pressed
+          ? palette.lime.withValues(alpha: palette.isDark ? 0.42 : 0.36)
+          : hovered
+          ? palette.line.withValues(alpha: palette.isDark ? 0.96 : 0.92)
+          : palette.line.withValues(alpha: palette.isDark ? 0.80 : 0.86);
+      return appleSquircleBorder(
+        BorderRadius.circular(12),
+        platform: platform,
+        side: BorderSide(
+          color: borderColor,
+          width: hovered || pressed ? math.max(hairline, 0.75) : hairline,
+        ),
+      );
+    }
+    return RoundedRectangleBorder(
+      borderRadius: cardBorderRadius,
+      side: BorderSide(
+        color: hovered ? palette.lime.withValues(alpha: 0.35) : palette.line,
+      ),
+    );
+  }
+
+  /// Builds the tinted protocol/system icon badge decoration using an 8pt
+  /// continuous-curvature squircle on Apple platforms and a 6px rounded box
+  /// on other platforms.
+  static Decoration iconBadgeDecoration(BuildContext context, Color tint) {
+    if (isAppleContext(context)) {
+      final palette = _paletteOf(context);
+      return ShapeDecoration(
+        color: tint.withValues(alpha: palette.isDark ? 0.15 : 0.12),
+        shape: appleSquircleBorder(
+          appleBadgeBorderRadius,
+          platform: Theme.of(context).platform,
+          side: BorderSide(
+            color: tint.withValues(alpha: palette.isDark ? 0.24 : 0.18),
+            width: appleHairlineWidth(context),
+          ),
+        ),
+      );
+    }
+    return BoxDecoration(
+      color: tint.withValues(alpha: 0.12),
+      borderRadius: standardBadgeBorderRadius,
+    );
+  }
+
+  /// Ripple-free subtle highlight/hover overlay property for Apple host cards.
+  static WidgetStateProperty<Color?> overlayColor(BuildContext context) {
+    final palette = _paletteOf(context);
+    return WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.pressed)) {
+        return palette.text.withValues(alpha: palette.isDark ? 0.08 : 0.06);
+      }
+      if (states.contains(WidgetState.hovered)) {
+        return palette.text.withValues(alpha: palette.isDark ? 0.045 : 0.03);
+      }
+      if (states.contains(WidgetState.focused)) {
+        return palette.lime.withValues(alpha: palette.isDark ? 0.10 : 0.08);
+      }
+      return Colors.transparent;
+    });
+  }
+
+  /// Wraps a primary host quick-connect callback with light iOS haptic impact.
+  static VoidCallback? wrapConnectAction(
+    BuildContext context,
+    VoidCallback? onConnect,
+  ) {
+    if (onConnect == null) return null;
+    return () {
+      AppleHaptics.light(context);
+      onConnect();
+    };
+  }
 
   StrutStyle _strut(double size) => StrutStyle(
     fontSize: size,
@@ -135,4 +241,88 @@ class HostCardMetrics {
         crossAxisSpacing: spacing,
         mainAxisSpacing: spacing,
       );
+}
+
+/// Soft squircle badge container for a host card's protocol or OS glyph.
+class HostCardIconBadge extends StatelessWidget {
+  const HostCardIconBadge({
+    required this.tint,
+    required this.child,
+    this.padding = const EdgeInsets.all(HostCardMetrics.iconPadding),
+    super.key,
+  });
+
+  final Color tint;
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: HostCardMetrics.iconBadgeDecoration(context, tint),
+    child: Padding(padding: padding, child: child),
+  );
+}
+
+/// Interactive host card surface applying Apple continuous-curvature squircle
+/// geometry, Retina hairline borders, subtle hover/press sheen, and iOS
+/// quick-connect haptics.
+class HostCardSurface extends StatefulWidget {
+  const HostCardSurface({
+    required this.child,
+    this.onConnect,
+    this.onSecondaryTapDown,
+    this.inkWellKey,
+    this.margin = EdgeInsets.zero,
+    super.key,
+  });
+
+  final Widget child;
+  final VoidCallback? onConnect;
+  final GestureTapDownCallback? onSecondaryTapDown;
+  final Key? inkWellKey;
+  final EdgeInsetsGeometry margin;
+
+  @override
+  State<HostCardSurface> createState() => _HostCardSurfaceState();
+}
+
+class _HostCardSurfaceState extends State<HostCardSurface> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final apple = isAppleContext(context);
+    final shape = HostCardMetrics.cardShape(
+      context,
+      hovered: _hovered,
+      pressed: _pressed,
+    );
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: widget.margin,
+      elevation: apple ? 0 : null,
+      surfaceTintColor: apple ? Colors.transparent : null,
+      shape: apple ? shape : null,
+      child: InkWell(
+        key: widget.inkWellKey,
+        customBorder: apple ? shape : null,
+        splashFactory: apple ? NoSplash.splashFactory : null,
+        overlayColor: apple ? HostCardMetrics.overlayColor(context) : null,
+        onHover: apple
+            ? (value) {
+                if (_hovered != value) setState(() => _hovered = value);
+              }
+            : null,
+        onHighlightChanged: apple
+            ? (value) {
+                if (_pressed != value) setState(() => _pressed = value);
+              }
+            : null,
+        onTap: HostCardMetrics.wrapConnectAction(context, widget.onConnect),
+        onSecondaryTapDown: widget.onSecondaryTapDown,
+        child: widget.child,
+      ),
+    );
+  }
 }
