@@ -1,3 +1,9 @@
 "CFBundleDisplayName" = "Atermius";
 "CFBundleName" = "Atermius";
-"NSLocalNetworkUsageDescription" = "Atermius подключается к узлам SSH, SFTP, RDP, VNC и MCP в вашей локальной сети.";
+"NSAppleMusicUsageDescription" = "Atermius обращается к вашей медиатеке только при выборе локальных аудио- или медиафайлов для прикрепления к хосту или передачи по SFTP, SCP или RDP.";
+"NSCameraUsageDescription" = "Atermius использует камеру, когда вы делаете снимки маркировки оборудования или заметок для прикрепления к записи хоста либо создаёте фоновое изображение.";
+"NSFaceIDUsageDescription" = "Atermius использует Face ID для подтверждения личности и разблокировки зашифрованного локального хранилища, SSH-ключей и сохранённых учётных данных.";
+"NSLocalNetworkUsageDescription" = "Atermius подключается к узлам SSH, SFTP, Telnet, RDP, VNC и MCP в вашей локальной сети.";
+"NSLocationWhenInUseUsageDescription" = "Atermius запрашивает доступ к геопозиции во время использования приложения только при добавлении геотегов к снимаемым фотографиям вложений хоста.";
+"NSPhotoLibraryAddUsageDescription" = "Atermius сохраняет экспортированные изображения вложений хоста и загруженные снимки удалённых сеансов в вашу медиатеку фото по вашему запросу.";
+"NSPhotoLibraryUsageDescription" = "Atermius обращается к вашей медиатеке фото, когда вы выбираете изображение для фона терминала, прикрепляете вложения к хосту или передаёте файлы по SFTP, SCP или RDP.";

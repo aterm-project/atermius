@@ -9,6 +9,7 @@ import '../domain/models.dart';
 import '../import/openssh_config_import.dart';
 import '../import/termius_import_picker.dart';
 import 'app_motion.dart';
+import 'ios_native/ios_native.dart';
 import '../l10n/l10n.dart';
 
 const _uuid = Uuid();
@@ -20,6 +21,9 @@ Future<int?> showOpenSshConfigImportDialog(
   required AppController app,
 }) => showAppDialog<int>(
   context: context,
+  motion: isIosPhone(context)
+      ? AppDialogMotion.sideSheet
+      : AppDialogMotion.center,
   builder: (_) => OpenSshConfigImportDialog(app: app),
 );
 
@@ -349,6 +353,7 @@ class _OpenSshConfigImportDialogState extends State<OpenSshConfigImportDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (isIosPhone(context)) return _buildIosSheet(context);
     final parsed = _parsed;
     final plan = _plan;
     final count = plan?.rows.where((row) => row.host != null).length ?? 0;
@@ -458,6 +463,151 @@ class _OpenSshConfigImportDialogState extends State<OpenSshConfigImportDialog> {
   }
 
   String _normalizeName(String value) => value.trim().toLowerCase();
+
+  Widget _buildIosSheet(BuildContext context) {
+    final c = IosColors.of(context);
+    final l10n = context.l10n;
+    final parsed = _parsed;
+    final plan = _plan;
+    final count = plan?.rows.where((row) => row.host != null).length ?? 0;
+    final canLoadDefault =
+        widget.pickBytesForTesting == null && hasLocalDefaultSshConfig();
+
+    return PopScope(
+      canPop: !_busy,
+      child: IosSheetScaffold(
+        title: l10n.importOpensshConfig,
+        cancelKey: const ValueKey('openssh_config_close'),
+        cancelLabel: l10n.close,
+        onCancel: _busy ? () {} : () => Navigator.pop(context),
+        actionKey: const ValueKey('openssh_config_import'),
+        actionLabel: count == 0
+            ? l10n.importHosts
+            : l10n.importCountHosts(count),
+        actionBusy: _busy,
+        actionEnabled: !_busy && count > 0 && parsed?.blocksWholeFile == false,
+        onAction: _confirmAndImport,
+        scrollController: PrimaryScrollController.maybeOf(context),
+        children: [
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IosMetrics.sectionMargin,
+                0,
+                IosMetrics.sectionMargin,
+                16,
+              ),
+              child: ClipRSuperellipse(
+                borderRadius: BorderRadius.circular(14),
+                child: ColoredBox(
+                  color: c.destructive.withValues(alpha: c.isDark ? 0.18 : 0.12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    child: Text(
+                      _error!,
+                      key: const ValueKey('openssh_config_error'),
+                      style: IosType.subheadline.copyWith(color: c.destructive),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          IosListSection(
+            footer: l10n.reviewLiteralHostAliasesHostnameUser,
+            separatorIndent: IosListSection.indentForIcon(),
+            children: [
+              IosListRow(
+                key: const ValueKey('openssh_config_pick_file'),
+                leading: IosIconTile(
+                  icon: Icons.file_open_rounded,
+                  color: c.blue,
+                ),
+                title: Text(_fileName ?? l10n.chooseSshConfigFile),
+                accessory: IosRowAccessory.chevron,
+                enabled: !_busy,
+                onTap: _busy ? null : _chooseFile,
+              ),
+              if (canLoadDefault)
+                IosListRow(
+                  key: const ValueKey('openssh_config_load_default'),
+                  leading: IosIconTile(
+                    icon: IosIcons.terminal,
+                    color: c.teal,
+                  ),
+                  title: Text(
+                    switch (Localizations.localeOf(context).languageCode) {
+                      'zh' => '读取 ~/.ssh/config',
+                      'ja' => '~/.ssh/config を読み込む',
+                      'ru' => 'Загрузить ~/.ssh/config',
+                      _ => 'Load ~/.ssh/config',
+                    },
+                  ),
+                  accessory: IosRowAccessory.chevron,
+                  enabled: !_busy,
+                  onTap: _busy ? null : _loadLocalDefaultConfig,
+                ),
+            ],
+          ),
+          if (parsed != null) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IosMetrics.sectionHeaderInset,
+                0,
+                IosMetrics.sectionHeaderInset,
+                10,
+              ),
+              child: Text(
+                parsed.blocksWholeFile
+                    ? l10n.reviewBlockedNoRecordsCanBe
+                    : l10n.sshImportPreviewCounts(count),
+                key: const ValueKey('openssh_config_preview_summary'),
+                style: IosType.footnote.copyWith(
+                  color: parsed.blocksWholeFile
+                      ? c.destructive
+                      : c.secondaryLabel,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (parsed.issues.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  IosMetrics.sectionMargin,
+                  0,
+                  IosMetrics.sectionMargin,
+                  16,
+                ),
+                child: _IssuesPanel(
+                  issues: parsed.issues,
+                  key: const ValueKey('openssh_config_file_issues'),
+                ),
+              ),
+            if (plan != null && plan.rows.isNotEmpty)
+              IosListSection(
+                key: const ValueKey('openssh_config_preview'),
+                separatorIndent: IosListSection.indentForIcon(),
+                children: [
+                  for (final row in plan.rows) _HostPreviewTile(row: row),
+                ],
+              ),
+            if (plan != null && plan.rows.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: IosMetrics.sectionHeaderInset,
+                ),
+                child: Text(
+                  l10n.noConcreteHostAliasesWereFound,
+                  style: IosType.subheadline.copyWith(color: c.secondaryLabel),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _OpenSshImportPlan {
@@ -505,6 +655,43 @@ class _HostPreviewTile extends StatelessWidget {
         context.l10n.lineLineMessage(issue.line, issue.message),
       if (row.disposition != null) row.disposition!,
     ];
+    if (isIosPhone(context)) {
+      final c = IosColors.of(context);
+      final importable = row.host != null;
+      return Padding(
+        key: ValueKey('openssh_config_host_${config.alias}'),
+        padding: const EdgeInsets.symmetric(
+          horizontal: IosMetrics.rowPaddingH,
+          vertical: 10,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            IosIconTile(
+              icon: importable ? IosIcons.hosts : IosIcons.warning,
+              color: importable ? c.green : c.destructive,
+            ),
+            const SizedBox(width: IosMetrics.iconTextGap),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    config.alias,
+                    style: IosType.body.copyWith(color: c.label),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    lines.join('\n'),
+                    style: IosType.footnote.copyWith(color: c.secondaryLabel),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return ListTile(
       key: ValueKey('openssh_config_host_${config.alias}'),
       leading: Icon(

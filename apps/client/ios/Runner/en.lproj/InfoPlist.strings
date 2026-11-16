@@ -1,3 +1,9 @@
 "CFBundleDisplayName" = "Atermius";
 "CFBundleName" = "Atermius";
-"NSLocalNetworkUsageDescription" = "Atermius connects to SSH, SFTP, RDP, VNC, and MCP hosts on your local network.";
+"NSAppleMusicUsageDescription" = "Atermius accesses your media library only when you select local audio or media files to attach to a host or transfer over SFTP, SCP, or RDP.";
+"NSCameraUsageDescription" = "Atermius uses the camera when you take photos to attach hardware labels or configuration notes to a host record, or capture a custom workspace wallpaper.";
+"NSFaceIDUsageDescription" = "Atermius uses Face ID to authenticate and unlock your encrypted local vault, SSH private keys, and saved host credentials.";
+"NSLocalNetworkUsageDescription" = "Atermius connects to SSH, SFTP, Telnet, RDP, VNC, and MCP hosts on your local network.";
+"NSLocationWhenInUseUsageDescription" = "Atermius accesses your location while using the app only if you choose to include location metadata when capturing host attachment photos.";
+"NSPhotoLibraryAddUsageDescription" = "Atermius saves exported host attachments and downloaded remote session images to your photo library when requested.";
+"NSPhotoLibraryUsageDescription" = "Atermius accesses your photo library when you choose an image for a custom terminal wallpaper, attach images to a host record, or transfer files over SFTP, SCP, or RDP.";

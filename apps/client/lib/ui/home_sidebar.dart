@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import 'app_theme.dart';
+import 'apple_hig.dart';
 
 /// Home destinations shown in the Home LEFT sidebar. The sidebar exists only
 /// on the Home surface; terminal/file panes never show it.
@@ -99,7 +100,15 @@ class HomeSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final mode =
         layout ?? homeSidebarLayoutFor(MediaQuery.sizeOf(context).width);
-    final touch = switch (Theme.of(context).platform) {
+    final platform = Theme.of(context).platform;
+    final apple = isAppleContext(context);
+    final hairline = apple ? appleHairlineWidth(context) : 1.0;
+    final dividerColor = apple
+        ? context.palette.line.withValues(
+            alpha: context.palette.isDark ? 0.55 : 0.68,
+          )
+        : context.palette.line.withValues(alpha: .8);
+    final touch = switch (platform) {
       TargetPlatform.android || TargetPlatform.iOS => true,
       _ => false,
     };
@@ -112,46 +121,57 @@ class HomeSidebar extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       label: context.l10n.r7NavHomeNavigation,
-      child: Container(
+      child: SizedBox(
         key: const ValueKey('home_sidebar'),
         width: widthFor(mode),
-        decoration: BoxDecoration(
-          color: context.palette.rail,
+        child: AppleGlassBar(
+          fallbackColor: context.palette.rail,
+          sigma: 22,
           border: Border(
-            right: BorderSide(color: context.palette.line.withValues(alpha: .8)),
-          ),
-        ),
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                children: [
-                  for (final destination in destinations)
-                    _HomeSidebarItem(
-                      key: ValueKey('home_nav_${destination.name}'),
-                      icon: homeDestinationIcon(destination),
-                      label: homeDestinationLabel(context.l10n, destination),
-                      selected: destination == selected,
-                      layout: mode,
-                      height: itemHeight,
-                      badge: badges[destination] ?? 0,
-                      onTap: () => onSelect(destination),
-                    ),
-                ],
-              ),
+            right: BorderSide(
+              color: apple ? appleGlassRimColor(context) : dividerColor,
+              width: hairline,
             ),
-            if (footerActions.isNotEmpty) ...[
-              Divider(height: 1, color: context.palette.line),
-              _HomeSidebarFooterMenu(
-                actions: footerActions,
-                label: footerLabel ?? context.l10n.r7NavImportExport,
-                layout: mode,
-                height: itemHeight,
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  children: [
+                    for (final destination in destinations)
+                      _HomeSidebarItem(
+                        key: ValueKey('home_nav_${destination.name}'),
+                        icon: homeDestinationIcon(destination),
+                        label: homeDestinationLabel(context.l10n, destination),
+                        selected: destination == selected,
+                        layout: mode,
+                        height: itemHeight,
+                        badge: badges[destination] ?? 0,
+                        onTap: () {
+                          AppleHaptics.selection(context);
+                          onSelect(destination);
+                        },
+                      ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 6),
+              if (footerActions.isNotEmpty) ...[
+                Divider(
+                  height: 1,
+                  thickness: hairline,
+                  color: apple ? appleGlassRimColor(context) : context.palette.line,
+                ),
+                _HomeSidebarFooterMenu(
+                  actions: footerActions,
+                  label: footerLabel ?? context.l10n.r7NavImportExport,
+                  layout: mode,
+                  height: itemHeight,
+                ),
+                const SizedBox(height: 6),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -180,7 +200,10 @@ class _HomeSidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? context.palette.accentText : context.palette.muted;
+    final platform = Theme.of(context).platform;
+    final apple = isAppleContext(context);
+    final palette = context.palette;
+    final color = selected ? palette.accentText : palette.muted;
     final iconWidget = Badge(
       isLabelVisible: badge > 0,
       label: Text('$badge'),
@@ -199,7 +222,7 @@ class _HomeSidebarItem extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 13,
-                color: selected ? context.palette.text : context.palette.muted,
+                color: selected ? palette.text : palette.muted,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
@@ -225,33 +248,56 @@ class _HomeSidebarItem extends StatelessWidget {
       ),
       HomeSidebarLayout.phoneRail => Center(child: iconWidget),
     };
+    final itemRadius = BorderRadius.circular(apple ? 10 : 8);
+    final borderSide = selected
+        ? BorderSide(
+            color: palette.accentText.withValues(
+              alpha: apple ? (palette.isDark ? 0.24 : 0.20) : 0.28,
+            ),
+            width: apple ? appleHairlineWidth(context) : 1.0,
+          )
+        : BorderSide.none;
+    final pillShape = appleSquircleBorder(
+      itemRadius,
+      platform: platform,
+      side: borderSide,
+    );
+    final hitShape = appleSquircleBorder(
+      itemRadius,
+      platform: platform,
+    );
+    final pillColor = selected
+        ? (palette.isDark
+              ? palette.accent.withValues(alpha: apple ? 0.24 : 0.22)
+              : palette.accentContainer.withValues(
+                  alpha: apple ? 0.82 : 0.75,
+                ))
+        : Colors.transparent;
     final tile = Padding(
       padding: EdgeInsets.symmetric(
         horizontal: layout == HomeSidebarLayout.labelled ? 8 : 4,
         vertical: 1.5,
       ),
-      child: Material(
-        color: selected
-            ? (context.palette.isDark
-                  ? context.palette.accent.withValues(alpha: .22)
-                  : context.palette.accentContainer.withValues(alpha: .75))
-            : Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: selected
-              ? BorderSide(
-                  color: context.palette.accentText.withValues(alpha: .28),
-                )
-              : BorderSide.none,
+      child: DecoratedBox(
+        decoration: ShapeDecoration(
+          color: pillColor,
+          shape: pillShape,
         ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          hoverColor: context.palette.text.withValues(alpha: .06),
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: height),
-            child: content,
+        child: Material(
+          type: MaterialType.transparency,
+          shape: hitShape,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            customBorder: hitShape,
+            hoverColor: palette.text.withValues(alpha: apple ? 0.05 : 0.06),
+            highlightColor: apple
+                ? palette.text.withValues(alpha: 0.08)
+                : null,
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: height),
+              child: content,
+            ),
           ),
         ),
       ),
@@ -283,67 +329,103 @@ class _HomeSidebarFooterMenu extends StatelessWidget {
   final double height;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.symmetric(
-      horizontal: layout == HomeSidebarLayout.labelled ? 8 : 4,
-      vertical: 4,
-    ),
-    child: MenuAnchor(
-      menuChildren: [
-        for (final action in actions)
-          MenuItemButton(
-            key: ValueKey('home_nav_action_${action.id}'),
-            leadingIcon: Icon(action.icon, size: 18),
-            onPressed: action.enabled ? action.onSelected : null,
-            child: Text(action.label),
-          ),
-      ],
-      builder: (context, controller, _) {
-        void toggle() =>
-            controller.isOpen ? controller.close() : controller.open();
-        final icon = Icon(
-          Icons.import_export_rounded,
-          size: 18,
-          color: context.palette.muted,
-        );
-        return Semantics(
-          button: true,
-          label: label,
-          excludeSemantics: true,
-          onTap: toggle,
-          child: Tooltip(
-            message: label,
-            child: InkWell(
-              key: const ValueKey('home_nav_import_export'),
-              borderRadius: BorderRadius.circular(8),
-              onTap: toggle,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: height),
-                child: layout == HomeSidebarLayout.labelled
-                    ? Row(
-                        children: [
-                          const SizedBox(width: 12),
-                          icon,
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: context.palette.muted,
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : Center(child: icon),
+  Widget build(BuildContext context) {
+    final platform = Theme.of(context).platform;
+    final apple = isAppleContext(context);
+    final footerShape = appleSquircleBorder(
+      BorderRadius.circular(apple ? 10 : 8),
+      platform: platform,
+    );
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: layout == HomeSidebarLayout.labelled ? 8 : 4,
+        vertical: 4,
+      ),
+      child: MenuAnchor(
+        menuChildren: [
+          for (final action in actions)
+            MenuItemButton(
+              key: ValueKey('home_nav_action_${action.id}'),
+              leadingIcon: Icon(action.icon, size: 18),
+              onPressed: action.enabled
+                  ? () {
+                      AppleHaptics.light(context);
+                      action.onSelected();
+                    }
+                  : null,
+              child: Text(action.label),
+            ),
+        ],
+        builder: (context, controller, _) {
+          void toggle() {
+            AppleHaptics.selection(context);
+            if (controller.isOpen) {
+              controller.close();
+            } else {
+              controller.open();
+            }
+          }
+
+          final icon = Icon(
+            Icons.import_export_rounded,
+            size: 18,
+            color: context.palette.muted,
+          );
+          return Semantics(
+            button: true,
+            label: label,
+            excludeSemantics: true,
+            onTap: toggle,
+            child: Tooltip(
+              message: label,
+              child: DecoratedBox(
+                decoration: ShapeDecoration(
+                  color: apple && controller.isOpen
+                      ? context.palette.text.withValues(alpha: 0.06)
+                      : Colors.transparent,
+                  shape: footerShape,
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  shape: footerShape,
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    key: const ValueKey('home_nav_import_export'),
+                    customBorder: footerShape,
+                    hoverColor: context.palette.text.withValues(
+                      alpha: apple ? 0.05 : 0.06,
+                    ),
+                    onTap: toggle,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: height),
+                      child: layout == HomeSidebarLayout.labelled
+                          ? Row(
+                              children: [
+                                const SizedBox(width: 12),
+                                icon,
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: context.palette.muted,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Center(child: icon),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-        );
-      },
-    ),
-  );
+          );
+        },
+      ),
+    );
+  }
 }

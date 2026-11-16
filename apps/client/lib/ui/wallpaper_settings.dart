@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -8,6 +9,9 @@ import '../l10n/l10n.dart';
 import '../storage/wallpaper_store.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
+import 'apple_hig.dart';
+import 'ios_native/ios_native.dart';
+import 'settings_scaffold.dart';
 import 'wallpaper.dart';
 
 /// Returns the picked image content, or null when the user cancelled.
@@ -78,7 +82,7 @@ String wallpaperErrorText(AppLocalizations l10n, WallpaperImageError error) =>
     };
 
 /// Theme settings card: preview, choose/replace, remove, layout mode, blur.
-class WallpaperSettings extends StatefulWidget {
+class WallpaperSettings extends StatefulWidget with IosFlushSettingsChild {
   const WallpaperSettings({this.controller, this.pickImage, super.key});
 
   final WallpaperController? controller;
@@ -114,12 +118,237 @@ class _WallpaperSettingsState extends State<WallpaperSettings> {
     }
   }
 
+  Widget _buildIos(BuildContext context, WallpaperController wallpapers) {
+    final l10n = context.l10n;
+    final colors = IosColors.of(context);
+    final hairline = IosMetrics.hairline(context);
+    final busy = _picking || wallpapers.busy;
+    final error = _pickError ?? wallpapers.lastError;
+    final missing =
+        wallpapers.status == WallpaperStatus.missing ||
+        wallpapers.status == WallpaperStatus.failed;
+    final modeHint = wallpapers.mode == WallpaperLayoutMode.window
+        ? l10n.wallpaperModeWindowHint
+        : l10n.wallpaperModePanesHint;
+
+    return Column(
+      key: const ValueKey('wallpaper_settings'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IosMetrics.rowPaddingH,
+            14,
+            IosMetrics.rowPaddingH,
+            12,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  IosIconTile(
+                    icon: Icons.wallpaper_rounded,
+                    color: colors.cyan,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n.wallpaperSettingTitle,
+                      style: IosType.headline.copyWith(color: colors.label),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.wallpaperSettingDescription,
+                style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+              ),
+              const SizedBox(height: 12),
+              _Preview(
+                controller: wallpapers,
+                radius: 14,
+                ios: true,
+                label: wallpapers.active
+                    ? null
+                    : wallpapers.status == WallpaperStatus.loading
+                    ? l10n.wallpaperLoading
+                    : l10n.wallpaperNoImage,
+              ),
+              if (error != null || missing) ...[
+                const SizedBox(height: 8),
+                Text(
+                  error != null
+                      ? wallpaperErrorText(l10n, error)
+                      : l10n.wallpaperMissing,
+                  key: const ValueKey('wallpaper_error'),
+                  style: IosType.footnote.copyWith(color: colors.destructive),
+                ),
+              ],
+            ],
+          ),
+        ),
+        SizedBox(height: hairline, child: ColoredBox(color: colors.separator)),
+        IosListRow(
+          key: const ValueKey('wallpaper_choose'),
+          tinted: true,
+          enabled: !busy,
+          leading: Icon(
+            Icons.photo_library_rounded,
+            size: 22,
+            color: colors.tint,
+          ),
+          title: Text(
+            wallpapers.hasImage
+                ? l10n.wallpaperReplaceImage
+                : l10n.wallpaperChooseImage,
+          ),
+          trailing: busy ? const CupertinoActivityIndicator(radius: 9) : null,
+          onTap: busy ? null : () => unawaited(_choose()),
+        ),
+        Padding(
+          padding: const EdgeInsetsDirectional.only(
+            start: IosMetrics.rowPaddingH,
+          ),
+          child: SizedBox(
+            height: hairline,
+            child: ColoredBox(color: colors.separator),
+          ),
+        ),
+        IosListActionRow(
+          key: const ValueKey('wallpaper_reset'),
+          label: l10n.wallpaperReset,
+          icon: Icons.delete_outline_rounded,
+          destructive: true,
+          onTap: busy || !wallpapers.hasImage
+              ? null
+              : () {
+                  setState(() => _pickError = null);
+                  unawaited(wallpapers.reset());
+                },
+        ),
+        SizedBox(height: hairline, child: ColoredBox(color: colors.separator)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IosMetrics.rowPaddingH,
+            12,
+            IosMetrics.rowPaddingH,
+            12,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                l10n.wallpaperModeTitle,
+                style: IosType.subheadline.copyWith(
+                  color: colors.label,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Semantics(
+                container: true,
+                label: l10n.wallpaperModeTitle,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: CupertinoSlidingSegmentedControl<WallpaperLayoutMode>(
+                    groupValue: wallpapers.mode,
+                    backgroundColor: colors.fill,
+                    thumbColor: colors.isDark
+                        ? const Color(0xFF636366)
+                        : Colors.white,
+                    onValueChanged: (mode) {
+                      if (mode == null || mode == wallpapers.mode) return;
+                      AppleHaptics.selection(context);
+                      wallpapers.setMode(mode);
+                    },
+                    children: {
+                      for (final mode in WallpaperLayoutMode.values)
+                        mode: KeyedSubtree(
+                          key: ValueKey('wallpaper_mode_${mode.code}'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 7,
+                            ),
+                            child: Text(
+                              mode == WallpaperLayoutMode.window
+                                  ? l10n.wallpaperModeWindow
+                                  : l10n.wallpaperModePanes,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: IosType.footnote.copyWith(
+                                color: colors.label,
+                                fontWeight: mode == wallpapers.mode
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                modeHint,
+                style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                l10n.wallpaperBlurValue(wallpapers.blur.toStringAsFixed(1)),
+                key: const ValueKey('wallpaper_blur_value'),
+                style: IosType.subheadline.copyWith(
+                  color: colors.label,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child: CupertinoSlider(
+                  key: const ValueKey('wallpaper_blur'),
+                  value: wallpapers.blur,
+                  max: wallpaperMaxBlur,
+                  divisions: (wallpaperMaxBlur * 2).round(),
+                  activeColor: colors.tint,
+                  onChanged: (value) =>
+                      wallpapers.setBlur(value, persist: false),
+                  onChangeEnd: (value) => wallpapers.setBlur(value),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                wallpapers.writeFailed
+                    ? l10n.wallpaperSaveFailed
+                    : l10n.wallpaperDeviceNote,
+                key: const ValueKey('wallpaper_storage_note'),
+                style: IosType.footnote.copyWith(
+                  color: wallpapers.writeFailed
+                      ? colors.warning
+                      : colors.secondaryLabel,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final wallpapers = _wallpapers;
     return ListenableBuilder(
       listenable: wallpapers,
       builder: (context, _) {
+        if (isIosPhone(context)) {
+          return _buildIos(context, wallpapers);
+        }
         final l10n = context.l10n;
         final palette = context.palette;
         final density = AppDensity.of(context);
@@ -268,15 +497,50 @@ class _Preview extends StatelessWidget {
     required this.controller,
     required this.radius,
     required this.label,
+    this.ios = false,
   });
 
   final WallpaperController controller;
   final double radius;
   final String? label;
+  final bool ios;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final content = label == null
+        ? WallpaperImageLayer(controller: controller, scrim: true)
+        : Center(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                label!,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: ios
+                    ? IosType.subheadline.copyWith(
+                        color: IosColors.of(context).secondaryLabel,
+                      )
+                    : TextStyle(color: palette.muted),
+              ),
+            ),
+          );
+    if (ios) {
+      final colors = IosColors.of(context);
+      return Semantics(
+        key: const ValueKey('wallpaper_preview'),
+        image: true,
+        label: context.l10n.wallpaperPreviewLabel,
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: ClipRSuperellipse(
+            borderRadius: BorderRadius.circular(radius),
+            child: ColoredBox(color: colors.fill, child: content),
+          ),
+        ),
+      );
+    }
     return Semantics(
       key: const ValueKey('wallpaper_preview'),
       image: true,
@@ -291,20 +555,7 @@ class _Preview extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(radius),
-            child: label == null
-                ? WallpaperImageLayer(controller: controller, scrim: true)
-                : Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        label!,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: palette.muted),
-                      ),
-                    ),
-                  ),
+            child: content,
           ),
         ),
       ),

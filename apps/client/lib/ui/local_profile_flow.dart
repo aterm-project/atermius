@@ -39,6 +39,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -78,10 +79,12 @@ import 'workspace_status_bar.dart';
 import 'transfer_dialog.dart';
 import '../terminal/terminal_shortcuts.dart';
 import '../import/termius_local_app_import.dart';
+import '../import/termius_seed_sync.dart';
 import '../import/termius_transfer_target.dart';
 import '../import/termius_keychain_bridge.dart';
 import 'termius_transfer_dialog.dart';
 import 'app_theme.dart';
+import 'apple_hig.dart';
 import 'home_sidebar.dart';
 import 'host_editor_panel.dart';
 import 'keychain_page.dart';
@@ -100,6 +103,12 @@ import 'app_language_settings.dart';
 import 'app_theme_mode.dart';
 import 'wallpaper.dart';
 import 'wallpaper_settings.dart';
+import 'ios_native/ios_hosts_tab.dart';
+import 'ios_native/ios_native.dart';
+import 'ios_native/ios_snippets_tab.dart';
+import 'ios_native/ios_unlock_view.dart';
+
+part 'ios_native/local_profile_flow_ios.dart';
 
 typedef LocalVaultDatabaseFactory = Future<LocalVaultDatabase> Function(
   UnlockedLocalProfile profile, {
@@ -324,8 +333,15 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
   bool _storageRecoveryRequired = false;
   String? _pendingVaultProfileId;
   String? _pageError;
+  String? _lastIosToastedPageError;
+  final GlobalKey<IosHomeShellState> _iosShellKey =
+      GlobalKey<IosHomeShellState>();
   int _operationGeneration = 0;
   int _catalogGeneration = 0;
+
+  void _iosSetState(VoidCallback fn) {
+    if (mounted && !_disposing) setState(fn);
+  }
 
   VoidCallback? _unregisterTrackedFileProvider;
   void _onTrackedFilesChanged() {
@@ -895,6 +911,12 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
         _workspace = defaultSection;
         _selectedProfile = null;
       });
+      unawaited(
+        _autoSyncSeededTermiusHosts(
+          profile: profile,
+          repository: repository,
+        ),
+      );
     } on Object {
       await _disposeSession(profile, database);
       rethrow;
@@ -905,6 +927,42 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
 
   void _finishOperation(int generation) {
     if (_isCurrentOperation(generation)) setState(() => _busy = false);
+  }
+
+  Future<void> _autoSyncSeededTermiusHosts({
+    required UnlockedLocalProfile profile,
+    required LocalHostRepository repository,
+  }) async {
+    try {
+      final report = await syncPendingTermiusSeedIfPresent(
+        repository,
+        profileId: profile.record.profileId,
+      );
+      if (!mounted ||
+          !identical(_activeProfile, profile) ||
+          !identical(_repository, repository) ||
+          report == null ||
+          report.totalTouched == 0) {
+        return;
+      }
+      final hosts = await repository.listHosts();
+      final groups = await repository.listGroups();
+      final credentials = await repository.listCredentialSummaries();
+      if (!mounted || !identical(_repository, repository)) return;
+      setState(() {
+        _hosts = hosts;
+        _groups = groups;
+        _credentials = credentials;
+      });
+      final lang = Localizations.localeOf(context).languageCode;
+      _showMessage(
+        lang == 'zh'
+            ? '已自动同步有备注的 Termius 主机（新增 ${report.createdHosts} 台，更新 ${report.updatedHosts} 台）'
+            : 'Synced labeled Termius hosts (${report.createdHosts} added, ${report.updatedHosts} updated)',
+      );
+    } on Object {
+      // Seed sync is opportunistic and never blocks profile activation.
+    }
   }
 
   Future<void> _lockProfile() async {
@@ -1068,11 +1126,19 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
   Future<String?> _askLocalArchivePassword({
     required bool confirm,
     required bool creating,
-  }) => showAppDialog<String>(
-    context: context,
-    builder: (_) =>
-        _LocalArchivePasswordDialog(confirm: confirm, creating: creating),
-  );
+  }) => isIosPhone(context)
+      ? showIosFormSheet<String>(
+          context,
+          builder: (_) => _IosLocalArchivePasswordSheet(
+            confirm: confirm,
+            creating: creating,
+          ),
+        )
+      : showAppDialog<String>(
+          context: context,
+          builder: (_) =>
+              _LocalArchivePasswordDialog(confirm: confirm, creating: creating),
+        );
 
   Future<void> _exportLocalArchive() async {
     final repository = _repository;
@@ -2246,8 +2312,27 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
 
   Future<bool> _confirmLocalHostKey(
     LocalKnownHostApprovalRequest request,
-  ) async =>
-      await showAppDialog<bool>(
+  ) async => isIosPhone(context)
+      ? showIosConfirmAlert(
+          context,
+          title: request.previouslyRevoked
+              ? context.l10n.thisHostKeyWasRevokedBefore
+              : context.l10n.firstConnectionUnknownSshHostKey,
+          message: context.l10n.targetHostPortAlgorithmAlgorithmFingerprint(
+            request.host,
+            request.port,
+            request.algorithm,
+            request.fingerprint,
+            request.previouslyRevoked
+                ? context.l10n.thisKeyWasRevokedBeforeOnly
+                : context.l10n.verifyThisFingerprintOverATrusted,
+          ),
+          confirm: context.l10n.verifyAndTrustThisKey,
+          cancel: context.l10n.reject,
+          destructive: request.previouslyRevoked,
+          confirmKey: const ValueKey('local_ssh_host_key_approve'),
+        )
+      : await showAppDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
@@ -2273,6 +2358,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
       false;
 
   Future<void> _manageLocalKnownHosts() async {
+    if (isIosPhone(context)) return _manageLocalKnownHostsIos();
     final repository = _repository;
     if (repository == null) return;
     final generation = _beginOperation();
@@ -3492,13 +3578,21 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
   }
 
   Future<SnippetRecord?> _showSnippetEditor({SnippetRecord? existing}) =>
-      showAppDialog(
-        context: context,
-        builder: (context) => _LocalSnippetEditorDialog(
-          existing: existing,
-          credentials: _credentials,
-        ),
-      );
+      isIosPhone(context)
+      ? showIosFormSheet<SnippetRecord>(
+          context,
+          builder: (_) => _IosLocalSnippetEditorSheet(
+            existing: existing,
+            credentials: _credentials,
+          ),
+        )
+      : showAppDialog(
+          context: context,
+          builder: (context) => _LocalSnippetEditorDialog(
+            existing: existing,
+            credentials: _credentials,
+          ),
+        );
 
   Future<void> _addSnippet() async {
     final draft = await _showSnippetEditor();
@@ -4281,14 +4375,23 @@ _showMessage(
     GroupRecord? existing,
     required List<LocalGroupRecord> groups,
     required List<LocalCredentialSummary> credentials,
-  }) => showAppDialog(
-    context: context,
-    builder: (context) => _LocalGroupEditorDialog(
-      existing: existing,
-      groups: groups,
-      credentials: credentials,
-    ),
-  );
+  }) => isIosPhone(context)
+      ? showIosFormSheet<GroupRecord>(
+          context,
+          builder: (_) => _IosLocalGroupEditorSheet(
+            existing: existing,
+            groups: groups,
+            credentials: credentials,
+          ),
+        )
+      : showAppDialog(
+          context: context,
+          builder: (context) => _LocalGroupEditorDialog(
+            existing: existing,
+            groups: groups,
+            credentials: credentials,
+          ),
+        );
 
   Future<void> _addCredential() async {
     final draft = await _showCredentialEditor();
@@ -4450,13 +4553,23 @@ _showMessage(
 
   Future<CredentialRecord?> _showCredentialEditor({
     CredentialRecord? existing,
-  }) => showAppDialog(
-    context: context,
-    builder: (context) => _LocalCredentialEditorDialog(existing: existing),
-  );
+  }) => isIosPhone(context)
+      ? showIosFormSheet<CredentialRecord>(
+          context,
+          builder: (_) => _IosLocalCredentialEditorSheet(existing: existing),
+        )
+      : showAppDialog(
+          context: context,
+          builder: (context) =>
+              _LocalCredentialEditorDialog(existing: existing),
+        );
 
   void _showMessage(String message) {
     if (!mounted || _storageRecoveryRequired) return;
+    if (isIosPhone(context)) {
+      IosToast.show(context, message);
+      return;
+    }
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
@@ -4464,6 +4577,8 @@ _showMessage(
 
   @override
   Widget build(BuildContext context) {
+    final iosPhone = isIosPhone(context);
+    if (iosPhone) _scheduleIosPageErrorToast(context);
     if (_activeProfile != null)
       validateTrackedFileScope(
         FilesWindowWorkspace.local,
@@ -4653,163 +4768,80 @@ _showMessage(
               ),
             ],
           ];
-    return Scaffold(
-      body: LayoutBuilder(builder: (context, body) => SafeArea(
-        child: Column(
-          children: [
-            WorkspaceTabBar(
-              onDisconnect: (id) => unawaited(_disconnectTerminalSession(id)),
-              groups: _layout.groupedSessionIds,
-              groupSelections: _layout.retainedGroupSelections,
-              onUnsplit: _unsplitTerminalTab,
-              leading: _storageRecoveryRequired || widget.persistentMode
-                  ? null
-                  : IconButton(
-                      key: const ValueKey('local_profile_exit'),
-                      tooltip: context.l10n.exitLocalProfile,
-                      onPressed: _busy ? null : _exit,
-                      icon: const Icon(Icons.arrow_back),
-                    ),
-              homeMenuActions: homeActions,
-              onToggleTools: activeSession?.connection != null
-                  ? () => activeSession!.viewKey.currentState?.toggleTools()
-                  : null,
-              onSearch: active == null || _storageRecoveryRequired
-                  ? null
-                  : () => unawaited(_openHostSearch()),
-              onSftp: (id) => unawaited(_openSessionFilesById(id)),
-              onScp: (id) =>
-                  unawaited(_openSessionScp(id, SshTransferDirection.upload)),
-              tabs: [
-                WorkspaceTab(id: 'hosts', title: context.l10n.home, isHome: true),
-                ..._tabOrder.arrange<WorkspaceTab>([
-                  for (final session in _visibleSessions)
-                    WorkspaceTab(
-                      id: session.id,
-                      title: session.host.name,
-                      isConnected: session.connected.value,
-                      canDisconnect: session.console == null && session.desktop == null &&
-                          (session.connected.value || session.telnetState == 'connecting' ||
-                            session.recovery?.automaticEnabled == true),
-                      canOpenFiles: session.connection != null,
-                      canDetach:
-                          (session.connection != null ||
-                              session.console != null) &&
-                          ApplicationWindows.instance.supported,
-                    ),
-                  for (final entry in _files.entries)
-                    WorkspaceTab(
-                      id: entry.id,
-                      title: entry.title,
-                      isConnected: true,
-                      isFile: true,
-                      canDetach: supportsFilesWindows,
-                    ),
-                ], (tab) => tab.id),
-              ],
-              selectedId: _selectedTabId,
-              onSelect: _selectTerminalTab,
-              onClose: _closeTerminalTab,
-              onReorder: _reorderTerminalTabs,
-              onSplit: (id, axis) => unawaited(_splitTerminalTab(id, axis)),
-              onDetach:
-                  ApplicationWindows.instance.supported || supportsFilesWindows
-                  ? (id) => unawaited(_detachTerminalTab(id))
-                  : null,
-              onProperties: _terminalProperties,
-              onCloseOthers: _closeOtherTabs,
-              onDuplicate: (id) => unawaited(_duplicateWorkspaceTab(id)),
-              dragScope: _dragScope,
-              supportsNewWindow: supportsNewWindow,
-              onNewWindow: _newWindow,
-            ),
-            Expanded(
-              child: IndexedStack(
-                index: _selectedTabId == 'hosts' ? 0 : 1,
-                children: [
-                  SafeArea(
-                    child: _storageRecoveryRequired
-                        ? _buildStorageRecoveryPage()
-                        : _withHomeSidebar(
-                            active,
-                            Center(
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth:
-                                    active != null &&
-                                        (_workspace == _LocalWorkspace.hosts ||
-                                            _workspace ==
-                                                _LocalWorkspace.preferences)
-                                    ? double.infinity
-                                    : 900,
-                              ),
-                              child: Column(
-                                children: [
-                                  if (_pageError != null)
-                                    Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        20,
-                                        8,
-                                        20,
-                                        0,
-                                      ),
-                                      child: Semantics(
-                                        liveRegion: true,
-                                        child: Text(
-                                          _pageError!,
-                                          key: const ValueKey(
-                                            'local_profile_error',
-                                          ),
-                                          style: TextStyle(
-                                            color: context.palette.red,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  Expanded(
-                                    child: active == null
-                                        ? (_workspace ==
-                                                  _LocalWorkspace.preferences
-                                              ? ListView(
-                                                  padding: const EdgeInsets.all(
-                                                    20,
-                                                  ),
-                                                  children: [
-                                                    ScopedWorkspaceModeSettings(
-                                                      onSwitch: _exit,
-                                                    ),
-                                                    const SizedBox(height: 16),
-                                                    LocalAccountSettingsPanel(
-                                                      onSignIn: _exit,
-                                                    ),
-                                                  ],
-                                                )
-                                              : _buildProfiles())
-                                        : switch (_workspace) {
-                                            _LocalWorkspace.hosts =>
-                                              _buildHosts(active),
-                                            _LocalWorkspace.credentials =>
-                                              _buildCredentials(active),
-                                            _LocalWorkspace.groups =>
-                                              _buildGroups(active),
-                                            _LocalWorkspace.snippets =>
-                                              _buildSnippets(active),
-                                            _LocalWorkspace.preferences =>
-                                              _buildPreferences(),
-                                            _LocalWorkspace.logs =>
-                                              _buildSessionLogs(),
-                                            _LocalWorkspace.forwarding =>
-                                              _forwardingPageBuilder?.call() ??
-                                                  _buildHosts(active),
-                                          },
-                                  ),
-                                ],
-                              ),
+    final Widget homeSurface = SafeArea(
+      top: !iosPhone,
+      bottom: !iosPhone,
+      child: _storageRecoveryRequired
+          ? (iosPhone
+                ? _buildStorageRecoveryPageIos(context)
+                : _buildStorageRecoveryPage())
+          : iosPhone && active != null
+          ? _iosHomeShell(context, active)
+          : _withHomeSidebar(
+              active,
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth:
+                        active != null &&
+                            (_workspace == _LocalWorkspace.hosts ||
+                                _workspace == _LocalWorkspace.preferences)
+                        ? double.infinity
+                        : 900,
+                  ),
+                  child: Column(
+                    children: [
+                      if (_pageError != null && !iosPhone)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              _pageError!,
+                              key: const ValueKey('local_profile_error'),
+                              style: TextStyle(color: context.palette.red),
                             ),
                           ),
-                          ),
+                        ),
+                      Expanded(
+                        child: active == null
+                            ? (_workspace == _LocalWorkspace.preferences
+                                  ? ListView(
+                                      padding: const EdgeInsets.all(20),
+                                      children: [
+                                        ScopedWorkspaceModeSettings(
+                                          onSwitch: _exit,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        LocalAccountSettingsPanel(
+                                          onSignIn: _exit,
+                                        ),
+                                      ],
+                                    )
+                                  : _buildProfiles())
+                            : switch (_workspace) {
+                                _LocalWorkspace.hosts => _buildHosts(active),
+                                _LocalWorkspace.credentials =>
+                                  _buildCredentials(active),
+                                _LocalWorkspace.groups => _buildGroups(active),
+                                _LocalWorkspace.snippets => _buildSnippets(
+                                  active,
+                                ),
+                                _LocalWorkspace.preferences =>
+                                  _buildPreferences(),
+                                _LocalWorkspace.logs => _buildSessionLogs(),
+                                _LocalWorkspace.forwarding =>
+                                  _forwardingPageBuilder?.call() ??
+                                      _buildHosts(active),
+                              },
+                      ),
+                    ],
                   ),
-                  TerminalToolsLayout(
+                ),
+              ),
+            ),
+    );
+    final Widget terminalSurface = TerminalToolsLayout(
                     sidebar: activeSession?.viewKey.currentState?.toolsSidebar,
                     child: SessionWorkspaceView(
                       controller: _layout,
@@ -4944,45 +4976,152 @@ _showMessage(
                         )));
                       },
                     ),
-                  ),
-                ],
-              ),
-            ),
-            if (!terminalTouchKeyboardOnDemand)
-              _sharedTerminalKeybar(activeSession, body.maxHeight),
-            AnimatedBuilder(
-              animation: sshTransferActivity,
-              builder: (_, _) {
-                final session = _sessions
-                    .where((s) => s.id == _selectedTabId)
-                    .firstOrNull;
-                return WorkspaceStatusBar(
-                  status: active == null ? context.l10n.localLocked : context.l10n.localUnlocked,
-                  detail: session == null
-                      ? context.l10n.hostsAndSignInDetailsAre
-                      : '${session.host.username.isEmpty ? '' : '${session.host.username}@'}${session.host.address}:${session.host.port} · ${session.isTelnet ? '${context.l10n.telnetProtocolUnencrypted} · ' : ''}${session.connected.value ? context.l10n.connected : context.l10n.disconnected}',
-                  sessionCount: _sessions
-                      .where((s) => s.connected.value)
-                      .length,
-                  onProperties: session == null
+                  );
+    final scaffold = Scaffold(
+      resizeToAvoidBottomInset: !iosPhone,
+      backgroundColor: iosPhone
+          ? IosColors.of(context).groupedBackground
+          : null,
+      body: LayoutBuilder(
+        builder: (context, body) => SafeArea(
+          top: !iosPhone,
+          bottom: !iosPhone,
+          child: Column(
+            children: [
+              if (!iosPhone)
+                WorkspaceTabBar(
+                  onDisconnect: (id) =>
+                      unawaited(_disconnectTerminalSession(id)),
+                  groups: _layout.groupedSessionIds,
+                  groupSelections: _layout.retainedGroupSelections,
+                  onUnsplit: _unsplitTerminalTab,
+                  leading: _storageRecoveryRequired || widget.persistentMode
                       ? null
-                      : () => _terminalProperties(session.id),
-                  transfer: sshTransferActivity.activeCount == 0
-                      ? null
-                      : Text(
-                          sshTransferActivity.summary,
-                          style: const TextStyle(fontSize: 11),
+                      : IconButton(
+                          key: const ValueKey('local_profile_exit'),
+                          tooltip: context.l10n.exitLocalProfile,
+                          onPressed: _busy ? null : _exit,
+                          icon: const Icon(Icons.arrow_back),
                         ),
-                );
-              },
-            ),
-            // Android: the one shared bar docks directly above the keyboard.
-            if (terminalTouchKeyboardOnDemand)
-              _sharedTerminalKeybar(activeSession, body.maxHeight),
-          ],
+                  homeMenuActions: homeActions,
+                  onToggleTools: activeSession?.connection != null
+                      ? () => activeSession!.viewKey.currentState?.toggleTools()
+                      : null,
+                  onSearch: active == null || _storageRecoveryRequired
+                      ? null
+                      : () => unawaited(_openHostSearch()),
+                  onSftp: (id) => unawaited(_openSessionFilesById(id)),
+                  onScp: (id) => unawaited(
+                    _openSessionScp(id, SshTransferDirection.upload),
+                  ),
+                  tabs: [
+                    WorkspaceTab(
+                      id: 'hosts',
+                      title: context.l10n.home,
+                      isHome: true,
+                    ),
+                    ..._tabOrder.arrange<WorkspaceTab>([
+                      for (final session in _visibleSessions)
+                        WorkspaceTab(
+                          id: session.id,
+                          title: session.host.name,
+                          isConnected: session.connected.value,
+                          canDisconnect:
+                              session.console == null &&
+                              session.desktop == null &&
+                              (session.connected.value ||
+                                  session.telnetState == 'connecting' ||
+                                  session.recovery?.automaticEnabled == true),
+                          canOpenFiles: session.connection != null,
+                          canDetach:
+                              (session.connection != null ||
+                                  session.console != null) &&
+                              ApplicationWindows.instance.supported,
+                        ),
+                      for (final entry in _files.entries)
+                        WorkspaceTab(
+                          id: entry.id,
+                          title: entry.title,
+                          isConnected: true,
+                          isFile: true,
+                          canDetach: supportsFilesWindows,
+                        ),
+                    ], (tab) => tab.id),
+                  ],
+                  selectedId: _selectedTabId,
+                  onSelect: _selectTerminalTab,
+                  onClose: _closeTerminalTab,
+                  onReorder: _reorderTerminalTabs,
+                  onSplit: (id, axis) => unawaited(_splitTerminalTab(id, axis)),
+                  onDetach:
+                      ApplicationWindows.instance.supported ||
+                          supportsFilesWindows
+                      ? (id) => unawaited(_detachTerminalTab(id))
+                      : null,
+                  onProperties: _terminalProperties,
+                  onCloseOthers: _closeOtherTabs,
+                  onDuplicate: (id) => unawaited(_duplicateWorkspaceTab(id)),
+                  dragScope: _dragScope,
+                  supportsNewWindow: supportsNewWindow,
+                  onNewWindow: _newWindow,
+                ),
+              Expanded(
+                child: iosPhone
+                    ? _iosPushStack(
+                        context,
+                        homeActions: homeActions,
+                        activeSession: activeSession,
+                        workspaceHeight: body.maxHeight,
+                        home: homeSurface,
+                        terminalChild: terminalSurface,
+                      )
+                    : IndexedStack(
+                        index: _selectedTabId == 'hosts' ? 0 : 1,
+                        children: [homeSurface, terminalSurface],
+                      ),
+              ),
+              if (!iosPhone && !terminalTouchKeyboardOnDemand)
+                _sharedTerminalKeybar(activeSession, body.maxHeight),
+              if (!iosPhone)
+                AnimatedBuilder(
+                  animation: sshTransferActivity,
+                  builder: (_, _) {
+                    final session = _sessions
+                        .where((s) => s.id == _selectedTabId)
+                        .firstOrNull;
+                    return WorkspaceStatusBar(
+                      status: active == null
+                          ? context.l10n.localLocked
+                          : context.l10n.localUnlocked,
+                      detail: session == null
+                          ? context.l10n.hostsAndSignInDetailsAre
+                          : '${session.host.username.isEmpty ? '' : '${session.host.username}@'}${session.host.address}:${session.host.port} · ${session.isTelnet ? '${context.l10n.telnetProtocolUnencrypted} · ' : ''}${session.connected.value ? context.l10n.connected : context.l10n.disconnected}',
+                      sessionCount: _sessions
+                          .where((s) => s.connected.value)
+                          .length,
+                      onProperties: session == null
+                          ? null
+                          : () => _terminalProperties(session.id),
+                      transfer: sshTransferActivity.activeCount == 0
+                          ? null
+                          : Text(
+                              sshTransferActivity.summary,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                    );
+                  },
+                ),
+              // Android: the one shared bar docks directly above the keyboard.
+              if (!iosPhone && terminalTouchKeyboardOnDemand)
+                _sharedTerminalKeybar(activeSession, body.maxHeight),
+            ],
+          ),
         ),
-      )),
+      ),
     );
+    return iosPhone
+        ? TooltipVisibility(visible: false, child: scaffold)
+        : scaffold;
   }
 
   /// The single keybar of the terminal workspace. Split panes share it; it
@@ -5135,46 +5274,49 @@ _showMessage(
   /// the LEFT navigation column once a Profile is unlocked.
   Widget _withHomeSidebar(UnlockedLocalProfile? active, Widget body) {
     if (active == null) return body;
+    if (isIosPhone(context)) return _iosHomeShell(context, active);
     final termiusOneClick = _termiusOneClickSidebarAction();
     final termius = _termiusTransferAction();
-    return LayoutBuilder(
-      builder: (context, constraints) => Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          HomeSidebar(
-            layout: homeSidebarLayoutFor(constraints.maxWidth),
-            selected: _homeDestinationFor(_workspace),
-            onSelect: _selectHomeDestination,
-            destinations: [
-              HomeDestination.hosts,
-              HomeDestination.groups,
-              HomeDestination.logs,
-              if (_forwardingPageBuilder != null) HomeDestination.forwarding,
-              HomeDestination.snippets,
-              HomeDestination.keychain,
-              HomeDestination.settings,
-            ],
-            footerActions: [
-              HomeSidebarAction(
-                id: 'local_archive_import',
-                label: context.l10n.importLocalEncryptedArchive,
-                icon: Icons.upload_file_outlined,
-                onSelected: _importLocalArchive,
-                enabled: !_busy,
-              ),
-              HomeSidebarAction(
-                id: 'local_archive_export',
-                label: context.l10n.exportLocalEncryptedArchive,
-                icon: Icons.download_outlined,
-                onSelected: _exportLocalArchive,
-                enabled: !_busy,
-              ),
-              ?termiusOneClick,
-              ?termius,
-            ],
-          ),
-          Expanded(child: body),
-        ],
+    return AppleAmbientBackdrop(
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            HomeSidebar(
+              layout: homeSidebarLayoutFor(constraints.maxWidth),
+              selected: _homeDestinationFor(_workspace),
+              onSelect: _selectHomeDestination,
+              destinations: [
+                HomeDestination.hosts,
+                HomeDestination.groups,
+                HomeDestination.logs,
+                if (_forwardingPageBuilder != null) HomeDestination.forwarding,
+                HomeDestination.snippets,
+                HomeDestination.keychain,
+                HomeDestination.settings,
+              ],
+              footerActions: [
+                HomeSidebarAction(
+                  id: 'local_archive_import',
+                  label: context.l10n.importLocalEncryptedArchive,
+                  icon: Icons.upload_file_outlined,
+                  onSelected: _importLocalArchive,
+                  enabled: !_busy,
+                ),
+                HomeSidebarAction(
+                  id: 'local_archive_export',
+                  label: context.l10n.exportLocalEncryptedArchive,
+                  icon: Icons.download_outlined,
+                  onSelected: _exportLocalArchive,
+                  enabled: !_busy,
+                ),
+                ?termiusOneClick,
+                ?termius,
+              ],
+            ),
+            Expanded(child: body),
+          ],
+        ),
       ),
     );
   }
@@ -5209,7 +5351,9 @@ _showMessage(
     ),
   );
 
-  Widget _buildProfiles() => ListView(
+  Widget _buildProfiles() {
+    if (isIosPhone(context)) return _buildProfilesIos(context);
+    return ListView(
     padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
     children: [
       Text(context.l10n.localProfile2, style: Theme.of(context).textTheme.headlineSmall),
@@ -5300,6 +5444,7 @@ _showMessage(
       ],
     ],
   );
+  }
 
   Widget _profileTile(LocalProfileRecord profile) {
     final selected = _selectedProfile?.profileId == profile.profileId;
@@ -5555,12 +5700,26 @@ _showMessage(
     HostRecord host,
     HostCardMetrics metrics, {
     required bool showMeta,
-  }) => Card(
-    clipBehavior: Clip.antiAlias,
-    margin: EdgeInsets.zero,
-    child: InkWell(
+  }) {
+    final apple = shouldUseAppleGlass(context);
+    final palette = context.palette;
+    final cardShape = appleSquircleBorder(
+      BorderRadius.circular(apple ? 14 : 12),
+      platform: Theme.of(context).platform,
+      side: BorderSide(
+        color: apple ? appleGlassRimColor(context) : palette.line,
+        width: apple ? appleHairlineWidth(context) : 1.0,
+      ),
+    );
+    final tileContent = InkWell(
       key: ValueKey('local_host_${host.id}'),
-      onTap: _busy || kIsWeb ? null : () => _connectLocalHost(host),
+      customBorder: cardShape,
+      onTap: _busy || kIsWeb
+          ? null
+          : () {
+              AppleHaptics.light(context);
+              _connectLocalHost(host);
+            },
       onSecondaryTapDown: (event) => showWorkspaceContextMenu(
         context,
         event.globalPosition,
@@ -5574,9 +5733,18 @@ _showMessage(
             Row(
               children: [
                 DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: context.palette.accent.withValues(alpha: .16),
-                    borderRadius: BorderRadius.circular(6),
+                  decoration: ShapeDecoration(
+                    color: palette.accent.withValues(alpha: apple ? .22 : .16),
+                    shape: appleSquircleBorder(
+                      BorderRadius.circular(8),
+                      platform: Theme.of(context).platform,
+                      side: apple
+                          ? BorderSide(
+                              color: palette.accentText.withValues(alpha: 0.25),
+                              width: appleHairlineWidth(context),
+                            )
+                          : BorderSide.none,
+                    ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(HostCardMetrics.iconPadding),
@@ -5609,7 +5777,7 @@ _showMessage(
                         overflow: TextOverflow.ellipsis,
                         strutStyle: metrics.subtitleTextStrut,
                         style: TextStyle(
-                          color: context.palette.muted,
+                          color: palette.muted,
                           fontSize: metrics.subtitleTextSize,
                         ),
                       ),
@@ -5636,7 +5804,7 @@ _showMessage(
                   overflow: TextOverflow.ellipsis,
                   strutStyle: metrics.metaTextStrut,
                   style: TextStyle(
-                    color: context.palette.muted,
+                    color: palette.muted,
                     fontSize: metrics.metaTextSize,
                   ),
                 ),
@@ -5645,8 +5813,35 @@ _showMessage(
           ],
         ),
       ),
-    ),
-  );
+    );
+    if (!apple) {
+      return Card(
+        clipBehavior: Clip.antiAlias,
+        margin: EdgeInsets.zero,
+        child: tileContent,
+      );
+    }
+    return DecoratedBox(
+      decoration: ShapeDecoration(
+        shape: cardShape,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.alphaBlend(
+              Colors.white.withValues(alpha: palette.isDark ? 0.08 : 0.55),
+              palette.surface.withValues(alpha: palette.isDark ? 0.62 : 0.76),
+            ),
+            palette.surface.withValues(alpha: palette.isDark ? 0.52 : 0.68),
+          ],
+        ),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: tileContent,
+      ),
+    );
+  }
 
   /// Home "Keychain": central keys/certificates/passwords of this Profile.
   /// Hosts keep their direct per-host sign-in; this page manages the shared
@@ -5881,7 +6076,9 @@ _showMessage(
         title: context.l10n.workspace,
         icon: Icons.dashboard_outlined,
         description: context.l10n.chooseTheWorkspaceModeAndThe,
-        builder: (_) => SettingsCards(
+        builder: (sectionContext) => isIosPhone(sectionContext)
+            ? _iosWorkspaceSectionBody(sectionContext)
+            : SettingsCards(
           children: [
             const SettingsCard(child: AppLanguageSettings()),
             ScopedWorkspaceModeSettings(onSwitch: _exit),
@@ -6003,7 +6200,9 @@ _showMessage(
         title: context.l10n.settingsThemeTitle,
         icon: Icons.palette_outlined,
         description: context.l10n.settingsThemeDescription,
-        builder: (_) => SettingsCards(
+        builder: (sectionContext) => isIosPhone(sectionContext)
+            ? _iosAppearanceSectionBody(sectionContext)
+            : SettingsCards(
           children: [
             const SettingsCard(child: AppThemeSettings()),
             const SettingsCard(child: WallpaperSettings()),
@@ -6173,6 +6372,7 @@ _showMessage(
           ],
         ),
       ),
+      ..._iosExtraSettingsSections(context),
     ],
   );
 
@@ -8027,6 +8227,7 @@ throw StateError(context.l10n.snippetChanged);
                 focusNode: _terminalFocus,
                 autofocus: widget.active && !_searchOpen,
                 showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
+                keyboardAppearance: Theme.of(context).brightness,
                 onKeyEvent: _handleTerminalKeyEvent,
                 padding: const EdgeInsets.all(12),
                 backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),

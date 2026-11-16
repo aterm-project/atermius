@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import '../platform/fullscreen.dart';
 import '../storage/desktop_keyboard_store.dart';
+import '../ui/ios_native/ios_native.dart';
+import '../ui/settings_scaffold.dart';
 
 enum DesktopKeyboardMode { overlay, resize }
 
@@ -52,8 +53,9 @@ class DesktopKeyboardController extends ChangeNotifier {
     }
     if ((previous == overlayActive && visible) ||
         _notificationPending ||
-        _disposed)
+        _disposed) {
       return;
+    }
     // Focus/dispose callbacks can run during layout. Never dirty an ancestor
     // synchronously while its pane is being built or removed.
     _notificationPending = true;
@@ -158,13 +160,75 @@ class _DesktopKeyboardViewportState extends State<DesktopKeyboardViewport> {
   );
 }
 
-class DesktopKeyboardSettings extends StatelessWidget {
+class DesktopKeyboardSettings extends StatelessWidget
+    with IosFlushSettingsChild {
   const DesktopKeyboardSettings({super.key});
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: DesktopKeyboardController.instance,
     builder: (context, _) {
       final controller = DesktopKeyboardController.instance;
+      if (isIosPhone(context)) {
+        final l10n = context.l10n;
+        final colors = IosColors.of(context);
+        final hairline = IosMetrics.hairline(context);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IosPickerRow<DesktopKeyboardMode>(
+              rowKey: const ValueKey('desktop_keyboard_mode'),
+              label: l10n.desktopKeyboardModeTitle,
+              value: controller.mode,
+              options: [
+                IosPickerOption(
+                  value: DesktopKeyboardMode.overlay,
+                  label: l10n.desktopKeyboardOverlay,
+                ),
+                IosPickerOption(
+                  value: DesktopKeyboardMode.resize,
+                  label: l10n.desktopKeyboardResize,
+                ),
+              ],
+              onChanged: (value) => unawaited(controller.select(value)),
+            ),
+            SizedBox(
+              height: hairline,
+              child: ColoredBox(color: colors.separator),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IosMetrics.rowPaddingH,
+                10,
+                IosMetrics.rowPaddingH,
+                12,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    controller.mode == DesktopKeyboardMode.overlay
+                        ? l10n.desktopKeyboardOverlayDescription
+                        : l10n.desktopKeyboardResizeDescription,
+                    style: IosType.footnote.copyWith(
+                      color: colors.secondaryLabel,
+                    ),
+                  ),
+                  if (controller.writeFailed) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.desktopKeyboardSaveFailed,
+                      style: IosType.footnote.copyWith(
+                        color: colors.destructive,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        );
+      }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

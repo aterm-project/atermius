@@ -1,7 +1,9 @@
 import 'app_menu.dart';
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../domain/models.dart';
 import '../l10n/l10n.dart';
@@ -11,7 +13,9 @@ import '../ssh/port_forward_runtime.dart';
 export '../ssh/port_forward_rule_change.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
+import 'ios_native/ios_native.dart';
 import 'ssh_port_forwarding_dialog.dart';
+import 'workspace_controls.dart' show WorkspaceAction;
 
 /// Connection phase of one SSH session (terminal tab) as seen by the
 /// forwarding page.
@@ -662,6 +666,11 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
     if (hosts.isEmpty) return;
     final host = hosts.length == 1
         ? hosts.single
+        : isIosPhone(context)
+        ? await showIosFormSheet<HostRecord>(
+            context,
+            builder: (_) => _HostPicker(hosts: hosts),
+          )
         : await showAppDialog<HostRecord>(
             context: context,
             builder: (_) => _HostPicker(hosts: hosts),
@@ -739,25 +748,37 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
     if (_working || !_source.canEdit) return;
     // Bind the confirmation to this scope and this exact rule.
     final scope = _source.scopeKey;
-    final confirmed = await showAppDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        key: const ValueKey('r7fwd-delete-confirm'),
-        title: Text(context.l10n.r7ForwardDeleteTitle),
-        content: Text(context.l10n.r7ForwardDeleteBody(profile.name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.l10n.cancel2),
-          ),
-          FilledButton(
-            key: const ValueKey('r7fwd-delete-accept'),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(context.l10n.delete),
-          ),
-        ],
-      ),
-    );
+    final bool? confirmed;
+    if (isIosPhone(context)) {
+      confirmed = await showIosDestructiveConfirm(
+        context,
+        title: context.l10n.r7ForwardDeleteTitle,
+        message: context.l10n.r7ForwardDeleteBody(profile.name),
+        action: context.l10n.delete,
+        cancel: context.l10n.cancel2,
+        actionKey: const ValueKey('r7fwd-delete-accept'),
+      );
+    } else {
+      confirmed = await showAppDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          key: const ValueKey('r7fwd-delete-confirm'),
+          title: Text(context.l10n.r7ForwardDeleteTitle),
+          content: Text(context.l10n.r7ForwardDeleteBody(profile.name)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(context.l10n.cancel2),
+            ),
+            FilledButton(
+              key: const ValueKey('r7fwd-delete-accept'),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(context.l10n.delete),
+            ),
+          ],
+        ),
+      );
+    }
     if (confirmed != true || !mounted) return;
     if (!_stillSaved(scope, host.id, profile)) return;
     setState(() {
@@ -906,6 +927,20 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
         (profile) => profile.type == SshPortForwardType.dynamic,
       ),
     );
+
+    if (isIosPhone(context)) {
+      return _buildIosPhone(
+        context,
+        hosts: hosts,
+        visible: visible,
+        removedHostSessions: removedHostSessions,
+        supported: supported,
+        anyDynamic: anyDynamic,
+        searching: searching,
+        ruleCount: ruleCount,
+        running: running,
+      );
+    }
 
     return Material(
       key: const ValueKey('ssh-forwarding-page'),
@@ -1490,6 +1525,784 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
       ),
     );
   }
+
+  // ---- iOS Phone native layout ----------------------------------------
+
+  Widget _buildIosPhone(
+    BuildContext context, {
+    required List<HostRecord> hosts,
+    required List<HostRecord> visible,
+    required List<SshForwardingSessionInfo> removedHostSessions,
+    required bool supported,
+    required bool anyDynamic,
+    required bool searching,
+    required int ruleCount,
+    required int running,
+  }) {
+    final c = IosColors.of(context);
+    final l10n = context.l10n;
+    final isSubpage = ModalRoute.of(context)?.canPop ?? false;
+    final hostWithRulesCount = hosts
+        .where((host) => host.portForwardProfiles.isNotEmpty)
+        .length;
+    final summaryLine = l10n.r7ForwardSummary(
+      ruleCount,
+      hostWithRulesCount,
+      running,
+    );
+
+    final searchField = buildIosSearchTextField(
+      context,
+      key: const ValueKey('r7fwd-search'),
+      controller: _search,
+      placeholder: l10n.r7ForwardSearchHint,
+      onChanged: (value) => setState(() => _query = value),
+      onSuffixTap: () => setState(() => _query = ''),
+    );
+
+    final canAddRule = !_working && _source.canEdit && hosts.isNotEmpty;
+    final trailing = IosBarButtonGroup(
+      items: [
+        IosBarButtonItem(
+          key: const ValueKey('r7fwd-new-rule'),
+          icon: IosIcons.add,
+          semanticLabel: l10n.r7ForwardNewRule,
+          onPressed: canAddRule ? (_) => _newRule() : null,
+        ),
+        IosBarButtonItem(
+          key: const ValueKey('r7fwd-show-all'),
+          icon: IosIcons.more,
+          semanticLabel: l10n.more,
+          badge: _working
+              ? const Positioned.fill(
+                  child: IgnorePointer(
+                    child: Center(child: CupertinoActivityIndicator(radius: 8)),
+                  ),
+                )
+              : null,
+          onPressed: (anchor) => showIosPullDownMenu(
+            context,
+            anchor: anchor,
+            sections: [
+              [
+                WorkspaceAction(
+                  'ios_fwd_show_all_hosts',
+                  l10n.r7ForwardShowAllHosts,
+                  _showAllHosts ? IosIcons.check : kIosMenuNoIcon,
+                  () => setState(() => _showAllHosts = !_showAllHosts),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final slivers = <Widget>[];
+
+    if (isSubpage) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              IosMetrics.sectionMargin,
+              0,
+              IosMetrics.sectionMargin,
+              12,
+            ),
+            child: searchField,
+          ),
+        ),
+      );
+    }
+
+    // 平台限制 / 只读提示 / 错误横幅
+    final noticeChildren = <Widget>[
+      if (!supported)
+        IosListRow(
+          leading: IosIconTile(icon: IosIcons.warning, color: c.warning),
+          title: Text(
+            _controller.unsupportedReason ?? l10n.forwardRuntimeUnsupported,
+            key: const ValueKey('r7fwd-unsupported'),
+            maxLines: 3,
+          ),
+        ),
+      if (!_source.canEdit && _source.readOnlyReason != null)
+        IosListRow(
+          leading: IosIconTile(icon: IosIcons.lock, color: c.gray),
+          title: Text(_source.readOnlyReason!, maxLines: 3),
+        ),
+      if (_error != null)
+        IosListRow(
+          leading: IosIconTile(icon: IosIcons.warning, color: c.destructive),
+          title: Text(
+            _error!,
+            key: const ValueKey('r7fwd-error'),
+            maxLines: 3,
+          ),
+          destructive: true,
+        ),
+    ];
+    if (noticeChildren.isNotEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: IosListSection(
+            separatorIndent: IosListSection.indentForIcon(),
+            children: noticeChildren,
+          ),
+        ),
+      );
+    }
+
+    if (hosts.isEmpty) {
+      slivers.add(
+        SliverIosEmptyState(
+          child: IosEmptyState(
+            key: const ValueKey('r7fwd-empty'),
+            icon: IosIcons.hosts,
+            title: l10n.r7ForwardNoHosts,
+          ),
+        ),
+      );
+    } else if (visible.isEmpty && removedHostSessions.isEmpty) {
+      slivers.add(
+        SliverIosEmptyState(
+          child: IosEmptyState(
+            key: const ValueKey('r7fwd-empty'),
+            icon: IosIcons.forwarding,
+            title: searching
+                ? l10n.r7ForwardNoMatches
+                : l10n.r7ForwardNoRules,
+            message:
+                '${_source.storageDescription} ${l10n.r7ForwardNoAutoStart}',
+            actionLabel: !searching && canAddRule
+                ? l10n.r7ForwardNewRule
+                : null,
+            onAction: !searching && canAddRule ? _newRule : null,
+          ),
+        ),
+      );
+    } else {
+      final sections = <Widget>[
+        for (var i = 0; i < visible.length; i++)
+          _buildIosHostSection(
+            context,
+            visible[i],
+            supported: supported,
+            footer: i == visible.length - 1 && removedHostSessions.isEmpty
+                ? '$summaryLine\n${_source.storageDescription} ${l10n.r7ForwardNoAutoStart}${anyDynamic ? '\n${l10n.dynamicForwardingIsASocks44a}' : ''}'
+                : null,
+          ),
+        for (final session in removedHostSessions)
+          _buildIosRemovedHostSection(context, session),
+      ];
+      slivers.add(
+        SliverToBoxAdapter(
+          key: const ValueKey('r7fwd-list'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 保留隐藏的统计 key 便于测试定位
+              Offstage(
+                child: Text(summaryLine, key: const ValueKey('r7fwd-summary')),
+              ),
+              ...sections,
+            ],
+          ),
+        ),
+      );
+    }
+
+    return KeyedSubtree(
+      key: const ValueKey('ssh-forwarding-page'),
+      child: IosLargeTitlePage(
+        title: l10n.r7ForwardTitle,
+        largeTitle: !isSubpage,
+        showBackButton: isSubpage,
+        trailing: trailing,
+        searchField: isSubpage ? null : searchField,
+        slivers: slivers,
+      ),
+    );
+  }
+
+  Widget _buildIosHostSection(
+    BuildContext context,
+    HostRecord host, {
+    required bool supported,
+    String? footer,
+  }) {
+    final c = IosColors.of(context);
+    final l10n = context.l10n;
+    final sessions = _controller.sessionsOf(_source, host.id);
+    final live = sessions
+        .where((session) => session.liveManager != null)
+        .toList(growable: false);
+    final connecting = sessions.any(
+      (session) => session.phase == SshForwardingSessionPhase.connecting,
+    );
+    final target = _controller.targetSession(_source, host.id);
+    final pendingAny = host.portForwardProfiles.any(
+      (profile) => _controller.isConnecting(host.id, profile.id),
+    );
+    final (String stateText, Color stateColor) = live.isEmpty
+        ? (connecting || pendingAny)
+              ? (l10n.r7ForwardHostConnecting, c.warning)
+              : (l10n.r7ForwardHostNotConnected, c.secondaryLabel)
+        : live.length == 1
+        ? (l10n.r7ForwardHostConnected, c.online)
+        : (l10n.r7ForwardHostSessions(live.length), c.online);
+
+    final savedIds = host.portForwardProfiles.map((p) => p.id).toSet();
+    final orphans = [
+      for (final session in live)
+        for (final profile in session.liveManager!.activeProfiles)
+          if (!savedIds.contains(profile.id)) (session, profile),
+    ];
+
+    final headerTrailing = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (live.length > 1)
+          IosPullDownButton(
+            key: ValueKey('r7fwd-session-select-${host.id}'),
+            sections: () => [
+              [
+                for (final session in live)
+                  WorkspaceAction(
+                    'ios_fwd_session_${session.id}',
+                    session.label,
+                    target?.id == session.id ? IosIcons.check : kIosMenuNoIcon,
+                    () => _controller.selectSession(host.id, session.id),
+                  ),
+              ],
+            ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 110),
+                  child: Text(
+                    target?.label ?? l10n.r7ForwardChooseSession,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IosType.footnote.copyWith(color: c.tint),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                IosChevron(
+                  direction: IosChevronDirection.down,
+                  size: 9,
+                  color: c.tint,
+                ),
+              ],
+            ),
+          )
+        else
+          Text(
+            stateText,
+            key: ValueKey('r7fwd-host-state-${host.id}'),
+            style: IosType.footnote.copyWith(color: stateColor),
+          ),
+        if (target != null) ...[
+          const SizedBox(width: 10),
+          GestureDetector(
+            key: ValueKey('r7fwd-open-session-${host.id}'),
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _source.showSession(target.id),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+              child: Icon(IosIcons.terminal, size: 16, color: c.tint),
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final children = <Widget>[
+      for (final profile in host.portForwardProfiles)
+        _buildIosRuleRow(
+          context,
+          host,
+          profile,
+          live: live,
+          target: target,
+          connectingSession: connecting,
+          supported: supported,
+        ),
+      for (final (session, profile) in orphans)
+        _buildIosOrphanRow(context, host.id, session, profile),
+      if (_source.canEdit)
+        IosListActionRow(
+          key: ValueKey('r7fwd-add-${host.id}'),
+          label: l10n.addProfile,
+          onTap: _working ? null : () => _edit(host),
+        )
+      else if (host.portForwardProfiles.isEmpty && orphans.isEmpty)
+        IosListRow(
+          title: Text(
+            l10n.noForwardingProfilesSavedForThis,
+            style: IosType.subheadline.copyWith(color: c.secondaryLabel),
+          ),
+        ),
+    ];
+
+    return IosListSection(
+      key: ValueKey('r7fwd-host-${host.id}'),
+      headerWidget: IosSectionHeader(host.name, trailing: headerTrailing),
+      footer: footer,
+      separatorIndent: IosListSection.indentForIcon(),
+      children: children,
+    );
+  }
+
+  Widget _buildIosRuleRow(
+    BuildContext context,
+    HostRecord host,
+    SshPortForwardProfile profile, {
+    required List<SshForwardingSessionInfo> live,
+    required SshForwardingSessionInfo? target,
+    required bool connectingSession,
+    required bool supported,
+  }) {
+    final c = IosColors.of(context);
+    final l10n = context.l10n;
+    final id = '${host.id}-${profile.id}';
+    final pending = _controller.isConnecting(host.id, profile.id);
+    final busy = _controller.isBusy(host.id, profile.id);
+    final manager = target?.liveManager;
+    final status =
+        manager?.statusOf(profile.id) ?? SshPortForwardStatus.stopped;
+    final active =
+        status.state == SshPortForwardState.running ||
+        status.state == SshPortForwardState.starting;
+    final stopping = status.state == SshPortForwardState.stopping;
+    final note = _controller.noteOf(host.id, profile.id);
+    final others = [
+      for (final session in live)
+        if (!identical(session, target) &&
+            session.id != target?.id &&
+            ruleIsActive(session.liveManager!, profile.id))
+          session,
+    ];
+    final editable =
+        !_working && _source.canEdit && !_activeAnywhere(host.id, profile.id);
+
+    // 规则开关回调：开启 = 启动或连接并启动；关闭 = 停止或取消待连接
+    final switchValue = active || pending;
+    ValueChanged<bool>? onSwitchChanged;
+    if (supported && !busy && !stopping) {
+      if (pending) {
+        onSwitchChanged = (next) {
+          if (!next) _controller.cancelPending(host.id, profile.id);
+        };
+      } else if (active) {
+        if (manager != null) {
+          onSwitchChanged = (next) {
+            if (!next) _controller.stop(manager, host.id, profile.id);
+          };
+        }
+      } else if (target != null) {
+        onSwitchChanged = (next) {
+          if (next) _start(host, profile);
+        };
+      } else if (live.length <= 1 && !connectingSession) {
+        onSwitchChanged = (next) {
+          if (next) _start(host, profile);
+        };
+      }
+    }
+
+    final (String statusLabel, Color statusColor) = pending
+        ? (l10n.r7ForwardConnectingStart, c.warning)
+        : switch (status.state) {
+            SshPortForwardState.running => (
+              l10n.forwardStatusRunning(
+                status.activeConnections,
+                status.totalConnections,
+              ),
+              c.online,
+            ),
+            SshPortForwardState.starting => (l10n.starting, c.warning),
+            SshPortForwardState.stopping => (
+              l10n.forwardStatusStopping,
+              c.secondaryLabel,
+            ),
+            SshPortForwardState.failed => (
+              l10n.forwardStatusFailed(
+                status.error ?? l10n.forwardStatusUnknownError,
+              ),
+              c.destructive,
+            ),
+            SshPortForwardState.stopped => (
+              l10n.forwardStatusStopped,
+              c.tertiaryLabel,
+            ),
+          };
+
+    void handleRowTap() {
+      if (_working || !_source.canEdit) return;
+      if (editable) {
+        _edit(host, existing: profile);
+      } else {
+        IosToast.show(
+          context,
+          l10n.stopThisForwardBeforeEditingIts,
+          kind: IosToastKind.warning,
+        );
+      }
+    }
+
+    Widget buildBody({required bool inPreview}) => IosPressable(
+      key: inPreview ? null : ValueKey('r7fwd-rule-$id'),
+      enabled: !inPreview && !_working && _source.canEdit,
+      onTap: inPreview ? null : handleRowTap,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          IosMetrics.rowPaddingH,
+          11,
+          IosMetrics.rowPaddingH,
+          11,
+        ),
+        child: Row(
+          children: [
+            _IosForwardTypeTile(type: profile.type),
+            const SizedBox(width: IosMetrics.iconTextGap),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          profile.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: IosType.body.copyWith(color: c.label),
+                        ),
+                      ),
+                      if (profile.exposesBeyondLoopback) ...[
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.public_rounded,
+                          size: 15,
+                          color: c.warning,
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    sshPortForwardProfileDescription(
+                      profile,
+                      activePort: status.listeningPort,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: IosType.mono.copyWith(color: c.secondaryLabel),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          statusLabel,
+                          key: inPreview ? null : ValueKey('r7fwd-status-$id'),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: IosType.caption1.copyWith(color: statusColor),
+                        ),
+                      ),
+                      if (pending && !inPreview) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          key: ValueKey('r7fwd-cancel-$id'),
+                          onTap: () =>
+                              _controller.cancelPending(host.id, profile.id),
+                          child: Text(
+                            l10n.cancel2,
+                            style: IosType.caption1.copyWith(
+                              color: c.tint,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (status.isRunning && status.lastConnectionError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        l10n.lastConnectionLastconnectionerror(
+                          status.lastConnectionError!,
+                        ),
+                        key: inPreview
+                            ? null
+                            : ValueKey('r7fwd-connection-error-$id'),
+                        style: IosType.caption1.copyWith(color: c.warning),
+                      ),
+                    ),
+                  if (note != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        note,
+                        key: inPreview ? null : ValueKey('r7fwd-note-$id'),
+                        style: IosType.caption1.copyWith(color: c.warning),
+                      ),
+                    ),
+                  if (!inPreview)
+                    for (final session in others)
+                      _buildIosOtherSessionLine(
+                        context,
+                        host.id,
+                        profile.id,
+                        session,
+                      ),
+                ],
+              ),
+            ),
+            if (supported && !inPreview) ...[
+              const SizedBox(width: 10),
+              if (busy || stopping)
+                const Padding(
+                  padding: EdgeInsets.only(right: 6),
+                  child: CupertinoActivityIndicator(radius: 9),
+                ),
+              CupertinoSwitch(
+                key: ValueKey('r7fwd-toggle-$id'),
+                value: switchValue,
+                activeTrackColor: c.online,
+                onChanged: onSwitchChanged,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+
+    final contextActions = <Widget>[
+      if (!_working && _source.canEdit) ...[
+        if (editable)
+          Builder(
+            builder: (menuCtx) => CupertinoContextMenuAction(
+              trailingIcon: IosIcons.edit,
+              onPressed: () {
+                Navigator.of(menuCtx).pop();
+                _edit(host, existing: profile);
+              },
+              child: Text(l10n.editForwardingProfile),
+            ),
+          ),
+        Builder(
+          builder: (menuCtx) => CupertinoContextMenuAction(
+            trailingIcon: IosIcons.copy,
+            onPressed: () {
+              Navigator.of(menuCtx).pop();
+              _duplicate(host, profile);
+            },
+            child: Text(l10n.r7ForwardDuplicate),
+          ),
+        ),
+        Builder(
+          builder: (menuCtx) => CupertinoContextMenuAction(
+            isDestructiveAction: true,
+            trailingIcon: IosIcons.delete,
+            onPressed: () {
+              Navigator.of(menuCtx).pop();
+              _delete(host, profile);
+            },
+            child: Text(l10n.deleteForwardingProfile),
+          ),
+        ),
+      ],
+    ];
+
+    final Widget withContextMenu = contextActions.isEmpty
+        ? buildBody(inPreview: false)
+        : CupertinoContextMenu.builder(
+            actions: contextActions,
+            builder: (ctx, animation) {
+              if (animation.value < CupertinoContextMenu.animationOpensAt) {
+                return buildBody(inPreview: false);
+              }
+              final maxW =
+                  (MediaQuery.sizeOf(ctx).width - 40).clamp(240.0, 360.0);
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxW),
+                  child: ClipRSuperellipse(
+                    borderRadius: BorderRadius.circular(IosMetrics.groupRadius),
+                    child: Material(
+                      color: c.cell,
+                      child: SingleChildScrollView(
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: buildBody(inPreview: true),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+
+    return IosSwipeActionCell(
+      enabled: !_working && _source.canEdit,
+      trailing: [
+        IosSwipeAction(
+          key: ValueKey('ios_fwd_swipe_delete_$id'),
+          label: l10n.delete,
+          icon: IosIcons.delete,
+          color: c.destructive,
+          destructive: true,
+          onTap: () => _delete(host, profile),
+        ),
+        IosSwipeAction(
+          key: ValueKey('ios_fwd_swipe_duplicate_$id'),
+          label: l10n.r7ForwardDuplicate,
+          icon: IosIcons.copy,
+          color: c.indigo,
+          onTap: () => _duplicate(host, profile),
+        ),
+        if (editable)
+          IosSwipeAction(
+            key: ValueKey('ios_fwd_swipe_edit_$id'),
+            label: l10n.edit,
+            icon: IosIcons.edit,
+            color: c.gray,
+            onTap: () => _edit(host, existing: profile),
+          ),
+      ],
+      child: withContextMenu,
+    );
+  }
+
+  Widget _buildIosOtherSessionLine(
+    BuildContext context,
+    String hostId,
+    String profileId,
+    SshForwardingSessionInfo session,
+  ) {
+    final c = IosColors.of(context);
+    final manager = session.liveManager!;
+    final status = manager.statusOf(profileId);
+    final stopping = status.state == SshPortForwardState.stopping;
+    return Padding(
+      key: ValueKey('r7fwd-other-$hostId-$profileId-${session.id}'),
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        children: [
+          Flexible(
+            child: Text(
+              context.l10n.r7ForwardOnSession(
+                session.label,
+                switch (status.state) {
+                  SshPortForwardState.running => context.l10n
+                      .forwardStatusRunning(
+                        status.activeConnections,
+                        status.totalConnections,
+                      ),
+                  SshPortForwardState.starting => context.l10n.starting,
+                  SshPortForwardState.stopping =>
+                    context.l10n.forwardStatusStopping,
+                  _ => context.l10n.forwardStatusStopped,
+                },
+              ),
+              style: IosType.caption1.copyWith(color: c.secondaryLabel),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            key: ValueKey('r7fwd-other-stop-$hostId-$profileId-${session.id}'),
+            onTap: stopping || _controller.isBusy(hostId, profileId)
+                ? null
+                : () => _controller.stop(manager, hostId, profileId),
+            child: Icon(
+              Icons.stop_circle_rounded,
+              size: 18,
+              color: c.destructive,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIosOrphanRow(
+    BuildContext context,
+    String hostId,
+    SshForwardingSessionInfo session,
+    SshPortForwardProfile profile,
+  ) {
+    final c = IosColors.of(context);
+    final manager = session.liveManager!;
+    final status = manager.statusOf(profile.id);
+    final stopping = status.state == SshPortForwardState.stopping;
+    return IosListRow(
+      key: ValueKey('r7fwd-orphan-${session.id}-${profile.id}'),
+      minHeight: IosMetrics.hostRowHeight,
+      leading: _IosForwardTypeTile(type: profile.type),
+      title: Text(profile.name),
+      subtitle: Text(
+        '${context.l10n.sshportforwardprofiledescriptionNoLongerSavedForThis(sshPortForwardProfileDescription(profile, activePort: status.listeningPort))} · ${session.label}',
+      ),
+      trailing: CupertinoSwitch(
+        key: ValueKey('r7fwd-orphan-stop-${session.id}-${profile.id}'),
+        value: true,
+        activeTrackColor: c.online,
+        onChanged: stopping
+            ? null
+            : (_) => _controller.stop(manager, hostId, profile.id),
+      ),
+    );
+  }
+
+  Widget _buildIosRemovedHostSection(
+    BuildContext context,
+    SshForwardingSessionInfo session,
+  ) {
+    final manager = session.liveManager!;
+    return IosListSection(
+      key: ValueKey('r7fwd-removed-${session.id}'),
+      header: '${session.label} · ${context.l10n.r7ForwardRemovedHost}',
+      separatorIndent: IosListSection.indentForIcon(),
+      children: [
+        for (final profile in manager.activeProfiles)
+          _buildIosOrphanRow(context, session.hostId, session, profile),
+      ],
+    );
+  }
+}
+
+/// iOS 转发类型彩色连续曲率图标块（Local 蓝 `L` / Remote 橙 `R` / Dynamic 紫 `D`）。
+class _IosForwardTypeTile extends StatelessWidget {
+  const _IosForwardTypeTile({required this.type});
+
+  final SshPortForwardType type;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IosColors.of(context);
+    final (String letter, Color color) = switch (type) {
+      SshPortForwardType.local => ('L', c.blue),
+      SshPortForwardType.remote => ('R', c.orange),
+      SshPortForwardType.dynamic => ('D', c.purple),
+    };
+    return IosIconTile(
+      color: color,
+      child: Text(
+        letter,
+        style: IosType.subheadline.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
 }
 
 class _TypeBadge extends StatelessWidget {
@@ -1569,7 +2382,14 @@ class _HostPicker extends StatefulWidget {
 }
 
 class _HostPickerState extends State<_HostPicker> {
+  final TextEditingController _search = TextEditingController();
   String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1582,6 +2402,57 @@ class _HostPickerState extends State<_HostPicker> {
               host.address.toLowerCase().contains(query),
         )
         .toList(growable: false);
+    if (isIosPhone(context)) {
+      final c = IosColors.of(context);
+      return IosSheetScaffold(
+        key: const ValueKey('r7fwd-host-picker'),
+        title: context.l10n.r7ForwardChooseHost,
+        cancelLabel: context.l10n.cancel2,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              IosMetrics.sectionMargin,
+              0,
+              IosMetrics.sectionMargin,
+              16,
+            ),
+            child: buildIosSearchTextField(
+              context,
+              key: const ValueKey('r7fwd-host-picker-search'),
+              controller: _search,
+              autofocus: true,
+              placeholder: context.l10n.r7ForwardSearchHint,
+              onChanged: (value) => setState(() => _query = value),
+              onSuffixTap: () => setState(() => _query = ''),
+            ),
+          ),
+          if (hosts.isEmpty)
+            IosEmptyState(
+              icon: IosIcons.search,
+              title: context.l10n.r7ForwardNoMatches,
+            )
+          else
+            IosListSection(
+              separatorIndent: IosListSection.indentForIcon(),
+              children: [
+                for (final host in hosts)
+                  IosListRow(
+                    key: ValueKey('r7fwd-pick-${host.id}'),
+                    leading: IosIconTile(icon: IosIcons.hosts, color: c.tint),
+                    title: Text(host.name),
+                    subtitle: Text('${host.address}:${host.port}'),
+                    monoSubtitle: true,
+                    accessory: IosRowAccessory.chevron,
+                    onTap: () {
+                      HapticFeedback.selectionClick().catchError((Object _) {});
+                      Navigator.of(context).pop(host);
+                    },
+                  ),
+              ],
+            ),
+        ],
+      );
+    }
     return AlertDialog(
       key: const ValueKey('r7fwd-host-picker'),
       title: Text(context.l10n.r7ForwardChooseHost),

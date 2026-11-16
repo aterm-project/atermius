@@ -3,6 +3,18 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../l10n/l10n.dart';
 import 'app_density.dart';
+import 'app_theme.dart';
+import 'apple_hig.dart';
+import 'ios_native/ios_native.dart';
+import 'ios_native/ios_unlock_view.dart';
+
+AppPalette _lockedPaletteOf(BuildContext context) {
+  final theme = Theme.of(context);
+  return theme.extension<AppPalette>() ??
+      (theme.brightness == Brightness.dark
+          ? AppPalette.dark
+          : AppPalette.light);
+}
 
 class LockedWorkspaceScreen extends StatefulWidget {
   const LockedWorkspaceScreen({required this.controller, super.key});
@@ -25,6 +37,7 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
   }
 
   Future<void> _unlock() async {
+    AppleHaptics.light(context);
     try {
       await app.unlockLockedWorkspace(password: _password.text);
       _password.clear();
@@ -62,7 +75,225 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (isIosPhone(context)) {
+      final vaultId = app.activeVault?.id;
+      final shortVault = vaultId != null && vaultId.isNotEmpty
+          ? (vaultId.length > 8 ? vaultId.substring(0, 8) : vaultId)
+          : null;
+      return IosUnlockView(
+        wrapInScaffold: true,
+        title: context.l10n.workspaceLocked,
+        vaultName: shortVault,
+        subtitle: context.l10n.yourAccountStaysSignedInWhile,
+        statusLabel: _statusLabel,
+        statusBusy: app.syncStatus == 'locked_receiving',
+        errorText: app.errorMessage,
+        passwordController: _password,
+        passwordPlaceholder: context.l10n.accountPassword,
+        unlockLabel: context.l10n.unlockWorkspace,
+        busy: app.busy,
+        onUnlock: _unlock,
+        secondaryActions: [
+          if (app.activeVault != null &&
+              app.syncStatus != 'unlock_required' &&
+              app.syncStatus != 'revoked')
+            IosUnlockAction(
+              label: context.l10n.receiveEncryptedChangesNow,
+              icon: Icons.sync_rounded,
+              onPressed: app.syncing ? null : _receiveNow,
+            ),
+          IosUnlockAction(
+            label: context.l10n.signOut,
+            icon: Icons.logout_rounded,
+            destructive: true,
+            onPressed: app.busy ? null : _signOut,
+          ),
+        ],
+      );
+    }
     final theme = Theme.of(context);
+    final apple = isAppleContext(context);
+    final density = AppDensity.of(context);
+    final palette = _lockedPaletteOf(context);
+    final hairline = appleHairlineWidth(context);
+    final panelRadius = BorderRadius.circular(density.radiusDialog);
+    final fieldRadius = BorderRadius.circular(density.radiusMd);
+    final cardShape = apple
+        ? appleSquircleBorder(
+            panelRadius,
+            platform: theme.platform,
+            side: BorderSide(
+              color: palette.line.withValues(
+                alpha: palette.isDark ? 0.85 : 0.88,
+              ),
+              width: hairline,
+            ),
+          )
+        : null;
+
+    final unlockCard = Card(
+      margin: apple ? EdgeInsets.zero : const EdgeInsets.all(24),
+      elevation: apple ? 0 : null,
+      color: apple ? Colors.transparent : null,
+      surfaceTintColor: apple ? Colors.transparent : null,
+      clipBehavior: apple ? Clip.antiAlias : null,
+      shape: apple ? const RoundedRectangleBorder() : cardShape,
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (apple)
+              Center(
+                child: SizedBox.square(
+                  dimension: 56,
+                  child: DecoratedBox(
+                    decoration: ShapeDecoration(
+                      color: palette.isDark
+                          ? palette.accent.withValues(alpha: 0.16)
+                          : palette.accentContainer.withValues(alpha: 0.72),
+                      shape: appleSquircleBorder(
+                        BorderRadius.circular(16),
+                        platform: theme.platform,
+                        side: BorderSide(
+                          color: palette.isDark
+                              ? palette.lime.withValues(alpha: 0.26)
+                              : palette.accent.withValues(alpha: 0.20),
+                          width: hairline,
+                        ),
+                      ),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        Icons.lock_outline,
+                        size: 28,
+                        color: palette.accentText,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            else
+              const Icon(Icons.lock_outline, size: 38),
+            const SizedBox(height: 18),
+            Text(
+              context.l10n.workspaceLocked,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              context.l10n.yourAccountStaysSignedInWhile,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 18),
+            Semantics(
+              container: true,
+              liveRegion: true,
+              label: _statusLabel,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (app.syncStatus == 'locked_receiving') ...[
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                  ],
+                  Flexible(child: Text(_statusLabel)),
+                ],
+              ),
+            ),
+            if (app.errorMessage != null) ...[
+              const SizedBox(height: 14),
+              Text(
+                app.errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+            ],
+            const SizedBox(height: 22),
+            TextField(
+              controller: _password,
+              obscureText: true,
+              enabled: !app.busy,
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.go,
+              onSubmitted: (_) => _unlock(),
+              decoration: InputDecoration(
+                labelText: context.l10n.accountPassword,
+                filled: apple ? true : null,
+                fillColor: apple ? palette.surfaceRaised : null,
+                border: apple
+                    ? OutlineInputBorder(
+                        borderRadius: fieldRadius,
+                        borderSide: BorderSide(
+                          color: palette.line.withValues(
+                            alpha: palette.isDark ? 0.75 : 0.85,
+                          ),
+                          width: hairline,
+                        ),
+                      )
+                    : null,
+                enabledBorder: apple
+                    ? OutlineInputBorder(
+                        borderRadius: fieldRadius,
+                        borderSide: BorderSide(
+                          color: palette.line.withValues(
+                            alpha: palette.isDark ? 0.75 : 0.85,
+                          ),
+                          width: hairline,
+                        ),
+                      )
+                    : null,
+                focusedBorder: apple
+                    ? OutlineInputBorder(
+                        borderRadius: fieldRadius,
+                        borderSide: BorderSide(
+                          color: palette.lime.withValues(
+                            alpha: palette.isDark ? 0.70 : 0.60,
+                          ),
+                          width: 1.0,
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: app.busy ? null : _unlock,
+              icon: const Icon(Icons.lock_open),
+              label: Text(context.l10n.unlockWorkspace),
+            ),
+            if (app.activeVault != null &&
+                app.syncStatus != 'unlock_required' &&
+                app.syncStatus != 'revoked') ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: app.syncing ? null : _receiveNow,
+                icon: const Icon(Icons.sync),
+                label: Text(
+                  context.l10n.receiveEncryptedChangesNow,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: app.busy ? null : _signOut,
+              icon: const Icon(Icons.logout),
+              label: Text(context.l10n.signOut),
+            ),
+          ],
+        ),
+      ),
+    );
+
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
@@ -77,99 +308,40 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
               ),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: appDialogWidth(context, 460)),
-                  child: Card(
-                    margin: const EdgeInsets.all(24),
-                    child: Padding(
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Icon(Icons.lock_outline, size: 38),
-                          const SizedBox(height: 18),
-                          Text(
-                            context.l10n.workspaceLocked,
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            context.l10n.yourAccountStaysSignedInWhile,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 18),
-                          Semantics(
-                            container: true,
-                            liveRegion: true,
-                            label: _statusLabel,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (app.syncStatus == 'locked_receiving') ...[
-                                  const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 9),
-                                ],
-                                Flexible(child: Text(_statusLabel)),
-                              ],
-                            ),
-                          ),
-                          if (app.errorMessage != null) ...[
-                            const SizedBox(height: 14),
-                            Text(
-                              app.errorMessage!,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: theme.colorScheme.error),
-                            ),
-                          ],
-                          const SizedBox(height: 22),
-                          TextField(
-                            controller: _password,
-                            obscureText: true,
-                            enabled: !app.busy,
-                            autocorrect: false,
-                            enableSuggestions: false,
-                            textInputAction: TextInputAction.go,
-                            onSubmitted: (_) => _unlock(),
-                            decoration: InputDecoration(
-                              labelText: context.l10n.accountPassword,
-                              border: const OutlineInputBorder(),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          FilledButton.icon(
-                            onPressed: app.busy ? null : _unlock,
-                            icon: const Icon(Icons.lock_open),
-                            label: Text(context.l10n.unlockWorkspace),
-                          ),
-                          if (app.activeVault != null &&
-                              app.syncStatus != 'unlock_required' &&
-                              app.syncStatus != 'revoked') ...[
-                            const SizedBox(height: 8),
-                            TextButton.icon(
-                              onPressed: app.syncing ? null : _receiveNow,
-                              icon: const Icon(Icons.sync),
-                              label: Text(
-                                context.l10n.receiveEncryptedChangesNow,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: app.busy ? null : _signOut,
-                            icon: const Icon(Icons.logout),
-                            label: Text(context.l10n.signOut),
-                          ),
-                        ],
-                      ),
-                    ),
+                  constraints: BoxConstraints(
+                    maxWidth: appDialogWidth(context, 460),
                   ),
+                  child: apple
+                      ? Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: AppleGlassSurface(
+                            borderRadius: panelRadius,
+                            tintColor: palette.surface,
+                            sigma: 26,
+                            borderSide: BorderSide(
+                              color: appleGlassRimColor(context),
+                              width: hairline,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(
+                                  alpha: palette.isDark ? 0.34 : 0.07,
+                                ),
+                                blurRadius: 28,
+                                offset: const Offset(0, 12),
+                              ),
+                              BoxShadow(
+                                color: Colors.black.withValues(
+                                  alpha: palette.isDark ? 0.18 : 0.03,
+                                ),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                            child: unlockCard,
+                          ),
+                        )
+                      : unlockCard,
                 ),
               ),
             ),

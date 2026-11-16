@@ -1,17 +1,145 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
-import 'app_theme.dart';
 import 'app_menu.dart';
+import 'app_theme.dart';
+import 'apple_hig.dart';
+import 'ios_native/ios_native.dart';
+import 'settings_scaffold.dart';
+import 'workspace_controls.dart' show WorkspaceAction;
 
 /// Device-local display language picker (System default, English, 简体中文,
 /// 日本語, Русский). Switching applies immediately without recreating the
 /// workspace, its sessions or form drafts.
-class AppLanguageSettings extends StatelessWidget {
+class AppLanguageSettings extends StatelessWidget with IosFlushSettingsChild {
   const AppLanguageSettings({this.controller, this.dense = false, super.key});
 
   final AppLanguageController? controller;
   final bool dense;
+
+  Widget _buildIos(BuildContext context, AppLanguageController languages) {
+    final l10n = context.l10n;
+    final colors = IosColors.of(context);
+    final hairline = IosMetrics.hairline(context);
+    final current = languages.preference;
+    final resolvedName = AppLanguage.values
+        .firstWhere(
+          (language) =>
+              language.locale?.languageCode ==
+              languages.systemLocale.languageCode,
+          orElse: () => AppLanguage.english,
+        )
+        .nativeName(l10n);
+
+    return Column(
+      key: const ValueKey('app_language_settings'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IosMetrics.rowPaddingH,
+            14,
+            IosMetrics.rowPaddingH,
+            10,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  IosIconTile(
+                    icon: Icons.translate_rounded,
+                    color: colors.blue,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n.languageSettingTitle,
+                      style: IosType.headline.copyWith(color: colors.label),
+                    ),
+                  ),
+                ],
+              ),
+              if (!dense) ...[
+                const SizedBox(height: 6),
+                Text(
+                  l10n.languageSettingDescription,
+                  style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+                ),
+              ],
+            ],
+          ),
+        ),
+        SizedBox(
+          height: hairline,
+          child: ColoredBox(color: colors.separator),
+        ),
+        for (var i = 0; i < AppLanguage.values.length; i++) ...[
+          if (i > 0)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: IosMetrics.rowPaddingH,
+              ),
+              child: SizedBox(
+                height: hairline,
+                child: ColoredBox(color: colors.separator),
+              ),
+            ),
+          Builder(
+            builder: (context) {
+              final language = AppLanguage.values[i];
+              final selected = language == current;
+              final subtitle = language == AppLanguage.system
+                  ? l10n.languageSettingSystemResolved(resolvedName)
+                  : null;
+              return Semantics(
+                inMutuallyExclusiveGroup: true,
+                checked: selected,
+                child: IosListRow(
+                  key: ValueKey('app_language_${language.code}'),
+                  title: Text(language.nativeName(l10n)),
+                  subtitle: subtitle == null ? null : Text(subtitle),
+                  minHeight: subtitle == null ? IosMetrics.rowMinHeight : 54,
+                  accessory: selected
+                      ? IosRowAccessory.checkmark
+                      : IosRowAccessory.none,
+                  onTap: () {
+                    AppleHaptics.selection(context);
+                    selectAppLanguage(language, using: languages);
+                  },
+                ),
+              );
+            },
+          ),
+        ],
+        SizedBox(
+          height: hairline,
+          child: ColoredBox(color: colors.separator),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IosMetrics.rowPaddingH,
+            10,
+            IosMetrics.rowPaddingH,
+            12,
+          ),
+          child: Text(
+            languages.writeFailed
+                ? l10n.languageSettingSaveFailed
+                : l10n.languageSettingDevicePreference,
+            key: const ValueKey('app_language_storage_note'),
+            style: IosType.footnote.copyWith(
+              color: languages.writeFailed
+                  ? colors.warning
+                  : colors.secondaryLabel,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +147,9 @@ class AppLanguageSettings extends StatelessWidget {
     return ListenableBuilder(
       listenable: languages,
       builder: (context, _) {
+        if (isIosPhone(context)) {
+          return _buildIos(context, languages);
+        }
         final l10n = context.l10n;
         final current = languages.preference;
         final resolvedName = AppLanguage.values
@@ -134,6 +265,39 @@ class AppLanguageMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final languages = controller ?? AppLanguageController.instance;
     final l10n = context.l10n;
+    if (isIosPhone(context)) {
+      final colors = IosColors.of(context);
+      return ListenableBuilder(
+        listenable: languages,
+        builder: (context, _) => IosPullDownButton(
+          key: const ValueKey('app_language_menu'),
+          semanticLabel: l10n.languageSettingTitle,
+          sections: () => [
+            [
+              for (final language in AppLanguage.values)
+                WorkspaceAction(
+                  'app_language_menu_${language.code}',
+                  language.nativeName(l10n),
+                  language == languages.preference
+                      ? IosIcons.check
+                      : kIosMenuNoIcon,
+                  () => selectAppLanguage(language, using: languages),
+                ),
+            ],
+          ],
+          child: SizedBox.square(
+            dimension: 44,
+            child: Center(
+              child: Icon(
+                Icons.translate_rounded,
+                size: 21,
+                color: colors.tint,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return PopupMenuButton<AppLanguage>(
       key: const ValueKey('app_language_menu'),
       tooltip: l10n.languageSettingTitle,

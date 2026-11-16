@@ -467,6 +467,11 @@ class TermiusJsonImporter {
       addIssue(TermiusIssueCode.invalidTag, blocking: true);
     }
 
+    var passphrase = _str(raw['passphrase'] ?? raw['key_passphrase']);
+    if (passphrase != null && passphrase.isEmpty) passphrase = null;
+    if (privateKey == null) passphrase = null;
+    final jumpAlias = _str(raw['jump_host'] ?? raw['jumpAlias'])?.trim();
+
     return TermiusImportRow(
       row: row,
       line: row,
@@ -479,6 +484,8 @@ class TermiusJsonImporter {
       tags: tags,
       password: password,
       privateKey: privateKey,
+      passphrase: passphrase,
+      jumpAlias: jumpAlias != null && jumpAlias.isNotEmpty ? jumpAlias : null,
       issues: issues,
     );
   }

@@ -3,6 +3,8 @@
 /// [TermiusImportDocument] ready for [TermiusImportPlanner].
 library;
 
+import 'dart:convert';
+
 import 'package:uuid/uuid.dart';
 
 import '../domain/models.dart';
@@ -198,26 +200,96 @@ bool _isLoopbackAddress(String address) {
       low == '[::1]';
 }
 
+/// Merges Termius's inner JSON `content` payload onto [row] so fields updated
+/// only inside `content` (such as custom `port`, `label`, or `passphrase`)
+/// take precedence over stale outer index columns.
+Map<String, Object?> mergeTermiusRowContent(Map<String, Object?> row) {
+  final rawContent = row['content'];
+  Map<Object?, Object?>? extra;
+  if (rawContent is String && rawContent.trim().startsWith('{')) {
+    try {
+      final parsed = jsonDecode(rawContent);
+      if (parsed is Map) extra = parsed;
+    } on FormatException {
+      extra = null;
+    }
+  } else if (rawContent is Map) {
+    extra = rawContent;
+  }
+  if (extra == null || extra.isEmpty) return row;
+
+  final merged = Map<String, Object?>.of(row);
+  for (final entry in extra.entries) {
+    final key = entry.key?.toString();
+    if (key == null || key.isEmpty || key == 'id' || key == 'local_id') {
+      continue;
+    }
+    final value = entry.value;
+    if (value != null && !(value is String && value.isEmpty)) {
+      merged[key] = value;
+    } else {
+      merged.putIfAbsent(key, () => value);
+    }
+  }
+  return merged;
+}
+
+Map<String, Object?>? _resolveInheritedGroupSshConfig(
+  Object? groupRef,
+  Map<String, Map<String, Object?>> groupIndex,
+  Map<String, Map<String, Object?>> sshConfigIndex,
+) {
+  final visited = <String>{};
+  var current = _deref(groupRef, groupIndex);
+  while (current != null && visited.length < 16) {
+    final entity = _entityKey(current);
+    if (entity.isNotEmpty && !visited.add(entity)) break;
+    final groupCfg = _deref(current['ssh_config'], sshConfigIndex);
+    if (groupCfg != null) return groupCfg;
+    current = _deref(
+      current['parent_group'] ??
+          current['parent'] ??
+          current['parent_id'] ??
+          current['group'],
+      groupIndex,
+    );
+  }
+  return null;
+}
+
 /// Decrypts [rawTables] with [decryptor] and builds a [TermiusImportDocument].
+///
+/// When [onlyLabeled] is true, only hosts with a non-empty custom remark/label
+/// (`label != address`) are included.
 TermiusImportDocument buildTermiusDocumentFromLocalTables(
   TermiusRawTables rawTables,
-  TermiusVaultDecryptor decryptor,
-) {
+  TermiusVaultDecryptor decryptor, {
+  bool onlyLabeled = false,
+}) {
   final decrypted = <String, List<Map<String, Object?>>>{};
   for (final entry in rawTables.tables.entries) {
     decrypted[entry.key] = [
       for (final row in entry.value)
-        (decryptor.walk(row) as Map).cast<String, Object?>(),
+        mergeTermiusRowContent(
+          (decryptor.walk(row) as Map).cast<String, Object?>(),
+        ),
     ];
   }
-  return buildTermiusDocumentFromDecryptedTables(decrypted);
+  return buildTermiusDocumentFromDecryptedTables(
+    decrypted,
+    onlyLabeled: onlyLabeled,
+  );
 }
 
 /// Builds a [TermiusImportDocument] from already-decrypted Termius tables.
 TermiusImportDocument buildTermiusDocumentFromDecryptedTables(
-  Map<String, List<Map<String, Object?>>> decrypted,
-) {
-  final hostRows = decrypted['hosts'] ?? const [];
+  Map<String, List<Map<String, Object?>>> decrypted, {
+  bool onlyLabeled = false,
+}) {
+  final hostRows = [
+    for (final r in decrypted['hosts'] ?? const <Map<String, Object?>>[])
+      mergeTermiusRowContent(r),
+  ];
   if (hostRows.isEmpty) {
     return const TermiusImportDocument(
       format: TermiusSourceFormat.csv,
@@ -232,11 +304,27 @@ TermiusImportDocument buildTermiusDocumentFromDecryptedTables(
     );
   }
 
-  final keyIndex = _indexRows(decrypted['keys'] ?? const []);
-  final identityIndex = _indexRows(decrypted['ssh_identities'] ?? const []);
-  final sshConfigIndex = _indexRows(decrypted['ssh_configs'] ?? const []);
-  final groupIndex = _indexRows(decrypted['groups'] ?? const []);
-  final tagIndex = _indexRows(decrypted['tags'] ?? const []);
+  final keyIndex = _indexRows([
+    for (final r in decrypted['keys'] ?? const <Map<String, Object?>>[])
+      mergeTermiusRowContent(r),
+  ]);
+  final identityIndex = _indexRows([
+    for (final r
+        in decrypted['ssh_identities'] ?? const <Map<String, Object?>>[])
+      mergeTermiusRowContent(r),
+  ]);
+  final sshConfigIndex = _indexRows([
+    for (final r in decrypted['ssh_configs'] ?? const <Map<String, Object?>>[])
+      mergeTermiusRowContent(r),
+  ]);
+  final groupIndex = _indexRows([
+    for (final r in decrypted['groups'] ?? const <Map<String, Object?>>[])
+      mergeTermiusRowContent(r),
+  ]);
+  final tagIndex = _indexRows([
+    for (final r in decrypted['tags'] ?? const <Map<String, Object?>>[])
+      mergeTermiusRowContent(r),
+  ]);
   final hostIndex = _indexRows(hostRows);
 
   // Join `tags` <- `tag_hosts` -> `hosts`.
@@ -322,23 +410,49 @@ TermiusImportDocument buildTermiusDocumentFromDecryptedTables(
     rowNum++;
     final issues = <TermiusIssue>[];
 
+    final groupRef = row['group'] ?? row['parent_group'];
     final cfg = _deref(row['ssh_config'], sshConfigIndex) ?? const {};
+    final groupCfg =
+        _resolveInheritedGroupSshConfig(groupRef, groupIndex, sshConfigIndex) ??
+        const {};
     final identity =
-        _deref(cfg['identity'] ?? row['identity'], identityIndex) ?? const {};
-    final keyRow = _deref(identity['ssh_key'] ?? cfg['ssh_key'], keyIndex);
+        _deref(
+          cfg['identity'] ?? row['identity'] ?? groupCfg['identity'],
+          identityIndex,
+        ) ??
+        const {};
+    final keyRow = _deref(
+      identity['ssh_key'] ?? cfg['ssh_key'] ?? groupCfg['ssh_key'],
+      keyIndex,
+    );
 
     final rawAddress = _text(row['address'] ?? row['hostname']);
     final address = expandPackedTermiusIpv4(rawAddress);
-    final rawLabel = _text(row['label'] ?? row['title'] ?? row['name']);
+    final rawLabel = _text(
+      row['label'] ??
+          row['title'] ??
+          row['name'] ??
+          row['description'] ??
+          row['notes'],
+    );
+    if (onlyLabeled &&
+        (rawLabel.isEmpty ||
+            rawLabel.toLowerCase() == address.toLowerCase())) {
+      rowNum--;
+      continue;
+    }
     final label = rawLabel.isEmpty ? address : rawLabel;
 
     final rawProto = _text(
-      row['protocol'] ?? row['connection_type'] ?? cfg['protocol'],
+      row['protocol'] ??
+          row['connection_type'] ??
+          cfg['protocol'] ??
+          (cfg['use_mosh'] == true ? 'mosh' : ''),
     );
     final (protocol, protoIssues) = _parseProtocol(rawProto, rowNum);
     issues.addAll(protoIssues);
 
-    final rawPortText = _text(cfg['port'] ?? row['port']);
+    final rawPortText = _text(cfg['port'] ?? row['port'] ?? groupCfg['port']);
     int? port;
     if (rawPortText.isEmpty) {
       port = protocol?.defaultPort ?? 22;
@@ -383,10 +497,12 @@ TermiusImportDocument buildTermiusDocumentFromDecryptedTables(
 
     var password = _rawSecretString(identity['password'] ?? row['password']);
     String? privateKey;
+    String? passphrase;
     final rawPrivateKey = _text(keyRow?['private_key']);
     if (rawPrivateKey.isNotEmpty) {
       if (isInlinePrivateKeyText(rawPrivateKey)) {
         privateKey = normalizePrivateKeyText(rawPrivateKey);
+        passphrase = _rawSecretString(keyRow?['passphrase']);
       } else {
         issues.add(
           TermiusIssue(
@@ -443,6 +559,7 @@ TermiusImportDocument buildTermiusDocumentFromDecryptedTables(
         tags: List.unmodifiable(tags),
         password: password,
         privateKey: privateKey,
+        passphrase: passphrase,
         jumpAlias: jumpAlias,
         forwards: List.unmodifiable(forwards),
         issues: issues,

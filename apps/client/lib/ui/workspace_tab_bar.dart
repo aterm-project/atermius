@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'app_motion.dart';
 import 'app_theme.dart';
+import 'apple_hig.dart';
 import 'session_workspace.dart';
 import 'window_caption.dart';
 import 'workspace_controls.dart';
@@ -731,19 +732,21 @@ class WorkspaceTabBar extends StatelessWidget {
             ),
             child: row,
           );
-    return Material(
-      color: palette.rail,
-      child: DecoratedBox(
-        position: DecorationPosition.foreground,
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: palette.line.withValues(alpha: .72)),
-          ),
+    return AppleGlassBar(
+      fallbackColor: palette.rail,
+      sigma: 24,
+      border: Border(
+        bottom: BorderSide(
+          color: isAppleContext(context)
+              ? appleGlassRimColor(context)
+              : palette.line.withValues(alpha: .72),
+          width: isAppleContext(context) ? appleHairlineWidth(context) : 1.0,
         ),
-        child: SizedBox(
-          key: const ValueKey('workspace_navigation_bar'),
-          height: bar.height,
-          child: LayoutBuilder(
+      ),
+      child: SizedBox(
+        key: const ValueKey('workspace_navigation_bar'),
+        height: bar.height,
+        child: LayoutBuilder(
             builder: (context, barConstraints) {
               final homeWidth = barConstraints.maxWidth < 380 ? 110.0 : 128.0;
               return sized(
@@ -867,8 +870,7 @@ class WorkspaceTabBar extends StatelessWidget {
             },
           ),
         ),
-      ),
-    );
+      );
   }
 }
 

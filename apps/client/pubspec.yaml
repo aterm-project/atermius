@@ -12,6 +12,8 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  # 兜底：SDK 内部 Cupertino 组件引用的图标字体；业务代码仍禁止直接使用（守卫测试强制）。
+  cupertino_icons: ^1.0.9
   firebase_core: ^4.15.0
   firebase_messaging: ^16.7.0
   flutter_riverpod: ^3.4.3

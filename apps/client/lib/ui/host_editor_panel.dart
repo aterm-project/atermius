@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoTextField, OverlayVisibilityMode;
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -11,8 +12,11 @@ import '../domain/models.dart';
 import 'app_density.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
+import 'ios_native/ios_native.dart';
 import '../l10n/l10n.dart';
 import '../telnet/telnet_ui.dart';
+
+part 'ios_native/host_editor_ios.dart';
 
 const _uuid = Uuid();
 
@@ -120,6 +124,26 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
   late RdpSettings _rdpSettings;
   late VncSettings _vncSettings;
 
+  late final String _initialName;
+  late final String _initialAddress;
+  late final String _initialUsername;
+  late final String _initialPort;
+  late final String _initialTags;
+  late final String _initialPassword;
+  late final String _initialPrivateKey;
+  late final String _initialPassphrase;
+  late final String _initialRdpFingerprint;
+  late final HostProtocol _initialProtocolValue;
+  late final AuthKind _initialKindValue;
+  late final String? _initialGroupId;
+  late final String? _initialJumpHostId;
+  late final RdpSettings _initialRdpSettings;
+  late final VncSettings _initialVncSettings;
+  bool _iosAdvancedExpanded = false;
+  bool _lastKnownIosDirty = false;
+
+  void _iosSetState(VoidCallback fn) => setState(fn);
+
   @override
   void initState() {
     super.initState();
@@ -159,10 +183,65 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
     if (_username.text.isEmpty) _username.text = credential?.username ?? '';
     _groupId = item?.groupId;
     _jumpHostId = item?.jumpHostId;
+
+    _initialName = _name.text;
+    _initialAddress = _address.text;
+    _initialUsername = _username.text;
+    _initialPort = _port.text;
+    _initialTags = _tags.text;
+    _initialPassword = _password.text;
+    _initialPrivateKey = _privateKey.text;
+    _initialPassphrase = _passphrase.text;
+    _initialRdpFingerprint = _rdpFingerprint.text;
+    _initialProtocolValue = _protocol;
+    _initialKindValue = _kind;
+    _initialGroupId = _groupId;
+    _initialJumpHostId = _jumpHostId;
+    _initialRdpSettings = _rdpSettings;
+    _initialVncSettings = _vncSettings;
+    _iosAdvancedExpanded =
+        _jumpHostId != null ||
+        _tags.text.trim().isNotEmpty ||
+        _protocol == HostProtocol.rdp ||
+        _protocol == HostProtocol.vnc;
+    for (final c in [
+      _name,
+      _address,
+      _username,
+      _port,
+      _tags,
+      _password,
+      _privateKey,
+      _passphrase,
+      _rdpFingerprint,
+    ]) {
+      c.addListener(_syncIosDirtyFlag);
+    }
+  }
+
+  void _syncIosDirtyFlag() {
+    if (!mounted) return;
+    final dirty = _hasIosUnsavedChanges();
+    if (dirty != _lastKnownIosDirty) {
+      setState(() => _lastKnownIosDirty = dirty);
+    }
   }
 
   @override
   void dispose() {
+    for (final c in [
+      _name,
+      _address,
+      _username,
+      _port,
+      _tags,
+      _password,
+      _privateKey,
+      _passphrase,
+      _rdpFingerprint,
+    ]) {
+      c.removeListener(_syncIosDirtyFlag);
+    }
     _rdpFingerprint.dispose();
     _name.dispose();
     _address.dispose();
@@ -177,6 +256,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
 
   @override
   Widget build(BuildContext context) {
+    if (isIosPhone(context)) return _buildIos(context);
     final canEdit = widget.canEdit;
     final hostsById = {for (final host in widget.hosts) host.id: host};
     final eligibleJumpHosts = widget.hosts

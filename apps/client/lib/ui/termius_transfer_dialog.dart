@@ -1,5 +1,10 @@
 import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart'
+    show
+        CupertinoActivityIndicator,
+        CupertinoAlertDialog,
+        CupertinoSlidingSegmentedControl;
 import 'package:flutter/material.dart';
 
 import '../import/openssh_config_import.dart';
@@ -10,10 +15,12 @@ import '../import/termius_json.dart';
 import '../import/termius_local_app_import.dart';
 import '../import/termius_openssh.dart';
 import '../import/termius_openssh_bundle.dart';
+import '../import/termius_seed_sync.dart';
 import '../import/termius_transfer.dart';
 import '../import/termius_transfer_target.dart';
 import '../l10n/l10n.dart';
 import 'app_motion.dart';
+import 'ios_native/ios_native.dart';
 
 enum TermiusTransferMode { importData, exportData }
 
@@ -86,41 +93,71 @@ Future<TermiusTransferOutcome?> runOneClickTermiusImport(
   BuildContext context, {
   required TermiusTransferTarget target,
   TermiusCertificateBridge? certificates,
+  bool onlyLabeled = false,
   @visibleForTesting TermiusLocalAppLoader? loadLocalAppForTesting,
 }) async {
   if (!target.canWrite) return null;
   final lang = Localizations.localeOf(context).languageCode;
   final l10n = context.l10n;
+  final iosPhone = isIosPhone(context);
   final navigator = Navigator.of(context, rootNavigator: true);
+
+  void showImportNotice(String msg, {bool isError = false}) {
+    if (!context.mounted) return;
+    if (iosPhone) {
+      IosToast.show(
+        context,
+        msg,
+        kind: isError ? IosToastKind.warning : IosToastKind.info,
+      );
+    } else {
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(SnackBar(content: Text(msg)));
+    }
+  }
 
   // Present lightweight non-dismissible progress modal while OS keychain
   // authorization and in-memory decryption run.
   var progressOpen = true;
+  final progressText = lang == 'zh'
+      ? '正在从本机 Termius 一键导入，若弹出系统钥匙串授权请点击“允许”…'
+      : 'Importing from local Termius Desktop (approve the OS keychain prompt if requested)…';
   showAppDialog<void>(
     context: context,
     barrierDismissible: false,
     builder: (dialogContext) => PopScope(
       canPop: false,
-      child: AlertDialog(
-        key: const ValueKey('termius_one_click_progress_dialog'),
-        content: Row(
-          children: [
-            const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.4),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                lang == 'zh'
-                    ? '正在从本机 Termius 一键导入，若弹出系统钥匙串授权请点击“允许”…'
-                    : 'Importing from local Termius Desktop (approve the OS keychain prompt if requested)…',
+      child: isIosPhone(dialogContext)
+          ? CupertinoAlertDialog(
+              key: const ValueKey('termius_one_click_progress_dialog'),
+              content: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    const CupertinoActivityIndicator(),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(progressText, textAlign: TextAlign.start),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : AlertDialog(
+              key: const ValueKey('termius_one_click_progress_dialog'),
+              content: Row(
+                children: [
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(child: Text(progressText)),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
     ),
   ).whenComplete(() => progressOpen = false);
 
@@ -132,10 +169,34 @@ Future<TermiusTransferOutcome?> runOneClickTermiusImport(
   }
 
   try {
-    final loader = loadLocalAppForTesting ?? loadLocalTermiusAppDocument;
-    final loaded = await loader();
-    final catalog = await target.loadCatalog();
+    final loaded = loadLocalAppForTesting != null
+        ? await loadLocalAppForTesting()
+        : await loadLocalTermiusAppDocument(onlyLabeled: onlyLabeled);
     final fallbackUser = defaultSystemSshUsername() ?? 'root';
+
+    // Local repository target supports true Upsert (creating new hosts AND
+    // updating remarks, ports, groups, and credentials on existing hosts).
+    if (target is LocalTermiusTransferTarget) {
+      final upsert = await upsertTermiusDocumentToLocalRepository(
+        target.repository,
+        loaded.document,
+        fallbackUsername: fallbackUser,
+      );
+      await target.afterApply();
+      closeProgress();
+      if (upsert.totalTouched == 0) {
+        final msg = lang == 'zh'
+            ? '本机 Termius 主机与备注已是最新状态，无需更新。'
+            : 'All local Termius hosts and remarks are already up to date.';
+        showImportNotice(msg);
+      }
+      return TermiusTransferOutcome(
+        importedHosts: upsert.totalTouched,
+        createdGroups: upsert.createdGroups,
+      );
+    }
+
+    final catalog = await target.loadCatalog();
     final plan = TermiusImportPlanner.plan(
       loaded.document,
       catalog,
@@ -146,31 +207,23 @@ Future<TermiusTransferOutcome?> runOneClickTermiusImport(
 
     if (plan.blocksWholeFile) {
       closeProgress();
-      if (context.mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text(l10n.r7ImportBlockedFile)),
-        );
-      }
+      showImportNotice(l10n.r7ImportBlockedFile, isError: true);
       return null;
     }
 
     if (plan.createCount == 0) {
       closeProgress();
-      if (context.mounted) {
-        final skippedExisting = plan.rows
-            .where((r) => r.disposition == TermiusRowDisposition.skippedExisting)
-            .length;
-        final msg = lang == 'zh'
-            ? (skippedExisting > 0
-                  ? '本机 Termius 中的 $skippedExisting 台主机已全部存在于当前工作区，无需重复导入。'
-                  : '本机 Termius 中没有可导入的新主机。')
-            : (skippedExisting > 0
-                  ? 'All $skippedExisting Termius hosts already exist in this workspace.'
-                  : 'No new hosts to import from local Termius.');
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text(msg)),
-        );
-      }
+      final skippedExisting = plan.rows
+          .where((r) => r.disposition == TermiusRowDisposition.skippedExisting)
+          .length;
+      final msg = lang == 'zh'
+          ? (skippedExisting > 0
+                ? '本机 Termius 中的 $skippedExisting 台主机已全部存在于当前工作区，无需重复导入。'
+                : '本机 Termius 中没有可导入的新主机。')
+          : (skippedExisting > 0
+                ? 'All $skippedExisting Termius hosts already exist in this workspace.'
+                : 'No new hosts to import from local Termius.');
+      showImportNotice(msg);
       return const TermiusTransferOutcome();
     }
 
@@ -182,19 +235,11 @@ Future<TermiusTransferOutcome?> runOneClickTermiusImport(
     );
   } on TermiusLocalImportException catch (error) {
     closeProgress();
-    if (context.mounted) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text(describeTermiusLocalImportFailure(lang, error))),
-      );
-    }
+    showImportNotice(describeTermiusLocalImportFailure(lang, error), isError: true);
     return null;
   } on Object {
     closeProgress();
-    if (context.mounted) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text(l10n.r7ImportFailRolledBack)),
-      );
-    }
+    showImportNotice(l10n.r7ImportFailRolledBack, isError: true);
     return null;
   }
 }
@@ -206,7 +251,10 @@ Future<TermiusTransferOutcome?> showTermiusTransferDialog(
   TermiusCertificateBridge? certificates,
 }) => showAppDialog<TermiusTransferOutcome>(
   context: context,
-  barrierDismissible: false,
+  barrierDismissible: isIosPhone(context),
+  motion: isIosPhone(context)
+      ? AppDialogMotion.sideSheet
+      : AppDialogMotion.center,
   builder: (_) => TermiusTransferDialog(
     target: target,
     initialMode: initialMode,
@@ -322,7 +370,7 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
     () => readLocalDefaultSshConfig(maxBytes: maxOpenSshConfigBytes),
   );
 
-  Future<void> _importFromLocalTermiusApp() async {
+  Future<void> _importFromLocalTermiusApp({bool onlyLabeled = false}) async {
     if (_busy || !target.canWrite) return;
     final lang = Localizations.localeOf(context).languageCode;
     final l10n = context.l10n;
@@ -332,15 +380,43 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
       _notice = null;
     });
     try {
-      final loader =
-          widget.loadLocalAppForTesting ?? loadLocalTermiusAppDocument;
-      final loaded = await loader();
-      final catalog = await target.loadCatalog();
-      if (!mounted) return;
+      final loaded = widget.loadLocalAppForTesting != null
+          ? await widget.loadLocalAppForTesting!()
+          : await loadLocalTermiusAppDocument(onlyLabeled: onlyLabeled);
       final typedFallback = _fallbackUserController.text.trim();
       final fallbackUser = typedFallback.isNotEmpty
           ? typedFallback
           : (defaultSystemSshUsername() ?? 'root');
+
+      if (target is LocalTermiusTransferTarget) {
+        final localTarget = target as LocalTermiusTransferTarget;
+        final upsert = await upsertTermiusDocumentToLocalRepository(
+          localTarget.repository,
+          loaded.document,
+          fallbackUsername: fallbackUser,
+        );
+        await localTarget.afterApply();
+        if (!mounted) return;
+        if (upsert.totalTouched == 0) {
+          setState(() {
+            _notice = lang == 'zh'
+                ? '本机 Termius 主机与备注已是最新状态。'
+                : 'Local Termius hosts and remarks are already up to date.';
+          });
+          return;
+        }
+        Navigator.pop(
+          context,
+          TermiusTransferOutcome(
+            importedHosts: upsert.totalTouched,
+            createdGroups: upsert.createdGroups,
+          ),
+        );
+        return;
+      }
+
+      final catalog = await target.loadCatalog();
+      if (!mounted) return;
       final plan = TermiusImportPlanner.plan(
         loaded.document,
         catalog,
@@ -655,6 +731,7 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (isIosPhone(context)) return _buildIosSheet(context);
     final l10n = context.l10n;
     final width = MediaQuery.sizeOf(context).width - 48;
     final plan = _plan;
@@ -819,11 +896,31 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: 10),
-              FilledButton.icon(
-                key: const ValueKey('termius_one_click_local_import'),
-                onPressed: _busy ? null : _importFromLocalTermiusApp,
-                icon: const Icon(Icons.bolt_rounded),
-                label: Text(_oneClickButtonLabel(lang)),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.icon(
+                    key: const ValueKey('termius_one_click_local_import'),
+                    onPressed: _busy
+                        ? null
+                        : () => _importFromLocalTermiusApp(onlyLabeled: false),
+                    icon: const Icon(Icons.bolt_rounded),
+                    label: Text(_oneClickButtonLabel(lang)),
+                  ),
+                  OutlinedButton.icon(
+                    key: const ValueKey('termius_one_click_labeled_import'),
+                    onPressed: _busy
+                        ? null
+                        : () => _importFromLocalTermiusApp(onlyLabeled: true),
+                    icon: const Icon(Icons.bookmark_added_outlined),
+                    label: Text(
+                      lang == 'zh'
+                          ? '仅导入/更新有备注主机'
+                          : 'Import & Update Labeled Only',
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1185,6 +1282,613 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
       ],
     ];
   }
+
+  Widget _buildIosSheet(BuildContext context) {
+    final c = IosColors.of(context);
+    final l10n = context.l10n;
+    final plan = _plan;
+    final importing = _mode == TermiusTransferMode.importData;
+    final export = importing ? null : _exportPreview();
+    final actionLabel = importing
+        ? (plan == null || plan.createCount == 0
+              ? l10n.r7ImportApplyNone
+              : l10n.r7ImportApply(plan.createCount))
+        : l10n.r7ImportExportSave;
+    final actionEnabled = importing
+        ? (!_busy && plan != null && plan.canApply)
+        : (!_busy &&
+              export != null &&
+              export.exportedHosts > 0 &&
+              !export.blocked);
+
+    return PopScope(
+      canPop: !_busy,
+      child: IosSheetScaffold(
+        key: const ValueKey('termius_transfer_dialog'),
+        title: l10n.r7ImportTransferTitle,
+        cancelKey: const ValueKey('termius_transfer_close'),
+        cancelLabel: l10n.close,
+        onCancel: _busy ? () {} : () => Navigator.pop(context),
+        actionKey: ValueKey(
+          importing ? 'termius_import_apply' : 'termius_export_save',
+        ),
+        actionLabel: actionLabel,
+        actionBusy: _busy,
+        actionEnabled: actionEnabled,
+        onAction: importing ? _confirmAndApply : _export,
+        scrollController: PrimaryScrollController.maybeOf(context),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              IosMetrics.sectionMargin,
+              0,
+              IosMetrics.sectionMargin,
+              20,
+            ),
+            child: CupertinoSlidingSegmentedControl<TermiusTransferMode>(
+              groupValue: _mode,
+              backgroundColor: c.fill,
+              thumbColor: c.isDark ? const Color(0xFF636366) : Colors.white,
+              onValueChanged: (next) {
+                if (next == null || _busy) return;
+                if (next == TermiusTransferMode.importData && !target.canWrite) {
+                  return;
+                }
+                _setMode(next);
+              },
+              children: {
+                TermiusTransferMode.importData: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  child: Opacity(
+                    opacity: target.canWrite ? 1 : 0.4,
+                    child: Text(
+                      l10n.r7ImportModeImport,
+                      key: const ValueKey('termius_mode_import'),
+                      style: IosType.footnote.copyWith(
+                        color: c.label,
+                        fontWeight: _mode == TermiusTransferMode.importData
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+                TermiusTransferMode.exportData: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  child: Text(
+                    l10n.r7ImportModeExport,
+                    key: const ValueKey('termius_mode_export'),
+                    style: IosType.footnote.copyWith(
+                      color: c.label,
+                      fontWeight: _mode == TermiusTransferMode.exportData
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              },
+            ),
+          ),
+          if (!target.canWrite)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IosMetrics.sectionHeaderInset,
+                0,
+                IosMetrics.sectionHeaderInset,
+                14,
+              ),
+              child: Text(
+                l10n.r7ImportReadOnly,
+                style: IosType.footnote.copyWith(color: c.secondaryLabel),
+              ),
+            ),
+          if (_notice != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IosMetrics.sectionMargin,
+                0,
+                IosMetrics.sectionMargin,
+                16,
+              ),
+              child: ClipRSuperellipse(
+                borderRadius: BorderRadius.circular(14),
+                child: ColoredBox(
+                  color: c.fill,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    child: Text(
+                      _notice!,
+                      key: const ValueKey('termius_transfer_notice'),
+                      style: IosType.subheadline.copyWith(color: c.label),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                IosMetrics.sectionMargin,
+                0,
+                IosMetrics.sectionMargin,
+                16,
+              ),
+              child: ClipRSuperellipse(
+                borderRadius: BorderRadius.circular(14),
+                child: ColoredBox(
+                  color: c.destructive.withValues(alpha: c.isDark ? 0.18 : 0.12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    child: Text(
+                      _error!,
+                      key: const ValueKey('termius_transfer_error'),
+                      style: IosType.subheadline.copyWith(color: c.destructive),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (importing) ..._buildIosImportSections(context, plan),
+          if (!importing) ..._buildIosExportSections(context, export),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildIosImportSections(
+    BuildContext context,
+    TermiusImportPlan? plan,
+  ) {
+    final c = IosColors.of(context);
+    final l10n = context.l10n;
+    final lang = Localizations.localeOf(context).languageCode;
+    final rows = plan?.rows ?? const <TermiusPlannedRow>[];
+    final document = _document;
+    final needsFallbackUser =
+        document != null &&
+        !document.blocksWholeFile &&
+        TermiusImportPlanner.hasRowsMissingUsername(document);
+    final systemUser = defaultSystemSshUsername();
+    final canOneClickLocal =
+        target.canWrite &&
+        (widget.loadLocalAppForTesting != null ||
+            (widget.pickBytesForTesting == null &&
+                hasLocalTermiusInstallation()));
+    int count(TermiusRowDisposition disposition) =>
+        rows.where((row) => row.disposition == disposition).length;
+
+    return [
+      if (canOneClickLocal)
+        IosListSection(
+          key: const ValueKey('termius_one_click_local_card'),
+          header: _oneClickCardTitle(lang),
+          footer: _oneClickCardSubtitle(lang),
+          children: [
+            IosListActionRow(
+              key: const ValueKey('termius_one_click_local_import'),
+              icon: IosIcons.bolt,
+              label: _oneClickButtonLabel(lang),
+              onTap: _busy
+                  ? null
+                  : () => _importFromLocalTermiusApp(onlyLabeled: false),
+            ),
+            IosListActionRow(
+              key: const ValueKey('termius_one_click_labeled_import'),
+              icon: Icons.bookmark_added_rounded,
+              label: lang == 'zh'
+                  ? '仅导入/更新有备注主机'
+                  : 'Import & Update Labeled Only',
+              onTap: _busy
+                  ? null
+                  : () => _importFromLocalTermiusApp(onlyLabeled: true),
+            ),
+          ],
+        ),
+      IosListSection(
+        header: l10n.r7ImportIntro,
+        footer: '${l10n.r7ImportTemplateColumns}\n${l10n.r7ImportNativeUnsupported}',
+        separatorIndent: IosListSection.indentForIcon(),
+        children: [
+          IosListRow(
+            key: const ValueKey('termius_import_pick_csv'),
+            leading: IosIconTile(
+              icon: Icons.table_view_rounded,
+              color: c.green,
+            ),
+            title: Text(l10n.r7ImportChooseCsv),
+            accessory: IosRowAccessory.chevron,
+            enabled: !_busy,
+            onTap: _busy ? null : () => _chooseFile(TermiusImportSource.csv),
+          ),
+          IosListRow(
+            key: const ValueKey('termius_import_pick_json'),
+            leading: IosIconTile(
+              icon: Icons.data_object_rounded,
+              color: c.orange,
+            ),
+            title: Text(_pickJsonLabel(lang)),
+            accessory: IosRowAccessory.chevron,
+            enabled: !_busy,
+            onTap: _busy ? null : () => _chooseFile(TermiusImportSource.json),
+          ),
+          IosListRow(
+            key: const ValueKey('termius_import_pick_openssh'),
+            leading: IosIconTile(
+              icon: Icons.description_rounded,
+              color: c.blue,
+            ),
+            title: Text(l10n.r7ImportChooseOpenSsh),
+            accessory: IosRowAccessory.chevron,
+            enabled: !_busy,
+            onTap: _busy
+                ? null
+                : () => _chooseFile(TermiusImportSource.openSshConfig),
+          ),
+          IosListRow(
+            key: const ValueKey('termius_import_pick_bundle'),
+            leading: IosIconTile(
+              icon: Icons.folder_zip_rounded,
+              color: c.indigo,
+            ),
+            title: Text(l10n.r7ImportChooseBundle),
+            accessory: IosRowAccessory.chevron,
+            enabled: !_busy,
+            onTap: _busy
+                ? null
+                : () => _chooseFile(TermiusImportSource.openSshBundle),
+          ),
+          if (widget.pickBytesForTesting == null && hasLocalDefaultSshConfig())
+            IosListRow(
+              key: const ValueKey('termius_import_local_ssh_config'),
+              leading: IosIconTile(
+                icon: IosIcons.terminal,
+                color: c.teal,
+              ),
+              title: Text(_loadLocalSshLabel(lang)),
+              accessory: IosRowAccessory.chevron,
+              enabled: !_busy,
+              onTap: _busy ? null : _loadLocalSshConfig,
+            ),
+          if (_fileName != null)
+            IosListRow(
+              leading: IosIconTile(icon: IosIcons.check, color: c.tint),
+              title: Text(_fileName!),
+            ),
+        ],
+      ),
+      if (needsFallbackUser)
+        IosListSection(
+          header: _fallbackUserHint(lang),
+          children: [
+            IosTextFieldRow(
+              fieldKey: const ValueKey('termius_import_fallback_username'),
+              label: _fallbackUserFieldLabel(lang),
+              placeholder: systemUser ?? 'root',
+              controller: _fallbackUserController,
+              enabled: !_busy,
+              mono: true,
+              onChanged: (_) => setState(_replan),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: IosMetrics.rowPaddingH,
+                vertical: 8,
+              ),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (systemUser != null && systemUser != 'root')
+                    _IosQuickFillPill(
+                      key: const ValueKey('termius_import_fallback_system_user'),
+                      label: systemUser,
+                      onTap: _busy
+                          ? null
+                          : () => setState(() {
+                              _fallbackUserController.text = systemUser;
+                              _replan();
+                            }),
+                    ),
+                  _IosQuickFillPill(
+                    key: const ValueKey('termius_import_fallback_root_user'),
+                    label: 'root',
+                    onTap: _busy
+                        ? null
+                        : () => setState(() {
+                            _fallbackUserController.text = 'root';
+                            _replan();
+                          }),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      if (plan != null) ...[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IosMetrics.sectionHeaderInset,
+            0,
+            IosMetrics.sectionHeaderInset,
+            10,
+          ),
+          child: Text(
+            plan.blocksWholeFile
+                ? l10n.r7ImportBlockedFile
+                : l10n.r7ImportSummary(
+                    plan.createCount,
+                    plan.newGroups.length,
+                    count(TermiusRowDisposition.skippedDuplicate) +
+                        count(TermiusRowDisposition.skippedExisting) +
+                        count(TermiusRowDisposition.excluded),
+                    count(TermiusRowDisposition.blocked),
+                  ),
+            key: const ValueKey('termius_import_summary'),
+            style: IosType.footnote.copyWith(
+              color: plan.blocksWholeFile ? c.destructive : c.secondaryLabel,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        if (plan.fileIssues.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              IosMetrics.sectionMargin,
+              0,
+              IosMetrics.sectionMargin,
+              16,
+            ),
+            child: _IssuePanel(
+              key: const ValueKey('termius_import_file_issues'),
+              issues: plan.fileIssues,
+            ),
+          ),
+        if (!plan.blocksWholeFile && rows.isNotEmpty) ...[
+          IosListSection(
+            children: [
+              IosSwitchRow(
+                switchKey: const ValueKey('termius_import_duplicates'),
+                label: l10n.r7ImportImportDuplicates,
+                value: _duplicates == TermiusDuplicatePolicy.importAsNew,
+                onChanged: _busy
+                    ? null
+                    : (value) => setState(() {
+                        _duplicates = value
+                            ? TermiusDuplicatePolicy.importAsNew
+                            : TermiusDuplicatePolicy.skip;
+                        _replan();
+                      }),
+              ),
+            ],
+          ),
+          IosListSection(
+            key: const ValueKey('termius_import_preview'),
+            footer: rows.length > _maxPreviewRows
+                ? l10n.r7ImportMoreRowsHidden(rows.length - _maxPreviewRows)
+                : null,
+            children: [
+              for (final row in rows.take(_maxPreviewRows))
+                _RowTile(
+                  row: row,
+                  groupPath: _groupPathFor(row, plan),
+                  excludable:
+                      row.disposition == TermiusRowDisposition.create ||
+                      row.disposition == TermiusRowDisposition.excluded,
+                  onExcludedChanged: _busy
+                      ? null
+                      : (excluded) => setState(() {
+                          if (excluded) {
+                            _excluded.add(row.source.row);
+                          } else {
+                            _excluded.remove(row.source.row);
+                          }
+                          _replan();
+                        }),
+                ),
+            ],
+          ),
+        ],
+      ],
+    ];
+  }
+
+  List<Widget> _buildIosExportSections(
+    BuildContext context,
+    TermiusExportResult? export,
+  ) {
+    final c = IosColors.of(context);
+    final l10n = context.l10n;
+    final csv = _exportFormat == TermiusExportFormat.csv;
+    final bundle = _exportFormat == TermiusExportFormat.openSshBundle;
+    final secrets =
+        _exportOptions.includePasswords || _exportOptions.includePrivateKeys;
+
+    return [
+      IosListSection(
+        header: l10n.r7ImportExportIntro,
+        footer: !csv && !bundle ? l10n.r7ImportExportOpenSshNoSecrets : null,
+        children: [
+          IosListRow(
+            key: const ValueKey('termius_export_format_csv'),
+            title: Text(l10n.r7ImportExportFormatCsv),
+            accessory: _exportFormat == TermiusExportFormat.csv
+                ? IosRowAccessory.checkmark
+                : IosRowAccessory.none,
+            enabled: !_busy,
+            onTap: _busy
+                ? null
+                : () => setState(() => _exportFormat = TermiusExportFormat.csv),
+          ),
+          IosListRow(
+            key: const ValueKey('termius_export_format_openssh'),
+            title: Text(l10n.r7ImportExportFormatOpenSsh),
+            accessory: _exportFormat == TermiusExportFormat.openSsh
+                ? IosRowAccessory.checkmark
+                : IosRowAccessory.none,
+            enabled: !_busy,
+            onTap: _busy
+                ? null
+                : () =>
+                      setState(() => _exportFormat = TermiusExportFormat.openSsh),
+          ),
+          IosListRow(
+            key: const ValueKey('termius_export_format_bundle'),
+            title: Text(l10n.r7ImportExportFormatBundle),
+            subtitle: Text(l10n.r7ImportExportBundleHelp),
+            accessory: _exportFormat == TermiusExportFormat.openSshBundle
+                ? IosRowAccessory.checkmark
+                : IosRowAccessory.none,
+            enabled: !_busy,
+            onTap: _busy
+                ? null
+                : () => setState(
+                    () => _exportFormat = TermiusExportFormat.openSshBundle,
+                  ),
+          ),
+        ],
+      ),
+      if (csv)
+        IosListSection(
+          children: [
+            IosSwitchRow(
+              switchKey: const ValueKey('termius_export_include_desktops'),
+              label: l10n.r7ImportExportIncludeDesktops,
+              value: _includeDesktops,
+              onChanged: _busy
+                  ? null
+                  : (value) => setState(() => _includeDesktops = value),
+            ),
+            IosSwitchRow(
+              switchKey: const ValueKey('termius_export_include_secrets'),
+              label: l10n.r7ImportExportIncludePasswords,
+              value: _includePasswords,
+              onChanged: _busy
+                  ? null
+                  : (value) => setState(() => _includePasswords = value),
+            ),
+          ],
+        ),
+      if (bundle)
+        IosListSection(
+          children: [
+            IosSwitchRow(
+              switchKey: const ValueKey('termius_export_include_keys'),
+              label: l10n.r7ImportExportIncludeKeys,
+              value: _includeKeys,
+              onChanged: _busy
+                  ? null
+                  : (value) => setState(() => _includeKeys = value),
+            ),
+          ],
+        ),
+      if (secrets)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IosMetrics.sectionMargin,
+            0,
+            IosMetrics.sectionMargin,
+            16,
+          ),
+          child: ClipRSuperellipse(
+            key: const ValueKey('termius_export_secret_warning'),
+            borderRadius: BorderRadius.circular(14),
+            child: ColoredBox(
+              color: c.warning.withValues(alpha: c.isDark ? 0.18 : 0.14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                child: Text(
+                  l10n.r7ImportExportSecretWarning,
+                  style: IosType.footnote.copyWith(color: c.warning),
+                ),
+              ),
+            ),
+          ),
+        ),
+      if (export != null) ...[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IosMetrics.sectionHeaderInset,
+            0,
+            IosMetrics.sectionHeaderInset,
+            10,
+          ),
+          child: Text(
+            l10n.r7ImportExportSummary(export.exportedHosts),
+            key: const ValueKey('termius_export_summary'),
+            style: IosType.footnote.copyWith(
+              color: c.secondaryLabel,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        if (export.issues.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              IosMetrics.sectionMargin,
+              0,
+              IosMetrics.sectionMargin,
+              16,
+            ),
+            child: _IssuePanel(
+              key: const ValueKey('termius_export_issues'),
+              issues: export.issues,
+              warningOnly: !export.blocked,
+            ),
+          ),
+      ],
+    ];
+  }
+}
+
+class _IosQuickFillPill extends StatelessWidget {
+  const _IosQuickFillPill({
+    required this.label,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = IosColors.of(context);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: ShapeDecoration(
+          color: c.fill,
+          shape: const StadiumBorder(),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Text(
+            label,
+            style: IosType.footnote.copyWith(
+              color: onTap == null ? c.tertiaryLabel : c.tint,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _RowTile extends StatelessWidget {
@@ -1226,6 +1930,70 @@ class _RowTile extends StatelessWidget {
       for (final issue in row.issues) describeTermiusIssue(l10n, issue),
     ];
     final blocked = row.disposition == TermiusRowDisposition.blocked;
+    if (isIosPhone(context)) {
+      final c = IosColors.of(context);
+      final included = row.disposition == TermiusRowDisposition.create;
+      return IosPressable(
+        key: ValueKey('termius_import_row_${source.row}'),
+        onTap: excludable && onExcludedChanged != null
+            ? () => onExcludedChanged!(included)
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: IosMetrics.rowPaddingH,
+            vertical: 10,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (excludable)
+                GestureDetector(
+                  key: ValueKey('termius_import_row_include_${source.row}'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onExcludedChanged == null
+                      ? null
+                      : () => onExcludedChanged!(included),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2, right: 12),
+                    child: Icon(
+                      included
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 22,
+                      color: included ? c.tint : c.tertiaryLabel,
+                    ),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, right: 12),
+                  child: Icon(
+                    blocked ? IosIcons.warning : Icons.remove_circle_rounded,
+                    size: 20,
+                    color: blocked ? c.destructive : c.tertiaryLabel,
+                  ),
+                ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      source.label.isEmpty ? source.address : source.label,
+                      style: IosType.body.copyWith(color: c.label),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      lines.join('\n'),
+                      style: IosType.footnote.copyWith(color: c.secondaryLabel),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return ListTile(
       key: ValueKey('termius_import_row_${source.row}'),
       contentPadding: EdgeInsets.zero,

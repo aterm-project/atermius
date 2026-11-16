@@ -389,7 +389,10 @@ Future<Map<String, Uint8List>> _readLevelDbSnapshotFiles(Directory dir) async {
 /// Reads, authenticates via OS keyring (`localKey`), and decrypts the local
 /// Termius Desktop database in memory into a [TermiusImportDocument].
 Future<({TermiusImportDocument document, String sourceLabel})>
-loadLocalTermiusAppDocument({String? customDataDir}) async {
+loadLocalTermiusAppDocument({
+  String? customDataDir,
+  bool onlyLabeled = false,
+}) async {
   final Directory? levelDbDir = customDataDir != null
       ? resolveTermiusLevelDbDir(customDataDir)
       : discoverLocalTermiusLevelDbDirs().firstOrNull;
@@ -422,7 +425,11 @@ loadLocalTermiusAppDocument({String? customDataDir}) async {
     );
     decryptor = TermiusVaultDecryptor(sodium, keyBytes);
 
-    final document = buildTermiusDocumentFromLocalTables(rawTables, decryptor);
+    final document = buildTermiusDocumentFromLocalTables(
+      rawTables,
+      decryptor,
+      onlyLabeled: onlyLabeled,
+    );
     if (document.rows.isEmpty) {
       throw const TermiusLocalImportException(
         TermiusLocalImportFailure.emptyDatabase,

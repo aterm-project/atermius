@@ -11,6 +11,7 @@ import '../domain/quick_connect.dart';
 import '../l10n/l10n.dart';
 import '../telnet/telnet_ui.dart';
 import 'app_theme.dart';
+import 'apple_hig.dart';
 import 'local_shell_menu.dart';
 import 'workspace_controls.dart';
 
@@ -150,7 +151,24 @@ class HomeAddSharingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final platform = Theme.of(context).platform;
+    final apple = isAppleContext(context);
+    final palette = context.palette;
+    final hairline = apple ? appleHairlineWidth(context) : 1.0;
     final l10n = context.l10n;
+    final buttonRadius = BorderRadius.circular(apple ? 11 : 10);
+    final addShape = appleSquircleBorder(
+      buttonRadius,
+      platform: platform,
+      side: apple
+          ? BorderSide(
+              color: palette.accentText.withValues(
+                alpha: palette.isDark ? 0.28 : 0.22,
+              ),
+              width: hairline,
+            )
+          : BorderSide.none,
+    );
     final add = WorkspaceOverflowMenu(
       key: ValueKey('${idPrefix}_home_add'),
       tooltip: l10n.homeAddTooltip,
@@ -158,9 +176,9 @@ class HomeAddSharingRow extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 40, minWidth: 88),
         child: DecoratedBox(
-          decoration: BoxDecoration(
+          decoration: ShapeDecoration(
             color: scheme.primaryContainer,
-            borderRadius: BorderRadius.circular(10),
+            shape: addShape,
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
@@ -189,22 +207,56 @@ class HomeAddSharingRow extends StatelessWidget {
       ),
     );
     final quickTermius = onQuickImportTermius;
+    final quickEnabled = enabled && canAddHosts;
+    final quickShape = appleSquircleBorder(
+      buttonRadius,
+      platform: platform,
+      side: apple
+          ? BorderSide(
+              color: palette.line.withValues(
+                alpha: quickEnabled
+                    ? (palette.isDark ? 0.80 : 0.88)
+                    : (palette.isDark ? 0.40 : 0.48),
+              ),
+              width: hairline,
+            )
+          : BorderSide.none,
+    );
     final quickButton = quickTermius == null
         ? null
         : SizedBox(
             height: 40,
-            child: OutlinedButton.icon(
-              key: ValueKey('${idPrefix}_home_one_click_termius'),
-              onPressed: enabled && canAddHosts ? () => quickTermius() : null,
-              icon: const Icon(Icons.bolt_rounded, size: 18),
-              label: Text(
-                _quickImportLabel(context),
-                style: const TextStyle(fontWeight: FontWeight.w600),
+            child: DecoratedBox(
+              decoration: ShapeDecoration(
+                color: apple
+                    ? palette.surfaceRaised.withValues(
+                        alpha: quickEnabled
+                            ? (palette.isDark ? 0.72 : 0.90)
+                            : 0.40,
+                      )
+                    : Colors.transparent,
+                shape: quickShape,
               ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+              child: OutlinedButton.icon(
+                key: ValueKey('${idPrefix}_home_one_click_termius'),
+                onPressed: quickEnabled
+                    ? () {
+                        AppleHaptics.light(context);
+                        quickTermius();
+                      }
+                    : null,
+                icon: const Icon(Icons.bolt_rounded, size: 18),
+                label: Text(
+                  _quickImportLabel(context),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  side: apple ? BorderSide.none : null,
+                  shape: appleSquircleBorder(
+                    buttonRadius,
+                    platform: platform,
+                  ),
                 ),
               ),
             ),
@@ -296,6 +348,7 @@ class _HomeSerialConsoleDialogState extends State<_HomeSerialConsoleDialog> {
       if (request == null || request.kind != QuickConnectKind.serial) {
         throw FormatException(context.l10n.enterAValidSerialPortFor);
       }
+      AppleHaptics.light(context);
       Navigator.of(context).pop(request);
     } on FormatException catch (error) {
       setState(() => _error = error.message);
@@ -777,7 +830,27 @@ class HomeSharingCluster extends StatelessWidget {
     final hidden = people.skip(visible.length).toList();
     final status = _status(context);
     final scheme = Theme.of(context).colorScheme;
+    final platform = Theme.of(context).platform;
+    final apple = isAppleContext(context);
+    final palette = context.palette;
     final local = snapshot.mode == HomeSharingMode.local;
+    final clusterRadius = BorderRadius.circular(apple ? 12 : 20);
+    final clusterShape = appleSquircleBorder(
+      clusterRadius,
+      platform: platform,
+      side: apple
+          ? BorderSide(
+              color: palette.line.withValues(
+                alpha: palette.isDark ? 0.45 : 0.62,
+              ),
+              width: appleHairlineWidth(context),
+            )
+          : BorderSide.none,
+    );
+    final hitShape = appleSquircleBorder(
+      clusterRadius,
+      platform: platform,
+    );
     return Semantics(
       container: true,
       button: true,
@@ -787,83 +860,96 @@ class HomeSharingCluster extends StatelessWidget {
             ? context.l10n.homeSharingLocalTooltip
             : context.l10n.homeSharingDetailsTooltip,
         excludeFromSemantics: true,
-        child: InkWell(
-          key: ValueKey('${idPrefix}_home_sharing'),
-          borderRadius: BorderRadius.circular(20),
-          onTap: onOpenDetails,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 40),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (local)
-                    _Avatar(
-                      key: ValueKey('${idPrefix}_home_sharing_local_avatar'),
-                      tooltip: context.l10n.homeSharingLocalTooltip,
-                      background: scheme.surfaceContainerHighest,
-                      foreground: scheme.onSurfaceVariant,
-                      icon: Icons.person_outline,
-                    )
-                  else
-                    for (final (index, person) in visible.indexed)
-                      Padding(
-                        padding: EdgeInsets.only(left: index == 0 ? 0 : 2),
-                        child: _Avatar(
-                          key: ValueKey(
-                            '${idPrefix}_home_sharing_avatar_${person.userId}',
-                          ),
-                          tooltip: _personTooltip(context, person),
-                          text: person.initials,
-                          background: person.isSelf
-                              ? scheme.primaryContainer
-                              : scheme.secondaryContainer,
-                          foreground: person.isSelf
-                              ? scheme.onPrimaryContainer
-                              : scheme.onSecondaryContainer,
-                          dashed: person.invited,
-                          presence: person.presence,
-                        ),
-                      ),
-                  if (hidden.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 2),
-                      child: _Avatar(
-                        key: ValueKey('${idPrefix}_home_sharing_overflow'),
-                        tooltip: context.l10n.homeSharingMore(
-                          hidden.length,
-                          hidden
-                              .map((person) => _personTooltip(context, person))
-                              .join('\n'),
-                        ),
-                        text: '+${hidden.length}',
+        child: DecoratedBox(
+          decoration: ShapeDecoration(
+            color: apple
+                ? palette.surfaceRaised.withValues(
+                    alpha: palette.isDark ? 0.55 : 0.72,
+                  )
+                : Colors.transparent,
+            shape: clusterShape,
+          ),
+          child: InkWell(
+            key: ValueKey('${idPrefix}_home_sharing'),
+            customBorder: hitShape,
+            onTap: () {
+              AppleHaptics.selection(context);
+              onOpenDetails();
+            },
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 40),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (local)
+                      _Avatar(
+                        key: ValueKey('${idPrefix}_home_sharing_local_avatar'),
+                        tooltip: context.l10n.homeSharingLocalTooltip,
                         background: scheme.surfaceContainerHighest,
                         foreground: scheme.onSurfaceVariant,
+                        icon: Icons.person_outline,
+                      )
+                    else
+                      for (final (index, person) in visible.indexed)
+                        Padding(
+                          padding: EdgeInsets.only(left: index == 0 ? 0 : 2),
+                          child: _Avatar(
+                            key: ValueKey(
+                              '${idPrefix}_home_sharing_avatar_${person.userId}',
+                            ),
+                            tooltip: _personTooltip(context, person),
+                            text: person.initials,
+                            background: person.isSelf
+                                ? scheme.primaryContainer
+                                : scheme.secondaryContainer,
+                            foreground: person.isSelf
+                                ? scheme.onPrimaryContainer
+                                : scheme.onSecondaryContainer,
+                            dashed: person.invited,
+                            presence: person.presence,
+                          ),
+                        ),
+                    if (hidden.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 2),
+                        child: _Avatar(
+                          key: ValueKey('${idPrefix}_home_sharing_overflow'),
+                          tooltip: context.l10n.homeSharingMore(
+                            hidden.length,
+                            hidden
+                                .map((person) => _personTooltip(context, person))
+                                .join('\n'),
+                          ),
+                          text: '+${hidden.length}',
+                          background: scheme.surfaceContainerHighest,
+                          foreground: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        status,
+                        key: ValueKey('${idPrefix}_home_sharing_status'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: context.palette.muted,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      status,
-                      key: ValueKey('${idPrefix}_home_sharing_status'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: context.palette.muted,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
+                    if (snapshot.loading) ...[
+                      const SizedBox(width: 6),
+                      const SizedBox.square(
+                        dimension: 12,
+                        child: CircularProgressIndicator(strokeWidth: 1.6),
                       ),
-                    ),
-                  ),
-                  if (snapshot.loading) ...[
-                    const SizedBox(width: 6),
-                    const SizedBox.square(
-                      dimension: 12,
-                      child: CircularProgressIndicator(strokeWidth: 1.6),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

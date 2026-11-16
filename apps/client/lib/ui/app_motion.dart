@@ -1,5 +1,16 @@
-import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'dart:ui' show ImageFilter;
+
+import 'package:flutter/cupertino.dart'
+    show
+        CupertinoAlertDialog,
+        CupertinoDialogAction,
+        CupertinoPageTransitionsBuilder,
+        CupertinoSheetRoute;
 import 'package:flutter/material.dart';
+
+import 'app_theme.dart';
+import 'apple_hig.dart';
+import 'ios_native/ios_native.dart';
 
 /// Shared motion language for Atermius.
 ///
@@ -366,43 +377,204 @@ Future<T?> showAppDialog<T>({
   bool fullscreenDialog = false,
   bool? requestFocus,
   AppDialogMotion motion = AppDialogMotion.center,
-}) => showDialog<T>(
-  context: context,
-  builder: (dialogContext) =>
-      AppDialogMotionFrame(motion: motion, child: builder(dialogContext)),
-  barrierDismissible: barrierDismissible,
-  barrierColor: barrierColor,
-  barrierLabel: barrierLabel,
-  useSafeArea: useSafeArea,
-  useRootNavigator: useRootNavigator,
-  routeSettings: routeSettings,
-  anchorPoint: anchorPoint,
-  traversalEdgeBehavior: traversalEdgeBehavior,
-  fullscreenDialog: fullscreenDialog,
-  requestFocus: requestFocus,
-  animationStyle: AppMotion.dialogStyle(context, motion: motion),
-);
+}) {
+  final navigator = Navigator.of(context, rootNavigator: useRootNavigator);
+  final themes = InheritedTheme.capture(from: context, to: navigator.context);
+  final iosPhone = isIosPhone(context);
+  final forcedIosScope = IosNativeScope.maybeOf(context);
+  Widget wrapCaptured(Widget child) {
+    final wrapped = themes.wrap(child);
+    if (forcedIosScope == null) return wrapped;
+    return IosNativeScope(enabled: forcedIosScope, child: wrapped);
+  }
 
-/// [DialogRoute] with the shared motion, for call sites that need the route
-/// object itself (e.g. to remove it when its data becomes stale).
+  if (iosPhone && motion == AppDialogMotion.sideSheet) {
+    return navigator.push<T>(
+      CupertinoSheetRoute<T>(
+        settings: routeSettings,
+        enableDrag: barrierDismissible,
+        scrollableBuilder: (sheetContext, scrollController) => wrapCaptured(
+          PrimaryScrollController(
+            controller: scrollController,
+            child: Material(
+              type: MaterialType.transparency,
+              child: Builder(builder: builder),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  final effectiveBuilder = iosPhone
+      ? (BuildContext dialogContext) {
+          final raw = builder(dialogContext);
+          final adapted = _adaptIosAlertDialog(dialogContext, raw);
+          return forcedIosScope == null
+              ? adapted
+              : IosNativeScope(enabled: forcedIosScope, child: adapted);
+        }
+      : builder;
+  final glassBackdrop =
+      shouldUseAppleGlass(context) && !AppMotion.reduced(context)
+      ? ImageFilter.blur(sigmaX: 18, sigmaY: 18)
+      : null;
+  final effectiveBarrierColor =
+      barrierColor ??
+      (glassBackdrop != null
+          ? Colors.black.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.38
+                  : 0.22,
+            )
+          : Colors.black54);
+  return navigator.push<T>(
+    AppDialogRoute<T>(
+      context: context,
+      builder: effectiveBuilder,
+      motion: motion,
+      backdropFilter: glassBackdrop,
+      barrierColor: effectiveBarrierColor,
+      barrierDismissible: barrierDismissible,
+      barrierLabel:
+          barrierLabel ?? MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      useSafeArea: useSafeArea,
+      settings: routeSettings,
+      themes: themes,
+      anchorPoint: anchorPoint,
+      traversalEdgeBehavior: traversalEdgeBehavior,
+      fullscreenDialog: fullscreenDialog,
+      requestFocus: requestFocus,
+    ),
+  );
+}
+
+/// 在 iOS Phone 模式下将纯文本 [AlertDialog] 无感转换为 [CupertinoAlertDialog]，
+/// 保留原标题、正文、弹窗与按钮的 [ValueKey] 及 [onPressed] 回调。
+Widget _adaptIosAlertDialog(BuildContext context, Widget built) {
+  if (built is PopScope) {
+    final convertedChild = _tryBuildCupertinoAlert(context, built.child);
+    if (convertedChild != null) {
+      return PopScope(
+        key: built.key,
+        canPop: built.canPop,
+        onPopInvokedWithResult: built.onPopInvokedWithResult,
+        child: convertedChild,
+      );
+    }
+    return built;
+  }
+  return _tryBuildCupertinoAlert(context, built) ?? built;
+}
+
+Widget? _tryBuildCupertinoAlert(BuildContext context, Widget widget) {
+  if (widget is! AlertDialog) return null;
+  if (widget.title != null && widget.title is! Text) return null;
+  if (widget.content != null && widget.content is! Text) return null;
+  final rawActions = widget.actions;
+  if (rawActions == null || rawActions.isEmpty) return null;
+
+  final cupertinoActions = <Widget>[];
+  for (final action in rawActions) {
+    if (action is CupertinoDialogAction) {
+      cupertinoActions.add(action);
+      continue;
+    }
+    if (action is ButtonStyleButton) {
+      cupertinoActions.add(
+        CupertinoDialogAction(
+          key: action.key,
+          onPressed: action.onPressed,
+          isDefaultAction: action is FilledButton,
+          isDestructiveAction: _isIosDestructiveButton(context, action),
+          child: action.child ?? const SizedBox.shrink(),
+        ),
+      );
+      continue;
+    }
+    return null;
+  }
+
+  return CupertinoAlertDialog(
+    key: widget.key,
+    title: widget.title,
+    content: widget.content,
+    actions: cupertinoActions,
+  );
+}
+
+bool _isIosDestructiveButton(BuildContext context, ButtonStyleButton button) {
+  // 1. 优先检查按钮 style 前景色（及实心按钮背景色）是否为红 / colorScheme.error / palette.red。
+  final fg = button.style?.foregroundColor?.resolve(const {});
+  if (_isIosErrorRedColor(context, fg)) return true;
+  if (button is FilledButton) {
+    final bg = button.style?.backgroundColor?.resolve(const {});
+    if (_isIosErrorRedColor(context, bg)) return true;
+  }
+
+  // 2. 其次兜底检查 key 字符串含 delete / remove / disconnect / close。
+  final keyText = _extractKeyString(button.key).toLowerCase();
+  if (keyText.isNotEmpty) {
+    const destructiveTokens = ['delete', 'remove', 'disconnect', 'close'];
+    for (final token in destructiveTokens) {
+      if (keyText.contains(token)) return true;
+    }
+  }
+  return false;
+}
+
+bool _isIosErrorRedColor(BuildContext context, Color? color) {
+  if (color == null || color.a < 0.25) return false;
+  final theme = Theme.of(context);
+  final argb = color.toARGB32();
+  if (argb == theme.colorScheme.error.toARGB32()) return true;
+  final palette = theme.extension<AppPalette>();
+  if (palette != null && argb == palette.red.toARGB32()) return true;
+  if (argb == IosColors.of(context).destructive.toARGB32()) return true;
+  return color.r >= 0.72 &&
+      (color.r - color.g) >= 0.30 &&
+      (color.r - color.b) >= 0.25;
+}
+
+String _extractKeyString(Key? key) {
+  if (key == null) return '';
+  if (key is ValueKey<Object?>) {
+    return '${key.value ?? ''}';
+  }
+  return key.toString();
+}
+
+/// [DialogRoute] with the shared motion (and optional Apple frosted backdrop),
+/// for call sites that need the route object itself.
 class AppDialogRoute<T> extends DialogRoute<T> {
   AppDialogRoute({
     required super.context,
     required WidgetBuilder builder,
     AppDialogMotion motion = AppDialogMotion.center,
+    ImageFilter? backdropFilter,
     super.barrierColor,
     super.barrierDismissible,
     super.barrierLabel,
     super.useSafeArea,
     super.settings,
     super.themes,
-  }) : super(
+    super.anchorPoint,
+    super.traversalEdgeBehavior,
+    super.fullscreenDialog,
+    super.requestFocus,
+  }) : _backdropFilter = backdropFilter,
+       super(
          builder: (dialogContext) => AppDialogMotionFrame(
            motion: motion,
            child: builder(dialogContext),
          ),
          animationStyle: AppMotion.dialogStyle(context, motion: motion),
        );
+
+  final ImageFilter? _backdropFilter;
+
+  @override
+  ImageFilter? get filter => _backdropFilter;
 }
 
 /// Theme-level page route motion: fade + 8 px lift over 200 ms. Replaces the

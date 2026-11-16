@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 
 import 'app_density.dart';
 import 'app_motion.dart';
+import 'apple_hig.dart';
 
 abstract final class AppColors {
   static const background = Color(0xFF0B0F10);
@@ -275,18 +277,26 @@ ThemeData buildAppTheme({
 }) {
   final dark = brightness == Brightness.dark;
   final p = dark ? AppPalette.dark : AppPalette.light;
+  final effectivePlatform = platform ?? defaultTargetPlatform;
+  final apple = isApplePlatform(effectivePlatform);
   final base = dark
       ? ThemeData.dark(useMaterial3: true)
       : ThemeData.light(useMaterial3: true);
   final fallback = appFontFallback(locale);
   // R7 density: shared compact (desktop) / touch proportions. Sizes only;
   // never a transform or a text-scale override.
-  final density = AppDensity.forPlatform(platform ?? base.platform);
+  final density = AppDensity.forPlatform(effectivePlatform);
   final textTheme = density.applyTextSizes(base.textTheme);
   final radiusSm = BorderRadius.circular(density.radiusSm);
   final radiusMd = BorderRadius.circular(density.radiusMd);
   final radiusLg = BorderRadius.circular(density.radiusLg);
+  final menuShadowColor = Colors.black.withValues(alpha: dark ? 0.45 : 0.14);
   return base.copyWith(
+    platform: effectivePlatform,
+    splashFactory: apple ? NoSplash.splashFactory : null,
+    splashColor: apple ? Colors.transparent : null,
+    highlightColor: apple ? p.text.withValues(alpha: dark ? 0.07 : 0.05) : null,
+    hoverColor: apple ? p.text.withValues(alpha: dark ? 0.04 : 0.03) : null,
     extensions: <ThemeExtension<dynamic>>[density, p],
     pageTransitionsTheme: appPageTransitionsTheme,
     scaffoldBackgroundColor: p.background,
@@ -363,13 +373,13 @@ ThemeData buildAppTheme({
       secondaryLabelStyle: TextStyle(color: p.onAccentContainer),
       checkmarkColor: p.onAccentContainer,
       side: BorderSide(color: p.line),
-      shape: RoundedRectangleBorder(borderRadius: radiusSm),
+      shape: appleSquircleBorder(radiusSm, platform: effectivePlatform),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: p.accentText,
         padding: EdgeInsets.symmetric(horizontal: density.space5),
-        shape: RoundedRectangleBorder(borderRadius: radiusMd),
+        shape: appleSquircleBorder(radiusMd, platform: effectivePlatform),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -377,13 +387,13 @@ ThemeData buildAppTheme({
         foregroundColor: p.accentText,
         side: BorderSide(color: p.line),
         padding: EdgeInsets.symmetric(horizontal: density.space6),
-        shape: RoundedRectangleBorder(borderRadius: radiusMd),
+        shape: appleSquircleBorder(radiusMd, platform: effectivePlatform),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         padding: EdgeInsets.symmetric(horizontal: density.space6),
-        shape: RoundedRectangleBorder(borderRadius: radiusMd),
+        shape: appleSquircleBorder(radiusMd, platform: effectivePlatform),
       ),
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
@@ -393,24 +403,36 @@ ThemeData buildAppTheme({
             : VisualDensity.standard,
         side: WidgetStatePropertyAll(BorderSide(color: p.line)),
         shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: radiusMd),
+          appleSquircleBorder(radiusMd, platform: effectivePlatform),
         ),
       ),
     ),
     scrollbarTheme: ScrollbarThemeData(
       radius: const Radius.circular(999),
-      thickness: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.hovered) ? 7.0 : 5.0,
-      ),
-      thumbColor: WidgetStateProperty.resolveWith(
-        (states) => p.muted.withValues(
-          alpha: states.contains(WidgetState.hovered) ? .55 : .30,
-        ),
-      ),
+      thickness: const _HoverScrollbarThickness(),
+      thumbColor: _HoverScrollbarThumbColor(p.muted),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(foregroundColor: p.accentText),
+      style: ElevatedButton.styleFrom(
+        foregroundColor: p.accentText,
+        shape: apple
+            ? appleSquircleBorder(radiusMd, platform: effectivePlatform)
+            : null,
+      ),
     ),
+    switchTheme: apple
+        ? SwitchThemeData(
+            trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+            trackOutlineWidth: const WidgetStatePropertyAll(0),
+            trackColor: _AppleSwitchTrackColor(
+              accent: p.accent,
+              surfaceSoft: p.surfaceSoft,
+            ),
+            thumbColor: _AppleSwitchThumbColor(dark: dark),
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+            splashRadius: 0,
+          )
+        : null,
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: p.accentText,
       selectionColor: p.accent.withValues(alpha: .45),
@@ -424,31 +446,44 @@ ThemeData buildAppTheme({
     popupMenuTheme: PopupMenuThemeData(
       color: p.surfaceRaised,
       surfaceTintColor: Colors.transparent,
-      elevation: 8,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: p.line),
-        borderRadius: radiusMd,
+      elevation: apple ? 10 : 6,
+      shadowColor: menuShadowColor,
+      shape: appleSquircleBorder(
+        radiusMd,
+        platform: effectivePlatform,
+        side: BorderSide(
+          color: apple ? p.line.withValues(alpha: dark ? 0.85 : 0.75) : p.line,
+        ),
       ),
       menuPadding: EdgeInsets.symmetric(vertical: density.space2),
-      labelTextStyle: WidgetStateProperty.resolveWith(
-        (states) => TextStyle(
-          fontSize: density.textSize(density.isCompact ? 12 : 13),
-          height: 1.3,
-          color: states.contains(WidgetState.disabled)
-              ? p.muted.withValues(alpha: .5)
-              : p.text,
-        ),
+      labelTextStyle: _PopupMenuLabelTextStyle(
+        fontSize: density.textSize(density.isCompact ? 12 : 13),
+        enabledColor: p.text,
+        disabledColor: p.muted.withValues(alpha: .5),
       ),
     ),
     menuTheme: MenuThemeData(
       style: MenuStyle(
+        backgroundColor: apple
+            ? WidgetStatePropertyAll(p.surfaceRaised)
+            : null,
+        surfaceTintColor: apple
+            ? const WidgetStatePropertyAll(Colors.transparent)
+            : null,
+        elevation: apple ? const WidgetStatePropertyAll(10) : null,
+        shadowColor: apple ? WidgetStatePropertyAll(menuShadowColor) : null,
         padding: const WidgetStatePropertyAll(
           EdgeInsets.symmetric(vertical: 4),
         ),
         shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: radiusMd,
-            side: BorderSide(color: p.line),
+          appleSquircleBorder(
+            radiusMd,
+            platform: effectivePlatform,
+            side: BorderSide(
+              color: apple
+                  ? p.line.withValues(alpha: dark ? 0.85 : 0.75)
+                  : p.line,
+            ),
           ),
         ),
       ),
@@ -488,15 +523,22 @@ ThemeData buildAppTheme({
           : null,
       border: OutlineInputBorder(
         borderRadius: radiusMd,
-        borderSide: BorderSide(color: p.line),
+        borderSide: BorderSide(
+          color: apple ? p.line.withValues(alpha: dark ? 0.72 : 0.85) : p.line,
+        ),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: radiusMd,
-        borderSide: BorderSide(color: p.line),
+        borderSide: BorderSide(
+          color: apple ? p.line.withValues(alpha: dark ? 0.72 : 0.85) : p.line,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: radiusMd,
-        borderSide: BorderSide(color: p.lime, width: 1.4),
+        borderSide: BorderSide(
+          color: apple ? p.lime.withValues(alpha: dark ? 0.65 : 0.55) : p.lime,
+          width: apple ? 1.0 : 1.4,
+        ),
       ),
       labelStyle: TextStyle(color: p.muted),
       hintStyle: TextStyle(color: p.hint),
@@ -505,14 +547,30 @@ ThemeData buildAppTheme({
       backgroundColor: p.surfaceSoft,
       contentTextStyle: TextStyle(color: p.text),
       behavior: SnackBarBehavior.floating,
+      shape: apple
+          ? appleSquircleBorder(
+              radiusMd,
+              platform: effectivePlatform,
+              side: BorderSide(color: p.line),
+            )
+          : null,
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: p.surface,
+      backgroundColor: apple
+          ? p.surface.withValues(alpha: dark ? 0.76 : 0.84)
+          : p.surface,
       surfaceTintColor: Colors.transparent,
-      elevation: 12,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: p.line),
-        borderRadius: BorderRadius.circular(density.radiusDialog),
+      elevation: apple ? 18 : 12,
+      shape: appleSquircleBorder(
+        BorderRadius.circular(density.radiusDialog),
+        platform: effectivePlatform,
+        side: BorderSide(
+          color: apple
+              ? (dark
+                    ? Colors.white.withValues(alpha: 0.16)
+                    : Colors.black.withValues(alpha: 0.09))
+              : p.line,
+        ),
       ),
       insetPadding: EdgeInsets.symmetric(
         horizontal: density.dialogInset,
@@ -534,9 +592,10 @@ ThemeData buildAppTheme({
       color: p.surface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      shape: RoundedRectangleBorder(
+      shape: appleSquircleBorder(
+        radiusLg,
+        platform: effectivePlatform,
         side: BorderSide(color: p.line),
-        borderRadius: radiusLg,
       ),
     ),
     appBarTheme: AppBarTheme(
@@ -560,4 +619,120 @@ ThemeData buildAppTheme({
       ),
     ),
   );
+}
+
+@immutable
+class _HoverScrollbarThickness implements WidgetStateProperty<double?> {
+  const _HoverScrollbarThickness();
+
+  @override
+  double resolve(Set<WidgetState> states) =>
+      states.contains(WidgetState.hovered) ? 7.0 : 5.0;
+
+  @override
+  bool operator ==(Object other) => other is _HoverScrollbarThickness;
+
+  @override
+  int get hashCode => (runtimeType).hashCode;
+}
+
+@immutable
+class _HoverScrollbarThumbColor implements WidgetStateProperty<Color?> {
+  const _HoverScrollbarThumbColor(this.muted);
+
+  final Color muted;
+
+  @override
+  Color resolve(Set<WidgetState> states) =>
+      muted.withValues(alpha: states.contains(WidgetState.hovered) ? .55 : .30);
+
+  @override
+  bool operator ==(Object other) =>
+      other is _HoverScrollbarThumbColor && other.muted == muted;
+
+  @override
+  int get hashCode => Object.hash(runtimeType, muted);
+}
+
+@immutable
+class _AppleSwitchTrackColor implements WidgetStateProperty<Color?> {
+  const _AppleSwitchTrackColor({
+    required this.accent,
+    required this.surfaceSoft,
+  });
+
+  final Color accent;
+  final Color surfaceSoft;
+
+  @override
+  Color resolve(Set<WidgetState> states) {
+    if (states.contains(WidgetState.disabled)) {
+      return surfaceSoft.withValues(alpha: 0.5);
+    }
+    return states.contains(WidgetState.selected) ? accent : surfaceSoft;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _AppleSwitchTrackColor &&
+      other.accent == accent &&
+      other.surfaceSoft == surfaceSoft;
+
+  @override
+  int get hashCode => Object.hash(runtimeType, accent, surfaceSoft);
+}
+
+@immutable
+class _AppleSwitchThumbColor implements WidgetStateProperty<Color?> {
+  const _AppleSwitchThumbColor({required this.dark});
+
+  final bool dark;
+
+  @override
+  Color resolve(Set<WidgetState> states) {
+    final thumb = states.contains(WidgetState.selected)
+        ? Colors.white
+        : (dark ? const Color(0xFFD5E2E0) : Colors.white);
+    return states.contains(WidgetState.disabled)
+        ? thumb.withValues(alpha: 0.6)
+        : thumb;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _AppleSwitchThumbColor && other.dark == dark;
+
+  @override
+  int get hashCode => Object.hash(runtimeType, dark);
+}
+
+@immutable
+class _PopupMenuLabelTextStyle implements WidgetStateProperty<TextStyle?> {
+  const _PopupMenuLabelTextStyle({
+    required this.fontSize,
+    required this.enabledColor,
+    required this.disabledColor,
+  });
+
+  final double fontSize;
+  final Color enabledColor;
+  final Color disabledColor;
+
+  @override
+  TextStyle resolve(Set<WidgetState> states) => TextStyle(
+    fontSize: fontSize,
+    height: 1.3,
+    color: states.contains(WidgetState.disabled) ? disabledColor : enabledColor,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is _PopupMenuLabelTextStyle &&
+      other.fontSize == fontSize &&
+      other.enabledColor == enabledColor &&
+      other.disabledColor == disabledColor;
+
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, fontSize, enabledColor, disabledColor);
 }

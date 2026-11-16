@@ -9,6 +9,10 @@ Future<void> openSettingsCategory(
 }) async {
   final item = find.byKey(ValueKey('settings_category_$id'));
   final navigation = find.byKey(const ValueKey('settings_category_navigation'));
+  final iosList = find.byKey(
+    const ValueKey('ios_settings_category_list'),
+    skipOffstage: false,
+  );
   if (navigation.evaluate().isNotEmpty) {
     final navScrollable = find.descendant(
       of: navigation,
@@ -24,6 +28,40 @@ Future<void> openSettingsCategory(
         if (!sections.any((section) => section.id == id)) return;
       }
       await tester.scrollUntilVisible(item, 150, scrollable: navScrollable);
+    }
+    await tester.ensureVisible(item);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(item);
+  } else if (iosList.evaluate().isNotEmpty) {
+    // iOS Phone 模式：二级页位于嵌套 Navigator 栈顶时先返回一级分类列表，再点击行 push。
+    final targetPage = find.byKey(ValueKey('settings_page_$id'));
+    if (targetPage.evaluate().isNotEmpty) return;
+    final backButton = find.byKey(const ValueKey('ios_settings_back_button'));
+    if (backButton.evaluate().isNotEmpty) {
+      await tester.tap(backButton);
+      await tester.pumpAndSettle();
+    }
+    final activeIosList = find.byKey(
+      const ValueKey('ios_settings_category_list'),
+    );
+    if (ifAvailable) {
+      final scaffoldFinder = find.byType(SettingsScaffold);
+      if (scaffoldFinder.evaluate().isEmpty) return;
+      final sections = tester.widget<SettingsScaffold>(scaffoldFinder).sections;
+      if (!sections.any((section) => section.id == id)) return;
+    }
+    final navScrollable = find.descendant(
+      of: activeIosList,
+      matching: find.byType(Scrollable),
+    );
+    if (item.evaluate().isEmpty && navScrollable.evaluate().isNotEmpty) {
+      await tester.drag(activeIosList, const Offset(0, 2000));
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        item,
+        150,
+        scrollable: navScrollable.first,
+      );
     }
     await tester.ensureVisible(item);
     await tester.pump(const Duration(milliseconds: 100));

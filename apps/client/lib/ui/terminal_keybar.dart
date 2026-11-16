@@ -11,6 +11,8 @@ import 'package:xterm/xterm.dart';
 
 import '../l10n/l10n.dart';
 import '../storage/terminal_keybar_store.dart';
+import 'apple_hig.dart';
+import 'ios_native/ios_native.dart';
 
 /// Soft Ctrl/Alt/Shift state reported by [TerminalKeybar.onModifiersChanged].
 ///
@@ -429,6 +431,7 @@ class _TerminalKeybarState extends State<TerminalKeybar>
   }
 
   void _applyModifier(_Modifier modifier, _Latch latch) {
+    if (isIosPhone(context)) AppleHaptics.light(context);
     setState(
       () => modifier == _Modifier.ctrl
           ? _setLatches(latch, _alt, _shift)
@@ -455,6 +458,7 @@ class _TerminalKeybarState extends State<TerminalKeybar>
 
   void _toggleSoftKeyboard() {
     if (widget.readOnly) return;
+    if (isIosPhone(context)) AppleHaptics.light(context);
     final view = _terminalView;
     if (view == null) {
       widget.focusNode?.requestFocus();
@@ -467,12 +471,18 @@ class _TerminalKeybarState extends State<TerminalKeybar>
 
   void _send(TerminalKey key) {
     if (widget.readOnly) return;
+    if (isIosPhone(context)) {
+      AppleHaptics.light(context);
+    } else {
+      AppleHaptics.selection(context);
+    }
     widget.terminal.keyInput(key);
     _focusTerminal();
   }
 
   Future<void> _paste() async {
     if (widget.readOnly) return;
+    if (isIosPhone(context)) AppleHaptics.light(context);
     final terminal = widget.terminal;
     final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
     if (!mounted || widget.readOnly || !identical(terminal, widget.terminal)) {
@@ -484,6 +494,7 @@ class _TerminalKeybarState extends State<TerminalKeybar>
   }
 
   void _toggleExpanded(bool expanded) {
+    if (isIosPhone(context)) AppleHaptics.light(context);
     setState(() => _expanded = !expanded);
     // Collapsing is the explicit way out of a pinned layout.
     if (expanded && _preferences!.pinned) {
@@ -493,6 +504,7 @@ class _TerminalKeybarState extends State<TerminalKeybar>
   }
 
   void _togglePinned() {
+    if (isIosPhone(context)) AppleHaptics.light(context);
     final pinned = !_preferences!.pinned;
     // The pin is only shown while expanded; unpinning keeps this bar open.
     setState(() => _expanded = true);
@@ -500,11 +512,49 @@ class _TerminalKeybarState extends State<TerminalKeybar>
     _focusTerminal();
   }
 
+  double _iosBottomSafePad(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final view = View.of(context);
+    final dpr = view.devicePixelRatio;
+    final rawInsetBottom = dpr > 0 ? view.viewInsets.bottom / dpr : 0.0;
+    final keyboardOpen =
+        _keyboardShown || mq.viewInsets.bottom > 0 || rawInsetBottom > 0;
+    return keyboardOpen ? 0.0 : mq.padding.bottom;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
+    if (isIosPhone(context)) {
+      final c = IosColors.of(context);
+      final bottomSafePad = _iosBottomSafePad(context);
+      return IosGlassBar(
+        sigma: 20,
+        topSeparator: true,
+        fill: c.isDark
+            ? const Color(0xB31C1C1E)
+            : const Color(0xCCD1D3D9),
+        child: ExcludeFocus(
+          // Pointer/semantics activation must not take focus from the IME.
+          child: Padding(
+            padding: EdgeInsets.only(bottom: bottomSafePad),
+            child: LayoutBuilder(builder: _buildRows),
+          ),
+        ),
+      );
+    }
+    final apple = isAppleContext(context);
+    return AppleGlassBar(
+      fallbackColor: Theme.of(context).colorScheme.surfaceContainerLow,
+      sigma: 22,
+      border: apple
+          ? Border(
+              top: BorderSide(
+                color: appleGlassRimColor(context),
+                width: appleHairlineWidth(context),
+              ),
+            )
+          : null,
       child: ExcludeFocus(
         // Pointer/semantics activation must not take focus from the IME.
         child: LayoutBuilder(builder: _buildRows),
@@ -515,8 +565,11 @@ class _TerminalKeybarState extends State<TerminalKeybar>
   Widget _buildRows(BuildContext context, BoxConstraints constraints) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final textStyle =
-        theme.textTheme.labelLarge ?? const TextStyle(fontSize: 14);
+    final iosPhone = isIosPhone(context);
+    final iosColors = iosPhone ? IosColors.of(context) : null;
+    final textStyle = iosPhone
+        ? IosType.mono.copyWith(fontSize: 15, fontWeight: FontWeight.w500)
+        : (theme.textTheme.labelLarge ?? const TextStyle(fontSize: 14));
     final scaler = MediaQuery.textScalerOf(context);
     final direction = Directionality.of(context);
     final width = constraints.hasBoundedWidth
@@ -551,11 +604,77 @@ class _TerminalKeybarState extends State<TerminalKeybar>
     );
     linePainter.dispose();
 
-    final buttonStyle = TextButton.styleFrom(
-      minimumSize: const Size(kMinInteractiveDimension, 36),
-      padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
-      textStyle: textStyle,
-    );
+    final buttonStyle = iosPhone
+        ? TextButton.styleFrom(
+            minimumSize: const Size(kMinInteractiveDimension, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 7),
+            backgroundColor: Colors.transparent,
+            overlayColor: Colors.transparent,
+            splashFactory: NoSplash.splashFactory,
+            foregroundColor: iosColors!.label,
+            disabledForegroundColor: iosColors.tertiaryLabel,
+            textStyle: textStyle,
+          )
+        : TextButton.styleFrom(
+            minimumSize: const Size(kMinInteractiveDimension, 36),
+            padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
+            textStyle: textStyle,
+          );
+
+    Color iosActiveForeground(IosColors c) =>
+        ThemeData.estimateBrightnessForColor(c.tint) == Brightness.light
+            ? const Color(0xFF000000)
+            : const Color(0xFFFFFFFF);
+
+    Widget wrapKeycap(
+      Widget child, {
+      bool active = false,
+      bool enabled = true,
+    }) {
+      if (!iosPhone) return child;
+      final c = iosColors!;
+      final fg = !enabled
+          ? c.tertiaryLabel
+          : (active ? iosActiveForeground(c) : c.label);
+      final bg = active
+          ? c.tint
+          : (c.isDark
+                ? c.fill
+                : Colors.white.withValues(alpha: enabled ? 0.92 : 0.55));
+      return DecoratedBox(
+        decoration: ShapeDecoration(
+          color: bg,
+          shape: RoundedSuperellipseBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          shadows: enabled
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: c.isDark ? 0.28 : 0.12,
+                    ),
+                    blurRadius: 0,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: SizedBox.expand(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Center(
+              child: IconTheme.merge(
+                data: IconThemeData(color: fg),
+                child: DefaultTextStyle.merge(
+                  style: TextStyle(color: fg),
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     _KeySpec button(
       String label,
@@ -567,18 +686,28 @@ class _TerminalKeybarState extends State<TerminalKeybar>
       Tooltip(
         message: tooltip,
         child: TextButton(
-          style: buttonStyle.copyWith(
-            backgroundColor: selected
-                ? WidgetStatePropertyAll(theme.colorScheme.secondaryContainer)
-                : null,
-            foregroundColor: selected
-                ? WidgetStatePropertyAll(theme.colorScheme.onSecondaryContainer)
-                : null,
-          ),
+          style: iosPhone
+              ? buttonStyle
+              : buttonStyle.copyWith(
+                  backgroundColor: selected
+                      ? WidgetStatePropertyAll(
+                          theme.colorScheme.secondaryContainer,
+                        )
+                      : null,
+                  foregroundColor: selected
+                      ? WidgetStatePropertyAll(
+                          theme.colorScheme.onSecondaryContainer,
+                        )
+                      : null,
+                ),
           onPressed: onPressed,
           child: Semantics(
             toggled: selected ? true : null,
-            child: _label(label),
+            child: wrapKeycap(
+              _label(label),
+              active: selected,
+              enabled: onPressed != null,
+            ),
           ),
         ),
       ),
@@ -603,15 +732,18 @@ class _TerminalKeybarState extends State<TerminalKeybar>
               onPressed: widget.readOnly ? null : () => _send(key),
               child: Semantics(
                 label: name,
-                child: Builder(
-                  builder: (context) => CustomPaint(
-                    size: Size.square(arrowSize),
-                    painter: _ArrowPainter(
-                      direction,
-                      DefaultTextStyle.of(context).style.color ??
-                          theme.colorScheme.primary,
+                child: wrapKeycap(
+                  Builder(
+                    builder: (context) => CustomPaint(
+                      size: Size.square(arrowSize),
+                      painter: _ArrowPainter(
+                        direction,
+                        DefaultTextStyle.of(context).style.color ??
+                            theme.colorScheme.primary,
+                      ),
                     ),
                   ),
+                  enabled: !widget.readOnly,
                 ),
               ),
             ),
@@ -635,23 +767,26 @@ class _TerminalKeybarState extends State<TerminalKeybar>
         _Latch.locked => (scheme.primary, scheme.onPrimary),
       };
       final enabled = !widget.readOnly;
+      final active = latch != _Latch.off;
       return _KeySpec(
         // Reserve the lock icon so locking never reflows the rows.
         measure(label, extra: _lockIconSize + _lockIconGap),
         Tooltip(
           message: guidance,
           child: TextButton(
-            style: buttonStyle.copyWith(
-              backgroundColor: background == null
-                  ? null
-                  : WidgetStatePropertyAll(background),
-              foregroundColor: foreground == null
-                  ? null
-                  : WidgetStatePropertyAll(foreground),
-            ),
+            style: iosPhone
+                ? buttonStyle
+                : buttonStyle.copyWith(
+                    backgroundColor: background == null
+                        ? null
+                        : WidgetStatePropertyAll(background),
+                    foregroundColor: foreground == null
+                        ? null
+                        : WidgetStatePropertyAll(foreground),
+                  ),
             onPressed: enabled ? () => _tapModifier(modifier) : null,
             child: Semantics(
-              toggled: latch != _Latch.off,
+              toggled: active,
               value: switch (latch) {
                 _Latch.off => l10n.keybarModifierOff,
                 _Latch.armed => l10n.keybarModifierArmed,
@@ -663,25 +798,29 @@ class _TerminalKeybarState extends State<TerminalKeybar>
                           _lockModifier(modifier),
                     }
                   : null,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _label(
-                    label,
-                    // Armed is underlined, locked shows a lock: not color only.
-                    decoration: latch == _Latch.armed
-                        ? TextDecoration.underline
-                        : null,
-                  ),
-                  if (latch == _Latch.locked) ...[
-                    const SizedBox(width: _lockIconGap),
-                    Icon(
-                      Icons.lock,
-                      key: ValueKey('terminal-keybar-lock-${modifier.name}'),
-                      size: _lockIconSize,
+              child: wrapKeycap(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _label(
+                      label,
+                      // Armed is underlined, locked shows a lock: not color only.
+                      decoration: latch == _Latch.armed
+                          ? TextDecoration.underline
+                          : null,
                     ),
+                    if (latch == _Latch.locked) ...[
+                      const SizedBox(width: _lockIconGap),
+                      Icon(
+                        iosPhone ? IosIcons.lock : Icons.lock,
+                        key: ValueKey('terminal-keybar-lock-${modifier.name}'),
+                        size: _lockIconSize,
+                      ),
+                    ],
                   ],
-                ],
+                ),
+                active: active,
+                enabled: enabled,
               ),
             ),
           ),
@@ -726,6 +865,7 @@ class _TerminalKeybarState extends State<TerminalKeybar>
         l10n.releaseModifiers,
         _ctrl != _Latch.off || _alt != _Latch.off || _shift != _Latch.off
             ? () {
+                if (iosPhone) AppleHaptics.light(context);
                 setState(_releaseAll);
                 _focusTerminal();
               }
@@ -754,9 +894,18 @@ class _TerminalKeybarState extends State<TerminalKeybar>
               child: Semantics(
                 // Icon-only: the tooltip alone is not the accessible name.
                 label: keyboardLabel,
-                child: Icon(
-                  _keyboardShown ? Icons.keyboard_hide : Icons.keyboard,
-                  size: _keyboardIconSize,
+                child: wrapKeycap(
+                  Icon(
+                    iosPhone
+                        ? (_keyboardShown
+                              ? Icons.keyboard_hide_rounded
+                              : Icons.keyboard_rounded)
+                        : (_keyboardShown
+                              ? Icons.keyboard_hide
+                              : Icons.keyboard),
+                    size: _keyboardIconSize,
+                  ),
+                  enabled: !widget.readOnly,
                 ),
               ),
             ),
@@ -774,26 +923,35 @@ class _TerminalKeybarState extends State<TerminalKeybar>
             message: l10n.keybarPinExpanded,
             child: TextButton(
               key: const ValueKey('terminal-keybar-pin'),
-              style: buttonStyle.copyWith(
-                backgroundColor: pinned
-                    ? WidgetStatePropertyAll(
-                        theme.colorScheme.secondaryContainer,
-                      )
-                    : null,
-                foregroundColor: pinned
-                    ? WidgetStatePropertyAll(
-                        theme.colorScheme.onSecondaryContainer,
-                      )
-                    : null,
-              ),
+              style: iosPhone
+                  ? buttonStyle
+                  : buttonStyle.copyWith(
+                      backgroundColor: pinned
+                          ? WidgetStatePropertyAll(
+                              theme.colorScheme.secondaryContainer,
+                            )
+                          : null,
+                      foregroundColor: pinned
+                          ? WidgetStatePropertyAll(
+                              theme.colorScheme.onSecondaryContainer,
+                            )
+                          : null,
+                    ),
               onPressed: _togglePinned,
               child: Semantics(
                 // Icon-only: the tooltip alone is not the accessible name.
                 label: l10n.keybarPinExpanded,
                 toggled: pinned,
-                child: Icon(
-                  pinned ? Icons.push_pin : Icons.push_pin_outlined,
-                  size: _pinIconSize,
+                child: wrapKeycap(
+                  Icon(
+                    iosPhone
+                        ? (pinned
+                              ? Icons.push_pin_rounded
+                              : Icons.push_pin_outlined)
+                        : (pinned ? Icons.push_pin : Icons.push_pin_outlined),
+                    size: _pinIconSize,
+                  ),
+                  active: pinned,
                 ),
               ),
             ),
@@ -821,8 +979,11 @@ class _TerminalKeybarState extends State<TerminalKeybar>
 
     // Keep at least two key rows of terminal and give the bar at most half
     // of the pane, so short, split and IME-shrunk panes stay usable.
-    final pane =
+    final rawPane =
         widget.availablePaneHeight ?? MediaQuery.sizeOf(context).height;
+    final pane = iosPhone
+        ? math.max(rowExtent, rawPane - _iosBottomSafePad(context))
+        : rawPane;
     final maxRows = expanded
         ? math.max(
             1,
@@ -857,14 +1018,17 @@ class _TerminalKeybarState extends State<TerminalKeybar>
                   ),
               ],
             )
-          : SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final spec in specs)
-                    SizedBox(width: spec.width, child: spec.child),
-                ],
+          : _maybeHorizontalEdgeFade(
+              enabled: iosPhone,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final spec in specs)
+                      SizedBox(width: spec.width, child: spec.child),
+                  ],
+                ),
               ),
             );
       if (row == 0 && fixedTrailing) {
@@ -880,6 +1044,33 @@ class _TerminalKeybarState extends State<TerminalKeybar>
       rows.add(SizedBox(height: rowExtent, child: content));
     }
     return Column(mainAxisSize: MainAxisSize.min, children: rows);
+  }
+
+  static Widget _maybeHorizontalEdgeFade({
+    required bool enabled,
+    required Widget child,
+  }) {
+    if (!enabled) return child;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
+        if (!totalWidth.isFinite || totalWidth <= 32) return child;
+        final stop = (12.0 / totalWidth).clamp(0.01, 0.15);
+        return ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (rect) => LinearGradient(
+            colors: const [
+              Color(0x00FFFFFF),
+              Color(0xFFFFFFFF),
+              Color(0xFFFFFFFF),
+              Color(0x00FFFFFF),
+            ],
+            stops: [0.0, stop, 1.0 - stop, 1.0],
+          ).createShader(rect),
+          child: child,
+        );
+      },
+    );
   }
 
   static Widget _label(String text, {TextDecoration? decoration}) => FittedBox(
