@@ -50,11 +50,12 @@ class TerminalActions extends StatelessWidget {
         ),
         SelectAllTextIntent: CallbackAction<SelectAllTextIntent>(
           onInvoke: (intent) {
+            // Everything in the buffer: the scrollback above the screen as
+            // well as the screen itself, not only the rows in view. On the
+            // alternate screen (full-screen programs) that is the screen,
+            // which has no scrollback.
             controller.setSelection(
-              terminal.buffer.createAnchor(
-                0,
-                terminal.buffer.height - terminal.viewHeight,
-              ),
+              terminal.buffer.createAnchor(0, 0),
               terminal.buffer.createAnchor(
                 terminal.viewWidth,
                 terminal.buffer.height - 1,
