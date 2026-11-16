@@ -14,7 +14,7 @@ void reportSplashAuthResolution(String page) {
   _authResolutionReported = true;
   final event = web.CustomEvent(
     'atermius:auth-resolved',
-    web.CustomEventInit(detail: page),
+    web.CustomEventInit(detail: page.toJS),
   );
   // Let the resolved page paint one frame before the splash fades away.
   web.window.requestAnimationFrame(
