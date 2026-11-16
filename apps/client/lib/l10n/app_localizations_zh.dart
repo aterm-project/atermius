@@ -16487,9 +16487,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get restoreConnection => '恢复连接';
 
   @override
-  String get reconnectEveryFiveSeconds => '每 5 秒自动重连';
-
-  @override
   String get desktopKeyboardModeTitle => '远程桌面键盘模式';
 
   @override
@@ -17434,4 +17431,58 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get connecting => '正在连接';
+
+  @override
+  String get sessionReconnectAutomatic => '正在自动重连';
+
+  @override
+  String sessionReconnectNextAttempt(int seconds) {
+    return '正在自动重连，$seconds 秒后重试';
+  }
+
+  @override
+  String sessionReconnectTimeLeft(String time) {
+    return '$time 后放弃重连';
+  }
+
+  @override
+  String get sessionReconnectGaveUp => '未能自动恢复连接。';
+
+  @override
+  String get sessionReconnectTitle => '自动重连';
+
+  @override
+  String get sessionReconnectDescription =>
+      '已连接的 SSH 或 Telnet 会话断开后会自动重新连接：每隔一个重连间隔尝试一次，直到达到重连时限。不会重新发送你输入过的内容。';
+
+  @override
+  String get sessionReconnectSwitch => '断开后自动重连';
+
+  @override
+  String get sessionReconnectIntervalLabel => '重连间隔';
+
+  @override
+  String get sessionReconnectLimitLabel => '重连时限';
+
+  @override
+  String sessionReconnectSeconds(int count) {
+    return '$count 秒';
+  }
+
+  @override
+  String sessionReconnectMinutes(int count) {
+    return '$count 分钟';
+  }
+
+  @override
+  String get sessionReconnectNoLimit => '不限时';
+
+  @override
+  String sessionReconnectChoiceDefault(String choice) {
+    return '$choice（默认）';
+  }
+
+  @override
+  String get sessionReconnectNote =>
+      '仅保存在本设备。达到重连时限后停止自动重连，仍可点击“恢复连接”手动重连。更改对正在重连的会话同样生效。';
 }

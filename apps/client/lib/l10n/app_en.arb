@@ -15134,7 +15134,6 @@
   "fullscreenUnavailable": "Fullscreen is unavailable for this window.",
   "@fullscreenUnavailable": {},
   "restoreConnection": "Restore connection",
-  "reconnectEveryFiveSeconds": "Reconnect automatically every 5 seconds",
   "desktopKeyboardModeTitle": "Remote desktop keyboard mode",
   "desktopKeyboardOverlay": "Overlay (keep resolution)",
   "desktopKeyboardResize": "Resize to keyboard",
@@ -16179,5 +16178,86 @@
   "connecting": "Connecting",
   "@connecting": {
     "description": "State of a session tab whose first connection attempt is still running, shown next to Connected / Not connected in the status bar and on split panes."
+  },
+  "sessionReconnectAutomatic": "Reconnecting automatically",
+  "@sessionReconnectAutomatic": {
+    "description": "Line on the Connection lost card of a dropped session while an automatic reconnect attempt is running."
+  },
+  "sessionReconnectNextAttempt": "Reconnecting automatically, next attempt in {seconds} s",
+  "@sessionReconnectNextAttempt": {
+    "description": "Line on the Connection lost card of a dropped session between automatic reconnect attempts. seconds counts down to the next attempt.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "sessionReconnectTimeLeft": "Stops trying in {time}",
+  "@sessionReconnectTimeLeft": {
+    "description": "Countdown on the Connection lost card until automatic reconnect attempts are given up. time is minutes:seconds such as 0:43.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionReconnectGaveUp": "Couldn't restore the connection automatically.",
+  "@sessionReconnectGaveUp": {
+    "description": "Shown on the Connection lost card after the reconnect time limit passed without success; the manual Restore connection button stays."
+  },
+  "sessionReconnectTitle": "Automatic reconnect",
+  "@sessionReconnectTitle": {
+    "description": "Title of the settings card for automatically reconnecting dropped sessions."
+  },
+  "sessionReconnectDescription": "When a connected SSH or Telnet session drops, it is connected again automatically: one attempt per interval until the time limit is reached. Nothing you typed is sent again.",
+  "@sessionReconnectDescription": {
+    "description": "Explains the automatic reconnect setting."
+  },
+  "sessionReconnectSwitch": "Reconnect dropped sessions automatically",
+  "@sessionReconnectSwitch": {
+    "description": "Switch that turns automatic reconnect of dropped sessions on or off."
+  },
+  "sessionReconnectIntervalLabel": "Retry interval",
+  "@sessionReconnectIntervalLabel": {
+    "description": "Label of the dropdown for the time between automatic reconnect attempts."
+  },
+  "sessionReconnectLimitLabel": "Time limit",
+  "@sessionReconnectLimitLabel": {
+    "description": "Label of the dropdown for how long automatic reconnect attempts continue after a session dropped."
+  },
+  "sessionReconnectSeconds": "{count, plural, =1{1 second} other{{count} seconds}}",
+  "@sessionReconnectSeconds": {
+    "description": "A reconnect interval or time limit in seconds.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sessionReconnectMinutes": "{count, plural, =1{1 minute} other{{count} minutes}}",
+  "@sessionReconnectMinutes": {
+    "description": "A reconnect interval or time limit in whole minutes.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sessionReconnectNoLimit": "No limit",
+  "@sessionReconnectNoLimit": {
+    "description": "Time limit choice: automatic reconnect attempts never stop by themselves."
+  },
+  "sessionReconnectChoiceDefault": "{choice} (default)",
+  "@sessionReconnectChoiceDefault": {
+    "description": "Marks the default choice of a reconnect dropdown. choice is an already localized duration such as 5 seconds.",
+    "placeholders": {
+      "choice": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionReconnectNote": "Stored on this device only. When the time limit is reached, automatic attempts stop and “Restore connection” stays available. Changes also apply to sessions that are reconnecting now.",
+  "@sessionReconnectNote": {
+    "description": "Note under the automatic reconnect setting."
   }
 }

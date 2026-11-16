@@ -97,6 +97,7 @@ import 'host_card_layout.dart';
 import 'terminal_palette.dart';
 import 'terminal_keyword_highlight_settings.dart';
 import 'terminal_palette_picker.dart';
+import 'session_reconnect_setting.dart';
 import 'terminal_scrollback_setting.dart';
 import 'terminal_shortcut_editor.dart';
 import 'terminal_keybar.dart';
@@ -1639,7 +1640,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
             current() && session.connectionGeneration == generation;
         // No SSH attempt starts during a profile operation (saving,
         // importing, ...). Queue this retry behind it instead of losing the
-        // five-second retry slot. Telnet reuses its own session and can
+        // automatic retry slot. Telnet reuses its own session and can
         // reconnect independently.
         while (!session.isTelnet && _busy && attemptCurrent()) {
           await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -5124,7 +5125,7 @@ _showMessage(
                           );
                         }
                         if (session.isTelnet) {
-                          return _withLocalConnectProgress(session, SessionRecoveryOverlay(recovery: session.recovery, child: ExcludeFocus(
+                          return _withLocalConnectProgress(session, SessionRecoveryOverlay(recovery: session.recovery, onClose: () => _closeTerminalTab(session.id), child: ExcludeFocus(
                             excluding: _selectedTabId != id,
                             child: TerminalView(
                               session.terminal,
@@ -5173,7 +5174,7 @@ _showMessage(
                             const SizedBox.expand(),
                           );
                         }
-                        return _withLocalConnectProgress(session, SessionRecoveryOverlay(recovery: session.recovery, child: _LocalSshTerminalDialog(
+                        return _withLocalConnectProgress(session, SessionRecoveryOverlay(recovery: session.recovery, onClose: () => _closeTerminalTab(session.id), child: _LocalSshTerminalDialog(
                           key: session.viewKey,
                           session: session,
                           host: session.host,
@@ -6329,6 +6330,7 @@ _showMessage(
               child: TerminalPaletteGallery(synced: _savedTerminalThemeChoice),
             ),
             const SettingsCard(child: TerminalScrollbackSetting()),
+            const SettingsCard(child: SessionReconnectSetting()),
             SettingsCard(
               semanticContainer: false,
               child: TerminalKeywordHighlightSettings(
@@ -7735,6 +7737,7 @@ class _LocalTerminalSession {
       session.resize(terminal.viewWidth, terminal.viewHeight);
       log?.markConnected();
       telnetState = 'connected';
+      _reconnectFailure = null;
       if (attempt != null) progress.succeed(attempt);
       connected.value = true;
     } catch (error) {
@@ -7745,8 +7748,13 @@ class _LocalTerminalSession {
           ? error.toString()
           : telnetFailureMessage(TelnetFailure.unreachable);
       log?.markFailed(error);
-      terminal.write('\r\n\x1b[31m$telnetError\x1b[0m\r\n');
-      if (attempt != null) progress.fail(attempt, telnetError!);
+      if (attempt != null) {
+        terminal.write('\r\n\x1b[31m$telnetError\x1b[0m\r\n');
+        progress.fail(attempt, telnetError!);
+      } else {
+        // An automatic reconnect repeats: one line per interruption, as SSH.
+        noteReconnectFailure(telnetError!);
+      }
       _onTelnetStateChanged?.call();
     }
   }

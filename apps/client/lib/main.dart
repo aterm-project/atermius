@@ -59,7 +59,9 @@ import 'storage/keyword_highlight_store.dart';
 import 'storage/terminal_palette_store.dart';
 import 'terminal/keyword_highlighter.dart';
 import 'ui/terminal_palette.dart';
+import 'storage/session_reconnect_store.dart';
 import 'storage/terminal_scrollback_store.dart';
+import 'terminal/session_reconnect_policy.dart';
 import 'terminal/terminal_scrollback.dart';
 import 'terminal/scrollback_spill_store.dart';
 import 'ui/app_language_settings.dart';
@@ -189,6 +191,9 @@ Future<void> main(List<String> arguments) async {
   await TerminalScrollbackController.instance.load(
     createTerminalScrollbackStore(),
   );
+  // Device-local policy for reconnecting dropped sessions (automatic on/off,
+  // retry interval, time limit); read before any session can be opened.
+  await SessionReconnectController.instance.load(createSessionReconnectStore());
   // Scrollback that no longer fits in memory spills to encrypted temporary
   // files. Remove what earlier processes left behind (undecryptable, their
   // keys only ever lived in memory); files of running processes, including

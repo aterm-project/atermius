@@ -4878,7 +4878,6 @@
   "exitFullscreen": "退出全屏",
   "fullscreenUnavailable": "当前窗口无法切换全屏。",
   "restoreConnection": "恢复连接",
-  "reconnectEveryFiveSeconds": "每 5 秒自动重连",
   "desktopKeyboardModeTitle": "远程桌面键盘模式",
   "desktopKeyboardOverlay": "悬浮叠加（保持分辨率）",
   "desktopKeyboardResize": "跟随键盘调整",
@@ -5158,5 +5157,19 @@
   "terminalScrollbackLines": "{count} 行",
   "terminalScrollbackLinesDefault": "{count} 行（默认）",
   "terminalScrollbackAppliesToNew": "对之后打开的终端生效。已打开的终端保持当前的回滚行数。",
-  "connecting": "正在连接"
+  "connecting": "正在连接",
+  "sessionReconnectAutomatic": "正在自动重连",
+  "sessionReconnectNextAttempt": "正在自动重连，{seconds} 秒后重试",
+  "sessionReconnectTimeLeft": "{time} 后放弃重连",
+  "sessionReconnectGaveUp": "未能自动恢复连接。",
+  "sessionReconnectTitle": "自动重连",
+  "sessionReconnectDescription": "已连接的 SSH 或 Telnet 会话断开后会自动重新连接：每隔一个重连间隔尝试一次，直到达到重连时限。不会重新发送你输入过的内容。",
+  "sessionReconnectSwitch": "断开后自动重连",
+  "sessionReconnectIntervalLabel": "重连间隔",
+  "sessionReconnectLimitLabel": "重连时限",
+  "sessionReconnectSeconds": "{count} 秒",
+  "sessionReconnectMinutes": "{count} 分钟",
+  "sessionReconnectNoLimit": "不限时",
+  "sessionReconnectChoiceDefault": "{choice}（默认）",
+  "sessionReconnectNote": "仅保存在本设备。达到重连时限后停止自动重连，仍可点击“恢复连接”手动重连。更改对正在重连的会话同样生效。"
 }

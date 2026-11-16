@@ -18503,9 +18503,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get restoreConnection => 'Восстановить соединение';
 
   @override
-  String get reconnectEveryFiveSeconds => 'Автоподключение каждые 5 секунд';
-
-  @override
   String get desktopKeyboardModeTitle => 'Клавиатура удалённого рабочего стола';
 
   @override
@@ -19519,4 +19516,76 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get connecting => 'Подключение';
+
+  @override
+  String get sessionReconnectAutomatic => 'Автоматическое переподключение';
+
+  @override
+  String sessionReconnectNextAttempt(int seconds) {
+    return 'Автоматическое переподключение, следующая попытка через $seconds с';
+  }
+
+  @override
+  String sessionReconnectTimeLeft(String time) {
+    return 'Попытки прекратятся через $time';
+  }
+
+  @override
+  String get sessionReconnectGaveUp =>
+      'Не удалось восстановить соединение автоматически.';
+
+  @override
+  String get sessionReconnectTitle => 'Автоматическое переподключение';
+
+  @override
+  String get sessionReconnectDescription =>
+      'Если подключённый сеанс SSH или Telnet обрывается, он подключается снова автоматически: по одной попытке за интервал, пока не истечёт лимит времени. Введённый вами текст повторно не отправляется.';
+
+  @override
+  String get sessionReconnectSwitch =>
+      'Автоматически переподключать оборванные сеансы';
+
+  @override
+  String get sessionReconnectIntervalLabel => 'Интервал между попытками';
+
+  @override
+  String get sessionReconnectLimitLabel => 'Лимит времени';
+
+  @override
+  String sessionReconnectSeconds(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count секунды',
+      many: '$count секунд',
+      few: '$count секунды',
+      one: '$count секунда',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String sessionReconnectMinutes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count минуты',
+      many: '$count минут',
+      few: '$count минуты',
+      one: '$count минута',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sessionReconnectNoLimit => 'Без ограничения';
+
+  @override
+  String sessionReconnectChoiceDefault(String choice) {
+    return '$choice (по умолчанию)';
+  }
+
+  @override
+  String get sessionReconnectNote =>
+      'Хранится только на этом устройстве. По истечении лимита автоматические попытки прекращаются, а кнопка «Восстановить соединение» остаётся доступной. Изменения применяются и к сеансам, которые переподключаются сейчас.';
 }

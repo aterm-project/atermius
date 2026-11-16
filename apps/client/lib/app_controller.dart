@@ -314,6 +314,16 @@ class TerminalTabSession {
   bool closed = false;
   SessionRecovery? recovery;
   int connectionGeneration = 0;
+  String? _reconnectFailure;
+
+  /// Why reconnecting this once-connected tab failed, written to its terminal
+  /// (the "Connection lost" card stays above it). Automatic attempts repeat,
+  /// so the same reason is written once per interruption.
+  void noteReconnectFailure(String message) {
+    if (closed || _reconnectFailure == message) return;
+    _reconnectFailure = message;
+    terminal.write('\r\n\x1b[31m$message\x1b[0m\r\n');
+  }
 
   /// Initial-connection surface (loading / failed / stopped). Idle once the
   /// tab has connected; later drops use [recovery] instead.
@@ -20229,6 +20239,8 @@ class AppController extends ChangeNotifier {
     tab.recovery?.update(connected: false);
     if (progressAttempt != null) {
       tab.connectProgress.fail(progressAttempt, tab.errorMessage!);
+    } else if (tab.recovery?.everConnected == true) {
+      tab.noteReconnectFailure(tab.errorMessage!);
     }
     _notifyListenersIfAlive();
   }
@@ -20572,7 +20584,11 @@ class AppController extends ChangeNotifier {
     tab.telnetCancellation = cancellation;
     tab.connectionCancellation = null;
     tab.log = sessionLogs.begin(host: host, viaJump: false);
-    tab.terminal.write(telnetPlaintextTerminalNotice(host.endpoint));
+    // Once per tab (and per retry from the progress surface), not for every
+    // automatic reconnect attempt of a dropped session.
+    if (progressAttempt != null) {
+      tab.terminal.write(telnetPlaintextTerminalNotice(host.endpoint));
+    }
     onTabOpened?.call(tab.id);
     notifyListeners();
     try {
@@ -20621,6 +20637,7 @@ class AppController extends ChangeNotifier {
       if (progressAttempt != null) {
         tab.connectProgress.succeed(progressAttempt);
       }
+      tab._reconnectFailure = null;
       tab.recovery?.update(connected: true);
       tab.log?.markConnected();
       tab.outputSubscription = telnet.output.listen(
@@ -20652,6 +20669,8 @@ class AppController extends ChangeNotifier {
       tab.errorMessage = friendlyError(error);
       if (progressAttempt != null) {
         tab.connectProgress.fail(progressAttempt, tab.errorMessage!);
+      } else if (tab.recovery?.everConnected == true) {
+        tab.noteReconnectFailure(tab.errorMessage!);
       }
       tab.recovery?.update(connected: false);
       _setError(friendlyError(error));
@@ -21558,6 +21577,7 @@ class AppController extends ChangeNotifier {
       if (progressAttempt != null) {
         tab.connectProgress.succeed(progressAttempt);
       }
+      tab._reconnectFailure = null;
       tab.recovery?.update(connected: true);
       tab.log?.markConnected();
       tab.outputSubscription = connection.output.listen(
@@ -21605,6 +21625,8 @@ class AppController extends ChangeNotifier {
                 : SshHostKeyVerificationException(reportedFailure),
           ),
         );
+      } else if (tab.recovery?.everConnected == true) {
+        tab.noteReconnectFailure(tab.errorMessage!);
       }
       final failure = hostKeyFailure;
       _setError(

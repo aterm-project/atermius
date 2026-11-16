@@ -18456,10 +18456,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get restoreConnection => 'Restore connection';
 
   @override
-  String get reconnectEveryFiveSeconds =>
-      'Reconnect automatically every 5 seconds';
-
-  @override
   String get desktopKeyboardModeTitle => 'Remote desktop keyboard mode';
 
   @override
@@ -19462,4 +19458,72 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get connecting => 'Connecting';
+
+  @override
+  String get sessionReconnectAutomatic => 'Reconnecting automatically';
+
+  @override
+  String sessionReconnectNextAttempt(int seconds) {
+    return 'Reconnecting automatically, next attempt in $seconds s';
+  }
+
+  @override
+  String sessionReconnectTimeLeft(String time) {
+    return 'Stops trying in $time';
+  }
+
+  @override
+  String get sessionReconnectGaveUp =>
+      'Couldn\'t restore the connection automatically.';
+
+  @override
+  String get sessionReconnectTitle => 'Automatic reconnect';
+
+  @override
+  String get sessionReconnectDescription =>
+      'When a connected SSH or Telnet session drops, it is connected again automatically: one attempt per interval until the time limit is reached. Nothing you typed is sent again.';
+
+  @override
+  String get sessionReconnectSwitch =>
+      'Reconnect dropped sessions automatically';
+
+  @override
+  String get sessionReconnectIntervalLabel => 'Retry interval';
+
+  @override
+  String get sessionReconnectLimitLabel => 'Time limit';
+
+  @override
+  String sessionReconnectSeconds(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count seconds',
+      one: '1 second',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String sessionReconnectMinutes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count minutes',
+      one: '1 minute',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sessionReconnectNoLimit => 'No limit';
+
+  @override
+  String sessionReconnectChoiceDefault(String choice) {
+    return '$choice (default)';
+  }
+
+  @override
+  String get sessionReconnectNote =>
+      'Stored on this device only. When the time limit is reached, automatic attempts stop and “Restore connection” stays available. Changes also apply to sessions that are reconnecting now.';
 }

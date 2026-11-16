@@ -237,7 +237,7 @@ class SshBackgroundKeepalive {
   /// after the user chose Disconnect all (for example after waiting for a
   /// busy profile or a credential lookup) is refused by
   /// [disconnectedSinceFlightStarted], so Disconnect all is atomic with
-  /// in-flight five-second recoveries.
+  /// in-flight automatic recoveries.
   Future<T> runRecoveryFlight<T>(Future<T> Function() body) =>
       runZoned(body, zoneValues: {_flightKey: (this, _userDisconnects)});
 

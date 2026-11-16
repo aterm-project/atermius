@@ -4878,7 +4878,6 @@
   "exitFullscreen": "Выйти из полноэкранного режима",
   "fullscreenUnavailable": "Для этого окна недоступен полноэкранный режим.",
   "restoreConnection": "Восстановить соединение",
-  "reconnectEveryFiveSeconds": "Автоподключение каждые 5 секунд",
   "desktopKeyboardModeTitle": "Клавиатура удалённого рабочего стола",
   "desktopKeyboardOverlay": "Поверх экрана (без смены разрешения)",
   "desktopKeyboardResize": "Изменять размер под клавиатуру",
@@ -5158,5 +5157,19 @@
   "terminalScrollbackLines": "{count} строк",
   "terminalScrollbackLinesDefault": "{count} строк (по умолчанию)",
   "terminalScrollbackAppliesToNew": "Применяется к терминалам, открытым после изменения. Уже открытые терминалы сохраняют текущий размер истории.",
-  "connecting": "Подключение"
+  "connecting": "Подключение",
+  "sessionReconnectAutomatic": "Автоматическое переподключение",
+  "sessionReconnectNextAttempt": "Автоматическое переподключение, следующая попытка через {seconds} с",
+  "sessionReconnectTimeLeft": "Попытки прекратятся через {time}",
+  "sessionReconnectGaveUp": "Не удалось восстановить соединение автоматически.",
+  "sessionReconnectTitle": "Автоматическое переподключение",
+  "sessionReconnectDescription": "Если подключённый сеанс SSH или Telnet обрывается, он подключается снова автоматически: по одной попытке за интервал, пока не истечёт лимит времени. Введённый вами текст повторно не отправляется.",
+  "sessionReconnectSwitch": "Автоматически переподключать оборванные сеансы",
+  "sessionReconnectIntervalLabel": "Интервал между попытками",
+  "sessionReconnectLimitLabel": "Лимит времени",
+  "sessionReconnectSeconds": "{count, plural, one{{count} секунда} few{{count} секунды} many{{count} секунд} other{{count} секунды}}",
+  "sessionReconnectMinutes": "{count, plural, one{{count} минута} few{{count} минуты} many{{count} минут} other{{count} минуты}}",
+  "sessionReconnectNoLimit": "Без ограничения",
+  "sessionReconnectChoiceDefault": "{choice} (по умолчанию)",
+  "sessionReconnectNote": "Хранится только на этом устройстве. По истечении лимита автоматические попытки прекращаются, а кнопка «Восстановить соединение» остаётся доступной. Изменения применяются и к сеансам, которые переподключаются сейчас."
 }

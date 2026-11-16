@@ -1,76 +1,192 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import '../terminal/session_recovery.dart';
 
-class SessionRecoveryOverlay extends StatelessWidget {
+/// `m:ss` until the automatic reconnect attempts stop, rounded up so the
+/// display starts at the full limit and reaches 0:00 only when it is over.
+String sessionRecoveryCountdown(Duration remaining) {
+  final seconds = _ceilSeconds(remaining);
+  return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+}
+
+int _ceilSeconds(Duration value) =>
+    value <= Duration.zero ? 0 : (value.inMilliseconds + 999) ~/ 1000;
+
+/// "Connection lost" card over an interrupted session. While automatic
+/// attempts are being made it says so, with the time left until they stop and
+/// the time until the next one; once the limit is used up it says the
+/// connection could not be restored. "Restore connection" always retries now.
+class SessionRecoveryOverlay extends StatefulWidget {
   const SessionRecoveryOverlay({
     super.key,
     required this.recovery,
     required this.child,
+    this.onClose,
   });
   final SessionRecovery? recovery;
   final Widget child;
+
+  /// Closes the interrupted tab; without it no Close action is offered.
+  final VoidCallback? onClose;
+
+  @override
+  State<SessionRecoveryOverlay> createState() => _SessionRecoveryOverlayState();
+}
+
+class _SessionRecoveryOverlayState extends State<SessionRecoveryOverlay> {
+  /// Repaints the countdown once a second, only while one is shown.
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.recovery?.addListener(_recoveryChanged);
+    _syncTicker();
+  }
+
+  @override
+  void didUpdateWidget(SessionRecoveryOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.recovery, widget.recovery)) {
+      oldWidget.recovery?.removeListener(_recoveryChanged);
+      widget.recovery?.addListener(_recoveryChanged);
+      _syncTicker();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.recovery?.removeListener(_recoveryChanged);
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  void _recoveryChanged() {
+    _syncTicker();
+    if (mounted) setState(() {});
+  }
+
+  void _syncTicker() {
+    final model = widget.recovery;
+    final counting =
+        model != null &&
+        model.interrupted &&
+        (model.remaining != null || model.nextAttemptIn != null);
+    if (!counting) {
+      _ticker?.cancel();
+      _ticker = null;
+      return;
+    }
+    _ticker ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final model = recovery;
-    if (model == null) return child;
-    return ListenableBuilder(
-      listenable: model,
-      builder: (context, _) => Stack(
-        fit: StackFit.expand,
-        children: [
-          child,
-          if (model.interrupted)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: SingleChildScrollView(child: Material(
+    final model = widget.recovery;
+    if (model == null) return widget.child;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        widget.child,
+        if (model.interrupted)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: SingleChildScrollView(
+                child: Material(
                   color: Theme.of(context).colorScheme.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(12),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          context.l10n.connectionLost,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        FilledButton.icon(
-                          key: const ValueKey('session_restore_connection'),
-                          onPressed: model.busy || !model.available
-                              ? null
-                              : () => model.retry(),
-                          icon: model.busy
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.refresh),
-                          label: Text(
-                            model.busy
-                                ? context.l10n.terminalStateReconnecting
-                                : context.l10n.restoreConnection,
-                          ),
-                        ),
-                        if (model.automaticEnabled)
-                          Text(
-                            context.l10n.reconnectEveryFiveSeconds,
-                            textAlign: TextAlign.center,
-                          ),
-                      ],
-                    ),
+                    child: _card(context, model),
                   ),
-                )),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _card(BuildContext context, SessionRecovery model) {
+    final l10n = context.l10n;
+    final remaining = model.remaining, next = model.nextAttemptIn;
+    final close = widget.onClose;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(l10n.connectionLost, textAlign: TextAlign.center),
+        if (model.expired && !model.busy) ...[
+          const SizedBox(height: 4),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              l10n.sessionReconnectGaveUp,
+              key: const ValueKey('session_recovery_gave_up'),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ] else if (model.automaticEnabled && model.available) ...[
+          const SizedBox(height: 4),
+          Text(
+            next == null
+                ? l10n.sessionReconnectAutomatic
+                : l10n.sessionReconnectNextAttempt(_ceilSeconds(next)),
+            key: const ValueKey('session_recovery_automatic'),
+            textAlign: TextAlign.center,
+          ),
+          if (remaining != null)
+            Text(
+              l10n.sessionReconnectTimeLeft(
+                sessionRecoveryCountdown(remaining),
+              ),
+              key: const ValueKey('session_recovery_countdown'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFeatures: [FontFeature.tabularFigures()],
               ),
             ),
         ],
-      ),
+        const SizedBox(height: 8),
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilledButton.icon(
+              key: const ValueKey('session_restore_connection'),
+              onPressed: model.busy || !model.available
+                  ? null
+                  : () => model.retry(),
+              icon: model.busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh),
+              label: Text(
+                model.busy
+                    ? l10n.terminalStateReconnecting
+                    : l10n.restoreConnection,
+              ),
+            ),
+            if (close != null)
+              OutlinedButton.icon(
+                key: const ValueKey('session_recovery_close'),
+                onPressed: close,
+                icon: const Icon(Icons.close),
+                label: Text(l10n.close),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

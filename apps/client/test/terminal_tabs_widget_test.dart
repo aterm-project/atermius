@@ -236,12 +236,20 @@ void main() {
       beta.errorMessage = 'SSH handshake failed. Check the SSH server and relay connection.';
       app.notifyListeners();
       await tester.pump();
-      expect(find.text('SSH connection failed'), findsOneWidget);
-      expect(find.text(beta.errorMessage!), findsOneWidget);
+      // A tab that had been connected keeps its terminal under the
+      // "Connection lost" card; the welcome pane is for tabs without one.
+      expect(find.text('SSH connection failed'), findsNothing);
+      expect(find.text('Secure terminal workspace'), findsNothing);
+      expect(find.text('Connection lost'), findsOneWidget);
       expect(
-        find.text('Choose Connect on the left to start a new session.'),
+        find.byKey(const ValueKey('session_restore_connection')),
         findsOneWidget,
       );
+      expect(
+        tester.widget<TerminalView>(find.byType(TerminalView)).terminal,
+        same(beta.terminal),
+      );
+      expect(beta.terminal.history.join(), contains('SPLIT-BETA-LIVE'));
     } finally {
       if (shellMounted) await tester.pumpWidget(const SizedBox.shrink());
       semantics.dispose();

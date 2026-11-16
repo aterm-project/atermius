@@ -42,6 +42,9 @@ dependencies:
   # newer Flutter/Dart than this toolchain. Uses the onDragDone API.
   desktop_drop: 0.8.4
   intl: ^0.20.2
+  # Already locked transitively (intl, flutter_test). Reconnect countdowns read
+  # elapsed time through it so widget tests can drive them with fake time.
+  clock: ^1.1.1
   web: ^1.1.1
   yaml: ^3.1.4
   flutter_pty: ^0.4.2

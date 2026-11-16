@@ -63,6 +63,7 @@ import 'host_card_layout.dart';
 import 'terminal_palette.dart';
 import 'terminal_keyword_highlight_settings.dart';
 import 'terminal_palette_picker.dart';
+import 'session_reconnect_setting.dart';
 import 'terminal_scrollback_setting.dart';
 import 'terminal_shortcut_editor.dart';
 import '../domain/sftp_entries.dart';
@@ -9396,6 +9397,11 @@ class _TerminalPageState extends State<_TerminalPage> {
                                             deviceSession ||
                                             activeTab?.connectProgress
                                                     .isVisible ==
+                                                true ||
+                                            // A dropped SSH/Telnet tab keeps
+                                            // its terminal (scrollback) under
+                                            // the "Connection lost" overlay.
+                                            activeTab?.recovery?.everConnected ==
                                                 true) &&
                                         activeTab != null)
                                 ? _workspaceView()
@@ -9474,6 +9480,7 @@ class _TerminalPageState extends State<_TerminalPage> {
           SessionRecoveryOverlay(
             recovery: app.terminalTabFor(id)?.desktop == null
                 ? app.terminalTabFor(id)?.recovery : null,
+            onClose: () => widget.onWorkspaceClose(id),
             child: _temporarySessionPane(id),
           ),
         ),
@@ -15940,6 +15947,7 @@ class _SettingsPage extends StatelessWidget {
                 child: TerminalPaletteGallery(synced: app.terminalTheme),
               ),
               const SettingsCard(child: TerminalScrollbackSetting()),
+              const SettingsCard(child: SessionReconnectSetting()),
               SettingsCard(
                 semanticContainer: false,
                 child: TerminalKeywordHighlightSettings(

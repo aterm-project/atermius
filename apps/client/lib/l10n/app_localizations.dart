@@ -29134,12 +29134,6 @@ abstract class AppLocalizations {
   /// **'Restore connection'**
   String get restoreConnection;
 
-  /// No description provided for @reconnectEveryFiveSeconds.
-  ///
-  /// In en, this message translates to:
-  /// **'Reconnect automatically every 5 seconds'**
-  String get reconnectEveryFiveSeconds;
-
   /// No description provided for @desktopKeyboardModeTitle.
   ///
   /// In en, this message translates to:
@@ -30777,6 +30771,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connecting'**
   String get connecting;
+
+  /// Line on the Connection lost card of a dropped session while an automatic reconnect attempt is running.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnecting automatically'**
+  String get sessionReconnectAutomatic;
+
+  /// Line on the Connection lost card of a dropped session between automatic reconnect attempts. seconds counts down to the next attempt.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnecting automatically, next attempt in {seconds} s'**
+  String sessionReconnectNextAttempt(int seconds);
+
+  /// Countdown on the Connection lost card until automatic reconnect attempts are given up. time is minutes:seconds such as 0:43.
+  ///
+  /// In en, this message translates to:
+  /// **'Stops trying in {time}'**
+  String sessionReconnectTimeLeft(String time);
+
+  /// Shown on the Connection lost card after the reconnect time limit passed without success; the manual Restore connection button stays.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t restore the connection automatically.'**
+  String get sessionReconnectGaveUp;
+
+  /// Title of the settings card for automatically reconnecting dropped sessions.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic reconnect'**
+  String get sessionReconnectTitle;
+
+  /// Explains the automatic reconnect setting.
+  ///
+  /// In en, this message translates to:
+  /// **'When a connected SSH or Telnet session drops, it is connected again automatically: one attempt per interval until the time limit is reached. Nothing you typed is sent again.'**
+  String get sessionReconnectDescription;
+
+  /// Switch that turns automatic reconnect of dropped sessions on or off.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect dropped sessions automatically'**
+  String get sessionReconnectSwitch;
+
+  /// Label of the dropdown for the time between automatic reconnect attempts.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry interval'**
+  String get sessionReconnectIntervalLabel;
+
+  /// Label of the dropdown for how long automatic reconnect attempts continue after a session dropped.
+  ///
+  /// In en, this message translates to:
+  /// **'Time limit'**
+  String get sessionReconnectLimitLabel;
+
+  /// A reconnect interval or time limit in seconds.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 second} other{{count} seconds}}'**
+  String sessionReconnectSeconds(int count);
+
+  /// A reconnect interval or time limit in whole minutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 minute} other{{count} minutes}}'**
+  String sessionReconnectMinutes(int count);
+
+  /// Time limit choice: automatic reconnect attempts never stop by themselves.
+  ///
+  /// In en, this message translates to:
+  /// **'No limit'**
+  String get sessionReconnectNoLimit;
+
+  /// Marks the default choice of a reconnect dropdown. choice is an already localized duration such as 5 seconds.
+  ///
+  /// In en, this message translates to:
+  /// **'{choice} (default)'**
+  String sessionReconnectChoiceDefault(String choice);
+
+  /// Note under the automatic reconnect setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Stored on this device only. When the time limit is reached, automatic attempts stop and “Restore connection” stays available. Changes also apply to sessions that are reconnecting now.'**
+  String get sessionReconnectNote;
 }
 
 class _AppLocalizationsDelegate

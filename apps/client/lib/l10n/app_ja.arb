@@ -4878,7 +4878,6 @@
   "exitFullscreen": "全画面表示を終了",
   "fullscreenUnavailable": "このウィンドウでは全画面表示に切り替えられません。",
   "restoreConnection": "再接続",
-  "reconnectEveryFiveSeconds": "5 秒ごとに自動再接続",
   "desktopKeyboardModeTitle": "リモートデスクトップのキーボード",
   "desktopKeyboardOverlay": "重ねて表示（解像度を維持）",
   "desktopKeyboardResize": "キーボードに合わせてサイズ変更",
@@ -5158,5 +5157,19 @@
   "terminalScrollbackLines": "{count} 行",
   "terminalScrollbackLinesDefault": "{count} 行（既定）",
   "terminalScrollbackAppliesToNew": "以降に開くターミナルに適用されます。すでに開いているターミナルは現在の行数のままです。",
-  "connecting": "接続中"
+  "connecting": "接続中",
+  "sessionReconnectAutomatic": "自動的に再接続しています",
+  "sessionReconnectNextAttempt": "自動的に再接続しています（{seconds} 秒後に再試行）",
+  "sessionReconnectTimeLeft": "あと {time} で再接続を中止します",
+  "sessionReconnectGaveUp": "自動では接続を復元できませんでした。",
+  "sessionReconnectTitle": "自動再接続",
+  "sessionReconnectDescription": "接続済みの SSH または Telnet セッションが切断されると、自動的に再接続します。制限時間に達するまで、再試行間隔ごとに 1 回試行します。入力した内容が再送信されることはありません。",
+  "sessionReconnectSwitch": "切断されたセッションを自動的に再接続する",
+  "sessionReconnectIntervalLabel": "再試行間隔",
+  "sessionReconnectLimitLabel": "制限時間",
+  "sessionReconnectSeconds": "{count} 秒",
+  "sessionReconnectMinutes": "{count} 分",
+  "sessionReconnectNoLimit": "無制限",
+  "sessionReconnectChoiceDefault": "{choice}（既定）",
+  "sessionReconnectNote": "このデバイスにのみ保存されます。制限時間に達すると自動再接続を中止しますが、「再接続」から手動で接続できます。変更は再接続中のセッションにも適用されます。"
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/platform/ssh_background_keepalive.dart';
 import 'package:aterm_client/ssh/ssh_service.dart';
+import 'package:aterm_client/terminal/session_reconnect_policy.dart';
 import 'package:aterm_client/terminal/session_recovery.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/services.dart';
@@ -372,6 +373,59 @@ void main() {
       expect(local.holdCount, 1);
       recovery.dispose();
       expect(local.holdCount, 0);
+      await tester.pump(_grace * 2);
+      local.dispose();
+    });
+
+    testWidgets('the hold never outlives the reconnect time limit', (
+      tester,
+    ) async {
+      var attempts = 0;
+      final local = SshBackgroundKeepalive(
+        channel: _channel,
+        enabled: true,
+        handoffGrace: _grace,
+      );
+      final policy = SessionReconnectController();
+      unawaited(
+        policy.select(
+          const SessionReconnectPolicy(intervalSeconds: 5, limitSeconds: 30),
+        ),
+      );
+      final recovery = SessionRecovery(
+        automatic: true,
+        keepSshAlive: true,
+        sshKeepalive: local,
+        // Longer than the reconnect limit: the limit ends the hold first.
+        keepaliveLimit: const Duration(minutes: 5),
+        policy: policy,
+        isCurrent: () => true,
+        reconnect: () async => attempts++,
+      );
+      recovery.update(connected: true);
+      recovery.update(connected: false);
+      expect(local.holdCount, 1);
+      await tester.pump(const Duration(milliseconds: 29999));
+      expect(local.holdCount, 1, reason: 'held while retries continue');
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(recovery.expired, isTrue);
+      expect(local.holdCount, 0, reason: 'given up: nothing to keep alive');
+      await tester.pump(const Duration(minutes: 10));
+      expect(local.holdCount, 0);
+      expect(attempts, 5);
+
+      // A manual restore that fails retries again and holds for that period.
+      await recovery.retry();
+      expect(local.holdCount, 1);
+      await tester.pump(const Duration(seconds: 30));
+      expect(local.holdCount, 0);
+
+      // With automatic reconnect switched off there is never a hold.
+      await policy.setAutomatic(false);
+      recovery.update(connected: true);
+      recovery.update(connected: false);
+      expect(local.holdCount, 0);
+      recovery.dispose();
       await tester.pump(_grace * 2);
       local.dispose();
     });

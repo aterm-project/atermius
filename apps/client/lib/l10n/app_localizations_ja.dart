@@ -17372,9 +17372,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get restoreConnection => '再接続';
 
   @override
-  String get reconnectEveryFiveSeconds => '5 秒ごとに自動再接続';
-
-  @override
   String get desktopKeyboardModeTitle => 'リモートデスクトップのキーボード';
 
   @override
@@ -18346,4 +18343,58 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get connecting => '接続中';
+
+  @override
+  String get sessionReconnectAutomatic => '自動的に再接続しています';
+
+  @override
+  String sessionReconnectNextAttempt(int seconds) {
+    return '自動的に再接続しています（$seconds 秒後に再試行）';
+  }
+
+  @override
+  String sessionReconnectTimeLeft(String time) {
+    return 'あと $time で再接続を中止します';
+  }
+
+  @override
+  String get sessionReconnectGaveUp => '自動では接続を復元できませんでした。';
+
+  @override
+  String get sessionReconnectTitle => '自動再接続';
+
+  @override
+  String get sessionReconnectDescription =>
+      '接続済みの SSH または Telnet セッションが切断されると、自動的に再接続します。制限時間に達するまで、再試行間隔ごとに 1 回試行します。入力した内容が再送信されることはありません。';
+
+  @override
+  String get sessionReconnectSwitch => '切断されたセッションを自動的に再接続する';
+
+  @override
+  String get sessionReconnectIntervalLabel => '再試行間隔';
+
+  @override
+  String get sessionReconnectLimitLabel => '制限時間';
+
+  @override
+  String sessionReconnectSeconds(int count) {
+    return '$count 秒';
+  }
+
+  @override
+  String sessionReconnectMinutes(int count) {
+    return '$count 分';
+  }
+
+  @override
+  String get sessionReconnectNoLimit => '無制限';
+
+  @override
+  String sessionReconnectChoiceDefault(String choice) {
+    return '$choice（既定）';
+  }
+
+  @override
+  String get sessionReconnectNote =>
+      'このデバイスにのみ保存されます。制限時間に達すると自動再接続を中止しますが、「再接続」から手動で接続できます。変更は再接続中のセッションにも適用されます。';
 }

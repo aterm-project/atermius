@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:aterm_client/crypto/vault_crypto.dart';
 import 'package:aterm_client/domain/models.dart';
+import 'package:aterm_client/l10n/l10n.dart';
 import 'package:aterm_client/platform/native_coordination.dart';
 import 'package:aterm_client/storage/database_quarantine.dart';
 import 'package:aterm_client/storage/local_host_repository.dart';
@@ -60,6 +61,7 @@ void main() {
   late List<LocalVaultDatabase> openedDatabases;
   late List<_MemoryChannel> channels;
   late List<(String, int)> dialed;
+  late bool refuseDial;
 
   setUpAll(() async {
     crypto = VaultCrypto(await SodiumSumoInit.init());
@@ -117,8 +119,10 @@ void main() {
     openedDatabases = [];
     channels = [];
     dialed = [];
+    refuseDial = false;
     telnetConnectorOverrideForTesting = (host, port) async {
       dialed.add((host, port));
+      if (refuseDial) throw const SocketException('refused');
       final channel = _MemoryChannel();
       channels.add(channel);
       return channel;
@@ -246,7 +250,19 @@ void main() {
       find.byKey(const ValueKey('session_restore_connection')),
       findsOneWidget,
     );
+    // The card says it reconnects by itself and for how much longer.
+    String? cardText(String key) {
+      final found = find.byKey(ValueKey(key));
+      return found.evaluate().isEmpty ? null : tester.widget<Text>(found).data;
+    }
+
+    expect(
+      cardText('session_recovery_automatic'),
+      'Reconnecting automatically, next attempt in 5 s',
+    );
+    expect(cardText('session_recovery_countdown'), 'Stops trying in 1:00');
     await tester.pump(const Duration(milliseconds: 4999));
+    expect(cardText('session_recovery_countdown'), 'Stops trying in 0:56');
     expect(channels, hasLength(1));
     await tester.pump(const Duration(milliseconds: 1));
     await pumpUntil(tester, () => channels.length == 2);
@@ -277,7 +293,9 @@ void main() {
       find.byKey(const ValueKey('session_restore_connection')),
       findsOneWidget,
     );
-    expect(find.text('Reconnect automatically every 5 seconds'), findsNothing);
+    expect(cardText('session_recovery_automatic'), isNull);
+    expect(cardText('session_recovery_countdown'), isNull);
+    expect(cardText('session_recovery_gave_up'), isNull);
     await tester.tap(find.byKey(const ValueKey('session_restore_connection')));
     await pumpUntil(
       tester,
@@ -292,7 +310,60 @@ void main() {
       tester.widget<TerminalView>(telnetView()).terminal,
       same(originalTerminal),
     );
-    tabBar.onClose(sessionTab.id);
+
+    // The device stays away for longer than the reconnect time limit: the
+    // attempts are made every 5 seconds for one minute, then given up.
+    refuseDial = true;
+    final dialsBefore = dialed.length;
+    await channels.last.incoming.close();
+    await tester.pump();
+    expect(cardText('session_recovery_countdown'), 'Stops trying in 1:00');
+    for (
+      var second = 0;
+      second < 80 && cardText('session_recovery_gave_up') == null;
+      second++
+    ) {
+      await tester.pump(const Duration(seconds: 1));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 2)),
+      );
+      await tester.pump();
+    }
+    expect(
+      cardText('session_recovery_gave_up'),
+      "Couldn't restore the connection automatically.",
+    );
+    expect(cardText('session_recovery_automatic'), isNull);
+    expect(cardText('session_recovery_countdown'), isNull);
+    final automaticDials = dialed.length - dialsBefore;
+    expect(automaticDials, inInclusiveRange(9, 12));
+    // The reason is written into the terminal once, not once per attempt.
+    final reason = appLocalizationsFor(
+      const Locale('en'),
+    ).telnetHostUnreachable.split(RegExp(r'\s+')).take(3).join(' ');
+    expect(reason, isNotEmpty);
+    expect(
+      RegExp(RegExp.escape(reason)).allMatches(screen(tester)).length,
+      1,
+      reason: screen(tester),
+    );
+    expect(
+      tester.widget<TerminalView>(telnetView()).terminal,
+      same(originalTerminal),
+      reason: 'the terminal stays under the card',
+    );
+    refuseDial = false;
+    await tester.pump(const Duration(minutes: 3));
+    expect(dialed, hasLength(dialsBefore + automaticDials), reason: 'given up');
+    expect(
+      find.byKey(const ValueKey('session_restore_connection')),
+      findsOneWidget,
+    );
+
+    // Close on the card closes the tab.
+    await tester.tap(find.byKey(const ValueKey('session_recovery_close')));
+    await tester.pump();
+    expect(telnetView(), findsNothing);
     await pumpUntil(tester, () => channel.closed);
     await pumpUntil(tester, () => channels.last.closed);
     await tester.pumpWidget(const SizedBox.shrink());

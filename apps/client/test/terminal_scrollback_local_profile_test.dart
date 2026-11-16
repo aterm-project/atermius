@@ -10,8 +10,10 @@ import 'package:aterm_client/storage/local_host_repository.dart';
 import 'package:aterm_client/storage/local_profile_catalog.dart';
 import 'package:aterm_client/storage/local_profile_service.dart';
 import 'package:aterm_client/storage/local_vault_database.dart';
+import 'package:aterm_client/storage/session_reconnect_store.dart';
 import 'package:aterm_client/storage/terminal_scrollback_store.dart';
 import 'package:aterm_client/telnet/telnet_transport.dart';
+import 'package:aterm_client/terminal/session_reconnect_policy.dart';
 import 'package:aterm_client/terminal/terminal_scrollback.dart';
 import 'package:aterm_client/ui/app_theme.dart';
 import 'package:aterm_client/ui/local_profile_flow.dart';
@@ -173,6 +175,11 @@ void main() {
       tester.view.physicalSize = const Size(1600, 1000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
+      final reconnectStore = MemorySessionReconnectStore();
+      final reconnect = SessionReconnectController();
+      await reconnect.load(reconnectStore);
+      SessionReconnectController.debugInstance = reconnect;
+      addTearDown(() => SessionReconnectController.debugInstance = null);
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme().copyWith(platform: TargetPlatform.windows),
@@ -266,6 +273,54 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(scrollback.lines, 500000);
       expect(scrollbackStore.value, '500000');
+
+      // The same category holds the automatic reconnect policy.
+      final reconnectSetting = find.byKey(
+        const ValueKey('session_reconnect_setting'),
+      );
+      expect(reconnectSetting, findsOneWidget);
+      expect(
+        find.descendant(
+          of: reconnectSetting,
+          matching: find.text('Automatic reconnect'),
+        ),
+        findsOneWidget,
+      );
+      final reconnectLimit = find.byKey(
+        const ValueKey('session_reconnect_limit_dropdown'),
+      );
+      await tester.ensureVisible(reconnectLimit);
+      await tester.pumpAndSettle();
+      await tester.tap(reconnectLimit);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('5 minutes').last);
+      await tester.pumpAndSettle();
+      final reconnectInterval = find.byKey(
+        const ValueKey('session_reconnect_interval_dropdown'),
+      );
+      await tester.ensureVisible(reconnectInterval);
+      await tester.pumpAndSettle();
+      await tester.tap(reconnectInterval);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('30 seconds').last);
+      await tester.pumpAndSettle();
+      final reconnectSwitch = find.byKey(
+        const ValueKey('session_reconnect_switch'),
+      );
+      await tester.ensureVisible(reconnectSwitch);
+      await tester.pumpAndSettle();
+      await tester.tap(reconnectSwitch);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(
+        reconnect.policy,
+        const SessionReconnectPolicy(
+          automatic: false,
+          intervalSeconds: 30,
+          limitSeconds: 300,
+        ),
+      );
+      expect(reconnectStore.value, '0,30,300');
 
       // The next terminal uses the new limit; the open one keeps its own.
       await tapWorkspaceAction(tester, 'local_profile_hosts_toggle');
