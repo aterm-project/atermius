@@ -12,12 +12,58 @@
   <title>Atermius</title>
   <style>
     html, body { margin: 0; background: #111827; height: 100%; overflow: hidden; }
-    #loading { color: #d8e0ed; font: 14px system-ui, sans-serif; height: 100%; display: grid; place-items: center; }
+    /* Silent-loading splash: the animated startup state lives here until the
+       splash controller (splash-loader.js) releases it. */
+    #atermius-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      background: #111827;
+      color: #d8e0ed;
+      font: 15px system-ui, sans-serif;
+      letter-spacing: .2px;
+      display: grid;
+      place-items: center;
+    }
+    #atermius-wordmark span {
+      display: inline-block;
+      will-change: transform, opacity;
+    }
+    .atermius-wordmark-pulse { animation: atermius-breathe 1.8s ease-in-out infinite; }
+    @keyframes atermius-breathe {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .45; }
+    }
+    .atermius-splash-hide { opacity: 0; transition: opacity .45s ease, transform .45s ease; }
+    /* Thin background-preload bar; never intercepts input on the login page. */
+    #atermius-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      z-index: 21;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .3s ease;
+    }
+    #atermius-progress.is-active { opacity: .9; }
+    #atermius-progress.is-done { opacity: 0; transition: opacity .6s ease .25s; }
+    #atermius-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: #34d399;
+      transition: width .3s ease;
+    }
+    #atermius-progress.is-failed #atermius-progress-fill { background: #f59e0b; }
   </style>
 <script src="share-bootstrap.js"></script>
+<script src="gsap/gsap.min.js"></script>
 <script type="text/javascript" src="sodium.js" async="true"></script></head>
 <body>
-  <div id="loading">Starting Atermius…</div>
+  <div id="atermius-progress"><div id="atermius-progress-fill"></div></div>
+  <div id="atermius-splash"><span id="atermius-wordmark">Starting Atermius…</span></div>
+  <script src="splash-loader.js"></script>
   <script src="flutter_bootstrap.js" async=""></script>
 
 
