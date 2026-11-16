@@ -66,6 +66,7 @@ import '../ssh/host_operating_system_probe.dart';
 import '../ssh/host_operating_system_persistence.dart';
 import '../terminal/terminal_search.dart';
 import '../terminal/mirrored_terminal.dart';
+import '../terminal/terminal_session_reset.dart';
 import '../terminal/terminal_scrollback.dart';
 import '../terminal/terminal_scrollback_tiers.dart';
 import '../terminal/session_log.dart';
@@ -7566,6 +7567,8 @@ class _LocalTerminalSession {
   }
 
   void _bindSsh(SshConnection connection) {
+    // A reconnect reuses this terminal; the new shell starts from defaults.
+    resetTerminalForNewSession(terminal);
     terminal.onOutput = connection.input;
     terminal.onResize = (width, height, _, _) =>
         connection.resize(width, height);
@@ -7577,12 +7580,15 @@ class _LocalTerminalSession {
       onError: (Object error) {
         if (_closed || !identical(this.connection, connection)) return;
         connected.value = false;
+        resetTerminalForNewSession(terminal);
         terminal.write(currentL10n.sshOutputStreamError);
         log?.markClosed(SessionLogEndReason.error, error: error);
       },
       onDone: () {
         if (_closed || !identical(this.connection, connection)) return;
         connected.value = false;
+        // Whatever was running can no longer restore the modes it set.
+        resetTerminalForNewSession(terminal);
         terminal.write(currentL10n.sshConnectionClosed);
         log?.markClosed(SessionLogEndReason.remote);
       },
@@ -7658,6 +7664,8 @@ class _LocalTerminalSession {
       value.exitCode.then((code) {
         if (!_closed && identical(console, value)) {
           connected.value = false;
+          // A serial device keeps running whatever it was running.
+          if (consoleSerialPort == null) resetTerminalForNewSession(terminal);
           terminal.write(currentL10n.consoleExitedCode(code));
         }
       }),
@@ -7704,6 +7712,7 @@ class _LocalTerminalSession {
       }
       telnet = session;
       _telnetCancellation = null;
+      resetTerminalForNewSession(terminal);
       terminal.onOutput = (text) {
         if (session.input(text) == TelnetInputResult.tooLarge) {
           // Rejected whole; nothing partial was sent.
@@ -7729,6 +7738,7 @@ class _LocalTerminalSession {
           if (_closed) return;
           telnetState = 'disconnected';
           connected.value = false;
+          resetTerminalForNewSession(terminal);
           terminal.write(currentL10n.telnetConnectionClosedTerminal);
           log?.markClosed(SessionLogEndReason.remote);
           _onTelnetStateChanged?.call();

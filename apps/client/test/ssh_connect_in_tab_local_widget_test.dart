@@ -17,6 +17,7 @@ import 'package:aterm_client/ui/local_profile_flow.dart';
 import 'package:aterm_client/ui/workspace_tab_bar.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -537,6 +538,109 @@ void main() {
     expect(terminalText(tester), contains('back again'));
     await showHome(tester);
     expectHomeIdle(tester);
+
+    await closeFlow(tester);
+  });
+
+  testWidgets('a session dropped inside a full-screen program does not leave '
+      'the wheel typing mouse reports into the reconnected shell', (
+    tester,
+  ) async {
+    Terminal shown() =>
+        tester.widget<TerminalView>(find.byKey(_terminalView)).terminal;
+    Future<void> wheel(double dy) async {
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      final at = tester.getCenter(find.byKey(_terminalView));
+      await tester.sendEventToBinding(pointer.hover(at));
+      for (var i = 0; i < 4; i++) {
+        await tester.sendEventToBinding(pointer.scroll(Offset(0, dy)));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    // A two-finger touchpad scroll, as Windows precision touchpads send it.
+    Future<void> touchpad(double dy) async {
+      final at = tester.getCenter(find.byKey(_terminalView));
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await gesture.panZoomStart(at);
+      for (var i = 1; i <= 5; i++) {
+        await gesture.panZoomUpdate(at, pan: Offset(0, dy * i / 5));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.panZoomEnd();
+      await tester.pump(const Duration(seconds: 2));
+    }
+
+    await openProfile(tester);
+    await tester.tap(find.byKey(ValueKey('local_host_$alphaId')));
+    await approveHostKey(tester, 'alpha.example.test');
+    await pumpFor(
+      tester,
+      () => find.byKey(_terminalView).evaluate().isNotEmpty,
+    );
+    final first = ssh.sessions.last;
+    for (var i = 0; i < 60; i++) {
+      first.emit('history $i\r\n');
+    }
+    // tmux/vim with the mouse on: alternate screen, mouse reports (SGR),
+    // bracketed paste, application cursor keys.
+    first.emit(
+      '\x1b[?1049h\x1b[?1h\x1b=\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?2004h'
+      'full screen program',
+    );
+    await tester.pump();
+    final terminal = shown();
+    expect(terminal.isUsingAltBuffer, isTrue);
+
+    // While the program runs the wheel is its to handle.
+    first.written.clear();
+    await wheel(120);
+    expect(utf8.decode(first.written), contains('\x1b[<65;'));
+    first.written.clear();
+    await touchpad(-160);
+    expect(utf8.decode(first.written), contains('\x1b[<6'));
+
+    // The connection drops; nothing switches those modes back off.
+    ssh.hold = true;
+    first.close();
+    await pumpFor(tester, () => find.byKey(_restore).evaluate().isNotEmpty);
+    expect(shown(), same(terminal));
+    expect(terminal.isUsingAltBuffer, isFalse);
+    expect(terminal.mouseMode, MouseMode.none);
+    expect(terminalText(tester), contains('history 59'));
+    expect(terminalText(tester), isNot(contains('full screen program')));
+
+    ssh.hold = false;
+    if (ssh.authenticated < 2) {
+      final restore = find.byKey(_restore);
+      if (restore.evaluate().isNotEmpty &&
+          tester.widget<ButtonStyleButton>(restore).onPressed != null) {
+        await tester.tap(restore);
+      }
+    }
+    await pumpFor(tester, () => ssh.authenticated == 2);
+    await pumpFor(tester, () => find.byKey(_restore).evaluate().isEmpty);
+    final second = ssh.sessions.last;
+    expect(second, isNot(same(first)));
+    second.emit('Last login: today\r\nuser@alpha:~\$ ');
+    await tester.pump();
+    expect(shown(), same(terminal));
+    expect(terminalText(tester), contains('user@alpha:~\$'));
+
+    // The wheel scrolls the history; nothing is typed into the new shell.
+    second.written.clear();
+    await wheel(-120);
+    await wheel(120);
+    await touchpad(160);
+    await touchpad(-160);
+    expect(second.written, isEmpty);
+    expect(terminal.isUsingAltBuffer, isFalse);
+    expect(terminal.bracketedPasteMode, isFalse);
+    expect(terminal.cursorKeysMode, isFalse);
+    expect(terminal.appKeypadMode, isFalse);
 
     await closeFlow(tester);
   });
