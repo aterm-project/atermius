@@ -16,6 +16,7 @@ import 'package:aterm_client/ui/app_shell.dart';
 import 'package:aterm_client/ui/app_theme.dart';
 import 'package:aterm_client/ui/workspace_tab_bar.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
@@ -396,6 +397,87 @@ void main() {
     }
   });
 
+  testWidgets('a session dropped inside a full-screen program does not leave '
+      'the wheel typing mouse reports into the reconnected shell', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    final fixture = await _Fixture.create();
+    Future<void> wheel(double dy) async {
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      final at = tester.getCenter(find.byType(TerminalView));
+      await tester.sendEventToBinding(pointer.hover(at));
+      for (var i = 0; i < 4; i++) {
+        await tester.sendEventToBinding(pointer.scroll(Offset(0, dy)));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    try {
+      await tester.pumpWidget(_shell(fixture.app));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('host_connect_host-alpha')));
+      await tester.pump();
+      await fixture.pumpUntilAttempts(tester, 1);
+      final tab = fixture.app.activeTerminalTab!;
+      final first = _Connection();
+      fixture.attempts[0].result.complete(first);
+      await tester.pump();
+      await tester.pump();
+      expect(tab.state, 'connected');
+      for (var i = 0; i < 60; i++) {
+        first.emit('history $i\r\n');
+      }
+      // tmux/vim with the mouse on.
+      first.emit(
+        '\x1b[?1049h\x1b[?1h\x1b=\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?2004h'
+        'full screen program',
+      );
+      await tester.pump();
+      final terminal = shownTerminal(tester);
+      expect(terminal.isUsingAltBuffer, isTrue);
+
+      // While the program runs the wheel is its to handle.
+      await wheel(120);
+      expect(first.sent.join(), contains('\x1b[<65;'));
+
+      // The connection drops; nothing switches those modes back off.
+      await first.end();
+      await tester.pump();
+      expect(tab.state, 'disconnected');
+      expectTerminalWithCard(tester, terminal);
+      expect(terminal.isUsingAltBuffer, isFalse);
+      expect(terminal.mouseMode, MouseMode.none);
+      expect(screen(tester), contains('history 59'));
+      expect(screen(tester), isNot(contains('full screen program')));
+
+      // The automatic attempt reconnects the same tab and terminal.
+      await tester.pump(const Duration(seconds: 5));
+      await fixture.pumpUntilAttempts(tester, 2);
+      final second = _Connection();
+      fixture.attempts[1].result.complete(second);
+      await tester.pump();
+      await tester.pump();
+      expect(tab.state, 'connected');
+      expect(shownTerminal(tester), same(terminal));
+      second.emit('Last login: today\r\nuser@alpha:~\$ ');
+      await tester.pump();
+      expect(screen(tester), contains('user@alpha:~\$'));
+
+      // The wheel scrolls the history; nothing is typed into the new shell.
+      await wheel(-120);
+      await wheel(120);
+      expect(second.sent, isEmpty);
+      expect(terminal.isUsingAltBuffer, isFalse);
+      expect(terminal.bracketedPasteMode, isFalse);
+      expect(terminal.cursorKeysMode, isFalse);
+      expect(terminal.appKeypadMode, isFalse);
+    } finally {
+      await fixture.cleanup(tester);
+    }
+  });
+
   testWidgets('a dropped Telnet tab keeps its terminal under the card and '
       'reconnects after the interval', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 800));
@@ -434,11 +516,17 @@ void main() {
       final terminal = shownTerminal(tester);
       expect(find.text('Connection lost'), findsNothing);
 
-      // The device closes the connection.
+      // A full-screen program is running when the device closes the
+      // connection: its modes do not outlive the session.
+      channels[0].emit('\x1b[?1049h\x1b[?1000h\x1b[?1006h\x1b[?2004h'.codeUnits);
+      await pumpUntil(() => terminal.isUsingAltBuffer);
       refuse = true;
       await channels[0].incoming.close();
       await pumpUntil(() => tab.state == 'disconnected');
       expect(tab.telnet, isNull);
+      expect(terminal.isUsingAltBuffer, isFalse);
+      expect(terminal.mouseMode, MouseMode.none);
+      expect(terminal.bracketedPasteMode, isFalse);
       expectTerminalWithCard(tester, terminal);
       expect(screen(tester), contains('show version'), reason: 'scrollback');
       expect(text(tester, _automatic), startsWith('Reconnecting automatically'));
@@ -725,8 +813,11 @@ class _Connection implements SshConnection {
   /// The remote side closes the session.
   Future<void> end() => _output.close();
 
+  /// What the terminal sent to the remote side.
+  final sent = <String>[];
+
   @override
-  void input(String text) {}
+  void input(String text) => sent.add(text);
 
   @override
   void resize(int columns, int rows) {}

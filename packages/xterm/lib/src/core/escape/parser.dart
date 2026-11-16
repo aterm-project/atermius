@@ -110,6 +110,12 @@ class EscapeParser {
 
   void _processChar(int char) {
     if (char > _sbcHandlers.maxIndex) {
+      // The remaining C0 controls (DLE..US: XON/XOFF, CAN, SUB...) have no
+      // effect outside an escape sequence and are never printed.
+      if (char < Ascii.space) {
+        handler.unknownSBC(char);
+        return;
+      }
       handler.writeChar(char);
       return;
     }

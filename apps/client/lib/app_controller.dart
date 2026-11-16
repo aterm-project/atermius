@@ -55,6 +55,7 @@ import 'ssh/ssh_service.dart';
 import 'ssh/tmux_service.dart';
 import 'terminal/terminal_collaboration_service.dart';
 import 'terminal/mirrored_terminal.dart';
+import 'terminal/terminal_session_reset.dart';
 import 'terminal/terminal_scrollback.dart';
 import 'terminal/terminal_scrollback_tiers.dart';
 import 'terminal/session_log.dart';
@@ -20640,6 +20641,8 @@ class AppController extends ChangeNotifier {
       tab._reconnectFailure = null;
       tab.recovery?.update(connected: true);
       tab.log?.markConnected();
+      // A reconnect reuses the tab's terminal; start from default modes.
+      resetTerminalForNewSession(tab.terminal);
       tab.outputSubscription = telnet.output.listen(
         (text) {
           // Queued output must not publish after the tab closed or the
@@ -20694,6 +20697,7 @@ class AppController extends ChangeNotifier {
       error: error,
     );
     if (error != null) tab.errorMessage = friendlyError(error);
+    resetTerminalForNewSession(tab.terminal);
     tab.terminal.write(currentL10n.telnetConnectionClosedTerminal);
     if (_terminalShareHosts.containsKey(tab.id)) {
       unawaited(stopTerminalShareFor(tab.id));
@@ -20829,6 +20833,8 @@ class AppController extends ChangeNotifier {
             return;
           }
           tab.state = 'disconnected';
+          // A serial device keeps running whatever it was running.
+          if (serialPort == null) resetTerminalForNewSession(tab.terminal);
           tab.terminal.write(currentL10n.consoleExitedCode(code));
           _notifyListenersIfAlive();
         }, onError: (Object _) {}),
@@ -21580,6 +21586,8 @@ class AppController extends ChangeNotifier {
       tab._reconnectFailure = null;
       tab.recovery?.update(connected: true);
       tab.log?.markConnected();
+      // A reconnect reuses the tab's terminal; start from default modes.
+      resetTerminalForNewSession(tab.terminal);
       tab.outputSubscription = connection.output.listen(
         (text) {
           if (!attemptCurrent() || !identical(tab.connection, connection)) return;
@@ -21672,6 +21680,9 @@ class AppController extends ChangeNotifier {
       error: error,
     );
     if (error != null) tab.errorMessage = friendlyError(error);
+    // Whatever was running can no longer restore the terminal modes it set
+    // (alternate screen, mouse reporting, bracketed paste...).
+    resetTerminalForNewSession(tab.terminal);
     if (_terminalShareHosts.containsKey(tab.id)) {
       unawaited(stopTerminalShareFor(tab.id));
     }
