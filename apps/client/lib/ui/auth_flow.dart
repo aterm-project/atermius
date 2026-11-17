@@ -173,6 +173,10 @@ class _AuthFlowState extends State<AuthFlow> {
   @override
   Widget build(BuildContext context) {
     final stage = app.stage;
+    // The web login page renders as one clean sign-in form: the hero column,
+    // marketing copy and secondary action buttons are skipped there, while
+    // native platforms keep the original layout.
+    final minimal = kIsWeb && stage == ClientStage.login;
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, bounds) {
@@ -207,14 +211,20 @@ class _AuthFlowState extends State<AuthFlow> {
                         vertical: 28,
                       ),
                       child: compact
-                          ? _compactContent(stage)
+                          ? _compactContent(stage, minimal: minimal)
                           : Row(
                               children: [
-                                Expanded(flex: 6, child: _brandPanel()),
-                                const SizedBox(width: 56),
+                                if (!minimal) ...[
+                                  Expanded(flex: 6, child: _brandPanel()),
+                                  const SizedBox(width: 56),
+                                ],
                                 Expanded(
                                   flex: 5,
-                                  child: _formPanel(stage, compact: false),
+                                  child: _formPanel(
+                                    stage,
+                                    compact: false,
+                                    minimal: minimal,
+                                  ),
                                 ),
                               ],
                             ),
@@ -240,18 +250,19 @@ class _AuthFlowState extends State<AuthFlow> {
     );
   }
 
-  Widget _compactContent(ClientStage stage) => SingleChildScrollView(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _brandPanel(compact: true),
-        const SizedBox(height: 28),
-        _formPanel(stage, compact: true),
-      ],
-    ),
-  );
+  Widget _compactContent(ClientStage stage, {bool minimal = false}) =>
+    SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _brandPanel(compact: true, showHero: !minimal),
+          const SizedBox(height: 28),
+          _formPanel(stage, compact: true, minimal: minimal),
+        ],
+      ),
+    );
 
-  Widget _brandPanel({bool compact = false}) => Column(
+  Widget _brandPanel({bool compact = false, bool showHero = true}) => Column(
     crossAxisAlignment: compact
         ? CrossAxisAlignment.center
         : CrossAxisAlignment.start,
@@ -294,28 +305,30 @@ class _AuthFlowState extends State<AuthFlow> {
           _Pill(label: context.l10n.selfHosted),
         ],
       ),
-      SizedBox(height: compact ? 22 : 56),
-      Text(
-        context.l10n.yourServersYourKeysYourWorkspace,
-        textAlign: compact ? TextAlign.center : TextAlign.left,
-        style: TextStyle(
-          fontSize: compact ? 27 : 42,
-          height: 1.17,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -1.3,
+      if (showHero) ...[
+        SizedBox(height: compact ? 22 : 56),
+        Text(
+          context.l10n.yourServersYourKeysYourWorkspace,
+          textAlign: compact ? TextAlign.center : TextAlign.left,
+          style: TextStyle(
+            fontSize: compact ? 27 : 42,
+            height: 1.17,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -1.3,
+          ),
         ),
-      ),
-      const SizedBox(height: 20),
-      Text(
-        context.l10n.aPrivateSshWorkspaceThatSyncs,
-        textAlign: compact ? TextAlign.center : TextAlign.left,
-        style: TextStyle(
-          color: context.palette.muted,
-          fontSize: 15,
-          height: 1.65,
+        const SizedBox(height: 20),
+        Text(
+          context.l10n.aPrivateSshWorkspaceThatSyncs,
+          textAlign: compact ? TextAlign.center : TextAlign.left,
+          style: TextStyle(
+            color: context.palette.muted,
+            fontSize: 15,
+            height: 1.65,
+          ),
         ),
-      ),
-      if (!compact) ...[
+      ],
+      if (!compact && showHero) ...[
         const SizedBox(height: 32),
         _FeatureRow(
           icon: Icons.vpn_key_rounded,
@@ -339,7 +352,11 @@ class _AuthFlowState extends State<AuthFlow> {
     ],
   );
 
-  Widget _formPanel(ClientStage stage, {required bool compact}) {
+  Widget _formPanel(
+    ClientStage stage, {
+    required bool compact,
+    bool minimal = false,
+  }) {
     final heading = switch (stage) {
       ClientStage.server => context.l10n.connectToYourServer,
       ClientStage.register => context.l10n.setUpYourPrivateVault,
@@ -356,14 +373,15 @@ class _AuthFlowState extends State<AuthFlow> {
               ?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 7),
-        Text(
-          stage == ClientStage.server
-              ? context.l10n.enterTheUrlOfYourSelf
-              : stage == ClientStage.register
-              ? context.l10n.theFirstAccountCreatesItsVault
-              : context.l10n.yourPasswordUnlocksTheAccountKey,
-          style: TextStyle(color: context.palette.muted, height: 1.5),
-        ),
+        if (!minimal)
+          Text(
+            stage == ClientStage.server
+                ? context.l10n.enterTheUrlOfYourSelf
+                : stage == ClientStage.register
+                ? context.l10n.theFirstAccountCreatesItsVault
+                : context.l10n.yourPasswordUnlocksTheAccountKey,
+            style: TextStyle(color: context.palette.muted, height: 1.5),
+          ),
         const SizedBox(height: 24),
         if (app.insecureServerOrigin case final insecureOrigin?) ...[
           InsecureServerIndicator(
@@ -384,27 +402,61 @@ class _AuthFlowState extends State<AuthFlow> {
           _MessageBox(text: app.noticeMessage!, error: false),
         ],
         const SizedBox(height: 18),
-        const Divider(height: 1),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Icon(Icons.shield_outlined, color: context.palette.teal, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                context.l10n.secretsAreEncryptedInThisClient,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: context.palette.muted.withValues(alpha: .95),
+        if (minimal)
+          Align(
+            alignment: Alignment.centerRight,
+            child: const AppLanguageMenuButton(),
+          )
+        else ...[
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Icon(
+                Icons.shield_outlined,
+                color: context.palette.teal,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  context.l10n.secretsAreEncryptedInThisClient,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: context.palette.muted.withValues(alpha: .95),
+                  ),
                 ),
               ),
-            ),
-            const AppLanguageMenuButton(),
-          ],
-        ),
+              const AppLanguageMenuButton(),
+            ],
+          ),
+        ],
       ],
     );
     final needsDesktopScroll = !compact;
+    if (minimal && !compact) {
+      // A normal, centered sign-in card under the small brand badge.
+      return Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: appDialogWidth(context, 440)),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _brandPanel(compact: true, showHero: false),
+                const SizedBox(height: 24),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: formContent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: appDialogWidth(context, 460)),
       child: Card(
@@ -505,103 +557,108 @@ class _AuthFlowState extends State<AuthFlow> {
   Widget _loginForm() =>
       _loginChallenge == null ? _standardLoginForm() : _mfaLoginForm();
 
-  Widget _standardLoginForm() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _text(
-        _username,
-        context.l10n.emailOrUsername,
-        icon: Icons.alternate_email_rounded,
-      ),
-      const SizedBox(height: 14),
-      _passwordField(
-        _password,
-        context.l10n.masterPassword,
-        id: 'master_password',
-      ),
-      const SizedBox(height: 18),
-      FilledButton.icon(
-        onPressed: app.busy || app.hasPreparedFullAccountRecovery
-            ? null
-            : _login,
-        icon: const Icon(Icons.lock_open_rounded),
-        label: Text(context.l10n.signInAndUnlock),
-      ),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          key: const ValueKey('account_recovery_open'),
+  Widget _standardLoginForm() {
+    final minimal = kIsWeb && app.stage == ClientStage.login;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _text(
+          _username,
+          context.l10n.emailOrUsername,
+          icon: Icons.alternate_email_rounded,
+        ),
+        const SizedBox(height: 14),
+        _passwordField(
+          _password,
+          context.l10n.masterPassword,
+          id: 'master_password',
+        ),
+        const SizedBox(height: 18),
+        FilledButton.icon(
           onPressed: app.busy || app.hasPreparedFullAccountRecovery
               ? null
-              : _recoverAccount,
-          icon: const Icon(Icons.key_rounded, size: 17),
-          label: Text(context.l10n.recoverAccountWithRecoveryCode),
+              : _login,
+          icon: const Icon(Icons.lock_open_rounded),
+          label: Text(context.l10n.signInAndUnlock),
         ),
-      ),
-      if (app.hasPreparedFullAccountRecovery)
         Align(
           alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            key: const ValueKey('account_recovery_complete_retry'),
-            onPressed: app.accountRecoveryBusy
+          child: TextButton.icon(
+            key: const ValueKey('account_recovery_open'),
+            onPressed: app.busy || app.hasPreparedFullAccountRecovery
                 ? null
-                : _retryRecoveryCompletion,
-            icon: const Icon(Icons.restart_alt_rounded, size: 17),
-            label: Text(context.l10n.retryRecoveryCompletion),
+                : _recoverAccount,
+            icon: const Icon(Icons.key_rounded, size: 17),
+            label: Text(context.l10n.recoverAccountWithRecoveryCode),
           ),
         ),
-      const SizedBox(height: 16),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          TextButton.icon(
-            onPressed: app.busy ? null : _requestDevice,
-            icon: const Icon(Icons.add_to_home_screen_rounded, size: 17),
-            label: Text(context.l10n.addThisDevice),
-          ),
-          TextButton.icon(
-            onPressed: app.busy ? null : _importDeviceApproval,
-            icon: const Icon(Icons.qr_code_2_rounded, size: 17),
-            label: Text(context.l10n.importApproval),
-          ),
-          if (!_hosted)
-            TextButton(
-              onPressed: () {
-                app.setStage(ClientStage.server);
-              },
-              child: Text(context.l10n.changeServer),
+        if (app.hasPreparedFullAccountRecovery)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              key: const ValueKey('account_recovery_complete_retry'),
+              onPressed: app.accountRecoveryBusy
+                  ? null
+                  : _retryRecoveryCompletion,
+              icon: const Icon(Icons.restart_alt_rounded, size: 17),
+              label: Text(context.l10n.retryRecoveryCompletion),
             ),
-        ],
-      ),
-      const SizedBox(height: 6),
-      TextButton.icon(
-        onPressed: app.busy || app.accountLifecycleBusy
-            ? null
-            : _cancelAccountDeletion,
-        icon: const Icon(Icons.restore_rounded, size: 17),
-        label: Text(context.l10n.cancelScheduledAccountDeletion),
-      ),
-      Text(
-        context.l10n.useTheAccountNameAndMaster,
-        style: TextStyle(
-          color: context.palette.muted,
-          fontSize: 12,
-          height: 1.45,
-        ),
-      ),
-      if (app.instance?.setupRequired != true)
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton(
-            onPressed: () {
-              app.setStage(ClientStage.register);
-            },
-            child: Text(context.l10n.haveAnInstanceInvitationCreateAccount),
           ),
-        ),
-    ],
-  );
+        const SizedBox(height: 16),
+        if (!minimal) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              TextButton.icon(
+                onPressed: app.busy ? null : _requestDevice,
+                icon: const Icon(Icons.add_to_home_screen_rounded, size: 17),
+                label: Text(context.l10n.addThisDevice),
+              ),
+              TextButton.icon(
+                onPressed: app.busy ? null : _importDeviceApproval,
+                icon: const Icon(Icons.qr_code_2_rounded, size: 17),
+                label: Text(context.l10n.importApproval),
+              ),
+              if (!_hosted)
+                TextButton(
+                  onPressed: () {
+                    app.setStage(ClientStage.server);
+                  },
+                  child: Text(context.l10n.changeServer),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: app.busy || app.accountLifecycleBusy
+                ? null
+                : _cancelAccountDeletion,
+            icon: const Icon(Icons.restore_rounded, size: 17),
+            label: Text(context.l10n.cancelScheduledAccountDeletion),
+          ),
+          Text(
+            context.l10n.useTheAccountNameAndMaster,
+            style: TextStyle(
+              color: context.palette.muted,
+              fontSize: 12,
+              height: 1.45,
+            ),
+          ),
+        ],
+        if (app.instance?.setupRequired != true)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () {
+                app.setStage(ClientStage.register);
+              },
+              child: Text(context.l10n.haveAnInstanceInvitationCreateAccount),
+            ),
+          ),
+      ],
+    );
+  }
 
   Widget _mfaLoginForm() {
     final challenge = _loginChallenge!;

@@ -73,6 +73,7 @@ import 'cloud/cloud_access_api.dart';
 import 'cloud/cloud_access_crypto.dart';
 import 'cloud/pending_cloud_link.dart';
 import 'ui/cloud_access/guest_app.dart';
+import 'web/splash_bridge.dart';
 
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -986,6 +987,15 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
         if (controller.restoringStoredSession) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (kIsWeb) {
+          // One-shot bridge for the entry-layer splash: the first resolved
+          // page (login vs workspace vs locked) decides how it releases.
+          reportSplashAuthResolution(
+            controller.stage == ClientStage.workspace
+                ? (controller.workspaceLocked ? 'locked' : 'workspace')
+                : 'anon',
           );
         }
         if (controller.stage == ClientStage.workspace) {

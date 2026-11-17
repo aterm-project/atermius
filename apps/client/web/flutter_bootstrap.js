@@ -134,14 +134,32 @@ async function loadAtermiusFlutter() {
       return;
     }
   }
-  _flutter.loader.load({
-    config: {
-      // Bundle CanvasKit and fallback fonts locally under the same-origin CSP.
-      canvasKitBaseUrl: 'canvaskit/',
-      fontFallbackBaseUrl: 'fonts/',
-    },
-    // Omitting serviceWorkerSettings disables Flutter's force-activate worker.
-  });
+  const splash = globalThis.atermiusSplash;
+  // Kick off the background preload of the Termius layout static resources
+  // only after the legacy service-worker migration had its chance to reload,
+  // so the old worker cannot answer these fetches from a stale cache.
+  splash?.startBackgroundPreload?.();
+  const config = {
+    // Bundle CanvasKit and fallback fonts locally under the same-origin CSP.
+    canvasKitBaseUrl: 'canvaskit/',
+    fontFallbackBaseUrl: 'fonts/',
+  };
+  try {
+    await _flutter.loader.load({
+      config,
+      // Flutter 3.47's loader only offers this hook: drive the engine
+      // explicitly and tell the splash controller when the app is running.
+      onEntrypointLoaded: async (initializer) => {
+        const runner = await initializer.initializeEngine(config);
+        splash?.onFlutterRunning?.();
+        await runner.runApp();
+      },
+      // Omitting serviceWorkerSettings disables Flutter's force-activate worker.
+    });
+  } catch (error) {
+    console.error('Atermius Flutter startup failed:', error);
+    splash?.fail?.('flutter-load');
+  }
 }
 
 loadAtermiusFlutter();
