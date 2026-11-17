@@ -9,13 +9,20 @@
 //      (detail 'anon' | 'workspace' | 'locked') as the authoritative signal.
 //   3. Preload the Termius layout static resources in the background
 //      (bounded concurrency, timeout) and drive the thin top progress bar.
-//   4. Release rules:
+//   4. Release rules (one continuous animation; the Dart-side session
+//      restore and Vault unlock run underneath without a second spinner):
 //        - login page ('anon'): splash steps aside immediately; the thin bar
 //          stays over the login page until the preload settles.
-//        - console ('workspace' | 'locked'): the GSAP animation keeps running
-//          until the preload settles, then the splash fades out.
-//      A first-frame fallback releases the splash even if the Dart bridge is
-//      absent (guest pages, older bundles).
+//        - locked workspace ('locked'): the splash fades once the preload
+//          settles so the unlock prompt stays interactive.
+//        - console ('workspace'): the splash also waits for the one-shot
+//          'atermius:ready' event (AppShell painted its first frame after
+//          unlock), with a short grace period so a bundle without that event
+//          still hands over instead of holding the console hostage.
+//      When no bridge event arrives at all, a first-frame fallback releases
+//      the splash; with a stored-session hint the fallback waits briefly so
+//      the bridge stays authoritative for the restore phase (guest pages and
+//      older bundles still fall back).
 //
 // No inline event handlers (strict CSP 'self').
 (function () {
@@ -37,6 +44,13 @@
   var PRELOAD_CONCURRENCY = 4;
   var PRELOAD_TIMEOUT_MS = 30000;
   var FALLBACK_RELEASE_MS = 20000;
+  // Hand-over window for the console path: how long to wait for the
+  // 'atermius:ready' event after 'atermius:auth-resolved: workspace' before
+  // releasing anyway (older Dart bundles never emit it).
+  var READY_GRACE_MS = 2000;
+  // With a stored-session hint, how long a settled first frame waits for the
+  // first bridge event before falling back (guest pages never emit one).
+  var BRIDGE_WAIT_MS = 1500;
 
   var splashEl = document.getElementById("atermius-splash");
   // The splash covers the page before the app's own right-click handling
@@ -66,6 +80,9 @@
     firstFrame: false,
     resourcesSettled: false,
     resourcesOk: false,
+    ready: false, // 'atermius:ready' (AppShell first frame after unlock)
+    readyGraceExpired: false,
+    bridgeWaited: false,
     released: false,
     failed: null,
   };
@@ -74,6 +91,8 @@
   var resourcesTotal = 0;
   var failures = [];
   var gsapTimeline = null;
+  var readyGraceTimer = null;
+  var bridgeWaitTimer = null;
 
   // --- login pre-check (hint only) -------------------------------------
   // Session snapshots are persisted through flutter_secure_storage (web):
@@ -312,6 +331,14 @@
   function releaseSplash() {
     if (state.released) return;
     state.released = true;
+    if (readyGraceTimer !== null) {
+      window.clearTimeout(readyGraceTimer);
+      readyGraceTimer = null;
+    }
+    if (bridgeWaitTimer !== null) {
+      window.clearTimeout(bridgeWaitTimer);
+      bridgeWaitTimer = null;
+    }
     stopAnimation();
     if (!splashEl) return;
     if (
@@ -336,6 +363,19 @@
     }
   }
 
+  function armReadyGrace() {
+    // One-shot: repeated or late 'workspace' events must not keep pushing
+    // the deadline out.
+    if (readyGraceTimer !== null || state.ready || state.readyGraceExpired) {
+      return;
+    }
+    readyGraceTimer = window.setTimeout(function () {
+      readyGraceTimer = null;
+      state.readyGraceExpired = true;
+      maybeRelease();
+    }, READY_GRACE_MS);
+  }
+
   function maybeRelease() {
     if (state.released || state.failed) return;
     var resolved = state.authResolved;
@@ -343,14 +383,37 @@
       releaseSplash();
       return;
     }
-    if ((resolved === "workspace" || resolved === "locked") && state.resourcesSettled) {
-      releaseSplash();
+    if (resolved === "locked") {
+      // The unlock prompt is interactive; holding the splash over it would
+      // hide the keyboard behind a non-actionable animation.
+      if (state.resourcesSettled) releaseSplash();
+      return;
+    }
+    if (resolved === "workspace") {
+      // The console hand-over waits for the shell's first painted frame so
+      // the fade reveals a live AppShell, not a blank canvas. Slow Vault
+      // work or an older bundle without the event releases on the grace.
+      if (state.resourcesSettled && (state.ready || state.readyGraceExpired)) {
+        releaseSplash();
+      }
       return;
     }
     if (resolved === null && state.firstFrame && state.resourcesSettled) {
-      // No Dart bridge (guest pages / older bundle): first frame plus a
-      // settled preload is the best available release signal.
-      releaseSplash();
+      // No Dart bridge yet: guest pages / older bundles release on the
+      // first frame. A stored-session hint keeps the bridge authoritative
+      // for the restore phase (the full-screen restore spinner stays behind
+      // the splash) for BRIDGE_WAIT_MS before falling back.
+      if (!state.likelyLoggedIn || state.bridgeWaited) {
+        releaseSplash();
+        return;
+      }
+      state.bridgeWaited = true;
+      if (bridgeWaitTimer === null) {
+        bridgeWaitTimer = window.setTimeout(function () {
+          bridgeWaitTimer = null;
+          maybeRelease();
+        }, BRIDGE_WAIT_MS);
+      }
     }
   }
 
@@ -428,6 +491,14 @@
       return;
     }
     state.authResolved = detail;
+    if (detail === "workspace") armReadyGrace();
+    maybeRelease();
+  });
+
+  // One-shot AppShell-first-frame signal for the console hand-over. It may
+  // arrive before or after auth-resolved; maybeRelease reads both states.
+  window.addEventListener("atermius:ready", function () {
+    state.ready = true;
     maybeRelease();
   });
 
@@ -460,6 +531,11 @@
     },
     notifyAuthResolved: function (detail) {
       state.authResolved = detail;
+      if (detail === "workspace") armReadyGrace();
+      maybeRelease();
+    },
+    notifyReady: function () {
+      state.ready = true;
       maybeRelease();
     },
     fail: applyFailure,
