@@ -17,6 +17,42 @@ void main() {
   });
 
   test(
+    'password keyring round trip rejects wrong key and substituted context',
+    () async {
+      final accountKey = crypto.randomBytes(32);
+      final vaultKey = crypto.randomBytes(32);
+      final envelope = Map<String, dynamic>.from(
+        await crypto.wrapPasswordVaultKey(
+          accountKey: accountKey,
+          accountId: 'account',
+          vaultId: 'vault',
+          keyEpoch: 1,
+          vaultKey: vaultKey,
+        ),
+      );
+      Future<Uint8List> open({
+        Uint8List? key,
+        String account = 'account',
+        String vault = 'vault',
+        int epoch = 1,
+      }) => crypto.unwrapPasswordVaultKey(
+        accountKey: key ?? accountKey,
+        accountId: account,
+        vaultId: vault,
+        keyEpoch: epoch,
+        envelope: envelope,
+      );
+      expect(await open(), vaultKey);
+      await expectLater(open(key: crypto.randomBytes(32)), throwsA(anything));
+      await expectLater(open(account: 'other'), throwsA(anything));
+      await expectLater(open(vault: 'other'), throwsA(anything));
+      await expectLater(open(epoch: 2), throwsA(anything));
+      envelope['ciphertext'] = encodeBase64Url(Uint8List(48));
+      await expectLater(open(), throwsA(anything));
+    },
+  );
+
+  test(
     'local Vault key package is ciphertext-only and bound to its context',
     () async {
       const profileId = '11111111-1111-4111-8111-111111111111';
@@ -674,102 +710,99 @@ void main() {
     target.dispose();
   });
 
-  test(
-    'instance key rotations require a continuous old-key signature chain',
-    () {
-      const instanceId = '55555555-5555-4555-8555-555555555555';
-      const format = 'atermius-instance-key-transition-v1';
-      final first = DeviceIdentity.create(sodium);
-      final second = DeviceIdentity.create(sodium);
-      final third = DeviceIdentity.create(sodium);
+  test('instance key rotations require a continuous old-key signature chain', () {
+    const instanceId = '55555555-5555-4555-8555-555555555555';
+    const format = 'atermius-instance-key-transition-v1';
+    final first = DeviceIdentity.create(sodium);
+    final second = DeviceIdentity.create(sodium);
+    final third = DeviceIdentity.create(sodium);
 
-      Map<String, dynamic> transition(
-        DeviceIdentity signer,
-        String toPublicKey, {
-        String? fromPublicKey,
-      }) {
-        final unsigned = <String, Object?>{
-          'format': format,
-          'instance_id': instanceId,
-          'from_public_key': fromPublicKey ?? signer.signingPublicKey,
-          'to_public_key': toPublicKey,
-          'issued_at': '2026-09-27T12:00:00Z',
-        };
-        return {
-          ...unsigned,
-          'signature': encodeBase64Url(
-            sodium.crypto.sign.detached(
-              message: Uint8List.fromList(utf8.encode(canonicalJson(unsigned))),
-              secretKey: signer.signing.secretKey,
-            ),
+    Map<String, dynamic> transition(
+      DeviceIdentity signer,
+      String toPublicKey, {
+      String? fromPublicKey,
+    }) {
+      final unsigned = <String, Object?>{
+        'format': format,
+        'instance_id': instanceId,
+        'from_public_key': fromPublicKey ?? signer.signingPublicKey,
+        'to_public_key': toPublicKey,
+        'issued_at': '2026-09-27T12:00:00Z',
+      };
+      return {
+        ...unsigned,
+        'signature': encodeBase64Url(
+          sodium.crypto.sign.detached(
+            message: Uint8List.fromList(utf8.encode(canonicalJson(unsigned))),
+            secretKey: signer.signing.secretKey,
           ),
-        };
-      }
+        ),
+      };
+    }
 
-      final chain = [
-        transition(first, second.signingPublicKey),
-        transition(second, third.signingPublicKey),
-      ];
-      expect(
-        crypto.verifyInstanceKeyTransitions(
-          instanceId: instanceId,
-          pinnedPublicKey: first.signingPublicKey,
-          currentPublicKey: third.signingPublicKey,
-          transitions: chain,
-        ),
-        isTrue,
-      );
-      // A device that already pinned the intermediate key may start at its link.
-      expect(
-        crypto.verifyInstanceKeyTransitions(
-          instanceId: instanceId,
-          pinnedPublicKey: second.signingPublicKey,
-          currentPublicKey: third.signingPublicKey,
-          transitions: chain,
-        ),
-        isTrue,
-      );
-      expect(
-        crypto.verifyInstanceKeyTransitions(
-          instanceId: instanceId,
-          pinnedPublicKey: first.signingPublicKey,
-          currentPublicKey: third.signingPublicKey,
-          transitions: [
-            chain.first,
-            {...chain.last, 'to_public_key': second.signingPublicKey},
-          ],
-        ),
-        isFalse,
-      );
-      expect(
-        crypto.verifyInstanceKeyTransitions(
-          instanceId: instanceId,
-          pinnedPublicKey: first.signingPublicKey,
-          currentPublicKey: third.signingPublicKey,
-          transitions: [
-            chain.first,
-            {
-              ...chain.last,
-              'instance_id': '66666666-6666-4666-8666-666666666666',
-            },
-          ],
-        ),
-        isFalse,
-      );
-      expect(
-        crypto.verifyInstanceKeyTransitions(
-          instanceId: instanceId,
-          pinnedPublicKey: first.signingPublicKey,
-          currentPublicKey: third.signingPublicKey,
-          transitions: [chain.last],
-        ),
-        isFalse,
-      );
-      first.dispose();
-      second.dispose();
-      third.dispose();
-    },
-  );
+    final chain = [
+      transition(first, second.signingPublicKey),
+      transition(second, third.signingPublicKey),
+    ];
+    expect(
+      crypto.verifyInstanceKeyTransitions(
+        instanceId: instanceId,
+        pinnedPublicKey: first.signingPublicKey,
+        currentPublicKey: third.signingPublicKey,
+        transitions: chain,
+      ),
+      isTrue,
+    );
+    // A device that already pinned the intermediate key may start at its link.
+    expect(
+      crypto.verifyInstanceKeyTransitions(
+        instanceId: instanceId,
+        pinnedPublicKey: second.signingPublicKey,
+        currentPublicKey: third.signingPublicKey,
+        transitions: chain,
+      ),
+      isTrue,
+    );
+    expect(
+      crypto.verifyInstanceKeyTransitions(
+        instanceId: instanceId,
+        pinnedPublicKey: first.signingPublicKey,
+        currentPublicKey: third.signingPublicKey,
+        transitions: [
+          chain.first,
+          {...chain.last, 'to_public_key': second.signingPublicKey},
+        ],
+      ),
+      isFalse,
+    );
+    expect(
+      crypto.verifyInstanceKeyTransitions(
+        instanceId: instanceId,
+        pinnedPublicKey: first.signingPublicKey,
+        currentPublicKey: third.signingPublicKey,
+        transitions: [
+          chain.first,
+          {
+            ...chain.last,
+            'instance_id': '66666666-6666-4666-8666-666666666666',
+          },
+        ],
+      ),
+      isFalse,
+    );
+    expect(
+      crypto.verifyInstanceKeyTransitions(
+        instanceId: instanceId,
+        pinnedPublicKey: first.signingPublicKey,
+        currentPublicKey: third.signingPublicKey,
+        transitions: [chain.last],
+      ),
+      isFalse,
+    );
+    first.dispose();
+    second.dispose();
+    third.dispose();
+  });
 
   test('membership invite grants carry owner JCS signature', () {
     final owner = DeviceIdentity.create(sodium);
@@ -811,58 +844,55 @@ void main() {
     owner.dispose();
   });
 
-  test(
-    'display name envelope is part of the signed initial manifest and can rotate',
-    () async {
-      final owner = DeviceIdentity.create(sodium);
-      const accountId = '22222222-2222-4222-8222-222222222222';
-      const name = 'Shared operations';
-      final initial = await crypto.createInitialVault(
-        accountId: accountId,
-        name: name,
-        identity: owner,
-      );
-      final topLevelName = Map<String, dynamic>.from(
-        initial.payload['name_envelope']! as Map,
-      );
-      final initialMembership = Map<String, dynamic>.from(
-        initial.payload['membership']! as Map,
-      );
-      final initialManifest = Map<String, dynamic>.from(
-        initialMembership['manifest']! as Map,
-      );
-      final signedName = Map<String, dynamic>.from(
-        initialManifest['display_name_envelope']! as Map,
-      );
-      expect(canonicalJson(signedName), canonicalJson(topLevelName));
-      expect(
-        await crypto.decryptVaultName(
-          vaultId: initial.vaultId,
-          vaultKey: initial.vaultKey,
-          envelope: signedName,
-        ),
-        name,
-      );
+  test('display name envelope is part of the signed initial manifest and can rotate', () async {
+    final owner = DeviceIdentity.create(sodium);
+    const accountId = '22222222-2222-4222-8222-222222222222';
+    const name = 'Shared operations';
+    final initial = await crypto.createInitialVault(
+      accountId: accountId,
+      name: name,
+      identity: owner,
+    );
+    final topLevelName = Map<String, dynamic>.from(
+      initial.payload['name_envelope']! as Map,
+    );
+    final initialMembership = Map<String, dynamic>.from(
+      initial.payload['membership']! as Map,
+    );
+    final initialManifest = Map<String, dynamic>.from(
+      initialMembership['manifest']! as Map,
+    );
+    final signedName = Map<String, dynamic>.from(
+      initialManifest['display_name_envelope']! as Map,
+    );
+    expect(canonicalJson(signedName), canonicalJson(topLevelName));
+    expect(
+      await crypto.decryptVaultName(
+        vaultId: initial.vaultId,
+        vaultKey: initial.vaultKey,
+        envelope: signedName,
+      ),
+      name,
+    );
 
-      final nextKey = crypto.randomBytes(32);
-      final nextNameEnvelope = await crypto.encryptVaultName(
+    final nextKey = crypto.randomBytes(32);
+    final nextNameEnvelope = await crypto.encryptVaultName(
+      vaultId: initial.vaultId,
+      vaultKey: nextKey,
+      name: name,
+    );
+    expect(
+      await crypto.decryptVaultName(
         vaultId: initial.vaultId,
         vaultKey: nextKey,
-        name: name,
-      );
-      expect(
-        await crypto.decryptVaultName(
-          vaultId: initial.vaultId,
-          vaultKey: nextKey,
-          envelope: nextNameEnvelope,
-        ),
-        name,
-      );
-      nextKey.fillRange(0, nextKey.length, 0);
-      initial.vaultKey.fillRange(0, initial.vaultKey.length, 0);
-      owner.dispose();
-    },
-  );
+        envelope: nextNameEnvelope,
+      ),
+      name,
+    );
+    nextKey.fillRange(0, nextKey.length, 0);
+    initial.vaultKey.fillRange(0, initial.vaultKey.length, 0);
+    owner.dispose();
+  });
 
   test('device approval certificates bind target device and approver', () {
     final approver = DeviceIdentity.create(sodium);

@@ -17,7 +17,7 @@ use sqlx::{FromRow, Row, Sqlite, Transaction};
 use std::net::SocketAddr;
 use uuid::Uuid;
 
-use crate::{ApiError, AppState, ensure_active_device, jcs, now_rfc3339, sha256_hex};
+use crate::{ApiError, AppState, jcs, now_rfc3339, sha256_hex};
 
 pub(crate) const MAX_ACTIVE_DEVICES_PER_ACCOUNT: i64 = 20;
 const MAX_DEVICE_VAULT_ENVELOPES: usize = 1000;
@@ -163,6 +163,8 @@ pub(crate) fn signed_membership_record_value(
 
 #[derive(Deserialize, Serialize)]
 pub struct InitialKeyEnvelope {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password_envelope: Option<Value>,
     pub recipient_device_id: String,
     pub key_epoch: Value,
     pub membership_version: Value,
@@ -1035,6 +1037,12 @@ pub async fn register(
     let ke = &request.initial_vault.key_envelope;
     sqlx::query("INSERT INTO vault_key_envelopes(vault_id,epoch,recipient_user_id,recipient_device_id,envelope,envelope_signature,signer_device_id,membership_version) VALUES(?,1,?,?,?,?,?,1)")
         .bind(&vault_id).bind(&user_id).bind(&ke.recipient_device_id).bind(ke.envelope.to_string()).bind(&ke.signature).bind(&request.device.device_id).execute(&mut *tx).await.map_err(ApiError::internal)?;
+    if let Some(envelope) = &ke.password_envelope {
+        crate::password_keyring::validate_wrap(envelope)?;
+        sqlx::query("INSERT INTO account_vault_key_wraps(user_id,vault_id,key_epoch,envelope) VALUES(?,?,1,?)")
+            .bind(&user_id).bind(&vault_id).bind(envelope.to_string())
+            .execute(&mut *tx).await.map_err(ApiError::internal)?;
+    }
     let mm = &request.initial_vault.membership;
     sqlx::query("INSERT INTO membership_manifests(vault_id,membership_version,previous_digest,manifest_json,digest,signer_device_id,signature,created_at) VALUES(?,1,NULL,?,?,?,?,?)")
         .bind(&vault_id).bind(manifest_json).bind(manifest_digest).bind(&request.device.device_id).bind(&mm.signature).bind(&now).execute(&mut *tx).await.map_err(ApiError::internal)?;
@@ -1490,6 +1498,37 @@ pub async fn login(
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Response, ApiError> {
+    password_login(state, peer, request, None).await
+}
+
+#[derive(Deserialize)]
+pub struct PasswordDeviceRequest {
+    pub username: String,
+    pub login_verifier: String,
+    pub device: DeviceInput,
+}
+
+/// The password is the enrollment authority. MFA is still checked by the
+/// ordinary login flow before any session or account key material is returned.
+pub async fn password_device(
+    State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Json(request): Json<PasswordDeviceRequest>,
+) -> Result<Response, ApiError> {
+    let login = LoginRequest {
+        username: request.username,
+        login_verifier: request.login_verifier,
+        device_id: request.device.device_id.clone(),
+    };
+    password_login(state, peer, login, Some(request.device)).await
+}
+
+async fn password_login(
+    state: AppState,
+    peer: SocketAddr,
+    request: LoginRequest,
+    new_device: Option<DeviceInput>,
+) -> Result<Response, ApiError> {
     let username = normalized_username(&request.username)?;
     let retry_after = consume_auth_rate_limit(
         &state,
@@ -1503,11 +1542,12 @@ pub async fn login(
     }
     if let Some(repository) = state.pg_auth_lifecycle.as_ref() {
         return match repository
-            .login_password(
+            .login_password_with_device(
                 &username,
                 &request.login_verifier,
                 &request.device_id,
                 &state.dummy_login_verifier_hash,
+                new_device.as_ref(),
             )
             .await?
         {
@@ -1549,12 +1589,6 @@ pub async fn login(
         }
         return Err(error);
     }
-    if let Err(error) = ensure_active_device(&state, &user_id, &request.device_id).await {
-        if error.body.code == "DEVICE_REVOKED" {
-            record_login_failure_outcome_best_effort(&state, Some(&user_id)).await;
-        }
-        return Err(error);
-    }
     let mut tx = state.db.begin().await.map_err(ApiError::internal)?;
     // Serialize account disable with session creation. The first credential
     // check happens before Argon2 and remains useful for timing consistency;
@@ -1568,6 +1602,14 @@ pub async fn login(
         .map_err(ApiError::internal)?;
     if locked.rows_affected() != 1 {
         return Err(ApiError::unauthorized());
+    }
+    if let Some(device) = new_device.as_ref() {
+        // Check the credential again under the writer fence before enrolling.
+        let valid: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users u JOIN auth_credentials c USING(user_id) WHERE u.user_id=? AND u.status='active' AND c.login_verifier_hash=?")
+            .bind(&user_id).bind(&verifier_hash).fetch_one(&mut *tx).await.map_err(ApiError::internal)?;
+        if valid != 1 { return Err(ApiError::unauthorized()); }
+        validate_device(device, &user_id, &device.signing_public_key)?;
+        insert_device(&mut tx, device, &user_id, &now_rfc3339()).await?;
     }
     let current = sqlx::query(
         "SELECT u.status,c.login_verifier_hash,c.credential_version,d.status AS device_status, \
@@ -2892,6 +2934,110 @@ mod tests {
         let _ = tokio::fs::remove_dir_all(data_dir).await;
     }
 
+
+    async fn password_keyring_roundtrip(pg: bool) {
+        use axum::body::{Body, to_bytes};
+        use tower::ServiceExt;
+        let (mut state, data_dir, _) = device_enrollment_state().await;
+        let mut pg_cleanup = None;
+        if pg {
+            use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+            use std::str::FromStr;
+            let url = std::env::var("ATERMIUS_TEST_PG_URL").unwrap();
+            let options = PgConnectOptions::from_str(&url).unwrap();
+            assert!(options.get_database().unwrap().starts_with("atermius_test"));
+            let admin = PgPoolOptions::new().connect_with(options.clone()).await.unwrap();
+            let schema = format!("pfl_{}", Uuid::new_v4().simple());
+            sqlx::raw_sql(&format!("CREATE SCHEMA {schema}")).execute(&admin).await.unwrap();
+            let pool = PgPoolOptions::new().connect_with(options.options([("search_path", schema.clone())])).await.unwrap();
+            let mut paths = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/migrations/postgres")).unwrap()
+                .map(|p| p.unwrap().path()).filter(|p| p.extension().is_some_and(|e| e == "sql")).collect::<Vec<_>>();
+            paths.sort();
+            for path in paths { sqlx::raw_sql(&std::fs::read_to_string(path).unwrap()).execute(&pool).await.unwrap(); }
+            sqlx::query("INSERT INTO instance_meta(id,instance_id,server_space_id,generation,signing_public_key) VALUES(1,'test','test','1','test')").execute(&pool).await.unwrap();
+            state.pg_sync_pool = Some(pool.clone());
+            state.pg_sync_auth = Some(crate::pg_sync_auth::PgSyncAuthRepository::new(pool.clone()));
+            state.pg_auth_lifecycle = Some(crate::pg_auth_lifecycle::PgAuthLifecycleRepository::new(pool.clone(), [1;32]));
+            state.pg_account_onboarding = Some(crate::pg_account_onboarding::PgAccountOnboardingRepository::new(pool.clone(), [1;32], "test".into(), 365, 100, 100));
+            pg_cleanup = Some((pool, admin, schema));
+        } else {
+            sqlx::query("DELETE FROM vault_key_envelopes").execute(&state.db).await.unwrap();
+            sqlx::query("DELETE FROM vault_members").execute(&state.db).await.unwrap();
+            sqlx::query("DELETE FROM vaults").execute(&state.db).await.unwrap();
+            sqlx::query("DELETE FROM users").execute(&state.db).await.unwrap();
+        }
+        let bootstrap = crate::create_bootstrap_token(&state).await.unwrap();
+        let (account_id, mut device, mut vault) = valid_vault();
+        let signer = SigningKey::from_bytes(&[7;32]);
+        device.signature = sign_json(&signer, &device_proof_payload(&account_id, &device.device_id, &device.signing_public_key, &device.encryption_public_key));
+        let wrap = json!({"version":1,"nonce":URL_SAFE_NO_PAD.encode([1;24]),"ciphertext":URL_SAFE_NO_PAD.encode([2;48])});
+        vault.key_envelope.password_envelope = Some(wrap.clone());
+        let vault_id = vault.vault_id.clone();
+        let verifier = URL_SAFE_NO_PAD.encode([42;32]);
+        register(State(state.clone()), ConnectInfo("127.0.0.1:1234".parse().unwrap()), Json(RegisterRequest {
+            account_id: account_id.clone(), username:"password-keyring@example.test".into(),
+            bootstrap_token:Some(bootstrap), instance_invitation_token:None,
+            kdf:KdfParams{id:"argon2id13".into(),salt:URL_SAFE_NO_PAD.encode([1;16]),mem_kib:65536,iterations:3,parallelism:1,version:1},
+            login_verifier:verifier.clone(), account_key_envelope:json!({"version":1,"nonce":URL_SAFE_NO_PAD.encode([1;24]),"ciphertext":URL_SAFE_NO_PAD.encode([2;48])}),
+            device, initial_vault:vault,
+        })).await.unwrap();
+        let target = Uuid::new_v4().to_string();
+        let enrollment = signed_device_enrollment(&account_id, "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", &vault_id, &signer, &target, &[1]);
+        let app = crate::router(state.clone()).await;
+        async fn call(app: &axum::Router, method: &str, path: &str, token: Option<&str>, body: Value) -> (StatusCode, Value) {
+            let mut request = axum::http::Request::builder().method(method).uri(path).header("content-type","application/json");
+            if let Some(token) = token { request = request.header("authorization",format!("Bearer {token}")); }
+            let mut request = request.body(Body::from(body.to_string())).unwrap();
+            request.extensions_mut().insert(ConnectInfo("127.0.0.1:1234".parse::<SocketAddr>().unwrap()));
+            let response = app.clone().oneshot(request).await.unwrap();
+            let status = response.status();
+            let body = to_bytes(response.into_body(), 1024*1024).await.unwrap();
+            (status, serde_json::from_slice(&body).unwrap())
+        }
+        let mut login = json!({"username":"password-keyring@example.test","login_verifier":URL_SAFE_NO_PAD.encode([43;32]),"device":enrollment["device"]});
+        let (status, body) = call(&app,"POST","/api/v1/auth/password-device",None,login.clone()).await;
+        assert_eq!(status,StatusCode::UNAUTHORIZED,"{body}");
+        login["login_verifier"] = json!(verifier);
+        let (status, body) = call(&app,"POST","/api/v1/auth/password-device",None,login).await;
+        assert_eq!(status,StatusCode::OK,"{body}");
+        let token = body["access_token"].as_str().unwrap();
+        let (status, body) = call(&app,"GET","/api/v1/auth/password-keyring",None,json!({})).await;
+        assert_eq!(status,StatusCode::UNAUTHORIZED,"{body}");
+        let (status, body) = call(&app,"GET","/api/v1/auth/password-keyring",Some(token),json!({})).await;
+        assert_eq!(status,StatusCode::OK,"{body}");
+        assert_eq!(body["keys"][0]["envelope"],wrap);
+        assert_eq!(body["keys"][0]["installed"],false);
+        let upload = json!({"keys":[{"vault_id":vault_id,"key_epoch":1,"envelope":wrap}]});
+        let (status, body) = call(&app,"PUT","/api/v1/auth/password-keyring",Some(token),upload.clone()).await;
+        assert_eq!(status,StatusCode::FORBIDDEN,"{body}");
+        let target_key = SigningKey::from_bytes(&[11;32]);
+        let mut key = enrollment["vault_key_envelopes"][0].clone();
+        key["signature"] = json!(sign_json(&target_key, &json!({"vault_id":vault_id,"recipient_device_id":target,"key_epoch":1,"membership_version":1,"envelope":key["envelope"]})));
+        let mut bad = key.clone(); bad["recipient_device_id"] = json!("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+        let (status, body) = call(&app,"POST","/api/v1/auth/password-keyring",Some(token),json!({"keys":[bad]})).await;
+        assert_eq!(status,StatusCode::BAD_REQUEST,"{body}");
+        let (status, body) = call(&app,"POST","/api/v1/auth/password-keyring",Some(token),json!({"keys":[key]})).await;
+        assert_eq!(status,StatusCode::OK,"{body}");
+        let (status, body) = call(&app,"PUT","/api/v1/auth/password-keyring",Some(token),upload).await;
+        assert_eq!(status,StatusCode::OK,"{body}");
+        let (_, body) = call(&app,"GET","/api/v1/auth/password-keyring",Some(token),json!({})).await;
+        assert_eq!(body["keys"][0]["installed"],true);
+        drop(app); drop(state);
+        if let Some((pool, admin, schema)) = pg_cleanup {
+            pool.close().await;
+            sqlx::raw_sql(&format!("DROP SCHEMA {schema} CASCADE")).execute(&admin).await.unwrap();
+            admin.close().await;
+        }
+        let _ = tokio::fs::remove_dir_all(data_dir).await;
+    }
+
+    #[tokio::test]
+    async fn password_keyring_sqlite_http_roundtrip() { password_keyring_roundtrip(false).await; }
+
+    #[tokio::test]
+    #[ignore = "requires disposable ATERMIUS_TEST_PG_URL"]
+    async fn password_keyring_postgres_http_roundtrip() { password_keyring_roundtrip(true).await; }
+
     fn valid_vault() -> (String, DeviceInput, InitialVault) {
         let account_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa".to_owned();
         let device_id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb".to_owned();
@@ -2920,6 +3066,7 @@ mod tests {
         let envelope = json!({"version":1,"suite":"crypto_box_seal","ciphertext":URL_SAFE_NO_PAD.encode([5_u8;48])});
         let key_payload = json!({"vault_id":vault_id,"recipient_device_id":device_id,"key_epoch":1,"membership_version":1,"envelope":envelope});
         let key_envelope = InitialKeyEnvelope {
+            password_envelope: None,
             recipient_device_id: device_id,
             key_epoch: Value::from(1),
             membership_version: Value::from(1),

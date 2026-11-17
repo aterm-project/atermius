@@ -312,6 +312,7 @@ impl PgSyncRuntimeConfig {
             "object_delete_queue",
             "account_deletion_requests",
             "account_recovery",
+            "account_vault_key_wraps",
             "account_recovery_generation",
             "account_recovery_key_envelopes",
             "account_recovery_challenges",
@@ -356,7 +357,7 @@ impl PgSyncRuntimeConfig {
                 .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
             if relation.is_none() {
                 return Err(ApiError::internal(
-                    "PostgreSQL shared schema is incomplete; apply migrations 0001 through 0039",
+                    "PostgreSQL shared schema is incomplete; apply migrations 0001 through 0040",
                 ));
             }
         }
@@ -477,7 +478,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !relay_columns_ready {
             return Err(ApiError::internal(
-                "PostgreSQL SSH Relay schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL SSH Relay schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let relay_indexes_ready: bool = sqlx::query_scalar(
@@ -500,7 +501,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !relay_indexes_ready {
             return Err(ApiError::internal(
-                "PostgreSQL SSH Relay indexes are missing or invalid; apply migrations 0001 through 0039",
+                "PostgreSQL SSH Relay indexes are missing or invalid; apply migrations 0001 through 0040",
             ));
         }
         let audit_sequence_ready: bool = sqlx::query_scalar(
@@ -527,7 +528,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !audit_sequence_ready {
             return Err(ApiError::internal(
-                "PostgreSQL audit identity sequence is not ready; apply migrations 0001 through 0039",
+                "PostgreSQL audit identity sequence is not ready; apply migrations 0001 through 0040",
             ));
         }
         for (table, column) in [
@@ -551,7 +552,7 @@ impl PgSyncRuntimeConfig {
             .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
             if !present {
                 return Err(ApiError::internal(
-                    "PostgreSQL shared schema is incomplete; apply migrations 0001 through 0039",
+                    "PostgreSQL shared schema is incomplete; apply migrations 0001 through 0040",
                 ));
             }
         }
@@ -573,7 +574,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !challenge_mfa_cascade {
             return Err(ApiError::internal(
-                "PostgreSQL MFA challenge cascade is missing; apply migrations 0001 through 0039",
+                "PostgreSQL MFA challenge cascade is missing; apply migrations 0001 through 0040",
             ));
         }
         let push_due_index_ready: bool = sqlx::query_scalar(
@@ -592,7 +593,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !push_due_index_ready {
             return Err(ApiError::internal(
-                "PostgreSQL mobile push outbox index is missing; apply migrations 0001 through 0039",
+                "PostgreSQL mobile push outbox index is missing; apply migrations 0001 through 0040",
             ));
         }
         let push_token_envelope_constraint_ready: bool = sqlx::query_scalar(
@@ -611,7 +612,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !push_token_envelope_constraint_ready {
             return Err(ApiError::internal(
-                "PostgreSQL mobile push token constraint is missing; apply migrations 0001 through 0039",
+                "PostgreSQL mobile push token constraint is missing; apply migrations 0001 through 0040",
             ));
         }
         let push_delivery_schema_ready: bool = sqlx::query_scalar(
@@ -628,7 +629,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !push_delivery_schema_ready {
             return Err(ApiError::internal(
-                "PostgreSQL mobile push delivery aggregate schema is missing; apply migrations 0001 through 0039",
+                "PostgreSQL mobile push delivery aggregate schema is missing; apply migrations 0001 through 0040",
             ));
         }
         let instance_audit_index_ready: bool = sqlx::query_scalar(
@@ -647,7 +648,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !instance_audit_index_ready {
             return Err(ApiError::internal(
-                "PostgreSQL instance audit index is missing or invalid; apply migrations 0001 through 0039",
+                "PostgreSQL instance audit index is missing or invalid; apply migrations 0001 through 0040",
             ));
         }
         let presence_indexes_ready: bool = sqlx::query_scalar(
@@ -678,7 +679,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !presence_indexes_ready {
             return Err(ApiError::internal(
-                "PostgreSQL Vault presence indexes are missing or invalid; apply migrations 0001 through 0039",
+                "PostgreSQL Vault presence indexes are missing or invalid; apply migrations 0001 through 0040",
             ));
         }
         let admin_job_indexes_ready: bool = sqlx::query_scalar(
@@ -705,7 +706,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !admin_job_indexes_ready {
             return Err(ApiError::internal(
-                "PostgreSQL instance-admin job indexes are missing or invalid; apply migrations 0001 through 0039",
+                "PostgreSQL instance-admin job indexes are missing or invalid; apply migrations 0001 through 0040",
             ));
         }
         let backup_restore_job_columns_ready: bool = sqlx::query_scalar(
@@ -729,7 +730,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !backup_restore_job_columns_ready {
             return Err(ApiError::internal(
-                "PostgreSQL backup/restore job schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL backup/restore job schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let backup_restore_job_constraints_ready: bool = sqlx::query_scalar(
@@ -764,12 +765,12 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !backup_restore_job_constraints_ready {
             return Err(ApiError::internal(
-                "PostgreSQL backup/restore job constraints are missing; apply migrations 0001 through 0039",
+                "PostgreSQL backup/restore job constraints are missing; apply migrations 0001 through 0040",
             ));
         }
         if !postgres_restore_archive_source_constraint_is_exact(pool).await? {
             return Err(ApiError::internal(
-                "PostgreSQL restore source constraint is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL restore source constraint is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let notification_ticket_columns_ready: bool = sqlx::query_scalar(
@@ -785,7 +786,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !notification_ticket_columns_ready {
             return Err(ApiError::internal(
-                "PostgreSQL notification ticket schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL notification ticket schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let notification_ticket_constraints_ready: bool = sqlx::query_scalar(
@@ -820,7 +821,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !notification_ticket_constraints_ready {
             return Err(ApiError::internal(
-                "PostgreSQL notification ticket constraints are missing; apply migrations 0001 through 0039",
+                "PostgreSQL notification ticket constraints are missing; apply migrations 0001 through 0040",
             ));
         }
         let notification_ticket_indexes_ready: bool = sqlx::query_scalar(
@@ -842,19 +843,19 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !notification_ticket_indexes_ready {
             return Err(ApiError::internal(
-                "PostgreSQL notification ticket indexes are missing or invalid; apply migrations 0001 through 0039",
+                "PostgreSQL notification ticket indexes are missing or invalid; apply migrations 0001 through 0040",
             ));
         }
         let backup_schema_marker_ready: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM atermius_instance_schema \
-             WHERE singleton=1 AND schema_version=39)",
+             WHERE singleton=1 AND schema_version=40)",
         )
         .fetch_one(pool)
         .await
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !backup_schema_marker_ready {
             return Err(ApiError::internal(
-                "PostgreSQL instance schema marker is missing or outdated; apply migrations 0001 through 0039",
+                "PostgreSQL instance schema marker is missing or outdated; apply migrations 0001 through 0040",
             ));
         }
         let metrics_credential_schema_ready: bool = sqlx::query_scalar(
@@ -894,14 +895,14 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !metrics_credential_schema_ready {
             return Err(ApiError::internal(
-                "PostgreSQL metrics credential schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL metrics credential schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let backup_replication_constraints_ready =
             postgres_backup_replication_constraints_are_exact(pool).await?;
         if !backup_replication_constraints_ready {
             return Err(ApiError::internal(
-                "PostgreSQL backup replication schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL backup replication schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let backup_replication_schema_ready: bool = sqlx::query_scalar(
@@ -983,7 +984,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !backup_replication_schema_ready {
             return Err(ApiError::internal(
-                "PostgreSQL backup replication schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL backup replication schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let restore_deadline_column_ready: bool = sqlx::query_scalar(
@@ -996,7 +997,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !restore_deadline_column_ready {
             return Err(ApiError::internal(
-                "PostgreSQL restore deadline schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL restore deadline schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let auto_purge_schema_ready: bool = sqlx::query_scalar(
@@ -1037,7 +1038,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !auto_purge_schema_ready {
             return Err(ApiError::internal(
-                "PostgreSQL automatic tombstone purge schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL automatic tombstone purge schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let auto_purge_scan_schema_ready: bool = sqlx::query_scalar(
@@ -1080,7 +1081,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !auto_purge_scan_schema_ready {
             return Err(ApiError::internal(
-                "PostgreSQL automatic tombstone scan schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL automatic tombstone scan schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let redaction_schema_ready: bool = sqlx::query_scalar(
@@ -1123,7 +1124,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL redaction schema validation failed"))?;
         if !redaction_schema_ready {
             return Err(ApiError::internal(
-                "PostgreSQL record redaction schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL record redaction schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let backup_schedule_ready: bool = sqlx::query_scalar(
@@ -1147,7 +1148,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !backup_schedule_ready {
             return Err(ApiError::internal(
-                "PostgreSQL backup schedule schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL backup schedule schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let backup_pin_columns_ready: bool = sqlx::query_scalar(
@@ -1170,7 +1171,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !backup_pin_columns_ready {
             return Err(ApiError::internal(
-                "PostgreSQL backup object pin schema is incomplete; apply migrations 0001 through 0039",
+                "PostgreSQL backup object pin schema is incomplete; apply migrations 0001 through 0040",
             ));
         }
         let backup_pin_constraints_ready: bool = sqlx::query_scalar(
@@ -1201,7 +1202,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !backup_pin_constraints_ready {
             return Err(ApiError::internal(
-                "PostgreSQL backup object pin constraints are missing; apply migrations 0001 through 0039",
+                "PostgreSQL backup object pin constraints are missing; apply migrations 0001 through 0040",
             ));
         }
         let backup_pin_indexes_ready: bool = sqlx::query_scalar(
@@ -1222,7 +1223,7 @@ impl PgSyncRuntimeConfig {
         .map_err(|_| ApiError::internal("PostgreSQL sync schema validation failed"))?;
         if !backup_pin_indexes_ready {
             return Err(ApiError::internal(
-                "PostgreSQL backup object pin indexes are missing or invalid; apply migrations 0001 through 0039",
+                "PostgreSQL backup object pin indexes are missing or invalid; apply migrations 0001 through 0040",
             ));
         }
         Ok(())

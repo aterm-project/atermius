@@ -871,7 +871,7 @@ async fn validate_membership_chain(
     Ok(active_key_versions)
 }
 
-async fn required_contexts(
+pub(crate) async fn required_contexts(
     conn: &mut SqliteConnection,
     user_id: &str,
 ) -> Result<Vec<Context>, ApiError> {
@@ -2394,6 +2394,8 @@ async fn complete_inner(
         .execute(&mut *tx)
         .await
         .map_err(ApiError::internal)?;
+    sqlx::query("DELETE FROM account_vault_key_wraps WHERE user_id=?")
+        .bind(&request.account_id).execute(&mut *tx).await.map_err(ApiError::internal)?;
     sqlx::query("UPDATE auth_credentials SET login_verifier_hash=?,verifier_salt=?,kdf_json=?,account_key_envelope=?,credential_version=? WHERE user_id=?")
         .bind(new_verifier_hash).bind(new_verifier_salt).bind(kdf_json).bind(new_account_key_envelope).bind(new_credential_version).bind(&request.account_id).execute(&mut *tx).await.map_err(ApiError::internal)?;
     sqlx::query("UPDATE account_recovery SET recovery_generation=?,recovery_public_signing_key=?,recovery_public_encryption_key=?,recovery_envelope=?,recovery_identity_envelope=?,updated_at=? WHERE user_id=?")

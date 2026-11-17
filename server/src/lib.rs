@@ -140,6 +140,7 @@ mod pg_sync_runtime;
 mod presence;
 mod rate_limit;
 mod recovery;
+mod password_keyring;
 mod relay;
 mod relay_groups;
 mod secure_file;
@@ -1267,6 +1268,8 @@ pub async fn router(state: AppState) -> Router {
         .route("/api/v1/auth/prelogin", post(auth::prelogin))
         .route("/api/v1/auth/register", post(auth::register))
         .route("/api/v1/auth/login", post(auth::login))
+        .route("/api/v1/auth/password-device", post(auth::password_device))
+        .route("/api/v1/auth/password-keyring", get(password_keyring::get).put(password_keyring::put).post(password_keyring::install))
         .route("/api/v1/auth/login/mfa", post(mfa::login))
         .route("/api/v1/auth/mfa", get(mfa::status))
         .route("/api/v1/auth/mfa/totp/setup", post(mfa::setup_totp))
@@ -1868,6 +1871,10 @@ fn pg_sync_route_is_supported(method: &Method, path: &str) -> bool {
     if segments.as_slice() == ["api", "v1", "admin", "backup-schedule"] {
         return path == "/api/v1/admin/backup-schedule"
             && (method == Method::GET || method == Method::PUT);
+    }
+    if path == "/api/v1/auth/password-device" { return method == Method::POST; }
+    if path == "/api/v1/auth/password-keyring" {
+        return method == Method::GET || method == Method::PUT || method == Method::POST;
     }
     match (method, segments.as_slice()) {
         (&Method::GET, ["health", "live" | "ready"])
@@ -2974,6 +2981,7 @@ async fn instance_info(
                     "device_redaction_capability_reports",
                 ]
             };
+            c.push("password_device_enrollment");
             if !state.pg_sync_only
                 && state.config.relay_enabled
                 && !state.config.relay_allow_cidrs.is_empty()

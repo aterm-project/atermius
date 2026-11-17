@@ -161,7 +161,7 @@ struct SourceFile {
     memory: Option<Zeroizing<Vec<u8>>>,
 }
 
-pub(crate) const PG_BACKUP_SCHEMA_VERSION: i64 = 39;
+pub(crate) const PG_BACKUP_SCHEMA_VERSION: i64 = 40;
 const MIN_SUPPORTED_PG_ARCHIVE_SCHEMA_VERSION: i64 = 25;
 const PG_BACKUP_SCHEDULE_MIGRATION: &str =
     include_str!("../migrations/postgres/0026_instance_backup_schedule.sql");
@@ -189,6 +189,8 @@ const PG_BACKUP_REPLICATION_LEASE_MIGRATION: &str =
     include_str!("../migrations/postgres/0037_instance_backup_replication_leases.sql");
 const PG_REPLICA_RESTORE_MIGRATION: &str =
     include_str!("../migrations/postgres/0038_replica_restore_sources.sql");
+const PG_PASSWORD_KEYRING_MIGRATION: &str =
+    include_str!("../migrations/postgres/0040_password_keyring.sql");
 const PG_PUSH_DELIVERY_DAILY_MIGRATION: &str =
     include_str!("../migrations/postgres/0039_mobile_push_delivery_daily.sql");
 const PG_RESTORE_CONTROL_SCHEMA: &str = "atermius_restore_control";
@@ -2595,6 +2597,14 @@ async fn upgrade_restored_postgres_archive(
                 "the restored PostgreSQL archive could not be upgraded safely",
             )
         })?;
+    }
+    let marker_after_push: i64 = sqlx::query_scalar(&marker_sql)
+        .fetch_one(pool).await.map_err(ApiError::internal)?;
+    if marker_after_push == 39 {
+        let migration = format!(
+            "BEGIN; SET LOCAL search_path TO {quoted_schema}; {PG_PASSWORD_KEYRING_MIGRATION}; COMMIT;"
+        );
+        sqlx::raw_sql(&migration).execute(pool).await.map_err(ApiError::internal)?;
     }
     let upgraded_marker: i64 = sqlx::query_scalar(&marker_sql)
         .fetch_one(pool)
@@ -8062,7 +8072,8 @@ mod tests {
         assert!(supported_pg_archive_schema_version(38));
         assert!(supported_pg_archive_schema_version(39));
         assert!(!supported_pg_archive_schema_version(24));
-        assert!(!supported_pg_archive_schema_version(40));
+        assert!(supported_pg_archive_schema_version(40));
+        assert!(!supported_pg_archive_schema_version(41));
     }
 
     #[test]
@@ -8077,7 +8088,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires ATERMIUS_TEST_PG_URL naming a disposable PostgreSQL database"]
-    async fn postgres_restore_upgrades_schema_25_through_39_targets_with_bundled_migrations() {
+    async fn postgres_restore_upgrades_schema_25_through_40_targets_with_bundled_migrations() {
         use std::str::FromStr;
 
         use sqlx::{Connection, PgConnection, postgres::PgConnectOptions, postgres::PgPoolOptions};
@@ -8097,7 +8108,7 @@ mod tests {
         let migration_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations/postgres");
         for archive_version in [
             25_u32, 26_u32, 27_u32, 28_u32, 29_u32, 30_u32, 31_u32, 32_u32, 33_u32, 34_u32, 35_u32,
-            36_u32, 37_u32, 38_u32,
+            36_u32, 37_u32, 38_u32, 39_u32,
         ] {
             let schema = format!(
                 "atermius_restore_v{archive_version}_{}",

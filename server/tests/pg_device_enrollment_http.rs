@@ -63,6 +63,7 @@ const MIGRATIONS: &[&str] = &[
     "0037_instance_backup_replication_leases.sql",
     "0038_replica_restore_sources.sql",
     "0039_mobile_push_delivery_daily.sql",
+    "0040_password_keyring.sql",
 ];
 
 struct TestDatabase {
@@ -133,7 +134,7 @@ impl TestDatabase {
         }
         assert_eq!(
             MIGRATIONS.len(),
-            39,
+            40,
             "runtime must be tested at current schema"
         );
 

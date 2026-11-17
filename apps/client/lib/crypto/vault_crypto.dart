@@ -564,7 +564,9 @@ class VaultCrypto {
     required Map<String, dynamic> device,
   }) {
     if (!_isCanonicalUuid(accountId)) {
-      throw FormatException(currentL10n.invalidDeviceSelfProofAccountIdentifier);
+      throw FormatException(
+        currentL10n.invalidDeviceSelfProofAccountIdentifier,
+      );
     }
     final rawDevice = device;
     final deviceId = rawDevice['device_id'];
@@ -669,9 +671,9 @@ class VaultCrypto {
     );
   }
 
-  bool _isCanonicalUuid(String value) => RegExp(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-  ).hasMatch(value);
+  bool _isCanonicalUuid(String value) =>
+      RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+          .hasMatch(value);
 
   bool _isCanonicalLocalUuid(String value) => RegExp(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
@@ -752,9 +754,9 @@ class VaultCrypto {
     }
     final sorted = [...entries]
       ..sort(
-        (left, right) => _integer(
-          left['membership_version'],
-        ).compareTo(_integer(right['membership_version'])),
+        (left, right) =>
+            _integer(left['membership_version'])
+                .compareTo(_integer(right['membership_version'])),
       );
     final verified = <VerifiedMembership>[];
     String? previousDigest;
@@ -1763,6 +1765,97 @@ class VaultCrypto {
     }
   }
 
+  /// A purpose-separated account-key KEK keeps password changes independent
+  /// of vault encryption. Context is authenticated to prevent key substitution.
+  Future<SecureKey> _accountVaultWrappingKey(
+    Uint8List accountKey,
+    Map<String, Object?> context,
+  ) async {
+    if (accountKey.length != 32)
+      throw const FormatException('Invalid account key');
+    final input = sodium.secureCopy(accountKey);
+    try {
+      final bytes = await derivePurposeKey(
+        inputKey: input,
+        purpose: 'password-vault-key-wrap',
+        context: context,
+      );
+      try {
+        return sodium.secureCopy(bytes);
+      } finally {
+        bytes.fillRange(0, bytes.length, 0);
+      }
+    } finally {
+      input.dispose();
+    }
+  }
+
+  Future<Map<String, Object?>> wrapPasswordVaultKey({
+    required Uint8List accountKey,
+    required String accountId,
+    required String vaultId,
+    required int keyEpoch,
+    required Uint8List vaultKey,
+  }) async {
+    if (vaultKey.length != 32 || keyEpoch < 1)
+      throw const FormatException('Invalid vault key');
+    final context = <String, Object?>{
+      'version': 1,
+      'account_id': accountId,
+      'vault_id': vaultId,
+      'key_epoch': keyEpoch,
+    };
+    final key = await _accountVaultWrappingKey(accountKey, context);
+    try {
+      final nonce = randomBytes(24);
+      final ciphertext = sodium.crypto.aeadXChaCha20Poly1305IETF.encrypt(
+        message: vaultKey,
+        nonce: nonce,
+        key: key,
+        additionalData: Uint8List.fromList(utf8.encode(canonicalJson(context))),
+      );
+      return {
+        'version': 1,
+        'nonce': encodeBase64Url(nonce),
+        'ciphertext': encodeBase64Url(ciphertext),
+      };
+    } finally {
+      key.dispose();
+    }
+  }
+
+  Future<Uint8List> unwrapPasswordVaultKey({
+    required Uint8List accountKey,
+    required String accountId,
+    required String vaultId,
+    required int keyEpoch,
+    required Map<String, dynamic> envelope,
+  }) async {
+    if (envelope['version'] != 1 || keyEpoch < 1)
+      throw const FormatException('Invalid key wrap');
+    final context = <String, Object?>{
+      'version': 1,
+      'account_id': accountId,
+      'vault_id': vaultId,
+      'key_epoch': keyEpoch,
+    };
+    final key = await _accountVaultWrappingKey(accountKey, context);
+    try {
+      final nonce = decodeBase64Url(envelope['nonce'] as String);
+      final ciphertext = decodeBase64Url(envelope['ciphertext'] as String);
+      if (nonce.length != 24 || ciphertext.length != 48)
+        throw const FormatException('Invalid key wrap');
+      return sodium.crypto.aeadXChaCha20Poly1305IETF.decrypt(
+        cipherText: ciphertext,
+        nonce: nonce,
+        key: key,
+        additionalData: Uint8List.fromList(utf8.encode(canonicalJson(context))),
+      );
+    } finally {
+      key.dispose();
+    }
+  }
+
   Future<InitialVaultMaterial> createInitialVault({
     required String accountId,
     required String name,
@@ -2535,9 +2628,8 @@ class VaultCrypto {
   }) {
     if (value is! String ||
         value.length > maxDigits ||
-        !RegExp(
-          allowZero ? r'^(0|[1-9][0-9]*)$' : r'^[1-9][0-9]*$',
-        ).hasMatch(value)) {
+        !RegExp(allowZero ? r'^(0|[1-9][0-9]*)$' : r'^[1-9][0-9]*$')
+            .hasMatch(value)) {
       throw FormatException('Record envelope $field is invalid');
     }
     final counter = BigInt.parse(value);

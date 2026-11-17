@@ -2099,9 +2099,8 @@ final _relayRfc3339 = RegExp(
 
 bool _isValidRelayTimestamp(String value) {
   if (!_relayRfc3339.hasMatch(value)) return false;
-  final components = RegExp(
-    r'^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})',
-  ).firstMatch(value);
+  final components = RegExp(r'^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})')
+      .firstMatch(value);
   if (components == null) return false;
   final year = int.parse(components.group(1)!);
   final month = int.parse(components.group(2)!);
@@ -4182,9 +4181,9 @@ class AdminMaintenanceJobsPage {
   }
 }
 
-bool _isCanonicalLowercaseUuid(String value) => RegExp(
-  r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-).hasMatch(value);
+bool _isCanonicalLowercaseUuid(String value) =>
+    RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+        .hasMatch(value);
 
 bool _isCanonicalBase64Url32(String value) {
   if (!RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(value)) return false;
@@ -5153,13 +5152,20 @@ class ApiClient {
     required String username,
     required String loginVerifier,
     required String deviceId,
+    Map<String, Object?>? newDevice,
   }) async {
     final result = AuthLoginResult.fromJson(
-      await postPublic('/api/v1/auth/login', {
-        'username': username,
-        'login_verifier': loginVerifier,
-        'device_id': deviceId,
-      }),
+      await postPublic(
+        newDevice == null
+            ? '/api/v1/auth/login'
+            : '/api/v1/auth/password-device',
+        {
+          'username': username,
+          'login_verifier': loginVerifier,
+          if (newDevice == null) 'device_id': deviceId,
+          if (newDevice != null) 'device': newDevice,
+        },
+      ),
     );
     if (result case AuthenticatedLogin(:final session)) {
       accessToken = session.accessToken;

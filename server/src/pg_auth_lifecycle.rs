@@ -419,12 +419,24 @@ impl PgAuthLifecycleRepository {
     /// provisioned account/device. Credential verification happens before
     /// taking row locks; the account and credential are then rechecked under
     /// lock before either issuing an MFA challenge or inserting a session.
+    #[cfg(test)]
     pub(crate) async fn login_password(
         &self,
         username: &str,
         login_verifier: &str,
         device_id: &str,
         dummy_login_verifier_hash: &str,
+    ) -> Result<PgPasswordLoginOutcome, ApiError> {
+        self.login_password_with_device(username, login_verifier, device_id, dummy_login_verifier_hash, None).await
+    }
+
+    pub(crate) async fn login_password_with_device(
+        &self,
+        username: &str,
+        login_verifier: &str,
+        device_id: &str,
+        dummy_login_verifier_hash: &str,
+        new_device: Option<&crate::auth::DeviceInput>,
     ) -> Result<PgPasswordLoginOutcome, ApiError> {
         let username = crate::auth::normalized_username(username)?;
         let credential = sqlx::query(
@@ -490,6 +502,18 @@ impl PgAuthLifecycleRepository {
         {
             transaction.rollback().await.map_err(ApiError::internal)?;
             return Err(ApiError::unauthorized());
+        }
+
+        if let Some(device) = new_device {
+            crate::auth::validate_device(device, &user_id, &device.signing_public_key)?;
+            let active: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM devices WHERE user_id=$1 AND status='active'")
+                .bind(&user_id).fetch_one(&mut *transaction).await.map_err(ApiError::internal)?;
+            if active >= crate::auth::MAX_ACTIVE_DEVICES_PER_ACCOUNT {
+                return Err(ApiError::conflict("ACTIVE_DEVICE_LIMIT_REACHED", "account already has the maximum number of active devices"));
+            }
+            sqlx::query("INSERT INTO devices(device_id,user_id,name,signing_public_key,encryption_public_key,created_at) VALUES($1,$2,$3,$4,$5,$6)")
+                .bind(&device.device_id).bind(&user_id).bind(&device.name).bind(&device.signing_public_key).bind(&device.encryption_public_key).bind(Utc::now())
+                .execute(&mut *transaction).await.map_err(|_| ApiError::conflict("DEVICE_EXISTS", "device identifier is already registered"))?;
         }
 
         let device_status: Option<String> = sqlx::query_scalar(

@@ -616,6 +616,13 @@ impl PgAccountOnboardingRepository {
         .await
         .map_err(ApiError::internal)?;
 
+        if let Some(envelope) = &key.password_envelope {
+            crate::password_keyring::validate_wrap(envelope)?;
+            sqlx::query("INSERT INTO account_vault_key_wraps(user_id,vault_id,key_epoch,envelope) VALUES($1,$2,1,$3)")
+                .bind(input.account_id).bind(vault_id).bind(envelope.to_string())
+                .execute(&mut *transaction).await.map_err(ApiError::internal)?;
+        }
+
         sqlx::query(
             "INSERT INTO membership_manifests( \
                  vault_id,membership_version,previous_digest,manifest_json,digest, \

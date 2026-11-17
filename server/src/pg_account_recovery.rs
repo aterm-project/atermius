@@ -820,7 +820,7 @@ enum OperationForRecovery {
     RecoveryComplete,
 }
 
-async fn lock_active_principal(
+pub(crate) async fn lock_active_principal(
     tx: &mut Transaction<'_, Postgres>,
     user: &AuthUser,
 ) -> Result<(), ApiError> {
@@ -901,7 +901,7 @@ async fn set_repeatable_read(tx: &mut Transaction<'_, Postgres>) -> Result<(), A
     Ok(())
 }
 
-async fn lock_user_vaults_and_memberships(
+pub(crate) async fn lock_user_vaults_and_memberships(
     tx: &mut Transaction<'_, Postgres>,
     user_id: &str,
 ) -> Result<(), ApiError> {
@@ -1356,6 +1356,8 @@ async fn complete_inner(
         .execute(&mut *tx)
         .await
         .map_err(ApiError::internal)?;
+    sqlx::query("DELETE FROM account_vault_key_wraps WHERE user_id=$1")
+        .bind(&request.account_id).execute(&mut *tx).await.map_err(ApiError::internal)?;
     sqlx::query("UPDATE auth_credentials SET login_verifier_hash=$1,verifier_salt=$2,kdf_json=$3,account_key_envelope=$4,credential_version=$5 WHERE user_id=$6")
         .bind(new_verifier_hash).bind(new_verifier_salt).bind(kdf_json).bind(new_account_key_envelope).bind(new_credential_version).bind(&request.account_id)
         .execute(&mut *tx).await.map_err(ApiError::internal)?;

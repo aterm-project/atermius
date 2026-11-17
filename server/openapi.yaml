@@ -98,7 +98,7 @@ paths:
                     name_envelope: {type: object}
                     key_epoch: {type: integer, minimum: 1}
                     membership_version: {type: integer, minimum: 1}
-                    key_envelope: {type: object}
+                    key_envelope: {type: object, description: Signed device key envelope plus password_envelope containing the version 1 account-key-wrapped vault key}
                     membership: {type: object}
               oneOf:
                 - required: [bootstrap_token]
@@ -108,6 +108,103 @@ paths:
         '401': {description: Invalid bootstrap or account invitation}
         '403': {description: Later account registration requires an operator invitation}
         '429': {description: Rate limited; Retry-After is seconds to reset}
+  /auth/password-device:
+    post:
+      summary: Enroll a fresh device using the account password verifier
+      description: Shares login rate limits and credential checks. A self-signed device proof replaces existing-device approval. Optional MFA must complete before a session or keyring can be read. The client unwraps the account key with its password-derived KEK, then unwraps vault keys with a purpose-separated account-key KEK.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, login_verifier, device]
+              properties:
+                username: {type: string}
+                login_verifier: {type: string}
+                device:
+                  type: object
+                  required: [device_id, signing_public_key, encryption_public_key, signature]
+                  properties:
+                    device_id: {type: string, format: uuid}
+                    name: {type: string}
+                    signing_public_key: {type: string}
+                    encryption_public_key: {type: string}
+                    signature: {type: string, description: Signature over the canonical account-bound device proof}
+      responses:
+        '200':
+          description: Authenticated device session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthSession'}
+        '202':
+          description: Optional second-factor challenge; no session issued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MfaLoginChallenge'}
+        '401': {description: Invalid credentials}
+        '409': {description: Device already exists or device limit reached}
+        '429': {description: Rate limited}
+  /auth/password-keyring:
+    get:
+      summary: Read account-scoped password-wrapped vault keys
+      description: Returns keys for validated active and historical membership contexts only. Each entry includes vault_id, key_epoch, membership_version, envelope (null when missing), and installed for the current device. Envelope v1 contains a base64url 24-byte nonce and 48-byte XChaCha20-Poly1305 ciphertext; account ID, vault ID and epoch are authenticated context.
+      responses:
+        '200': {description: Object containing keys array}
+        '401': {description: Active authenticated session required}
+    put:
+      summary: Upload password wraps from a device possessing the source key envelope
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keys]
+              properties:
+                keys:
+                  type: array
+                  maxItems: 1000
+                  items:
+                    type: object
+                    required: [vault_id, key_epoch, envelope]
+                    properties:
+                      vault_id: {type: string, format: uuid}
+                      key_epoch: {type: integer, minimum: 1}
+                      envelope: {type: object, description: Version 1 password wrap with nonce and ciphertext}
+      responses:
+        '200': {description: Wraps stored atomically}
+        '400': {description: Invalid wrap or duplicate context}
+        '403': {description: Unavailable context or missing source device key}
+    post:
+      summary: Install signed vault key envelopes for the current device
+      description: The password-authenticated device locally unwraps the keyring and seals each vault key to itself, signing the canonical vault_id, key_epoch, membership_version, recipient_device_id and envelope payload. No approving device is required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keys]
+              properties:
+                keys:
+                  type: array
+                  maxItems: 1000
+                  items:
+                    type: object
+                    required: [vault_id, key_epoch, membership_version, recipient_device_id, envelope, signature]
+                    properties:
+                      vault_id: {type: string, format: uuid}
+                      key_epoch: {type: integer, minimum: 1}
+                      membership_version: {type: integer, minimum: 1}
+                      recipient_device_id: {type: string, format: uuid}
+                      envelope: {type: object}
+                      signature: {type: string}
+      responses:
+        '200': {description: Device envelopes installed atomically}
+        '400': {description: Invalid signature or context}
+        '403': {description: Unavailable vault context}
   /auth/login:
     post:
       summary: Start a device session

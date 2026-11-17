@@ -1076,12 +1076,8 @@ class AppController extends ChangeNotifier {
   /// discards the old book; late callbacks of old sessions cannot repopulate
   /// the new scope.
   late final ScopedSessionLogBook _sessionLogScope = ScopedSessionLogBook(
-    () => (
-      api?.baseUrl,
-      session?.accountId,
-      identity?.deviceId,
-      activeVault?.id,
-    ),
+    () =>
+        (api?.baseUrl, session?.accountId, identity?.deviceId, activeVault?.id),
   );
   SessionLogBook get sessionLogs => _sessionLogScope.current;
 
@@ -4299,7 +4295,21 @@ class AppController extends ChangeNotifier {
           accountId: accountId,
           name: deviceName,
         ),
-        initialVault: createdVault.payload,
+        initialVault: {
+          ...createdVault.payload,
+          'key_envelope': {
+            ...Map<String, Object?>.from(
+              createdVault.payload['key_envelope'] as Map,
+            ),
+            'password_envelope': await crypto.wrapPasswordVaultKey(
+              accountKey: accountKey,
+              accountId: accountId,
+              vaultId: createdVault.vaultId,
+              keyEpoch: 1,
+              vaultKey: createdVault.vaultKey,
+            ),
+          },
+        },
       );
       loginVerifier.fillRange(0, loginVerifier.length, 0);
       loginVerifier = null;
@@ -4380,16 +4390,24 @@ class AppController extends ChangeNotifier {
       );
       verifier = await crypto.deriveLoginVerifier(password, params);
       loadedIdentity = await secureStore.loadDevice(client.baseUrl, crypto);
-      if (loadedIdentity == null) {
-        verifier.fillRange(0, verifier.length, 0);
-        verifier = null;
-        throw StateError(currentL10n.thisBrowserHasNoRegisteredDevice2);
-      }
+      final isNewDevice = loadedIdentity == null;
+      loadedIdentity ??= DeviceIdentity.create(sodium);
       final loginResult = await client.login(
         username: username.trim(),
         loginVerifier: encodeBase64Url(verifier),
         deviceId: loadedIdentity.deviceId,
+        newDevice: isNewDevice
+            ? loadedIdentity.registrationProof(
+                sodium,
+                accountId: prelogin['account_id'] as String,
+                name: 'Atermius',
+              )
+            : null,
       );
+      // Persist only after the server accepted the password. MFA completion
+      // needs the same identity, but no vault key is returned before MFA.
+      if (isNewDevice)
+        await secureStore.saveDevice(client.baseUrl, loadedIdentity);
       verifier.fillRange(0, verifier.length, 0);
       verifier = null;
       if (loginResult is MfaLoginChallenge) {
@@ -4557,6 +4575,87 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<void> _installPasswordVaultKeys(
+    ApiClient client,
+    AuthSession auth,
+    Uint8List accountKey,
+  ) async {
+    final currentIdentity = identity!;
+    final snapshot = await client.get('/api/v1/auth/password-keyring');
+    final keys = <Map<String, Object?>>[];
+    for (final raw in snapshot['keys'] as List) {
+      final entry = Map<String, dynamic>.from(raw as Map);
+      if (entry['installed'] == true) continue;
+      if (entry['envelope'] == null) {
+        throw const FormatException(
+          'Password vault key is missing. Sign in on an existing device to sync it.',
+        );
+      }
+      final vaultKey = await crypto.unwrapPasswordVaultKey(
+        accountKey: accountKey,
+        accountId: auth.accountId,
+        vaultId: entry['vault_id'] as String,
+        keyEpoch: entry['key_epoch'] as int,
+        envelope: Map<String, dynamic>.from(entry['envelope'] as Map),
+      );
+      try {
+        keys.add(
+          crypto.createDeviceKeyEnvelope(
+            vaultId: entry['vault_id'] as String,
+            vaultKey: vaultKey,
+            keyEpoch: entry['key_epoch'] as int,
+            membershipVersion: entry['membership_version'] as int,
+            recipientDeviceId: currentIdentity.deviceId,
+            recipientEncryptionPublicKey: currentIdentity.encryption.publicKey,
+            signer: currentIdentity,
+          ),
+        );
+      } finally {
+        vaultKey.fillRange(0, vaultKey.length, 0);
+      }
+    }
+    if (keys.isNotEmpty)
+      await client.post('/api/v1/auth/password-keyring', {'keys': keys});
+  }
+
+  Future<void> _uploadPasswordVaultKeys(
+    ApiClient client,
+    AuthSession auth,
+    Uint8List accountKey,
+  ) async {
+    if (!(instance?.capabilities.contains('password_device_enrollment') ??
+        false))
+      return;
+    final snapshot = await client.get('/api/v1/auth/password-keyring');
+    final keys = <Map<String, Object?>>[];
+    for (final raw in snapshot['keys'] as List) {
+      final entry = Map<String, dynamic>.from(raw as Map);
+      if (entry['envelope'] != null) continue;
+      final vaultId = entry['vault_id'] as String;
+      final epoch = entry['key_epoch'] as int;
+      final versions = _vaultEpochKeys[vaultId];
+      if (versions == null) continue;
+      final candidates = versions.entries.where(
+        (e) => e.key.startsWith('$epoch:'),
+      );
+      if (candidates.isEmpty) continue;
+      keys.add({
+        'vault_id': vaultId,
+        'key_epoch': epoch,
+        'envelope': await crypto.wrapPasswordVaultKey(
+          accountKey: accountKey,
+          accountId: auth.accountId,
+          vaultId: vaultId,
+          keyEpoch: epoch,
+          vaultKey: candidates.first.value,
+        ),
+      });
+    }
+    if (keys.isNotEmpty && identical(session, auth)) {
+      await client.put('/api/v1/auth/password-keyring', {'keys': keys});
+    }
+  }
+
   Future<void> _finishAuthenticatedLogin({
     required ApiClient client,
     required String username,
@@ -4577,6 +4676,10 @@ class AppController extends ChangeNotifier {
       );
       if (accountKey.length != 32) {
         throw FormatException(currentL10n.invalidAccountKeyLength);
+      }
+      if (instance?.capabilities.contains('password_device_enrollment') ??
+          false) {
+        await _installPasswordVaultKeys(client, loggedIn, accountKey);
       }
       final pendingApproval = await secureStore.pendingDeviceApproval(
         client.baseUrl,
@@ -5512,6 +5615,7 @@ class AppController extends ChangeNotifier {
       return;
     }
     try {
+      await _uploadPasswordVaultKeys(currentApi, auth, currentAccountKey);
       final snapshot = await currentApi.accountRecoveryContexts();
       if (!identical(session, auth) || !identical(api, currentApi)) return;
       accountRecoveryRequiredContexts = snapshot.required;
@@ -8799,24 +8903,26 @@ class AppController extends ChangeNotifier {
   /// Creates a NEW Group only while [scope] is still the open repository
   /// (checked inside the mutation queue and after the write); returns the
   /// created revision, read inside the queue.
-  Future<String> createGroupInScope(GroupRecord group, {required Object scope}) =>
-      _serializeGroupMutation(() async {
-        _requireRecordWriteScope(scope);
-        if (_revisionIds.containsKey(group.id) ||
-            groups.any((candidate) => candidate.id == group.id)) {
-          throw FormatException(currentL10n.thisHostChangedAfterThePreview);
-        }
-        await _saveGroupLocked(
-          group,
-          isCurrentContext: () => identical(_repository, scope),
-        );
-        _requireRecordWriteScope(scope);
-        final revision = _revisionIds[group.id];
-        if (revision == null) {
-          throw StateError(currentL10n.theWorkspaceWasSwitchedTryAgain);
-        }
-        return revision;
-      });
+  Future<String> createGroupInScope(
+    GroupRecord group, {
+    required Object scope,
+  }) => _serializeGroupMutation(() async {
+    _requireRecordWriteScope(scope);
+    if (_revisionIds.containsKey(group.id) ||
+        groups.any((candidate) => candidate.id == group.id)) {
+      throw FormatException(currentL10n.thisHostChangedAfterThePreview);
+    }
+    await _saveGroupLocked(
+      group,
+      isCurrentContext: () => identical(_repository, scope),
+    );
+    _requireRecordWriteScope(scope);
+    final revision = _revisionIds[group.id];
+    if (revision == null) {
+      throw StateError(currentL10n.theWorkspaceWasSwitchedTryAgain);
+    }
+    return revision;
+  });
 
   /// Body of [saveGroup]; callers must already hold the mutation queue.
   Future<void> _saveGroupLocked(
@@ -12926,8 +13032,9 @@ class AppController extends ChangeNotifier {
       }
       await loadAdminAccounts(offset: refreshOffset);
       if (!isInstanceAdmin || isCurrentAdminAccount(userId)) return false;
-      adminAccountActionNotice =
-          currentL10n.sessionsRevokedForSelectedAccount(receipt.revokedSessions);
+      adminAccountActionNotice = currentL10n.sessionsRevokedForSelectedAccount(
+        receipt.revokedSessions,
+      );
       return true;
     } catch (error) {
       adminAccountActionError = friendlyError(error);
@@ -20365,8 +20472,10 @@ class AppController extends ChangeNotifier {
       rethrow;
     } finally {
       if (_isTerminalTabOpen(tab)) {
-        tab.recovery?.update(connected: tab.state == 'connected',
-          connecting: tab.state == 'connecting');
+        tab.recovery?.update(
+          connected: tab.state == 'connected',
+          connecting: tab.state == 'connecting',
+        );
       }
     }
   }
@@ -20469,9 +20578,7 @@ class AppController extends ChangeNotifier {
         return saved;
       },
     );
-    final progressAttempt = tab.connectProgress.begin(
-      ConnectStage.connecting,
-    );
+    final progressAttempt = tab.connectProgress.begin(ConnectStage.connecting);
     tab.host = host;
     tab.state = 'connecting';
     tab.errorMessage = null;
@@ -20507,8 +20614,11 @@ class AppController extends ChangeNotifier {
       }
       tab.state = desktop.state;
       tab.errorMessage = desktop.error;
-      tab.recovery?.update(connected: desktop.state == 'connected',
-          connecting: desktop.state == 'connecting' || desktop.state == 'certificate');
+      tab.recovery?.update(
+        connected: desktop.state == 'connected',
+        connecting:
+            desktop.state == 'connecting' || desktop.state == 'certificate',
+      );
       _notifyListenersIfAlive();
     });
     if (previousDesktop != null) {
