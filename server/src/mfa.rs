@@ -597,8 +597,12 @@ pub(super) async fn login(
         .execute(&mut *tx)
         .await
         .map_err(ApiError::internal)?;
-        crate::audit::record_failed_login_tx(&mut tx, &state, &user_id, now).await?;
+        // Commit the attempt increment and the rate bucket before the audit so
+        // an audit write failure cannot roll back the five-try ceiling. The
+        // failed-login audit itself stays best effort, matching the password
+        // path, where audit trouble never changes the public auth response.
         tx.commit().await.map_err(ApiError::internal)?;
+        auth::record_login_failure_outcome_best_effort(&state, Some(&user_id)).await;
         return Err(ApiError::unauthorized());
     }
 

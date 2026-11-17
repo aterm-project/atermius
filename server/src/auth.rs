@@ -1746,7 +1746,7 @@ pub(crate) async fn session_response(
 /// turn an otherwise ordinary failure into an account-existence oracle. The
 /// unattributable path takes the same writer transaction but writes no event.
 /// If audit work fails, emit only a fixed warning without input or SQL details.
-async fn record_login_failure_outcome_best_effort(state: &AppState, user_id: Option<&str>) {
+pub(crate) async fn record_login_failure_outcome_best_effort(state: &AppState, user_id: Option<&str>) {
     let Ok(mut tx) = state.db.begin().await else {
         tracing::warn!(
             event = "auth_login_failure_audit_write_failed",
