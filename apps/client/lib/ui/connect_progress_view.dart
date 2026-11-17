@@ -244,19 +244,25 @@ class ConnectProgressPane extends StatelessWidget {
     final info = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: 30,
-          height: 30,
-          child: loading
-              ? const CircularProgressIndicator(strokeWidth: 2.5)
-              : Icon(
-                  failed
-                      ? Icons.error_outline_rounded
-                      : Icons.stop_circle_outlined,
-                  size: 30,
-                  color: failed ? palette.red : palette.muted,
-                ),
-        ),
+        // Same thin green bar language as the entry splash's top preload
+        // strip: a restored terminal stays a small inline indicator instead
+        // of introducing a second, differently styled spinner.
+        if (loading)
+          SizedBox(
+            width: 140,
+            child: LinearProgressIndicator(
+              minHeight: 2,
+              color: const Color(0xFF34D399),
+              backgroundColor: palette.muted.withValues(alpha: .2),
+              semanticsLabel: l10n.connectProgressStageConnecting,
+            ),
+          )
+        else
+          Icon(
+            failed ? Icons.error_outline_rounded : Icons.stop_circle_outlined,
+            size: 30,
+            color: failed ? palette.red : palette.muted,
+          ),
         const SizedBox(height: 12),
         Text(
           heading,
