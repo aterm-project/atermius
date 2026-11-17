@@ -329,7 +329,9 @@ class _SessionWorkspaceViewState extends State<SessionWorkspaceView> {
         final mobile =
             Theme.of(context).platform == TargetPlatform.android ||
             Theme.of(context).platform == TargetPlatform.iOS;
-        final immersive = mobile && FullscreenController.instance.enabled;
+        final immersive =
+            (mobile || Theme.of(context).platform == TargetPlatform.windows) &&
+            FullscreenController.instance.enabled;
         final peek = FullscreenTabsPeek.instance;
         final peekVisible = immersive && peek.visible;
         // The dropped-down strip covers the top of the selected pane; its

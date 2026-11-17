@@ -712,11 +712,12 @@ class WorkspaceTabBar extends StatelessWidget {
     return ListenableBuilder(
       listenable: Listenable.merge([chrome, FullscreenController.instance]),
       builder: (context, _) {
-        // Android fullscreen keeps the strip out of the layout (Home still
+        // Mobile and Windows fullscreen keep the strip out of the layout (Home still
         // shows it as the way out). The pane handle can drop it down as a
         // temporary overlay without resizing any terminal or desktop.
         if ((Theme.of(context).platform == TargetPlatform.android ||
-                Theme.of(context).platform == TargetPlatform.iOS) &&
+                Theme.of(context).platform == TargetPlatform.iOS ||
+                Theme.of(context).platform == TargetPlatform.windows) &&
             FullscreenController.instance.enabled &&
             !tabs.any((tab) => tab.isHome && tab.id == selectedId)) {
           return FullscreenTabsOverlay(

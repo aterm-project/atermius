@@ -150,7 +150,11 @@ void main() {
     FullscreenTabsPeek.debugInstance = null;
   });
 
-  Future<void> pumpHarness(WidgetTester tester, {Size? size}) async {
+  Future<void> pumpHarness(
+    WidgetTester tester, {
+    Size? size,
+    TargetPlatform platform = TargetPlatform.android,
+  }) async {
     if (size != null) {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
@@ -158,7 +162,7 @@ void main() {
     }
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.android),
+        theme: ThemeData(platform: platform),
         home: Scaffold(
           body: _Harness(layout: layout, closed: closed, splits: splits),
         ),
@@ -449,6 +453,30 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('workspace-group-a')));
     await tester.pumpAndSettle();
     expect(layout.sessionIds, ['a', 'b']);
+    expect(find.text('term-a').hitTestable(), findsOneWidget);
+    expect(find.text('term-b').hitTestable(), findsOneWidget);
+    await cleanUp(tester);
+  });
+
+  testWidgets('Windows fullscreen tabs collapse, peek and restore on exit', (
+    tester,
+  ) async {
+    await pumpHarness(tester, platform: TargetPlatform.windows);
+    final termSize = tester.getSize(find.byType(_Term));
+    await tester.tap(handle('b'));
+    await tester.pumpAndSettle();
+    expect(navBar, findsOneWidget);
+    expect(overlay, findsOneWidget);
+    expect(tester.getSize(find.byType(_Term)), termSize);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(navBar, findsNothing);
+    expect(fullscreen.enabled, isTrue);
+    expect(_Term.inits, {'a': 1, 'b': 1});
+    await fullscreen.toggle();
+    await tester.pumpAndSettle();
+    expect(navBar, findsOneWidget);
+    expect(overlay, findsNothing);
     expect(find.text('term-a').hitTestable(), findsOneWidget);
     expect(find.text('term-b').hitTestable(), findsOneWidget);
     await cleanUp(tester);
