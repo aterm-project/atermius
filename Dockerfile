@@ -27,6 +27,7 @@ COPY packages/desktop_drop /src/packages/desktop_drop
 COPY apps/client/pubspec.yaml apps/client/pubspec.lock ./
 COPY apps/client/lib ./lib
 COPY apps/client/web ./web
+COPY apps/client/assets ./assets
 RUN flutter --version && flutter pub get --enforce-lockfile
 RUN flutter build web --release --no-web-resources-cdn
 

@@ -75,7 +75,10 @@ Future<void> _dismissMenu(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<SessionWorkspaceController> _mobileWorkspace(WidgetTester tester) async {
+Future<SessionWorkspaceController> _mobileWorkspace(
+  WidgetTester tester, {
+  List<WorkspaceTab> tabs = _tabs,
+}) async {
   final layout = SessionWorkspaceController()..activate('b');
   addTearDown(layout.dispose);
   await tester.pumpWidget(
@@ -85,7 +88,7 @@ Future<SessionWorkspaceController> _mobileWorkspace(WidgetTester tester) async {
         body: Column(
           children: [
             WorkspaceTabBar(
-              tabs: _tabs,
+              tabs: tabs,
               selectedId: 'b',
               onSelect: (_) {},
               onClose: (_) {},
@@ -157,9 +160,9 @@ void main() {
     );
   }
   testWidgets(
-    'Android grouped tab drags its selected member to change split axis at 390px',
+    'Android grouped tab drags its selected member on a tablet-width strip',
     (tester) async {
-      tester.view.physicalSize = const Size(390, 760);
+      tester.view.physicalSize = const Size(800, 760);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final layout = SessionWorkspaceController()
@@ -1105,11 +1108,14 @@ void main() {
   testWidgets(
     'touch diagonal pull lifts overflowing tabs before horizontal scrolling',
     (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
+      tester.view.physicalSize = const Size(800, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final layout = await _mobileWorkspace(tester);
+      final layout = await _mobileWorkspace(tester, tabs: [
+        ..._tabs,
+        for (var i = 0; i < 6; i++) WorkspaceTab(id: 'extra-$i', title: 'Extra $i'),
+      ]);
       final pane = tester.getRect(find.byKey(const ValueKey('session-pane-b')));
       final gesture = await tester.startGesture(
         tester.getCenter(find.byKey(const ValueKey('workspace-tab-a'))),

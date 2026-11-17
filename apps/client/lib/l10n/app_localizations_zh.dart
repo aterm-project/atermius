@@ -17485,4 +17485,10 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get sessionReconnectNote =>
       '仅保存在本设备。达到重连时限后停止自动重连，仍可点击“恢复连接”手动重连。更改对正在重连的会话同样生效。';
+
+  @override
+  String get keybarResetTextSize => '字号复原';
+
+  @override
+  String get resetTerminalTextScale => '恢复为设置中的默认终端字号';
 }

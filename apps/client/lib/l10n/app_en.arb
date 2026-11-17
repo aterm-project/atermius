@@ -16259,5 +16259,7 @@
   "sessionReconnectNote": "Stored on this device only. When the time limit is reached, automatic attempts stop and “Restore connection” stays available. Changes also apply to sessions that are reconnecting now.",
   "@sessionReconnectNote": {
     "description": "Note under the automatic reconnect setting."
-  }
+  },
+  "keybarResetTextSize": "Reset text size",
+  "resetTerminalTextScale": "Restore the terminal text size set in Settings"
 }

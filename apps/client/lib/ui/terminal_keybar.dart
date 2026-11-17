@@ -11,6 +11,7 @@ import 'package:xterm/xterm.dart';
 
 import '../l10n/l10n.dart';
 import '../storage/terminal_keybar_store.dart';
+import 'terminal_font_zoom.dart';
 import 'apple_hig.dart';
 import 'ios_native/ios_native.dart';
 
@@ -531,9 +532,7 @@ class _TerminalKeybarState extends State<TerminalKeybar>
       return IosGlassBar(
         sigma: 20,
         topSeparator: true,
-        fill: c.isDark
-            ? const Color(0xB31C1C1E)
-            : const Color(0xCCD1D3D9),
+        fill: c.isDark ? const Color(0xB31C1C1E) : const Color(0xCCD1D3D9),
         child: ExcludeFocus(
           // Pointer/semantics activation must not take focus from the IME.
           child: Padding(
@@ -557,7 +556,12 @@ class _TerminalKeybarState extends State<TerminalKeybar>
           : null,
       child: ExcludeFocus(
         // Pointer/semantics activation must not take focus from the IME.
-        child: LayoutBuilder(builder: _buildRows),
+        child: TerminalFontZoom.enabled
+            ? ValueListenableBuilder<double>(
+                valueListenable: TerminalFontZoom.scaleFor(widget.terminal),
+                builder: (context, _, _) => LayoutBuilder(builder: _buildRows),
+              )
+            : LayoutBuilder(builder: _buildRows),
       ),
     );
   }
@@ -623,8 +627,8 @@ class _TerminalKeybarState extends State<TerminalKeybar>
 
     Color iosActiveForeground(IosColors c) =>
         ThemeData.estimateBrightnessForColor(c.tint) == Brightness.light
-            ? const Color(0xFF000000)
-            : const Color(0xFFFFFFFF);
+        ? const Color(0xFF000000)
+        : const Color(0xFFFFFFFF);
 
     Widget wrapKeycap(
       Widget child, {
@@ -961,6 +965,17 @@ class _TerminalKeybarState extends State<TerminalKeybar>
     final keys = <_KeySpec>[
       ...primaryKeys,
       if (expanded) ...[
+        if (TerminalFontZoom.enabled)
+          button(
+            l10n.keybarResetTextSize,
+            l10n.resetTerminalTextScale,
+            TerminalFontZoom.scaleFor(widget.terminal).value == 1.0
+                ? null
+                : () {
+                    TerminalFontZoom.scaleFor(widget.terminal).value = 1.0;
+                    _focusTerminal();
+                  },
+          ),
         key('Home', TerminalKey.home),
         key('End', TerminalKey.end),
         key('PgUp', TerminalKey.pageUp),

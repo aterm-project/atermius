@@ -30855,6 +30855,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Stored on this device only. When the time limit is reached, automatic attempts stop and “Restore connection” stays available. Changes also apply to sessions that are reconnecting now.'**
   String get sessionReconnectNote;
+
+  /// No description provided for @keybarResetTextSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset text size'**
+  String get keybarResetTextSize;
+
+  /// No description provided for @resetTerminalTextScale.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore the terminal text size set in Settings'**
+  String get resetTerminalTextScale;
 }
 
 class _AppLocalizationsDelegate

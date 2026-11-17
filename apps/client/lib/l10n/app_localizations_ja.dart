@@ -18397,4 +18397,10 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get sessionReconnectNote =>
       'このデバイスにのみ保存されます。制限時間に達すると自動再接続を中止しますが、「再接続」から手動で接続できます。変更は再接続中のセッションにも適用されます。';
+
+  @override
+  String get keybarResetTextSize => '文字サイズを戻す';
+
+  @override
+  String get resetTerminalTextScale => '設定で指定したターミナルの文字サイズに戻す';
 }

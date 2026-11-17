@@ -618,7 +618,9 @@ class WorkspaceTabBar extends StatelessWidget {
               _TabIcon(
                 tab: tab,
                 size: bar.iconSize,
-                color: tab.isConnected ? colors.primary : colors.onSurfaceVariant,
+                color: tab.isConnected
+                    ? colors.primary
+                    : colors.onSurfaceVariant,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -789,130 +791,407 @@ class WorkspaceTabBar extends StatelessWidget {
         key: const ValueKey('workspace_navigation_bar'),
         height: bar.height,
         child: LayoutBuilder(
-            builder: (context, barConstraints) {
-              final homeWidth = barConstraints.maxWidth < 380 ? 110.0 : 128.0;
-              return sized(
-                Row(
-                  children: [
-                    if (chrome.state.leadingInset > 0)
-                      SizedBox(width: chrome.state.leadingInset),
-                    ?leading,
-                    for (final tab in visibleTabs.where((tab) => tab.isHome))
-                      _tab(context, tab, bar, homeWidth: homeWidth),
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final sessionTabs = visibleTabs
-                              .where((tab) => !tab.isHome)
-                              .toList();
-                          final maxTabWidth = bar.dense ? 192.0 : 196.0;
-                          final minTabWidth = bar.dense ? 128.0 : 148.0;
-                          final sessionWidth = sessionTabs.isEmpty
-                              ? maxTabWidth
-                              : ((constraints.maxWidth - 44.0) /
-                                        sessionTabs.length -
-                                    4.0)
-                                    .clamp(minTabWidth, maxTabWidth);
-                          final usedWidth =
-                              sessionTabs.length * (sessionWidth + 4.0);
-                          final gapWidth = (constraints.maxWidth - usedWidth)
-                              .clamp(32.0, double.infinity);
-                          return _HorizontalTabStrip(
-                            child: Row(
-                              children: [
-                                for (final tab in sessionTabs)
-                                  _TabEntrance(
-                                    key: ValueKey(
-                                      'workspace-tab-motion-${tab.id}',
+          builder: (context, barConstraints) {
+            final homeWidth = barConstraints.maxWidth < 380 ? 110.0 : 128.0;
+            return sized(
+              Row(
+                children: [
+                  if (chrome.state.leadingInset > 0)
+                    SizedBox(width: chrome.state.leadingInset),
+                  ?leading,
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, tabConstraints) {
+                        // Use logical display width after toolbar actions and
+                        // system insets, so Android density and split-screen
+                        // changes follow the same four-tab threshold.
+                        if (Theme.of(context).platform ==
+                                TargetPlatform.android &&
+                            tabConstraints.maxWidth < homeWidth + 3 * 152) {
+                          return _CompactWorkspaceTabs(bar: this, metrics: bar);
+                        }
+                        return Row(
+                          children: [
+                            for (final tab in visibleTabs.where(
+                              (tab) => tab.isHome,
+                            ))
+                              _tab(context, tab, bar, homeWidth: homeWidth),
+                            Expanded(
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final sessionTabs = visibleTabs
+                                      .where((tab) => !tab.isHome)
+                                      .toList();
+                                  final maxTabWidth = bar.dense ? 192.0 : 196.0;
+                                  final minTabWidth = bar.dense ? 128.0 : 148.0;
+                                  final sessionWidth = sessionTabs.isEmpty
+                                      ? maxTabWidth
+                                      : ((constraints.maxWidth - 44.0) /
+                                                    sessionTabs.length -
+                                                4.0)
+                                            .clamp(minTabWidth, maxTabWidth);
+                                  final usedWidth =
+                                      sessionTabs.length * (sessionWidth + 4.0);
+                                  final gapWidth =
+                                      (constraints.maxWidth - usedWidth).clamp(
+                                        32.0,
+                                        double.infinity,
+                                      );
+                                  return _HorizontalTabStrip(
+                                    child: Row(
+                                      children: [
+                                        for (final tab in sessionTabs)
+                                          _TabEntrance(
+                                            key: ValueKey(
+                                              'workspace-tab-motion-${tab.id}',
+                                            ),
+                                            child: _tab(
+                                              context,
+                                              tab,
+                                              bar,
+                                              sessionWidth: sessionWidth,
+                                            ),
+                                          ),
+                                        DragTarget<WorkspaceTabDragData>(
+                                          onWillAcceptWithDetails: (details) =>
+                                              onReorder != null &&
+                                              details.data.scope == dragScope &&
+                                              _isLiveTab(details.data.tabId),
+                                          onAcceptWithDetails: (details) {
+                                            if (_isLiveTab(
+                                              details.data.tabId,
+                                            )) {
+                                              onReorder?.call(
+                                                details.data.tabId,
+                                                null,
+                                              );
+                                            }
+                                          },
+                                          builder: (context, candidates, _) {
+                                            final gap = SizedBox(
+                                              width: gapWidth,
+                                              height: bar.height,
+                                              child: candidates.isEmpty
+                                                  ? null
+                                                  : ColoredBox(
+                                                      color: colors.primary
+                                                          .withValues(
+                                                            alpha: .2,
+                                                          ),
+                                                    ),
+                                            );
+                                            return mergedTitlebar
+                                                ? WindowDragArea(
+                                                    controller: chrome,
+                                                    child: gap,
+                                                  )
+                                                : gap;
+                                          },
+                                        ),
+                                      ],
                                     ),
-                                    child: _tab(
-                                      context,
-                                      tab,
-                                      bar,
-                                      sessionWidth: sessionWidth,
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  if (homeMenuActions.isEmpty &&
+                      supportsNewWindow &&
+                      onNewWindow != null)
+                    IconButton(
+                      tooltip: context.l10n.newWindowCtrlShiftN,
+                      onPressed: onNewWindow,
+                      icon: const Icon(Icons.add_to_queue_outlined),
+                    ),
+                  ...actions,
+                  const FullscreenToolsMenu(),
+                  if (onSearch != null)
+                    IconButton(
+                      key: const ValueKey('workspace_host_search_button'),
+                      tooltip: context.l10n.searchHostsOrQuickConnect,
+                      onPressed: onSearch,
+                      icon: Icon(
+                        Icons.search_rounded,
+                        size: bar.dense ? 17 : 21,
+                      ),
+                    ),
+                  if (onToggleTools != null)
+                    IconButton(
+                      key: const ValueKey('workspace_terminal_sidebar_button'),
+                      tooltip: context.l10n.terminalSidebar,
+                      onPressed: onToggleTools,
+                      icon: Icon(
+                        Icons.vertical_split_outlined,
+                        size: bar.dense ? 17 : 21,
+                      ),
+                    ),
+                  WindowCaptionControls(controller: chrome, height: bar.height),
+                  if (!customCaption) SizedBox(width: bar.dense ? 8 : 4),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// A browser-style tab switcher on Android widths that cannot fit four tabs.
+/// The portal covers the current page below the toolbar without rebuilding or
+/// resizing its live sessions; its list follows the latest parent tab state.
+class _CompactWorkspaceTabs extends StatefulWidget {
+  const _CompactWorkspaceTabs({required this.bar, required this.metrics});
+
+  final WorkspaceTabBar bar;
+  final WindowBarMetrics metrics;
+
+  @override
+  State<_CompactWorkspaceTabs> createState() => _CompactWorkspaceTabsState();
+}
+
+class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
+  final _portal = OverlayPortalController();
+  final _peekToken = Object();
+  late final _peek = FullscreenTabsPeek.instance;
+  bool _open = false;
+
+  @override
+  void dispose() {
+    _peek.unblock(_peekToken);
+    super.dispose();
+  }
+
+  void _hide() {
+    _portal.hide();
+    _peek.unblock(_peekToken);
+    setState(() => _open = false);
+  }
+
+  void _toggle() {
+    if (_open) {
+      _hide();
+    } else {
+      FocusManager.instance.primaryFocus?.unfocus();
+      _peek.block(_peekToken);
+      _portal.show();
+      setState(() => _open = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bar = widget.bar;
+    final tabs = bar._displayTabs;
+    final selected = tabs
+        .where(
+          (tab) =>
+              tab.id == bar.selectedId ||
+              tab.members.any((member) => member.id == bar.selectedId),
+        )
+        .firstOrNull;
+    final colors = Theme.of(context).colorScheme;
+    final palette = context.palette;
+    final countLabel = context.l10n.countTabs(tabs.length);
+    return PopScope(
+      canPop: !_open,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _open) _hide();
+      },
+      child: OverlayPortal.overlayChildLayoutBuilder(
+        controller: _portal,
+        overlayChildBuilder: (context, info) {
+          final rect = MatrixUtils.transformRect(
+            info.childPaintTransform,
+            Offset.zero & info.childSize,
+          );
+          return Positioned(
+            top: rect.bottom,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: TapRegion(
+              groupId: FullscreenTabsPeek.tapGroup,
+              child: Material(
+                key: const ValueKey('workspace-tab-list'),
+                color: palette.rail,
+                child: SafeArea(
+                  top: false,
+                  child: Semantics(
+                    scopesRoute: true,
+                    explicitChildNodes: true,
+                    namesRoute: true,
+                    label: countLabel,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16, right: 4),
+                          child: Row(
+                            children: [
+                              Expanded(child: Text(countLabel)),
+                              IconButton(
+                                tooltip: context.l10n.close,
+                                onPressed: _hide,
+                                icon: const Icon(Icons.close),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                            itemCount: tabs.length,
+                            itemBuilder: (context, index) {
+                              final tab = tabs[index];
+                              final active = selected?.id == tab.id;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Semantics(
+                                  selected: active,
+                                  child: GestureDetector(
+                                    onLongPressStart: tab.isHome
+                                        ? null
+                                        : (details) => bar._longPressMenu(
+                                            context,
+                                            tab,
+                                            details.globalPosition,
+                                          ),
+                                    onSecondaryTapDown: tab.isHome
+                                        ? null
+                                        : (details) => bar._contextMenu(
+                                            context,
+                                            tab,
+                                            details.globalPosition,
+                                          ),
+                                    child: _TabSurfaceChip(
+                                      tab: tab,
+                                      bar: widget.metrics,
+                                      palette: palette,
+                                      colors: colors,
+                                      selected: active,
+                                      mobile: true,
+                                      width: double.infinity,
+                                      homeMenuActions: bar.homeMenuActions,
+                                      onTap: () {
+                                        _hide();
+                                        bar.onSelect(bar._selectionFor(tab));
+                                      },
+                                      onClose: () => bar._closeTab(tab),
                                     ),
                                   ),
-                                DragTarget<WorkspaceTabDragData>(
-                                  onWillAcceptWithDetails: (details) =>
-                                      onReorder != null &&
-                                      details.data.scope == dragScope &&
-                                      _isLiveTab(details.data.tabId),
-                                  onAcceptWithDetails: (details) {
-                                    if (_isLiveTab(details.data.tabId)) {
-                                      onReorder?.call(
-                                        details.data.tabId,
-                                        null,
-                                      );
-                                    }
-                                  },
-                                  builder: (context, candidates, _) {
-                                    final gap = SizedBox(
-                                      width: gapWidth,
-                                      height: bar.height,
-                                      child: candidates.isEmpty
-                                          ? null
-                                          : ColoredBox(
-                                              color: colors.primary.withValues(
-                                                alpha: .2,
-                                              ),
-                                            ),
-                                    );
-                                    return mergedTitlebar
-                                        ? WindowDragArea(
-                                            controller: chrome,
-                                            child: gap,
-                                          )
-                                        : gap;
-                                  },
                                 ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+        child: Row(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: widget.metrics.tabInset,
+                ),
+                child: Material(
+                  color: palette.isDark ? palette.surfaceSoft : palette.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: palette.line),
+                  ),
+                  child: InkWell(
+                    key: const ValueKey('workspace-tab-list-button'),
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: _toggle,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final showTitle = constraints.maxWidth >= 90;
+                        final showIcon = constraints.maxWidth >= 160;
+                        return Semantics(
+                          button: true,
+                          expanded: _open,
+                          label: '${selected?.title ?? ''}, $countLabel',
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: showTitle ? 10 : 4,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: showTitle
+                                  ? MainAxisAlignment.start
+                                  : MainAxisAlignment.center,
+                              children: [
+                                if (showIcon && selected != null) ...[
+                                  _TabIcon(
+                                    tab: selected,
+                                    size: widget.metrics.iconSize,
+                                    color: palette.accentText,
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                if (showTitle) ...[
+                                  Expanded(
+                                    child: Text(
+                                      selected?.title ?? countLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                Flexible(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 32,
+                                    ),
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        '${tabs.length}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (constraints.maxWidth >= 64)
+                                  Icon(
+                                    _open
+                                        ? Icons.expand_less
+                                        : Icons.expand_more,
+                                    size: 18,
+                                  ),
                               ],
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
-                    if (homeMenuActions.isEmpty &&
-                        supportsNewWindow &&
-                        onNewWindow != null)
-                      IconButton(
-                        tooltip: context.l10n.newWindowCtrlShiftN,
-                        onPressed: onNewWindow,
-                        icon: const Icon(Icons.add_to_queue_outlined),
-                      ),
-                    ...actions,
-                    const FullscreenToolsMenu(),
-                    if (onSearch != null)
-                      IconButton(
-                        key: const ValueKey('workspace_host_search_button'),
-                        tooltip: context.l10n.searchHostsOrQuickConnect,
-                        onPressed: onSearch,
-                        icon: Icon(
-                          Icons.search_rounded,
-                          size: bar.dense ? 17 : 21,
-                        ),
-                      ),
-                    if (onToggleTools != null)
-                      IconButton(
-                        key: const ValueKey('workspace_terminal_sidebar_button'),
-                        tooltip: context.l10n.terminalSidebar,
-                        onPressed: onToggleTools,
-                        icon: Icon(
-                          Icons.vertical_split_outlined,
-                          size: bar.dense ? 17 : 21,
-                        ),
-                      ),
-                    WindowCaptionControls(
-                      controller: chrome,
-                      height: bar.height,
-                    ),
-                    if (!customCaption) SizedBox(width: bar.dense ? 8 : 4),
-                  ],
+                  ),
                 ),
-              );
-            },
-          ),
+              ),
+            ),
+            if (bar.homeMenuActions.isNotEmpty)
+              WorkspaceOverflowMenu(
+                key: const ValueKey('workspace_host_menu'),
+                tooltip: context.l10n.hostMenuClickToOpen,
+                actions: bar.homeMenuActions,
+              ),
+          ],
         ),
-      );
+      ),
+    );
   }
 }
 
@@ -1032,10 +1311,7 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
         builder: (context, color, child) => Material(
           key: ValueKey('workspace-tab-surface-${tab.id}'),
           color: color,
-          animationDuration: AppMotion.duration(
-            context,
-            MotionDurations.quick,
-          ),
+          animationDuration: AppMotion.duration(context, MotionDurations.quick),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
             side: BorderSide(color: borderColor),
@@ -1065,12 +1341,16 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
                           Icon(
                             Icons.home_outlined,
                             size: bar.iconSize,
-                            color: selected ? palette.accentText : palette.muted,
+                            color: selected
+                                ? palette.accentText
+                                : palette.muted,
                           ),
                           Icon(
                             Icons.expand_more,
                             size: 14,
-                            color: selected ? palette.accentText : palette.muted,
+                            color: selected
+                                ? palette.accentText
+                                : palette.muted,
                           ),
                         ],
                       ),

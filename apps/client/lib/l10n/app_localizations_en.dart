@@ -19526,4 +19526,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sessionReconnectNote =>
       'Stored on this device only. When the time limit is reached, automatic attempts stop and “Restore connection” stays available. Changes also apply to sessions that are reconnecting now.';
+
+  @override
+  String get keybarResetTextSize => 'Reset text size';
+
+  @override
+  String get resetTerminalTextScale =>
+      'Restore the terminal text size set in Settings';
 }

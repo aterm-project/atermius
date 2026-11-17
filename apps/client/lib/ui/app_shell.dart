@@ -1,3 +1,4 @@
+import 'terminal_font_zoom.dart';
 import 'cloud_access/organizations_page.dart' show CloudAccessAccountCard;
 import 'cloud_access/share_host_dialog.dart' show showCloudShareDialog;
 import '../cloud/cloud_access_service.dart' show CloudAccessService;
@@ -9548,26 +9549,29 @@ return DesktopView(
             tab,
             autofocus: id == app.activeTerminalTabId,
           )
-        : TerminalView(
-            tab.terminal,
-            foregroundDecorator: TerminalKeywordHighlighter.instance,
-            key: _viewKeyFor(id),
-            controller: search?.controller,
-            scrollController: search?.scrollController,
-            focusNode: _focusNodeFor(id),
-            autofocus: id == app.activeTerminalTabId,
-            hardwareKeyboardOnly: false,
-            showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
-            keyboardAppearance: Theme.of(context).brightness,
-            readOnly: tab.state != 'connected',
-            onKeyEvent: (_, event) => _handleTerminalKeyEvent(id, event),
-            padding: const EdgeInsets.all(12),
-            backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
-            textStyle: TerminalStyle(
-              fontSize: app.terminalFontSize.toDouble(),
-              fontFamily: 'monospace',
+        : TerminalFontZoom(
+            terminal: tab.terminal,
+            builder: (context, fontScale) => TerminalView(
+              tab.terminal,
+              foregroundDecorator: TerminalKeywordHighlighter.instance,
+              key: _viewKeyFor(id),
+              controller: search?.controller,
+              scrollController: search?.scrollController,
+              focusNode: _focusNodeFor(id),
+              autofocus: id == app.activeTerminalTabId,
+              hardwareKeyboardOnly: false,
+              showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
+              keyboardAppearance: Theme.of(context).brightness,
+              readOnly: tab.state != 'connected',
+              onKeyEvent: (_, event) => _handleTerminalKeyEvent(id, event),
+              padding: const EdgeInsets.all(12),
+              backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
+              textStyle: TerminalStyle(
+                fontSize: app.terminalFontSize.toDouble() * fontScale,
+                fontFamily: 'monospace',
+              ),
+              theme: terminalColorThemeOf(context, app.terminalTheme),
             ),
-            theme: terminalColorThemeOf(context, app.terminalTheme),
           );
     return GestureDetector(
       onSecondaryTapDown: (event) => unawaited(
@@ -9646,23 +9650,26 @@ return DesktopView(
   }) {
     final focusNode = _focusNodeFor(tab.id);
     final viewKey = _viewKeyFor(tab.id);
-    final terminalView = TerminalView(
-      tab.terminal,
-      foregroundDecorator: TerminalKeywordHighlighter.instance,
-      key: viewKey,
-      controller: _terminalSearches[tab.id]?.controller,
-      scrollController: _terminalSearches[tab.id]?.scrollController,
-      focusNode: focusNode,
-      autofocus: autofocus,
-      hardwareKeyboardOnly: false,
-      onKeyEvent: (_, event) => _handleTerminalKeyEvent(tab.id, event),
-      padding: const EdgeInsets.all(14),
-      backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
-      textStyle: TerminalStyle(
-        fontSize: app.terminalFontSize.toDouble(),
-        fontFamily: 'monospace',
+    final terminalView = TerminalFontZoom(
+      terminal: tab.terminal,
+      builder: (context, fontScale) => TerminalView(
+        tab.terminal,
+        foregroundDecorator: TerminalKeywordHighlighter.instance,
+        key: viewKey,
+        controller: _terminalSearches[tab.id]?.controller,
+        scrollController: _terminalSearches[tab.id]?.scrollController,
+        focusNode: focusNode,
+        autofocus: autofocus,
+        hardwareKeyboardOnly: false,
+        onKeyEvent: (_, event) => _handleTerminalKeyEvent(tab.id, event),
+        padding: const EdgeInsets.all(14),
+        backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
+        textStyle: TerminalStyle(
+          fontSize: app.terminalFontSize.toDouble() * fontScale,
+          fontFamily: 'monospace',
+        ),
+        theme: terminalColorThemeOf(context, app.terminalTheme),
       ),
-      theme: terminalColorThemeOf(context, app.terminalTheme),
     );
 
     // Keep Web's editable semantics node beside the repainting terminal
@@ -9753,25 +9760,28 @@ return DesktopView(
           enabled: true,
           onFocus: () => _requestTerminalKeyboard(tab.id),
           onTap: () => _requestTerminalKeyboard(tab.id, fromUserGesture: true),
-          child: TerminalView(
-            tab.terminal,
-            foregroundDecorator: TerminalKeywordHighlighter.instance,
-            key: _viewKeyFor(tab.id),
-            controller: search?.controller,
-            scrollController: search?.scrollController,
-            focusNode: _focusNodeFor(tab.id),
-            autofocus: tab.id == app.activeTerminalTabId,
-            hardwareKeyboardOnly: false,
-            showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
-            keyboardAppearance: Theme.of(context).brightness,
-            onKeyEvent: (_, event) => _handleTerminalKeyEvent(tab.id, event),
-            padding: const EdgeInsets.all(10),
-            backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
-            textStyle: TerminalStyle(
-              fontSize: app.terminalFontSize.toDouble(),
-              fontFamily: 'monospace',
+          child: TerminalFontZoom(
+            terminal: tab.terminal,
+            builder: (context, fontScale) => TerminalView(
+              tab.terminal,
+              foregroundDecorator: TerminalKeywordHighlighter.instance,
+              key: _viewKeyFor(tab.id),
+              controller: search?.controller,
+              scrollController: search?.scrollController,
+              focusNode: _focusNodeFor(tab.id),
+              autofocus: tab.id == app.activeTerminalTabId,
+              hardwareKeyboardOnly: false,
+              showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
+              keyboardAppearance: Theme.of(context).brightness,
+              onKeyEvent: (_, event) => _handleTerminalKeyEvent(tab.id, event),
+              padding: const EdgeInsets.all(10),
+              backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
+              textStyle: TerminalStyle(
+                fontSize: app.terminalFontSize.toDouble() * fontScale,
+                fontFamily: 'monospace',
+              ),
+              theme: terminalColorThemeOf(context, app.terminalTheme),
             ),
-            theme: terminalColorThemeOf(context, app.terminalTheme),
           ),
         ),
       );
@@ -11862,25 +11872,24 @@ class _TerminalObserverDialogState extends State<_TerminalObserverDialog> {
                           : context.l10n.sharedTerminalOutputReadOnly,
                       textField: hasController,
                       focused: hasController && _terminalFocusNode.hasFocus,
-                      child: TerminalView(
-                        widget.observer.terminal,
-                        foregroundDecorator: TerminalKeywordHighlighter.instance,
-                        key: _terminalViewKey,
-                        focusNode: _terminalFocusNode,
-                        readOnly: !hasController,
-                        autoResize: false,
-                        autofocus:
-                            hasController && !terminalTouchKeyboardOnDemand,
-                        hardwareKeyboardOnly: hardwareKeyboardOnly,
-                        showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
-                        padding: EdgeInsets.zero,
-                        textStyle: TerminalStyle(
-                          fontSize: widget.app.terminalFontSize.toDouble(),
-                          fontFamily: 'monospace',
-                        ),
-                        theme: terminalColorThemeOf(
-                          context,
-                          widget.app.terminalTheme,
+                      child: TerminalFontZoom(
+                        terminal: widget.observer.terminal,
+                        builder: (context, fontScale) => TerminalView(
+                          widget.observer.terminal,
+                          foregroundDecorator: TerminalKeywordHighlighter.instance,
+                          key: _terminalViewKey,
+                          focusNode: _terminalFocusNode,
+                          readOnly: !hasController,
+                          autoResize: false,
+                          autofocus: hasController && !terminalTouchKeyboardOnDemand,
+                          hardwareKeyboardOnly: hardwareKeyboardOnly,
+                          showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
+                          padding: EdgeInsets.zero,
+                          textStyle: TerminalStyle(
+                            fontSize: widget.app.terminalFontSize.toDouble() * fontScale,
+                            fontFamily: 'monospace',
+                          ),
+                          theme: terminalColorThemeOf(context, widget.app.terminalTheme),
                         ),
                       ),
                     ),

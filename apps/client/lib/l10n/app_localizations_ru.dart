@@ -19588,4 +19588,11 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get sessionReconnectNote =>
       'Хранится только на этом устройстве. По истечении лимита автоматические попытки прекращаются, а кнопка «Восстановить соединение» остаётся доступной. Изменения применяются и к сеансам, которые переподключаются сейчас.';
+
+  @override
+  String get keybarResetTextSize => 'Сбросить размер';
+
+  @override
+  String get resetTerminalTextScale =>
+      'Восстановить размер текста терминала из настроек';
 }

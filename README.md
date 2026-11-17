@@ -14,6 +14,7 @@ There is no published consumer installer matching the current main branch. Build
 - [Features and platform boundaries](docs/FEATURES.md)
 - [Sharing Hosts](docs/SHARING.en.md)
 - [Self-hosted server](docs/install/server.en.md)
+- [Online test environment](docs/ONLINE-TEST.md): `https://200.180.166.253`, using a self-signed certificate.
 - [Credential visibility and administrator escrow](docs/CREDENTIAL-VISIBILITY.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.en.md)
 - [Developer checks](docs/DEVELOPMENT.md)
