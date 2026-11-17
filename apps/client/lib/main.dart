@@ -608,6 +608,7 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
   bool _restoringMode = false;
   bool _switchingMode = false;
   bool _modeReadFailed = false;
+  bool _splashReadyScheduled = false;
   VoidCallback? _unregisterWindowCloser;
 
   Future<void> _closeForNativeExit() async {
@@ -1015,18 +1016,35 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
     );
   }
 
+  /// Startup loading surface for the server workspace while the controller
+  /// is missing or the stored session (and remembered Vault key) is still
+  /// restoring. Normally it stays hidden behind the browser splash, but the
+  /// fallback release paths can reveal it, so it reuses the splash language:
+  /// the same thin green bar as the top preload strip in web/index.html —
+  /// never a second, differently styled full-screen spinner.
+  static const Widget _serverStartupSurface = Scaffold(
+    body: Center(
+      child: SizedBox(
+        width: 140,
+        child: LinearProgressIndicator(
+          minHeight: 2,
+          color: Color(0xFF34D399),
+          backgroundColor: Color(0x22FFFFFF),
+        ),
+      ),
+    ),
+  );
+
   Widget _serverWorkspace() {
     final controller = _controller;
     if (controller == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return _serverStartupSurface;
     }
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
         if (controller.restoringStoredSession) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return _serverStartupSurface;
         }
         if (kIsWeb) {
           // One-shot bridge for the entry-layer splash: the first resolved
@@ -1042,6 +1060,15 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
             return _withModeSettings(
               LockedWorkspaceScreen(controller: controller),
             );
+          }
+          if (kIsWeb && !_splashReadyScheduled) {
+            // The console hand-over: once this first AppShell frame has
+            // painted, tell the splash it may fade (one-shot on the bridge
+            // side; splash-loader.js also releases on a short grace).
+            _splashReadyScheduled = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) reportSplashReady();
+            });
           }
           return AppShell(
             controller: controller,
