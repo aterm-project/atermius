@@ -30903,6 +30903,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Continue with the new server'**
   String get serverReinstalledConfirm;
+
+  /// Sidebar entry that opens the instance administration panel; shown to instance administrators only.
+  ///
+  /// In en, this message translates to:
+  /// **'Admin'**
+  String get adminPanelNav;
+
+  /// Heading of the instance administration panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Administration'**
+  String get adminPanelTitle;
+
+  /// Label of the section picker of the administration panel on narrow layouts.
+  ///
+  /// In en, this message translates to:
+  /// **'Admin sections'**
+  String get adminPanelSections;
+
+  /// Administration panel section that lists and edits instance accounts.
+  ///
+  /// In en, this message translates to:
+  /// **'Users'**
+  String get adminPanelUsersTitle;
+
+  /// Description of the users section of the administration panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Review the accounts on this instance, disable or re-enable them, revoke their sessions, set per-account relay policy and issue invitations.'**
+  String get adminPanelUsersDescription;
+
+  /// Administration panel section for instance-wide relay policy, relay groups and credential visibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Access and relay policy'**
+  String get adminPanelAccessTitle;
+
+  /// Description of the access section of the administration panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage the instance-wide relay policy, relay groups and credential visibility.'**
+  String get adminPanelAccessDescription;
+
+  /// Administration panel section that lists vault metadata and storage quotas.
+  ///
+  /// In en, this message translates to:
+  /// **'Vaults and quotas'**
+  String get adminPanelVaultsTitle;
+
+  /// Description of the vaults section of the administration panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Review vault metadata on this instance and adjust storage quotas. Vault contents stay encrypted.'**
+  String get adminPanelVaultsDescription;
+
+  /// Hint of the field that filters the loaded account list in the administration panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter by username or user ID'**
+  String get adminPanelUserFilterHint;
+
+  /// Shown when no account on the loaded page matches the filter.
+  ///
+  /// In en, this message translates to:
+  /// **'No account on this page matches the filter.'**
+  String get adminPanelUserFilterNoMatch;
+
+  /// Status chip of an account that can sign in.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get adminPanelAccountStatusActive;
+
+  /// Status chip of an account disabled by an administrator.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get adminPanelAccountStatusDisabled;
+
+  /// Status chip of an account that is scheduled for deletion.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting'**
+  String get adminPanelAccountStatusDeleting;
+
+  /// Chip that marks the signed-in administrator's own row in the account list.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get adminPanelAccountYou;
+
+  /// Button that re-enables a disabled account.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-enable account'**
+  String get adminPanelReEnableAccount;
 }
 
 class _AppLocalizationsDelegate

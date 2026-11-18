@@ -469,7 +469,7 @@ class _Harness {
           )
           ..api = api
           ..stage = ClientStage.workspace
-          ..page = WorkspacePage.settings
+          ..page = WorkspacePage.admin
           ..account = AccountProfile(
             accountId: _adminId,
             deviceId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
@@ -640,8 +640,8 @@ Future<void> _pumpSettings(WidgetTester tester, AppController app) async {
     ),
   );
   await tester.pump();
-  if (find.byKey(const ValueKey('cloud_settings')).evaluate().isNotEmpty) {
-    await openSettingsCategory(tester, 'access', ifAvailable: true);
+  if (find.byKey(const ValueKey('admin_panel')).evaluate().isNotEmpty) {
+    await openSettingsCategory(tester, 'users', ifAvailable: true);
   }
   await tester.pump();
 }

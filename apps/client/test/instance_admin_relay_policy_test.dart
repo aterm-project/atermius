@@ -378,10 +378,18 @@ void main() {
         isNull,
       );
 
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('admin-relay-policy-load')),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('admin-relay-policy-load')));
       await tester.pumpAndSettle();
       expect(harness.api.policyLoads, 2);
       expect(harness.app.instanceAdminRelayPolicy?.revision, 9);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('admin-relay-policy-save')),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('admin-relay-policy-save')));
       await tester.pumpAndSettle();
       expect(harness.api.policySaves, 2);
@@ -552,7 +560,7 @@ Future<void> _pumpSettings(WidgetTester tester, AppController app) async {
     ),
   );
   await tester.pump();
-  if (find.byKey(const ValueKey('cloud_settings')).evaluate().isNotEmpty) {
+  if (find.byKey(const ValueKey('admin_panel')).evaluate().isNotEmpty) {
     await openSettingsCategory(tester, 'access', ifAvailable: true);
   }
   await tester.pump();
@@ -586,7 +594,7 @@ class _Harness {
           )
           ..api = api
           ..stage = ClientStage.workspace
-          ..page = WorkspacePage.settings
+          ..page = WorkspacePage.admin
           ..account = AccountProfile(
             accountId: 'account-123',
             deviceId: 'device-456',

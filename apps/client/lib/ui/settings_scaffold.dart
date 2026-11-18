@@ -61,9 +61,28 @@ class SettingsSection {
 /// Categories are built on first visit. Visited forms keep their drafts and
 /// scroll positions while navigating within settings.
 class SettingsScaffold extends StatefulWidget {
-  const SettingsScaffold({required this.sections, super.key});
+  const SettingsScaffold({
+    required this.sections,
+    this.title,
+    this.categoriesLabel,
+    this.sectionRequests,
+    super.key,
+  });
 
   final List<SettingsSection> sections;
+
+  /// Heading above the category list; defaults to "Settings". Other pages in
+  /// the same visual language (the admin panel) pass their own.
+  final String? title;
+
+  /// Label of the category picker shown on narrow layouts; defaults to
+  /// "Settings categories".
+  final String? categoriesLabel;
+
+  /// Channel for categories requested from outside this page. Defaults to the
+  /// shared [requestedSection]; a page with its own category namespace passes
+  /// its own notifier so requests never cross between pages.
+  final ValueNotifier<String?>? sectionRequests;
 
   /// Selects another category of the enclosing settings page, for example a
   /// cross-link from Account to Account security. Returns false when
@@ -99,23 +118,26 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
   String? _selectedId;
   String? _iosOpenId;
 
+  late final ValueNotifier<String?> _requests =
+      widget.sectionRequests ?? SettingsScaffold.requestedSection;
+
   @override
   void initState() {
     super.initState();
     _takeRequestedSection(initial: true);
-    SettingsScaffold.requestedSection.addListener(_takeRequestedSection);
+    _requests.addListener(_takeRequestedSection);
   }
 
   @override
   void dispose() {
-    SettingsScaffold.requestedSection.removeListener(_takeRequestedSection);
+    _requests.removeListener(_takeRequestedSection);
     super.dispose();
   }
 
   void _takeRequestedSection({bool initial = false}) {
-    final id = SettingsScaffold.requestedSection.value;
+    final id = _requests.value;
     if (id == null || !mounted) return;
-    SettingsScaffold.requestedSection.value = null;
+    _requests.value = null;
     if (!widget.sections.any((section) => section.id == id)) return;
     if (initial) {
       _selectedId = id;
@@ -162,6 +184,7 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
         _iosOpenId = null;
       }
       return IosSettingsNavigator(
+        title: widget.title,
         sections: sections,
         openSectionId: _iosOpenId,
         onOpenSectionChanged: _onIosOpenChanged,
@@ -262,7 +285,9 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                 : null,
             decoration: apple
                 ? InputDecoration(
-                    labelText: context.l10n.settingsCategories,
+                    labelText:
+                        widget.categoriesLabel ??
+                        context.l10n.settingsCategories,
                     filled: false,
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
@@ -281,7 +306,9 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                     ),
                   )
                 : InputDecoration(
-                    labelText: context.l10n.settingsCategories,
+                    labelText:
+                        widget.categoriesLabel ??
+                        context.l10n.settingsCategories,
                   ),
             items: [
               for (final section in sections)
@@ -350,7 +377,7 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                         density.space5,
                       ),
                       child: Text(
-                        context.l10n.settings,
+                        widget.title ?? context.l10n.settings,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
