@@ -9,7 +9,7 @@ import 'package:uuid/uuid.dart';
 /// Physical modifier keys are resolved by each client platform. In particular,
 /// `mod` means Command on Apple platforms and Control elsewhere.
 enum TerminalShortcutAction {
-  search('terminal.search', 'Search terminal scrollback'),
+  search('terminal.search', 'Toggle terminal search bar'),
   searchNext('terminal.searchNext', 'Next search match'),
   searchPrevious('terminal.searchPrevious', 'Previous search match'),
   disconnect('terminal.disconnect', 'Disconnect active terminal tab');
@@ -97,7 +97,7 @@ class TerminalShortcutBindings {
 
   static const int version = 1;
   static const Map<TerminalShortcutAction, String> defaultValues = {
-    TerminalShortcutAction.search: 'mod+alt+shift+f',
+    TerminalShortcutAction.search: 'mod+shift+f',
     TerminalShortcutAction.searchNext: 'mod+alt+g',
     TerminalShortcutAction.searchPrevious: 'mod+alt+shift+g',
     TerminalShortcutAction.disconnect: 'mod+alt+shift+d',
@@ -127,7 +127,6 @@ class TerminalShortcutBindings {
     'mod+shift+n',
     'mod+shift+p',
     'mod+shift+g',
-    'mod+shift+f',
     'mod+shift+d',
     // Common Chromium, Firefox, and WebKit developer-tool bindings.
     'mod+shift+i',

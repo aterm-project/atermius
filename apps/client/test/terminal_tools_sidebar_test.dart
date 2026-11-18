@@ -114,6 +114,10 @@ void main() {
       try {
         await pump();
         final mountedTerminal = terminalKey.currentState;
+        final sidebarBounds = tester.getRect(find.byKey(const ValueKey('terminal-tools-sidebar')));
+        final emptyHint = tester.getRect(find.text(currentL10n.searchTermsAreRecordedWhenYou));
+        expect(emptyHint.left - sidebarBounds.left, greaterThanOrEqualTo(24));
+        expect(sidebarBounds.right - emptyHint.right, greaterThanOrEqualTo(24));
         await tester.enterText(
           find.byKey(const ValueKey('terminal-sidebar-query')),
           'needle',
@@ -217,9 +221,14 @@ void main() {
             TerminalToolsSection.commands => find.text('pwd'),
             TerminalToolsSection.history => find.text('echo previous'),
           };
+          if (item.evaluate().isEmpty) {
+            await tester.drag(find.byKey(const ValueKey('terminal-tools-scroll')), const Offset(0, -160));
+            await tester.pumpAndSettle();
+          }
           await tester.ensureVisible(item);
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
+          expect(find.byKey(const ValueKey('terminal-sidebar-query')).hitTestable(), findsOneWidget);
           expect(terminalKey.currentState, same(mountedTerminal));
         }
         size = const Size(320, 650);

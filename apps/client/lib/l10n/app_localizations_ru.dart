@@ -13545,7 +13545,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get searchTerminal => 'Поиск в терминале';
 
   @override
-  String get searchTerminalHistory => 'Поиск в истории терминала';
+  String get searchTerminalHistory => 'Показать или скрыть поиск в терминале';
 
   @override
   String get revokeSshHostKeyTrust => 'Отозвать доверие к ключу SSH-хоста?';

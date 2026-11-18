@@ -285,7 +285,7 @@ class _TerminalShortcutEditorState extends State<TerminalShortcutEditor> {
       style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5),
       decoration: InputDecoration(
         labelText: label,
-        hintText: 'mod+alt+shift+f',
+        hintText: TerminalShortcutBindings.defaults.chordFor(action),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 10,

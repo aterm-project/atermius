@@ -9949,7 +9949,7 @@
   "@reject": {},
   "searchTerminal": "Search terminal",
   "@searchTerminal": {},
-  "searchTerminalHistory": "Search terminal history",
+  "searchTerminalHistory": "Show or hide terminal search",
   "@searchTerminalHistory": {},
   "revokeSshHostKeyTrust": "Revoke SSH host key trust?",
   "@revokeSshHostKeyTrust": {},

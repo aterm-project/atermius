@@ -446,24 +446,14 @@ void main() {
         find.text(currentL10n.terminalSearchMatchCount(1, 1)),
         findsOneWidget,
       );
-      await tester.tap(toggle);
-      await tester.pumpAndSettle();
       bar.onSelect(secondId);
       await tester.pumpAndSettle();
-      await tester.tap(toggle);
-      await tester.pumpAndSettle();
       expect(layout.selectedId, secondId);
-      expect(
-        tester
-            .widget<TerminalToolsSidebar>(find.byType(TerminalToolsSidebar))
-            .query,
-        isNot(same(sidebar.query)),
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('terminal-sidebar-query')),
-        'first-marker',
-      );
-      await tester.pump(const Duration(milliseconds: 200));
+      final sharedQuery = tester.widget<TerminalToolsSidebar>(
+        find.byType(TerminalToolsSidebar),
+      ).query;
+      expect(sharedQuery, same(sidebar.query));
+      expect(sharedQuery.text, 'first-marker');
       expect(find.text('0 matches'), findsOneWidget);
       expect(
         tester

@@ -55,20 +55,10 @@ public:
   // Return a RECT representing the bounds of the current client area.
   RECT GetClientArea();
 
-  // Keep the native overlapped-window capabilities while drawing the caption
-  // in Flutter. The child surface forwards only resize-border hit tests.
-  void SetCustomChrome(bool enabled);
-  bool custom_chrome_enabled() const { return custom_chrome_enabled_; }
-  LRESULT HitTestResizeBorder(LPARAM position) const;
-  // Native title-bar height of this window in Flutter logical pixels:
-  // SM_CYCAPTION plus the top sizing frame (SM_CYSIZEFRAME +
-  // SM_CXPADDEDBORDER), all for this window's current DPI, divided by
-  // GetDpiForWindow / 96. Returns 0 when the metric is unavailable.
+protected:
+  // Caption metric in logical pixels for the adjacent Flutter tab strip.
   double CaptionHeightLogical() const;
 
-protected:
-  // The native window owns corner clipping, including the Flutter child HWND.
-  void UpdateWindowCorners();
   // Processes and route salient window messages for mouse handling,
   // size change and DPI. Delegates handling of these to member overloads that
   // inheriting classes can handle.
@@ -105,15 +95,7 @@ private:
                                             WPARAM wparam, LPARAM lparam,
                                             UINT_PTR id, DWORD_PTR reference);
 
-  bool child_subclass_installed_ = false;
-  bool custom_chrome_enabled_ = false;
   bool quit_on_close_ = false;
-  bool updating_corners_ = false;
-  bool corner_region_applied_ = false;
-  int corner_preference_ = -1;
-  int corner_region_width_ = 0;
-  int corner_region_height_ = 0;
-  UINT corner_region_dpi_ = 0;
 
   // window handle for top level window.
   HWND window_handle_ = nullptr;

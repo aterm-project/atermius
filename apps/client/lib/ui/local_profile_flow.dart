@@ -220,6 +220,7 @@ class LocalProfileFlow extends StatefulWidget {
 }
 
 class _LocalProfileFlowState extends State<LocalProfileFlow> {
+  final _toolsWorkspace = TerminalToolsWorkspace();
   final _homeSearch = TextEditingController();
   late final McpWorkspace _mcpWorkspace;
   McpWorkspace _createMcpWorkspace() => McpWorkspace(
@@ -448,6 +449,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
     _sshForwardingControllerOrNull?.dispose();
     _portForwardChanges.dispose();
     _homeSearch.dispose();
+    _toolsWorkspace.dispose();
     McpService.instance.detach(_mcpWorkspace);
     _disposing = true;
     _files.removeListener(_onSessionChanged);
@@ -984,6 +986,8 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
     if (generation < 0) return;
     setState(() {
       _cancelHostSearch();
+      _toolsWorkspace.close();
+      _toolsWorkspace.history.clear();
       _activeProfile = null;
       _database = null;
       _repository = null;
@@ -5071,8 +5075,11 @@ _showMessage(
               ),
             ),
     );
+    final toolsSession = activeSession?.viewKey.currentState != null ? activeSession :
+        _sessions.where((session) => _layout.sessionIds.contains(session.id) &&
+            session.viewKey.currentState != null).firstOrNull;
     final Widget terminalSurface = TerminalToolsLayout(
-                    sidebar: activeSession?.viewKey.currentState?.toolsSidebar,
+                    sidebar: toolsSession?.viewKey.currentState?.toolsSidebar,
                     child: SessionWorkspaceView(
                       controller: _layout,
                       dragScope: _dragScope,
@@ -5201,6 +5208,7 @@ _showMessage(
                           fontSize: _terminalFontSizeChoice,
                           theme: _savedTerminalThemeChoice,
                           shortcuts: _terminalShortcutBindings,
+                          tools: _toolsWorkspace,
                           active: _selectedTabId == session.id,
                           onDisconnect: () => _disconnectTerminalSession(session.id),
                           onToolsChanged: () {
@@ -5365,9 +5373,21 @@ _showMessage(
         ),
       ),
     );
-    return iosPhone
-        ? TooltipVisibility(visible: false, child: scaffold)
-        : scaffold;
+    final searchTarget = toolsSession ?? _sessions.where((s) => s.connection != null && !s._closed).lastOrNull;
+    return WorkspaceSearchShortcut(
+      bindings: _terminalShortcutBindings,
+      onToggle: searchTarget == null || active == null ? null : () {
+        if (_selectedTabId == 'hosts' || searchTarget.viewKey.currentState == null) {
+          _selectTerminalTab(searchTarget.id);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) searchTarget.viewKey.currentState?._openSearch();
+          });
+        } else {
+          searchTarget.viewKey.currentState!.toggleSearchField();
+        }
+      },
+      child: iosPhone ? TooltipVisibility(visible: false, child: scaffold) : scaffold,
+    );
   }
 
   /// The single keybar of the terminal workspace. Split panes share it; it
@@ -8077,6 +8097,7 @@ class _LocalSshTerminalDialog extends StatefulWidget {
     required this.fontSize,
     required this.theme,
     required this.shortcuts,
+    required this.tools,
     required this.active,
     required this.onDisconnect,
     required this.onToolsChanged,
@@ -8093,6 +8114,7 @@ class _LocalSshTerminalDialog extends StatefulWidget {
   final int fontSize;
   final VaultTerminalThemeChoice theme;
   final TerminalShortcutBindings shortcuts;
+  final TerminalToolsWorkspace tools;
 
   @override
   State<_LocalSshTerminalDialog> createState() =>
@@ -8123,18 +8145,16 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
   final TerminalController _terminalController = TerminalController();
   final FocusNode _terminalFocus = FocusNode(debugLabel: 'Local SSH input');
   final ScrollController _terminalScrollController = ScrollController();
-  final TextEditingController _searchQuery = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode(
-    debugLabel: 'LocalVault terminal scrollback search',
-  );
+  TextEditingController get _searchQuery => widget.tools.query;
+  FocusNode get _searchFocusNode => widget.tools.focus;
   final List<TerminalHighlight> _searchHighlights = [];
   TerminalHighlight? _selectedSearchHighlight;
   List<TerminalSearchMatch> _searchMatches = const [];
   Timer? _searchTimer;
   int _selectedSearchMatch = -1;
-  bool _searchOpen = false;
-  TerminalToolsSection _toolsSection = TerminalToolsSection.search;
-  final _searchHistory = TerminalSearchHistory();
+  bool get _searchOpen => widget.tools.open;
+  TerminalToolsSection get _toolsSection => widget.tools.section;
+  TerminalSearchHistory get _searchHistory => widget.tools.history;
   late final LocalShellHistory _history;
   bool _searching = false;
   bool _searchTruncated = false;
@@ -8153,7 +8173,10 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
     unawaited(_history.load());
     // The workspace builds its shared keybar from this mounted state.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) widget.onToolsChanged();
+      if (!mounted) return;
+      widget.onToolsChanged();
+      if (widget.active && _searchOpen && _searchQuery.text.isNotEmpty) _refreshMatches();
+
     });
   }
 
@@ -8162,11 +8185,19 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
     super.didUpdateWidget(oldWidget);
     if (!widget.active) {
       _terminalFocus.unfocus();
-      _searchFocusNode.unfocus();
+      if (oldWidget.active) {
+        _searchTimer?.cancel();
+        _searchTimer = null;
+        _clearSearchHighlights();
+        _searchMatches = const [];
+        _selectedSearchMatch = -1;
+      }
     }
     if (widget.active && !oldWidget.active) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !widget.active) return;
+        if (_searchOpen) _refreshMatches();
+
         final view = terminalTouchKeyboardOnDemand
             ? _terminalFocus.context?.findAncestorStateOfType<TerminalViewState>()
             : null;
@@ -8190,15 +8221,12 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
     _terminalController.dispose();
     _terminalFocus.dispose();
     _terminalScrollController.dispose();
-    _searchQuery.dispose();
-    _searchFocusNode.dispose();
     super.dispose();
   }
 
   void _onTerminalChanged() {
-    if (!_searchOpen || _searchQuery.text.isEmpty) return;
-    _searchTimer?.cancel();
-    _searchTimer = Timer(const Duration(milliseconds: 120), _refreshMatches);
+    if (!widget.active || !_searchOpen || _searchQuery.text.isEmpty) return;
+    _searchTimer ??= Timer(const Duration(milliseconds: 120), _refreshMatches);
   }
 
   void _onSearchChanged(String query) {
@@ -8221,7 +8249,7 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
     if (!mounted) return;
     _updateTools(() {
       _searchMatches = result.matches;
-      _selectedSearchMatch = result.matches.isEmpty ? -1 : 0;
+      _selectedSearchMatch = refreshedSearchIndex(result.matches, _selectedSearchHighlight?.p1);
       _searching = false;
       _searchTruncated = result.truncated;
       _searchQueryTooLong = result.queryTooLong;
@@ -8233,24 +8261,23 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
   void _openSearch() {
     if (!mounted) return;
     _updateTools(() {
-      _searchOpen = true;
-      _toolsSection = TerminalToolsSection.search;
+      widget.tools.show(TerminalToolsSection.search);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _toolsSection == TerminalToolsSection.search)
+      if (mounted && widget.active && _searchOpen && widget.tools.showQuery)
         _searchFocusNode.requestFocus();
     });
   }
 
+  void toggleSearchField() =>
+      _updateTools(() => widget.tools.toggleQuery(_terminalFocus));
+
   void _closeSearch() {
     _searchTimer?.cancel();
     _searchTimer = null;
-    _searchFocusNode.unfocus();
-    _searchHistory.remember(_searchQuery.text);
-    _searchQuery.clear();
+    widget.tools.close();
     _clearSearchHighlights();
     _updateTools(() {
-      _searchOpen = false;
       _searchMatches = const [];
       _selectedSearchMatch = -1;
       _searching = false;
@@ -8282,7 +8309,7 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
   void _dispatchTerminalShortcut(TerminalShortcutAction action) {
     switch (action) {
       case TerminalShortcutAction.search:
-        _openSearch();
+        toggleSearchField();
       case TerminalShortcutAction.searchNext:
         _moveSearch(true);
       case TerminalShortcutAction.searchPrevious:
@@ -8393,7 +8420,7 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
   void _openTools(TerminalToolsSection section) {
     _terminalFocus.unfocus();
     _openSearch();
-    _updateTools(() => _toolsSection = section);
+    _updateTools(() => widget.tools.show(section));
   }
 
   Future<void> _configureHistory() async {
@@ -8441,7 +8468,8 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
 
   Widget _toolsSidebar() => TerminalToolsSidebar(
     section: _toolsSection,
-    onSection: (section) => _updateTools(() => _toolsSection = section),
+    showQuery: widget.tools.showQuery,
+    onSection: (section) => _updateTools(() => widget.tools.show(section)),
     onClose: _closeSearch,
     query: _searchQuery,
     queryFocus: _searchFocusNode,

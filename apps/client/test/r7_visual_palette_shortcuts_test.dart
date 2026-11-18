@@ -438,7 +438,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('field-searchNext')),
-        'mod+alt+shift+f',
+        TerminalShortcutBindings.defaults.chordFor(TerminalShortcutAction.search),
       );
       await tester.pumpAndSettle();
       expect(find.text('Also used by another action'), findsNWidgets(2));

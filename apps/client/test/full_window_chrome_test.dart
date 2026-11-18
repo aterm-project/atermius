@@ -20,7 +20,7 @@ class _App extends AppController {
 
 void main() {
   testWidgets(
-    'complete startup has one Windows navigation and search beside minimize',
+    'Windows keeps its native caption above the workspace navigation',
     (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       const channel = MethodChannel('atermius/window_chrome');
@@ -28,6 +28,7 @@ void main() {
         channel,
         (call) async => {
           'enabled': true,
+          'customFrame': false,
           'maximized': false,
           'minimized': false,
           'focused': true,
@@ -66,20 +67,10 @@ void main() {
         );
         expect(
           find.byKey(const ValueKey('window_caption_minimize')),
-          findsOneWidget,
+          findsNothing,
         );
-        expect(
-          find.byKey(const ValueKey('window_caption_close')),
-          findsOneWidget,
-        );
-        final search = tester.getRect(
-          find.byKey(const ValueKey('workspace_host_search_button')),
-        );
-        final minimize = tester.getRect(
-          find.byKey(const ValueKey('window_caption_minimize')),
-        );
-        expect(search.right, minimize.left);
-        expect(search.center.dy, minimize.center.dy);
+        expect(find.byKey(const ValueKey('window_caption_maximize')), findsNothing);
+        expect(find.byKey(const ValueKey('window_caption_close')), findsNothing);
         expect(find.byKey(const ValueKey('cloud_home_search')), findsOneWidget);
         expect(
           find.descendant(

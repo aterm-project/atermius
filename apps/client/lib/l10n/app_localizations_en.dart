@@ -13521,7 +13521,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchTerminal => 'Search terminal';
 
   @override
-  String get searchTerminalHistory => 'Search terminal history';
+  String get searchTerminalHistory => 'Show or hide terminal search';
 
   @override
   String get revokeSshHostKeyTrust => 'Revoke SSH host key trust?';

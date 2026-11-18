@@ -128,15 +128,8 @@ class _WindowsWindowChromeState extends State<WindowsWindowChrome> {
   );
 }
 
-/// Sizes for the single merged Windows top bar (caption, drag region, Home and
-/// session tabs, search/tools icons and caption buttons share one row).
-///
-/// On a custom-chrome Windows window the row height is the runner-reported
-/// native caption metric ([WindowChromeState.captionHeight]); it follows DPI,
-/// non-client metric and theme changes through `stateChanged`. It only grows
-/// beyond the metric when the user's text scale would otherwise clip the tab
-/// label. Elsewhere (Android/iOS/web/macOS/Linux, or Windows with the system
-/// frame) the existing 48 px touch-sized bar is kept unchanged.
+/// Sizes the workspace tab strip using the window's native caption metric
+/// where available, with room for the user's text scale.
 @immutable
 class WindowBarMetrics {
   const WindowBarMetrics._({
@@ -172,7 +165,10 @@ class WindowBarMetrics {
     WindowChromeController controller,
   ) {
     final scaler = MediaQuery.textScalerOf(context);
-    if (controller.supported && controller.state.customFrame) {
+    if (controller.supported &&
+        (controller.state.customFrame ||
+            (controller.state.enabled &&
+                Theme.of(context).platform == TargetPlatform.windows))) {
       return WindowBarMetrics.native(
         controller.state.captionHeight ?? fallbackCaptionHeight,
         scaler,
@@ -320,6 +316,11 @@ class WindowDragArea extends StatelessWidget {
     onPanStart: (_) => unawaited(controller.beginDrag()),
     onDoubleTap: () => unawaited(controller.toggleMaximize()),
     onSecondaryTapDown: (event) {
+      if (Theme.of(context).platform == TargetPlatform.windows &&
+          controller.state.enabled && !controller.state.customFrame) {
+        unawaited(controller.showSystemMenu());
+        return;
+      }
       final target = Navigator.maybeOf(context) != null
           ? context
           : context

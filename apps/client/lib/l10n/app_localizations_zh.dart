@@ -11968,7 +11968,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchTerminal => '搜索终端';
 
   @override
-  String get searchTerminalHistory => '搜索终端历史';
+  String get searchTerminalHistory => '显示或收起终端搜索框';
 
   @override
   String get revokeSshHostKeyTrust => '撤销 SSH 主机密钥信任？';

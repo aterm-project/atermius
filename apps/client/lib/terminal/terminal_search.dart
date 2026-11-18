@@ -14,6 +14,15 @@ class TerminalSearchMatch {
   final CellOffset end;
 }
 
+/// Retains the selected occurrence across refreshes as new output arrives.
+int refreshedSearchIndex(List<TerminalSearchMatch> matches, CellAnchor? anchor) {
+  if (matches.isEmpty) return -1;
+  if (anchor == null || !anchor.attached) return 0;
+  final offset = anchor.offset;
+  final index = matches.indexWhere((match) => match.start == offset);
+  return index < 0 ? 0 : index;
+}
+
 /// The bounded results of searching a terminal buffer.
 class TerminalSearchResult {
   const TerminalSearchResult({

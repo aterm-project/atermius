@@ -12687,7 +12687,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get searchTerminal => 'ターミナルを検索';
 
   @override
-  String get searchTerminalHistory => 'ターミナルの履歴を検索';
+  String get searchTerminalHistory => 'ターミナル検索の表示・非表示';
 
   @override
   String get revokeSshHostKeyTrust => 'SSH ホスト鍵の信頼を取り消しますか？';

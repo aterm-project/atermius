@@ -3472,7 +3472,7 @@
   "executionType": "Тип выполнения",
   "reject": "Отклонить",
   "searchTerminal": "Поиск в терминале",
-  "searchTerminalHistory": "Поиск в истории терминала",
+  "searchTerminalHistory": "Показать или скрыть поиск в терминале",
   "revokeSshHostKeyTrust": "Отозвать доверие к ключу SSH-хоста?",
   "afterRevokingThisKeyForHost": "После отзыва этого ключа для {host}:{port} последующие подключения придётся снова проверить и явно одобрить.",
   "revokeTrust": "Отозвать доверие",

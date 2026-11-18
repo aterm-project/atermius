@@ -17,7 +17,7 @@ void main() {
           logicalKey: LogicalKeyboardKey.keyF,
           controlPressed: true,
           metaPressed: false,
-          altPressed: true,
+          altPressed: false,
           shiftPressed: true,
           platform: TargetPlatform.linux,
         ),
@@ -29,7 +29,7 @@ void main() {
           logicalKey: LogicalKeyboardKey.keyF,
           controlPressed: false,
           metaPressed: true,
-          altPressed: true,
+          altPressed: false,
           shiftPressed: true,
           platform: TargetPlatform.macOS,
         ),
@@ -41,7 +41,7 @@ void main() {
           logicalKey: LogicalKeyboardKey.keyF,
           controlPressed: true,
           metaPressed: false,
-          altPressed: false,
+          altPressed: true,
           shiftPressed: true,
           platform: TargetPlatform.linux,
         ),
@@ -53,7 +53,7 @@ void main() {
           logicalKey: LogicalKeyboardKey.keyF,
           controlPressed: true,
           metaPressed: true,
-          altPressed: true,
+          altPressed: false,
           shiftPressed: true,
           platform: TargetPlatform.linux,
         ),
@@ -174,7 +174,7 @@ void main() {
         logicalKey: key,
         controlPressed: control,
         metaPressed: meta,
-        altPressed: true,
+        altPressed: false,
         shiftPressed: true,
         platform: platform,
         onAction: actions.add,
@@ -203,8 +203,26 @@ void main() {
     });
   });
 
+  testWidgets('workspace search shortcut works with focus outside a terminal', (tester) async {
+    var toggled = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: WorkspaceSearchShortcut(
+        bindings: TerminalShortcutBindings.defaults,
+        onToggle: () => toggled++,
+        child: const TextField(autofocus: true),
+      )),
+    ));
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(toggled, 1);
+  });
+
   testWidgets(
-    'shortcuts run only in terminal focus and unmatched keys pass through',
+    'terminal forwards unmatched keys while a focused text field keeps its input',
     (tester) async {
       final terminal = Terminal();
       final terminalFocus = FocusNode();
@@ -258,11 +276,9 @@ void main() {
         expect(terminalFocus.hasFocus, isTrue);
 
         await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
         await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
         await tester.sendKeyEvent(LogicalKeyboardKey.keyF, character: 'F');
         await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
         expect(actions, [TerminalShortcutAction.search]);
         expect(terminalOutput, isEmpty);

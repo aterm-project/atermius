@@ -25,6 +25,49 @@ import 'ios_native/ios_native.dart';
 import 'workspace_controls.dart' show WorkspaceAction;
 import '../l10n/l10n.dart';
 
+/// Presentation state shared by the terminal panes in a workspace.
+class TerminalToolsWorkspace {
+  final query = TextEditingController();
+  final focus = FocusNode(debugLabel: 'Workspace terminal search');
+  final history = TerminalSearchHistory();
+  bool open = false;
+  bool showQuery = true;
+  TerminalToolsSection section = TerminalToolsSection.search;
+
+  void show(TerminalToolsSection value) {
+    open = true;
+    if (value == TerminalToolsSection.search) showQuery = true;
+    section = value;
+  }
+
+  void toggleQuery(FocusNode terminalFocus) {
+    if (open && showQuery) {
+      history.remember(query.text);
+      showQuery = false;
+      terminalFocus.requestFocus();
+      return;
+    }
+    if (!open) show(TerminalToolsSection.search);
+    showQuery = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (open && showQuery && focus.context != null) focus.requestFocus();
+    });
+  }
+
+  void close() {
+    history.remember(query.text);
+    focus.unfocus();
+    query.clear();
+    open = false;
+    showQuery = true;
+  }
+
+  void dispose() {
+    query.dispose();
+    focus.dispose();
+  }
+}
+
 /// Keep the terminal child mounted across opening/closing and width changes.
 ///
 /// The sidebar is docked beside the terminal from [dockBreakpoint] and overlays
@@ -539,9 +582,11 @@ class TerminalToolsSidebar extends StatefulWidget {
     this.historyNotice,
     this.historyChanges,
     this.onSearchKey,
+    this.showQuery = true,
     super.key,
   });
   final TerminalToolsSection section;
+  final bool showQuery;
   final ValueChanged<TerminalToolsSection> onSection;
   final VoidCallback onClose;
   final TextEditingController query;
@@ -811,6 +856,27 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
     action?.call();
   }
 
+  KeyEventResult _queryKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _remember();
+      widget.onClose();
+      return KeyEventResult.handled;
+    }
+    final keys = HardwareKeyboard.instance;
+    if ((event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.numpadEnter) &&
+        !keys.isControlPressed &&
+        !keys.isAltPressed &&
+        !keys.isMetaPressed &&
+        !keys.isShiftPressed &&
+        widget.query.value.composing.isCollapsed) {
+      _move(widget.next);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   Future<void> _action(
     Future<void> Function() work, {
     bool reload = false,
@@ -843,7 +909,28 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
 
   @override
   Widget build(BuildContext context) {
-    if (isIosPhone(context)) return _buildIos(context);
+    return Focus(
+      canRequestFocus: false,
+      onKeyEvent: widget.onSearchKey,
+      child: isIosPhone(context) ? _buildIos(context) : _buildMaterial(context),
+    );
+  }
+
+  Widget _pinnedHeader({
+    required Color color,
+    required Widget controls,
+    required Widget query,
+  }) => PinnedHeaderSliver(
+    child: ColoredBox(
+      color: color,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [controls, if (widget.showQuery) query],
+      ),
+    ),
+  );
+
+  Widget _buildMaterial(BuildContext context) {
     return Material(
       key: const ValueKey('terminal-tools-sidebar'),
       color: context.palette.surface,
@@ -853,43 +940,42 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
         slivers: [
           // Section tabs and close share one compact row that stays pinned so
           // close never scrolls away in short (keyboard-open) viewports.
-          PinnedHeaderSliver(
-            child: ColoredBox(
-              color: context.palette.surface,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 4, 2),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TerminalToolsSectionTabs(
-                        section: widget.section,
-                        onSection: (value) {
-                          if (value == widget.section) return;
-                          if (widget.section == TerminalToolsSection.search) {
-                            _remember();
-                          }
-                          setState(() {
-                            _filter = '';
-                            _error = null;
-                          });
-                          widget.onSection(value);
-                        },
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: context.l10n.closeSidebar,
-                      key: const ValueKey('terminal-tools-close'),
-                      visualDensity: _touch(context)
-                          ? null
-                          : VisualDensity.compact,
-                      onPressed: () {
-                        _remember();
-                        widget.onClose();
+          _pinnedHeader(
+            color: context.palette.surface,
+            query: _searchField(),
+            controls: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 4, 2),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TerminalToolsSectionTabs(
+                      section: widget.section,
+                      onSection: (value) {
+                        if (value == widget.section && widget.showQuery) return;
+                        if (widget.section == TerminalToolsSection.search) {
+                          _remember();
+                        }
+                        setState(() {
+                          _filter = '';
+                          _error = null;
+                        });
+                        widget.onSection(value);
                       },
-                      icon: const Icon(Icons.close, size: 18),
                     ),
-                  ],
-                ),
+                  ),
+                  IconButton(
+                    tooltip: context.l10n.closeSidebar,
+                    key: const ValueKey('terminal-tools-close'),
+                    visualDensity: _touch(context)
+                        ? null
+                        : VisualDensity.compact,
+                    onPressed: () {
+                      _remember();
+                      widget.onClose();
+                    },
+                    icon: const Icon(Icons.close, size: 18),
+                  ),
+                ],
               ),
             ),
           ),
@@ -927,66 +1013,63 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
         ),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
-          PinnedHeaderSliver(
-            child: ColoredBox(
-              color: c.isDark
-                  ? const Color(0xE61C1C1E)
-                  : const Color(0xF2FFFFFF),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 10, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TerminalToolsSectionTabs(
-                        section: widget.section,
-                        onSection: (value) {
-                          if (value == widget.section) return;
-                          if (widget.section == TerminalToolsSection.search) {
-                            _remember();
-                          }
-                          setState(() {
-                            _filter = '';
-                            _error = null;
-                          });
-                          widget.onSection(value);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Semantics(
-                      button: true,
-                      label: context.l10n.closeSidebar,
-                      child: GestureDetector(
-                        key: const ValueKey('terminal-tools-close'),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          AppleHaptics.light(context);
+          _pinnedHeader(
+            color: c.isDark ? const Color(0xE61C1C1E) : const Color(0xF2FFFFFF),
+            query: _iosSearchField(context, c),
+            controls: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 10, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TerminalToolsSectionTabs(
+                      section: widget.section,
+                      onSection: (value) {
+                        if (value == widget.section && widget.showQuery) return;
+                        if (widget.section == TerminalToolsSection.search) {
                           _remember();
-                          widget.onClose();
-                        },
-                        child: SizedBox.square(
-                          dimension: 44,
-                          child: Center(
-                            child: SizedBox.square(
-                              dimension: 30,
-                              child: DecoratedBox(
-                                decoration: ShapeDecoration(
-                                  color: c.fill,
-                                  shape: const CircleBorder(),
-                                ),
-                                child: Icon(
-                                  IosIcons.close,
-                                  size: 17,
-                                  color: c.secondaryLabel,
-                                ),
+                        }
+                        setState(() {
+                          _filter = '';
+                          _error = null;
+                        });
+                        widget.onSection(value);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Semantics(
+                    button: true,
+                    label: context.l10n.closeSidebar,
+                    child: GestureDetector(
+                      key: const ValueKey('terminal-tools-close'),
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        AppleHaptics.light(context);
+                        _remember();
+                        widget.onClose();
+                      },
+                      child: SizedBox.square(
+                        dimension: 44,
+                        child: Center(
+                          child: SizedBox.square(
+                            dimension: 30,
+                            child: DecoratedBox(
+                              decoration: ShapeDecoration(
+                                color: c.fill,
+                                shape: const CircleBorder(),
+                              ),
+                              child: Icon(
+                                IosIcons.close,
+                                size: 17,
+                                color: c.secondaryLabel,
                               ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1023,81 +1106,73 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
     );
   }
 
-  List<Widget> _iosSearch(BuildContext context, IosColors c) => [
-    SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Focus(
-          onKeyEvent: (node, event) {
-            if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.escape) {
-              _remember();
-              widget.onClose();
-              return KeyEventResult.handled;
-            }
-            return widget.onSearchKey?.call(node, event) ??
-                KeyEventResult.ignored;
-          },
-          child: ValueListenableBuilder<TextEditingValue>(
-            valueListenable: widget.query,
-            builder: (context, value, _) => DecoratedBox(
-              decoration: ShapeDecoration(
-                color: c.fill,
-                shape: const StadiumBorder(),
-              ),
-              child: Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 6, 4),
-                child: Row(
-                  children: [
-                    Icon(IosIcons.search, size: 18, color: c.secondaryLabel),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: CupertinoTextField(
-                        key: const ValueKey('terminal-sidebar-query'),
-                        controller: widget.query,
-                        focusNode: widget.queryFocus,
-                        autofocus: true,
-                        maxLength: terminalSearchMaxQueryGraphemes,
-                        maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                        onChanged: widget.onQuery,
-                        onSubmitted: (_) => _move(widget.next),
-                        textInputAction: TextInputAction.search,
-                        autocorrect: false,
-                        clearButtonMode: OverlayVisibilityMode.never,
-                        decoration: null,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        placeholder: context.l10n.searchCurrentTerminalOutput,
-                        placeholderStyle: IosType.subheadline.copyWith(
-                          color: c.secondaryLabel,
-                        ),
-                        style: IosType.body.copyWith(color: c.label),
-                        cursorColor: c.tint,
+  Widget _iosSearchField(BuildContext context, IosColors c) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Focus(
+      onKeyEvent: _queryKey,
+      child: ValueListenableBuilder<TextEditingValue>(
+        valueListenable: widget.query,
+        builder: (context, value, _) => DecoratedBox(
+          decoration: ShapeDecoration(
+            color: c.fill,
+            shape: const StadiumBorder(),
+          ),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 6, 4),
+            child: Row(
+              children: [
+                Icon(IosIcons.search, size: 18, color: c.secondaryLabel),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: CupertinoTextField(
+                    key: const ValueKey('terminal-sidebar-query'),
+                    controller: widget.query,
+                    focusNode: widget.queryFocus,
+                    autofocus: widget.section == TerminalToolsSection.search,
+                    maxLength: terminalSearchMaxQueryGraphemes,
+                    maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                    onChanged: widget.onQuery,
+                    onEditingComplete:
+                        () {}, // Keep the input focused for repeated Enter.
+                    onSubmitted: (_) => _move(widget.next),
+                    textInputAction: TextInputAction.search,
+                    autocorrect: false,
+                    clearButtonMode: OverlayVisibilityMode.never,
+                    decoration: null,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    placeholder: context.l10n.searchCurrentTerminalOutput,
+                    placeholderStyle: IosType.subheadline.copyWith(
+                      color: c.secondaryLabel,
+                    ),
+                    style: IosType.body.copyWith(color: c.label),
+                    cursorColor: c.tint,
+                  ),
+                ),
+                if (value.text.isNotEmpty)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      widget.query.clear();
+                      widget.onQuery('');
+                    },
+                    child: SizedBox.square(
+                      dimension: 34,
+                      child: Icon(
+                        IosIcons.clear,
+                        size: 18,
+                        color: c.secondaryLabel,
                       ),
                     ),
-                    if (value.text.isNotEmpty)
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          widget.query.clear();
-                          widget.onQuery('');
-                        },
-                        child: SizedBox.square(
-                          dimension: 34,
-                          child: Icon(
-                            IosIcons.clear,
-                            size: 18,
-                            color: c.secondaryLabel,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+                  ),
+              ],
             ),
           ),
         ),
       ),
     ),
+  );
+
+  List<Widget> _iosSearch(BuildContext context, IosColors c) => [
     SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 12, 6),
@@ -1439,65 +1514,51 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
     );
   }
 
-  List<Widget> _search() => [
-    SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Focus(
-          onKeyEvent: (node, event) {
-            if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.escape) {
-              _remember();
-              widget.onClose();
-              return KeyEventResult.handled;
-            }
-            return widget.onSearchKey?.call(node, event) ??
-                KeyEventResult.ignored;
-          },
-          child: ValueListenableBuilder<TextEditingValue>(
-            valueListenable: widget.query,
-            builder: (context, value, _) => TextField(
-              key: const ValueKey('terminal-sidebar-query'),
-              controller: widget.query,
-              focusNode: widget.queryFocus,
-              autofocus: true,
-              maxLength: terminalSearchMaxQueryGraphemes,
-              maxLengthEnforcement: MaxLengthEnforcement.enforced,
-              onChanged: widget.onQuery,
-              onSubmitted: (_) => _move(widget.next),
-              textInputAction: TextInputAction.search,
-              textAlign: value.text.isEmpty
-                  ? TextAlign.center
-                  : TextAlign.start,
-              textAlignVertical: TextAlignVertical.center,
-              style: TextStyle(fontSize: AppDensity.of(context).textSize(13)),
-              decoration: InputDecoration(
-                hintText: context.l10n.searchCurrentTerminalOutput,
-                hintStyle: TextStyle(
-                  fontSize: AppDensity.of(context).textSize(12),
-                  color: context.palette.muted,
-                ),
-                hintMaxLines: 1,
-                prefixIcon: const Icon(Icons.search, size: 16),
-                prefixIconConstraints: _prefixConstraints,
-                // Equal icon gutters center the empty prompt within the border,
-                // not just within the space left over after the search icon.
-                suffixIcon: value.text.isEmpty
-                    ? const SizedBox(width: 40)
-                    : null,
-                suffixIconConstraints: _prefixConstraints,
-                contentPadding: _fieldPadding,
-                constraints: BoxConstraints(
-                  minHeight: _touch(context) ? 48 : 40,
-                ),
-                counterText: '',
-                isDense: true,
-              ),
+  Widget _searchField() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    child: Focus(
+      onKeyEvent: _queryKey,
+      child: ValueListenableBuilder<TextEditingValue>(
+        valueListenable: widget.query,
+        builder: (context, value, _) => TextField(
+          key: const ValueKey('terminal-sidebar-query'),
+          controller: widget.query,
+          focusNode: widget.queryFocus,
+          autofocus: widget.section == TerminalToolsSection.search,
+          maxLength: terminalSearchMaxQueryGraphemes,
+          maxLengthEnforcement: MaxLengthEnforcement.enforced,
+          onChanged: widget.onQuery,
+          onEditingComplete:
+              () {}, // Keep the input focused for repeated Enter.
+          onSubmitted: (_) => _move(widget.next),
+          textInputAction: TextInputAction.search,
+          textAlign: value.text.isEmpty ? TextAlign.center : TextAlign.start,
+          textAlignVertical: TextAlignVertical.center,
+          style: TextStyle(fontSize: AppDensity.of(context).textSize(13)),
+          decoration: InputDecoration(
+            hintText: context.l10n.searchCurrentTerminalOutput,
+            hintStyle: TextStyle(
+              fontSize: AppDensity.of(context).textSize(12),
+              color: context.palette.muted,
             ),
+            hintMaxLines: 1,
+            prefixIcon: const Icon(Icons.search, size: 16),
+            prefixIconConstraints: _prefixConstraints,
+            // Equal icon gutters center the empty prompt within the border,
+            // not just within the space left over after the search icon.
+            suffixIcon: value.text.isEmpty ? const SizedBox(width: 40) : null,
+            suffixIconConstraints: _prefixConstraints,
+            contentPadding: _fieldPadding,
+            constraints: BoxConstraints(minHeight: _touch(context) ? 48 : 40),
+            counterText: '',
+            isDense: true,
           ),
         ),
       ),
     ),
+  );
+
+  List<Widget> _search() => [
     SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1559,11 +1620,15 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
         ? SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
-              child: Text(
-                context.l10n.searchTermsAreRecordedWhenYou,
-                style: TextStyle(
-                  color: context.palette.muted,
-                  fontSize: AppDensity.of(context).textSize(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  context.l10n.searchTermsAreRecordedWhenYou,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: context.palette.muted,
+                    fontSize: AppDensity.of(context).textSize(12),
+                  ),
                 ),
               ),
             ),

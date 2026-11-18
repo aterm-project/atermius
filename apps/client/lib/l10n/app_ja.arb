@@ -3472,7 +3472,7 @@
   "executionType": "実行の種類",
   "reject": "拒否",
   "searchTerminal": "ターミナルを検索",
-  "searchTerminalHistory": "ターミナルの履歴を検索",
+  "searchTerminalHistory": "ターミナル検索の表示・非表示",
   "revokeSshHostKeyTrust": "SSH ホスト鍵の信頼を取り消しますか？",
   "afterRevokingThisKeyForHost": "{host}:{port} のこの鍵を失効させると、以降の接続では再度確認して明示的に承認する必要があります。",
   "revokeTrust": "信頼を取り消す",

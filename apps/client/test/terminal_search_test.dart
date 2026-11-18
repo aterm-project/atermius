@@ -463,6 +463,15 @@ void main() {
         find.bySemanticsLabel('Search host terminal tab, connected, inactive'),
       );
       await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(_terminalSearchField()).controller!.text, 'beta-only');
+      await _sendDefaultTerminalShortcut(
+        tester,
+        key: LogicalKeyboardKey.keyF,
+        character: 'F',
+        shift: true,
+      );
+      expect(_terminalSearchField(), findsNothing);
+      expect(find.byKey(const ValueKey('terminal-tools-sidebar')), findsOneWidget);
       await _sendDefaultTerminalShortcut(
         tester,
         key: LogicalKeyboardKey.keyF,
@@ -472,6 +481,7 @@ void main() {
       final alphaSearchField = _terminalSearchField();
       expect(alphaSearchField, findsOneWidget);
       await tester.enterText(alphaSearchField, 'searchmarker');
+      await tester.pump(const Duration(milliseconds: 200));
       await tester.pumpAndSettle();
 
       expect(find.text('1 of 2 matches'), findsOneWidget);
@@ -500,6 +510,13 @@ void main() {
         hasLength(1),
       );
       expect(connections['host-search']!.inputs, isEmpty);
+
+      for (final status in ['2 of 2 matches', '1 of 2 matches']) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(find.text(status), findsOneWidget);
+        expect(tester.widget<TextField>(alphaSearchField).focusNode!.hasFocus, isTrue);
+      }
 
       await tester.tap(find.byTooltip('Next match'));
       await tester.pump();
@@ -551,7 +568,7 @@ void main() {
       final restoredBetaSearchField = _terminalSearchField();
       expect(
         tester.widget<TextField>(restoredBetaSearchField).controller!.text,
-        'beta-only',
+        'absent-marker',
       );
       expect(
         tester.widget<TerminalView>(find.byType(TerminalView)).controller,
@@ -581,15 +598,15 @@ void main() {
         character: 'D',
         shift: true,
       );
-      expect(app.terminalTabFor(alphaTab.id), isNull);
-      expect(alphaTab.closed, isTrue);
-      expect(alphaTab.state, 'closed');
+      expect(app.terminalTabFor(alphaTab.id), same(alphaTab));
+      expect(alphaTab.closed, isFalse);
+      expect(alphaTab.state, 'disconnected');
       expect(alphaTab.connection, isNull);
       expect(alphaTab.connectionCancellation, isNull);
       expect(alphaTab.outputSubscription, isNull);
-      expect(app.terminalTabs, [betaTab]);
-      expect(app.activeTerminalTabId, betaTab.id);
-      expect(app.activeTerminalTab, same(betaTab));
+      expect(app.terminalTabs, containsAll([alphaTab, betaTab]));
+      expect(app.activeTerminalTabId, alphaTab.id);
+      expect(app.activeTerminalTab, same(alphaTab));
       expect(betaTab.connection, same(connections['host-beta']));
       expect(betaTab.state, 'connected');
       await tester.runAsync(
@@ -606,7 +623,7 @@ void main() {
       expect(connections['host-beta']!.closed, isFalse);
       expect(
         tester.widget<TerminalView>(find.byType(TerminalView)).controller,
-        same(betaSearchController),
+        same(alphaSearchController),
       );
       expect(
         connections.values.every((connection) => connection.inputs.isEmpty),
@@ -643,13 +660,13 @@ Future<void> _sendDefaultTerminalShortcut(
   await tester.pump(const Duration(milliseconds: 350));
 
   await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+  if (key != LogicalKeyboardKey.keyF) await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
   if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
   try {
     await tester.sendKeyEvent(key, character: character);
   } finally {
     if (shift) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    if (key != LogicalKeyboardKey.keyF) await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
   }
   await tester.pumpAndSettle();

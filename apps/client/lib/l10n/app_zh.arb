@@ -3472,7 +3472,7 @@
   "executionType": "执行类型",
   "reject": "拒绝",
   "searchTerminal": "搜索终端",
-  "searchTerminalHistory": "搜索终端历史",
+  "searchTerminalHistory": "显示或收起终端搜索框",
   "revokeSshHostKeyTrust": "撤销 SSH 主机密钥信任？",
   "afterRevokingThisKeyForHost": "撤销 {host}:{port} 的此密钥后，后续连接必须重新核验并明确批准。",
   "revokeTrust": "撤销信任",

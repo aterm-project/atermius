@@ -27,7 +27,7 @@ List<TerminalCommandItem> terminalQuickCommands(
       TerminalCommandItem(id: s.id, title: s.title, command: s.body),
 ];
 
-/// Query history is deliberately bounded and lives only with its terminal tab.
+/// Query history is deliberately bounded and lives only in the open workspace.
 class TerminalSearchHistory {
   static const limit = 20;
   final _items = <String>[];

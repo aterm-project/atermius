@@ -52,7 +52,6 @@ bool FlutterWindow::OnCreate() {
         }
         const auto &method = call.method_name();
         if (method == "enable") {
-          SetCustomChrome(true);
           result->Success(ChromeState());
         } else if (method == "getState") {
           result->Success(ChromeState());
@@ -164,19 +163,8 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   if (message == WM_DPICHANGED) {
     taskbar_identity_.UpdateIcons(hwnd, LOWORD(wparam));
   }
-  // Frame layout must be resolved before plugin handlers consume NC messages.
-  if (custom_chrome_enabled() &&
-      (message == WM_NCCALCSIZE || message == WM_GETMINMAXINFO ||
-       message == WM_NCHITTEST)) {
-    return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
-  }
-  if (message == WM_SIZE || message == WM_ACTIVATE ||
-      message == WM_DPICHANGED || message == WM_SETTINGCHANGE ||
-      message == WM_THEMECHANGED) {
-    // Plugins may consume a message; the caption must still observe OS state.
-    // DPI, non-client metric (SPI_SETNONCLIENTMETRICS) and theme changes
-    // alter the native caption height that Flutter mirrors.
-    UpdateWindowCorners();
+  if (message == WM_SIZE || message == WM_ACTIVATE || message == WM_DPICHANGED ||
+      message == WM_SETTINGCHANGE || message == WM_THEMECHANGED) {
     NotifyChromeState();
   }
   // Give Flutter, including plugins, an opportunity to handle window messages.
@@ -202,8 +190,8 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
 flutter::EncodableValue FlutterWindow::ChromeState() {
   const auto window = GetHandle();
   flutter::EncodableMap state{
-      {flutter::EncodableValue("enabled"),
-       flutter::EncodableValue(custom_chrome_enabled())},
+      {flutter::EncodableValue("enabled"), flutter::EncodableValue(true)},
+      {flutter::EncodableValue("customFrame"), flutter::EncodableValue(false)},
       {flutter::EncodableValue("maximized"),
        flutter::EncodableValue(window && IsZoomed(window) != FALSE)},
       {flutter::EncodableValue("minimized"),
@@ -211,8 +199,6 @@ flutter::EncodableValue FlutterWindow::ChromeState() {
       {flutter::EncodableValue("focused"),
        flutter::EncodableValue(window && GetForegroundWindow() == window)},
   };
-  // Own-window system metric only; omitted when unavailable so Dart keeps its
-  // fallback instead of receiving an invented height.
   const double caption_height = CaptionHeightLogical();
   if (caption_height > 0) {
     state[flutter::EncodableValue("captionHeight")] =

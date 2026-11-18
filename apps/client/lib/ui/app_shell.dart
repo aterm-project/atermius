@@ -230,6 +230,8 @@ class _AppShellState extends State<AppShell> {
     ];
   }
 
+  final _terminalTools = TerminalToolsWorkspace();
+  late String _searchVaultId = app.currentVaultId;
   final _terminalPageKey = GlobalKey<_TerminalPageState>();
   late final McpWorkspace _mcpWorkspace;
   AppController get app => widget.controller;
@@ -355,6 +357,7 @@ class _AppShellState extends State<AppShell> {
     _fileTabs.removeListener(_onFilesChanged);
     _fileTabs.dispose();
     _sessionWorkspace.dispose();
+    _terminalTools.dispose();
     _sshForwardingControllerOrNull?.dispose();
     _webUpdateMonitor?.removeListener(_onWebUpdateChanged);
     if (_ownsWebUpdateMonitor) _webUpdateMonitor?.dispose();
@@ -1866,6 +1869,11 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
   void _onControllerChanged() {
     McpService.instance.workspaceChanged();
     if (!mounted) return;
+    if (_searchVaultId != app.currentVaultId || app.workspaceLocked) {
+      _terminalTools.close();
+      _terminalTools.history.clear();
+      _searchVaultId = app.currentVaultId;
+    }
     _syncSessionWorkspace();
     WidgetsBinding.instance.addPostFrameCallback((_) => _consumeFilesLaunch());
     _controllerNotificationGeneration++;
@@ -1888,7 +1896,7 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final wide = constraints.maxWidth >= 1120;
-      return Scaffold(
+      final scaffold = Scaffold(
         body: SafeArea(
           child: Column(
             children: [
@@ -2196,6 +2204,7 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
                           Expanded(
                             child: _WorkspacePage(
                               terminalPageKey: _terminalPageKey,
+                              terminalTools: _terminalTools,
                               onQuickConnect: (request) =>
                                   unawaited(_quickConnect(request)),
                               fileTabs: _fileTabs,
@@ -2240,6 +2249,23 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
             ],
           ),
         ),
+      );
+      final active = app.activeTerminalTab;
+      final target = active != null && active.desktop == null ? active :
+          app.visibleTerminalTabs.where((tab) => !tab.closed && tab.desktop == null).lastOrNull;
+      return WorkspaceSearchShortcut(
+        bindings: app.terminalShortcutBindings,
+        onToggle: target == null || app.workspaceLocked ? null : () {
+          if (app.page == WorkspacePage.terminal && _terminalPageKey.currentState != null) {
+            _terminalPageKey.currentState!.toggleSearchField(target);
+          } else {
+            _selectWorkspaceTab(target.id);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _terminalPageKey.currentState?._openTerminalSearch(target);
+            });
+          }
+        },
+        child: scaffold,
       );
     },
   );
@@ -3148,6 +3174,7 @@ class _CountBadge extends StatelessWidget {
 class _WorkspacePage extends StatelessWidget {
   const _WorkspacePage({
     required this.terminalPageKey,
+    required this.terminalTools,
     required this.onQuickConnect,
     required this.app,
     required this.onOpenFiles,
@@ -3177,6 +3204,7 @@ class _WorkspacePage extends StatelessWidget {
   /// ._buildSshForwardingPage`); null hides the destination.
   final Widget Function()? forwardingBuilder;
   final GlobalKey<_TerminalPageState> terminalPageKey;
+  final TerminalToolsWorkspace terminalTools;
   final ValueChanged<QuickConnectRequest> onQuickConnect;
   final AppController app;
   final Future<void> Function(GroupRecord) onOpenGroup,
@@ -3246,6 +3274,7 @@ class _WorkspacePage extends StatelessWidget {
       WorkspacePage.savedWorkspaces => _SavedWorkspacesPage(app: app),
       WorkspacePage.terminal => _TerminalPage(
         key: terminalPageKey,
+        tools: terminalTools,
         app: app,
         sessionWorkspace: sessionWorkspace,
         dragScope: dragScope,
@@ -8694,6 +8723,7 @@ class _TerminalPage extends StatefulWidget {
   const _TerminalPage({
     super.key,
     required this.app,
+    required this.tools,
     required this.sessionWorkspace,
     required this.dragScope,
     required this.fileTabs,
@@ -8706,6 +8736,7 @@ class _TerminalPage extends StatefulWidget {
     this.enableWebCommandSuggestionsForTesting = false,
   });
   final AppController app;
+  final TerminalToolsWorkspace tools;
   final SessionWorkspaceController sessionWorkspace;
   final FileWorkspaceTabs fileTabs;
   final ValueChanged<String> onWorkspaceSelect;
@@ -8719,14 +8750,28 @@ class _TerminalPage extends StatefulWidget {
 }
 
 class _TerminalPageState extends State<_TerminalPage> {
+  TerminalToolsWorkspace get _tools => widget.tools;
+  String? _searchTarget;
+
+  _TerminalSearchSession _searchFor(TerminalTabSession tab) =>
+      _terminalSearches.putIfAbsent(tab.id, () => _TerminalSearchSession(
+        tab.terminal,
+        onChanged: () {
+          if (mounted) setState(() {});
+        },
+      ));
+
+  void toggleSearchField(TerminalTabSession tab) {
+    setState(() => _tools.toggleQuery(_focusNodeFor(tab.id)));
+  }
+
   void toggleTools() {
     final id = widget.sessionWorkspace.selectedId;
     if (id == null) return;
     final tab = app.terminalTabFor(id);
     if (tab == null || tab.desktop != null) return;
-    final search = _terminalSearches[id];
-    if (search?.isOpen == true) {
-      _closeTerminalSearch(search!);
+    if (_tools.open) {
+      _closeTerminalSearch();
       _focusNodeFor(id).requestFocus();
     } else {
       _openTerminalTools(tab, TerminalToolsSection.search);
@@ -9440,9 +9485,12 @@ class _TerminalPageState extends State<_TerminalPage> {
 
   Widget _workspaceView() {
     final selected = widget.sessionWorkspace.selectedId;
-    final tab = app.terminalTabFor(selected);
+    final selectedTab = app.terminalTabFor(selected);
+    final tab = selectedTab != null && selectedTab.desktop == null ? selectedTab :
+        widget.sessionWorkspace.sessionIds.map(app.terminalTabFor).nonNulls
+            .where((tab) => tab.desktop == null).firstOrNull;
     final child = _workspaceViewContent();
-    return tab == null || tab.desktop != null
+    return tab == null
         ? TerminalToolsLayout(child: child)
         : _terminalToolsLayout(tab, child);
   }
@@ -9543,7 +9591,7 @@ return DesktopView(
             : null,
       );
 }
-    final search = _terminalSearches[id];
+    final search = _searchFor(tab);
     final surface = kIsWeb
         ? _webTerminalInputSurface(
             tab,
@@ -9555,8 +9603,8 @@ return DesktopView(
               tab.terminal,
               foregroundDecorator: TerminalKeywordHighlighter.instance,
               key: _viewKeyFor(id),
-              controller: search?.controller,
-              scrollController: search?.scrollController,
+              controller: search.controller,
+              scrollController: search.scrollController,
               focusNode: _focusNodeFor(id),
               autofocus: id == app.activeTerminalTabId,
               hardwareKeyboardOnly: false,
@@ -9656,8 +9704,8 @@ return DesktopView(
         tab.terminal,
         foregroundDecorator: TerminalKeywordHighlighter.instance,
         key: viewKey,
-        controller: _terminalSearches[tab.id]?.controller,
-        scrollController: _terminalSearches[tab.id]?.scrollController,
+        controller: _searchFor(tab).controller,
+        scrollController: _searchFor(tab).scrollController,
         focusNode: focusNode,
         autofocus: autofocus,
         hardwareKeyboardOnly: false,
@@ -9735,7 +9783,9 @@ return DesktopView(
       );
     }
 
-    return buildNode(tree);
+    final child = buildNode(tree);
+    final tab = app.activeTerminalTab;
+    return tab == null ? child : _terminalToolsLayout(tab, child);
   }
 
   Widget _liveSplitTerminalPane(
@@ -9743,7 +9793,7 @@ return DesktopView(
     TerminalTabSession tab,
     int index,
   ) {
-    final search = _terminalSearches[tab.id];
+    final search = _searchFor(tab);
     final host = tab.host;
     final sftpActionLabel = context.l10n.browseFilesOnValuevalue(host?.name ?? 'terminal');
     final Widget inputSurface;
@@ -9766,8 +9816,8 @@ return DesktopView(
               tab.terminal,
               foregroundDecorator: TerminalKeywordHighlighter.instance,
               key: _viewKeyFor(tab.id),
-              controller: search?.controller,
-              scrollController: search?.scrollController,
+              controller: search.controller,
+              scrollController: search.scrollController,
               focusNode: _focusNodeFor(tab.id),
               autofocus: tab.id == app.activeTerminalTabId,
               hardwareKeyboardOnly: false,
@@ -9864,7 +9914,7 @@ return DesktopView(
                   _requestTerminalKeyboard(tab.id, fromUserGesture: true);
                 }
               },
-              child: _terminalToolsLayout(tab, inputSurface),
+              child: inputSurface,
             ),
           ),
         ],
@@ -10184,20 +10234,20 @@ return DesktopView(
         if (tab == null || tab.connection == null) return;
         switch (action) {
           case TerminalShortcutAction.search:
-            _openTerminalSearch(tab);
+            toggleSearchField(tab);
           case TerminalShortcutAction.searchNext:
             final search = _terminalSearches[tabId];
-            if (search?.isOpen != true) {
+            if (!_tools.open || search == null) {
               _openTerminalSearch(tab);
             } else {
-              search!.nextMatch();
+              search.nextMatch();
             }
           case TerminalShortcutAction.searchPrevious:
             final search = _terminalSearches[tabId];
-            if (search?.isOpen != true) {
+            if (!_tools.open || search == null) {
               _openTerminalSearch(tab);
             } else {
-              search!.previousMatch();
+              search.previousMatch();
             }
           case TerminalShortcutAction.disconnect:
             unawaited(app.disconnectTerminalTab(tabId));
@@ -10527,26 +10577,37 @@ return DesktopView(
     app.activateTerminalTab(tab.id);
     _focusNodeFor(tab.id).unfocus();
     _openTerminalSearch(tab);
-    setState(() => _terminalSearches[tab.id]!.section = section);
+    setState(() => _tools.show(section));
   }
 
   Widget _terminalToolsLayout(TerminalTabSession tab, Widget child) {
-    final search = _terminalSearches[tab.id];
+    final search = _searchFor(tab);
+    if (_tools.open && _searchTarget != tab.id) {
+      final previous = _terminalSearches[_searchTarget];
+      _searchTarget = tab.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (previous != _terminalSearches[_searchTarget]) previous?.clearQuery();
+        if (!_tools.open || _searchTarget != tab.id) return;
+        search.updateQuery(_tools.query.text);
+      });
+    }
     return TerminalToolsLayout(
       child: child,
-      sidebar: search?.isOpen == true
+      sidebar: _tools.open
           ? TerminalToolsSidebar(
-              key: ValueKey('terminal-tools-${tab.id}'),
-              section: search!.section,
-              onSection: (section) => setState(() => search.section = section),
-              onClose: () => _closeTerminalSearch(search),
-              query: search.queryController,
-              queryFocus: search.queryFocusNode,
+              key: const ValueKey('workspace-terminal-tools'),
+              section: _tools.section,
+              showQuery: _tools.showQuery,
+              onSection: (section) => setState(() => _tools.show(section)),
+              onClose: _closeTerminalSearch,
+              query: _tools.query,
+              queryFocus: _tools.focus,
               onQuery: search.updateQuery,
               searchStatus: search.matchCountLabel,
               previous: search.matches.isEmpty ? null : search.previousMatch,
               next: search.matches.isEmpty ? null : search.nextMatch,
-              searchHistory: search.searchHistory,
+              searchHistory: _tools.history,
               onSearchKey: (_, event) => _handleTerminalKeyEvent(tab.id, event),
               loadCommands: () async => terminalQuickCommands(app.snippets),
               editCommand: (existing) async {
@@ -10612,24 +10673,11 @@ throw StateError(context.l10n.snippetChanged);
   }
 
   void _openTerminalSearch(TerminalTabSession tab) {
-    final search = _terminalSearches.putIfAbsent(
-      tab.id,
-      () => _TerminalSearchSession(
-        tab.terminal,
-        onChanged: () {
-          if (mounted) setState(() {});
-        },
-      ),
-    );
-    setState(() {
-      search.isOpen = true;
-      search.section = TerminalToolsSection.search;
-    });
+    _searchFor(tab);
+    setState(() => _tools.show(TerminalToolsSection.search));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted &&
-          search.isOpen &&
-          search.section == TerminalToolsSection.search)
-        search.queryFocusNode.requestFocus();
+      if (mounted && _tools.open && _tools.showQuery &&
+          _tools.section == TerminalToolsSection.search) _tools.focus.requestFocus();
     });
   }
 
@@ -10674,9 +10722,10 @@ throw StateError(context.l10n.snippetChanged);
     if (mounted) setState(() {});
   }
 
-  void _closeTerminalSearch(_TerminalSearchSession search) {
-    search.queryFocusNode.unfocus();
-    setState(search.closeSearch);
+  void _closeTerminalSearch() {
+    _terminalSearches[_searchTarget]?.clearQuery();
+    _searchTarget = null;
+    setState(_tools.close);
   }
 
   void _pruneClosedTerminalState() {
@@ -11186,14 +11235,10 @@ class _TerminalSearchSession {
   final VoidCallback onChanged;
   final controller = TerminalController();
   final scrollController = ScrollController();
-  final queryController = TextEditingController();
-  final queryFocusNode = FocusNode(debugLabel: 'terminal scrollback search');
+  String _query = '';
   List<TerminalSearchMatch> matches = const [];
   final List<TerminalHighlight> _matchHighlights = [];
   int selectedIndex = -1;
-  bool isOpen = false;
-  TerminalToolsSection section = TerminalToolsSection.search;
-  final searchHistory = TerminalSearchHistory();
   bool _resultsTruncated = false;
   bool _isSearching = false;
   bool _queryTooLong = false;
@@ -11209,6 +11254,7 @@ class _TerminalSearchSession {
   );
 
   void updateQuery(String value) {
+    _query = value;
     _refreshTimer?.cancel();
     _queryTooLong = false;
     if (value.isEmpty) {
@@ -11230,18 +11276,18 @@ class _TerminalSearchSession {
   }
 
   void _onTerminalChanged() {
-    if (queryController.text.isEmpty) return;
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer(const Duration(milliseconds: 120), _refreshMatches);
+    if (_query.isEmpty) return;
+    _refreshTimer ??= Timer(const Duration(milliseconds: 120), _refreshMatches);
   }
 
   void _refreshMatches() {
-    final result = searchTerminalBuffer(terminal, queryController.text);
+    _refreshTimer = null;
+    final result = searchTerminalBuffer(terminal, _query);
     matches = result.matches;
     _resultsTruncated = result.truncated;
     _queryTooLong = result.queryTooLong;
     _isSearching = false;
-    selectedIndex = matches.isEmpty ? -1 : 0;
+    selectedIndex = refreshedSearchIndex(matches, _selectedHighlight?.p1);
     _paintMatches();
     onChanged();
     if (matches.isNotEmpty) _revealSelectedMatch();
@@ -11328,12 +11374,10 @@ class _TerminalSearchSession {
     });
   }
 
-  void closeSearch() {
+  void clearQuery() {
     _refreshTimer?.cancel();
     _refreshTimer = null;
-    isOpen = false;
-    searchHistory.remember(queryController.text);
-    queryController.clear();
+    _query = '';
     matches = const [];
     selectedIndex = -1;
     _resultsTruncated = false;
@@ -11345,11 +11389,9 @@ class _TerminalSearchSession {
   void dispose() {
     _refreshTimer?.cancel();
     terminal.removeListener(_onTerminalChanged);
-    closeSearch();
+    clearQuery();
     controller.dispose();
     scrollController.dispose();
-    queryController.dispose();
-    queryFocusNode.dispose();
   }
 }
 

@@ -18,9 +18,8 @@ class WindowChromeState {
   final bool enabled;
 
   /// True when the native runner removed the OS title bar so Flutter should
-  /// draw custom caption controls (Windows). False when native window lifecycle
-  /// and close-guard control are enabled while keeping the native title bar
-  /// (macOS traffic-light title bar).
+  /// draw caption controls. Current Windows and macOS runners keep their native
+  /// captions while enabling the lifecycle and close-guard channel.
   final bool customFrame;
   final bool maximized;
   final bool minimized;

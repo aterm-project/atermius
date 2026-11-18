@@ -21161,7 +21161,7 @@ abstract class AppLocalizations {
   /// No description provided for @searchTerminalHistory.
   ///
   /// In en, this message translates to:
-  /// **'Search terminal history'**
+  /// **'Show or hide terminal search'**
   String get searchTerminalHistory;
 
   /// No description provided for @revokeSshHostKeyTrust.
