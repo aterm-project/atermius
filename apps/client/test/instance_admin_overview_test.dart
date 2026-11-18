@@ -86,9 +86,7 @@ void main() {
     try {
       await _pumpSettings(tester, harness.app);
       expect(find.text('Instance admin overview'), findsOneWidget);
-      await tester.ensureVisible(find.text('Load overview'));
-      await tester.tap(find.text('Load overview'));
-      await tester.pump();
+      // Opening the section starts the first load; no tap is needed.
       expect(find.text('Reading instance overview…'), findsOneWidget);
 
       pending.complete(InstanceAdminOverview.fromJson(_overviewJson));
@@ -126,8 +124,6 @@ void main() {
       );
       try {
         await _pumpSettings(tester, harness.app);
-        await tester.ensureVisible(find.text('Load overview'));
-        await tester.tap(find.text('Load overview'));
         await tester.pumpAndSettle();
         final l10n = currentL10n;
         expect(find.text('instance-123'), findsOneWidget);
@@ -198,8 +194,6 @@ void main() {
     );
     try {
       await _pumpSettings(tester, harness.app);
-      await tester.ensureVisible(find.text('Load overview'));
-      await tester.tap(find.text('Load overview'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Couldn\'t load instance overview:'), findsOneWidget);
       expect(
@@ -235,7 +229,7 @@ Future<void> _pumpSettings(WidgetTester tester, AppController app) async {
     ),
   );
   await tester.pump();
-  if (find.byKey(const ValueKey('cloud_settings')).evaluate().isNotEmpty) {
+  if (find.byKey(const ValueKey('admin_panel')).evaluate().isNotEmpty) {
     await openSettingsCategory(tester, 'instance', ifAvailable: true);
   }
   await tester.pump();
@@ -269,7 +263,7 @@ class _Harness {
           )
           ..api = api
           ..stage = ClientStage.workspace
-          ..page = WorkspacePage.settings
+          ..page = WorkspacePage.admin
           ..account = AccountProfile(
             accountId: 'account-123',
             deviceId: 'device-456',

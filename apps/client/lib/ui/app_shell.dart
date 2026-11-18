@@ -116,6 +116,7 @@ import '../web_update/web_app_update_monitor.dart';
 import '../l10n/l10n.dart';
 import 'app_language_settings.dart';
 import 'account_settings.dart';
+import 'admin_panel.dart';
 // credential-visibility
 import 'credential_visibility/credential_visibility_admin_ui.dart';
 import 'credential_visibility/credential_visibility_widgets.dart';
@@ -2661,6 +2662,12 @@ class _SideNavigation extends StatelessWidget {
     _NavItem(WorkspacePage.audit, Icons.history_rounded, _NavLabel.audit),
     _NavItem(WorkspacePage.devices, Icons.devices_outlined, _NavLabel.devices),
     _NavItem(WorkspacePage.settings, Icons.settings_outlined, _NavLabel.settings),
+    // Instance administrators only; see [_cloudNavItemAvailable].
+    _NavItem(
+      WorkspacePage.admin,
+      Icons.admin_panel_settings_outlined,
+      _NavLabel.admin,
+    ),
   ];
 
   @override
@@ -2672,22 +2679,26 @@ class _SideNavigation extends StatelessWidget {
     final phone = MediaQuery.sizeOf(context).width < 600;
     final itemHeight = touch ? 48.0 : 38.0;
     final itemInset = wide ? 8.0 : touch ? 1.0 : 6.0;
-    final items = app.activeVault == null
-        ? _items
-              .where(
-                (item) =>
-                    item.page == WorkspacePage.devices ||
-                    item.page == WorkspacePage.settings,
-              )
-              .toList(growable: false)
-        : _items
-              .where(
-                (item) => _cloudNavItemAvailable(
-                  item,
-                  forwarding: forwardingAvailable,
-                ),
-              )
-              .toList(growable: false);
+    // The signed-in account's own name; the id prefix is only a fallback for
+    // a session whose username is not known on this device.
+    final username = app.authenticatedUsername?.trim();
+    final accountId = app.currentAccountId;
+    final identity = username != null && username.isNotEmpty
+        ? username
+        : accountId != null
+        ? (accountId.length > 8 ? accountId.substring(0, 8) : accountId)
+        : context.l10n.localDevice;
+    final items = _items
+        .where(
+          (item) =>
+              _cloudNavItemAvailable(
+                app,
+                item,
+                forwarding: forwardingAvailable,
+              ) &&
+              (app.activeVault != null || _pageWorksWithoutVault(item.page)),
+        )
+        .toList(growable: false);
     return Container(
       width: wide ? 200 : phone ? 52 : 72,
       decoration: BoxDecoration(
@@ -2782,14 +2793,22 @@ class _SideNavigation extends StatelessWidget {
               ),
             ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.only(bottom: 8),
+            child: _SideNavScrollArea(
+              itemCount: items.length,
+              itemHeight: itemHeight,
+              // Touch rows keep their full tap target; they scroll instead.
+              minItemHeight: touch ? itemHeight : 30,
+              builder: (context, controller, itemHeight, itemGap) => ListView(
+              controller: controller,
+              padding: const EdgeInsets.only(
+                bottom: _SideNavScrollArea.bottomPadding,
+              ),
               children: items.map((item) {
                 final selected = app.page == item.page;
                 return Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: itemInset,
-                    vertical: 2,
+                    vertical: itemGap,
                   ),
                   child: Tooltip(
                     message: item.label(context.l10n),
@@ -2860,6 +2879,7 @@ class _SideNavigation extends StatelessWidget {
                 );
               }).toList(),
             ),
+            ),
           ),
           if (importExportActions.isNotEmpty)
             Padding(
@@ -2924,8 +2944,9 @@ class _SideNavigation extends StatelessWidget {
           ),
           if (wide)
             Container(
+              key: const ValueKey('home_nav_user_card'),
               margin: const EdgeInsets.all(14),
-              padding: const EdgeInsets.all(13),
+              padding: const EdgeInsets.fromLTRB(13, 9, 7, 9),
               decoration: BoxDecoration(
                 color: context.palette.surface,
                 borderRadius: BorderRadius.circular(14),
@@ -2946,28 +2967,45 @@ class _SideNavigation extends StatelessWidget {
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          app.account?.accountId.substring(0, 8) ??
-                              context.l10n.localDevice,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                        // Who is signed in, on one line; the full value is
+                        // in the tooltip. No session/encryption remarks.
+                        Tooltip(
+                          message: identity,
+                          child: Text(
+                            identity,
+                            key: const ValueKey('home_nav_user_identity'),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          app.activeVault == null ? context.l10n.accountSessionUnlocked : context.l10n.encryptedSessionUnlocked,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: context.palette.muted,
+                        // The only secondary line is the account's role on
+                        // this instance.
+                        if (app.isInstanceAdmin) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            context.l10n.accountSettingsInstanceAdmin,
+                            key: const ValueKey('home_nav_user_role'),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: context.palette.muted,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
                   IconButton(
+                    key: const ValueKey('home_nav_lock'),
                     tooltip: context.l10n.lockWorkspace,
                     visualDensity: VisualDensity.compact,
                     onPressed: () => app.lock(),
@@ -2993,6 +3031,73 @@ class _SideNavigation extends StatelessWidget {
   }
 }
 
+/// Scroll area of the sidebar destinations. On a tall window it lays rows out
+/// at [itemHeight] with the regular gap. When the rows do not fit, they are
+/// compacted down to [minItemHeight]; if that is still not enough the list
+/// scrolls with an always-visible scrollbar, so the pinned footer (import or
+/// export, user card) never pushes destinations out of reach unnoticed.
+class _SideNavScrollArea extends StatefulWidget {
+  const _SideNavScrollArea({
+    required this.itemCount,
+    required this.itemHeight,
+    required this.minItemHeight,
+    required this.builder,
+  });
+
+  static const double bottomPadding = 8;
+  static const double _gap = 2;
+  static const double _denseGap = 1;
+
+  final int itemCount;
+  final double itemHeight;
+  final double minItemHeight;
+  final Widget Function(
+    BuildContext context,
+    ScrollController controller,
+    double itemHeight,
+    double itemGap,
+  )
+  builder;
+
+  @override
+  State<_SideNavScrollArea> createState() => _SideNavScrollAreaState();
+}
+
+class _SideNavScrollAreaState extends State<_SideNavScrollArea> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final count = widget.itemCount;
+      final available =
+          constraints.maxHeight - _SideNavScrollArea.bottomPadding;
+      var height = widget.itemHeight;
+      var gap = _SideNavScrollArea._gap;
+      if (count > 0 && count * (height + 2 * gap) > available) {
+        gap = _SideNavScrollArea._denseGap;
+        height = (available / count - 2 * gap)
+            .floorToDouble()
+            .clamp(widget.minItemHeight, widget.itemHeight)
+            .toDouble();
+      }
+      final overflows = count * (height + 2 * gap) > available;
+      return Scrollbar(
+        key: const ValueKey('home_nav_scrollbar'),
+        controller: _controller,
+        thumbVisibility: overflows,
+        child: widget.builder(context, _controller, height, gap),
+      );
+    },
+  );
+}
+
 enum _NavLabel {
   hosts,
   groups,
@@ -3007,6 +3112,7 @@ enum _NavLabel {
   audit,
   devices,
   settings,
+  admin,
 }
 
 /// Display label for a terminal tab's stable state id. Unknown ids are shown
@@ -3043,6 +3149,7 @@ class _NavItem {
     _NavLabel.audit => l10n.auditLog2,
     _NavLabel.devices => l10n.devices,
     _NavLabel.settings => l10n.settings,
+    _NavLabel.admin => l10n.adminPanelNav,
   };
 }
 
@@ -3097,8 +3204,21 @@ HomeSidebarAction? _cloudTermiusTransferAction(
   ),
 );
 
-bool _cloudNavItemAvailable(_NavItem item, {required bool forwarding}) =>
-    item.page != WorkspacePage.forwarding || forwarding;
+/// Whether a destination is offered to the signed-in account at all. The
+/// admin panel is listed only for instance administrators.
+bool _cloudNavItemAvailable(
+  AppController app,
+  _NavItem item, {
+  required bool forwarding,
+}) =>
+    (item.page != WorkspacePage.forwarding || forwarding) &&
+    app.canShowWorkspacePage(item.page);
+
+/// Pages that do not need an open Vault.
+bool _pageWorksWithoutVault(WorkspacePage page) =>
+    page == WorkspacePage.settings ||
+    page == WorkspacePage.devices ||
+    page == WorkspacePage.admin;
 
 List<WorkspaceAction> _cloudFunctionsActions(
   AppController app,
@@ -3106,17 +3226,14 @@ List<WorkspaceAction> _cloudFunctionsActions(
   bool forwarding = false,
 }) => [
   for (final item in _SideNavigation._items.where(
-    (item) => _cloudNavItemAvailable(item, forwarding: forwarding),
+    (item) => _cloudNavItemAvailable(app, item, forwarding: forwarding),
   ))
     WorkspaceAction(
       'cloud-page-${item.page.name}',
       item.label(currentL10n),
       item.icon,
       () => onNavigate(item.page),
-      enabled:
-          app.activeVault != null ||
-          item.page == WorkspacePage.settings ||
-          item.page == WorkspacePage.devices,
+      enabled: app.activeVault != null || _pageWorksWithoutVault(item.page),
     ),
   if (app.activeVault != null)
     WorkspaceAction(
@@ -3239,22 +3356,26 @@ class _WorkspacePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final emptyVault =
-        app.activeVault == null &&
-        app.page != WorkspacePage.settings &&
-        app.page != WorkspacePage.devices;
+        app.activeVault == null && !_pageWorksWithoutVault(_shownPage);
     // One stable wrapper for every page: switching category replays a short
     // fade + lift on the incoming page only. The page widgets keep their
     // existing identity rules (no re-keying, no outgoing copy), so terminal
     // views and their GlobalKeys are never mounted twice.
     return MotionEntrance(
       key: const ValueKey('workspace_page_motion'),
-      trigger: emptyVault ? null : app.page,
+      trigger: emptyVault ? null : _shownPage,
       child: emptyVault ? _EmptyVaultWorkspace(app: app) : _page(),
     );
   }
 
+  /// The page actually rendered. A page the signed-in account may not see
+  /// (the admin panel for a non-administrator, however it was selected) falls
+  /// back to Hosts instead of being built.
+  WorkspacePage get _shownPage =>
+      app.canShowWorkspacePage(app.page) ? app.page : WorkspacePage.hosts;
+
   Widget _page() {
-    return switch (app.page) {
+    return switch (_shownPage) {
       WorkspacePage.hosts => _HostsPage(
         onQuickConnect: onQuickConnect,
         onOpenWindowCombination: onOpenWindowCombination,
@@ -3308,6 +3429,10 @@ class _WorkspacePage extends StatelessWidget {
         webAppUpdateMonitor: webAppUpdateMonitor,
         onArchiveExportStarting: onArchiveExportStarting,
         onArchiveExport: onArchiveExport,
+      ),
+      WorkspacePage.admin => AdminPanel(
+        app: app,
+        sections: _adminPanelSections,
       ),
     };
   }
@@ -15932,16 +16057,9 @@ class _SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final supportedActions =
-        app.adminMaintenanceJobsPage?.supportedActions ?? const <String>[];
-    final backupStatusSupported = supportedActions.contains('backup_status');
-    final backupReplicationSupported = supportedActions.contains(
-      'backup_replication',
-    );
-    final backupScheduleSupported = supportedActions.contains(
-      'backup_schedule',
-    );
     final cloudAccess = CloudAccessService(app);
+    // Personal, device and Vault settings only. Instance administration lives
+    // in its own page: see [_adminPanelSections].
     return SettingsScaffold(
       key: const ValueKey('cloud_settings'),
       sections: [
@@ -16228,65 +16346,6 @@ class _SettingsPage extends StatelessWidget {
               ],
             ),
           ),
-        if (app.isInstanceAdmin) ...[
-          SettingsSection(
-            id: 'instance',
-            title: context.l10n.instanceOverview,
-            icon: Icons.dns_outlined,
-            description: context.l10n.viewInstanceAndPushServiceStatus,
-            builder: (_) => SettingsCards(
-              children: [
-                _InstanceAdminOverviewCard(app: app),
-                _InstanceAdminPushHealthCard(app: app),
-                _InstanceAdminMetricsCredentialCard(app: app),
-              ],
-            ),
-          ),
-          SettingsSection(
-            id: 'access',
-            title: context.l10n.accountsAndAccessPolicies,
-            icon: Icons.admin_panel_settings_outlined,
-            description: context.l10n.manageInstanceAccountsInvitationsRelayGroups,
-            builder: (_) => SettingsCards(
-              children: [
-                _InstanceAdminRelayPolicyCard(app: app),
-                // credential-visibility: default mode, escrow key, viewer.
-                if (credentialVisibilitySupported(app))
-                  CredentialVisibilityAdminCard(app: app),
-                _AdminAccountsCard(app: app),
-                _AdminRelayGroupsCard(app: app),
-                _AdminAccountInvitationsCard(app: app),
-                _AdminVaultsCard(app: app),
-              ],
-            ),
-          ),
-          SettingsSection(
-            id: 'backup',
-            title: context.l10n.backupRestoreAndMaintenance,
-            icon: Icons.backup_outlined,
-            description: context.l10n.manageBackupsAndRestoreCopiesAnd,
-            builder: (_) => SettingsCards(
-              children: [
-                if (backupStatusSupported)
-                  _InstanceAdminBackupStatusCard(app: app),
-                if (backupReplicationSupported)
-                  _InstanceAdminBackupReplicationCard(app: app),
-                if (backupScheduleSupported)
-                  _InstanceAdminBackupScheduleCard(app: app),
-                _AdminMaintenanceJobsCard(app: app),
-                _InstanceAdminRestoreStageCard(app: app),
-              ],
-            ),
-          ),
-          SettingsSection(
-            id: 'audit',
-            title: context.l10n.auditLog,
-            icon: Icons.fact_check_outlined,
-            description: context.l10n.reviewInstanceActionsAndAccessAudit,
-            builder: (_) =>
-                SettingsCards(children: [_InstanceAdminAuditCard(app: app)]),
-          ),
-        ],
         SettingsSection(
           id: 'about',
           title: context.l10n.accountAndDeviceInformation,
@@ -16404,6 +16463,103 @@ class _SettingsPage extends StatelessWidget {
     );
   }
 }
+
+/// Section registry of the instance administration panel ([AdminPanel]).
+///
+/// Every instance-wide function is one entry here, shown in this order. To add
+/// another global function later (for example an online sandbox), append an
+/// [AdminPanelSection] with its own id, labels and builder; use `available`
+/// when the instance may not offer it.
+final List<AdminPanelSection> _adminPanelSections = [
+  AdminPanelSection(
+    id: 'instance',
+    icon: Icons.dns_outlined,
+    title: (l10n) => l10n.instanceOverview,
+    description: (l10n) => l10n.viewInstanceAndPushServiceStatus,
+    onFirstShown: (app) {
+      if (app.instanceAdminOverview == null &&
+          !app.instanceAdminOverviewLoading) {
+        unawaited(app.loadInstanceAdminOverview());
+      }
+    },
+    builder: (_, app) => SettingsCards(
+      children: [
+        _InstanceAdminOverviewCard(app: app),
+        _InstanceAdminPushHealthCard(app: app),
+        _InstanceAdminMetricsCredentialCard(app: app),
+      ],
+    ),
+  ),
+  AdminPanelSection(
+    id: 'users',
+    icon: Icons.manage_accounts_outlined,
+    title: (l10n) => l10n.adminPanelUsersTitle,
+    description: (l10n) => l10n.adminPanelUsersDescription,
+    onFirstShown: (app) {
+      if (app.adminAccountsPage == null && !app.adminAccountsLoading) {
+        unawaited(app.loadAdminAccounts());
+      }
+    },
+    builder: (_, app) => SettingsCards(
+      children: [
+        _AdminAccountsCard(app: app),
+        _AdminAccountInvitationsCard(app: app),
+      ],
+    ),
+  ),
+  AdminPanelSection(
+    id: 'access',
+    icon: Icons.admin_panel_settings_outlined,
+    title: (l10n) => l10n.adminPanelAccessTitle,
+    description: (l10n) => l10n.adminPanelAccessDescription,
+    builder: (_, app) => SettingsCards(
+      children: [
+        _InstanceAdminRelayPolicyCard(app: app),
+        _AdminRelayGroupsCard(app: app),
+        // credential-visibility: default mode, escrow key, viewer.
+        if (credentialVisibilitySupported(app))
+          CredentialVisibilityAdminCard(app: app),
+      ],
+    ),
+  ),
+  AdminPanelSection(
+    id: 'instance-vaults',
+    icon: Icons.folder_shared_outlined,
+    title: (l10n) => l10n.adminPanelVaultsTitle,
+    description: (l10n) => l10n.adminPanelVaultsDescription,
+    builder: (_, app) => SettingsCards(children: [_AdminVaultsCard(app: app)]),
+  ),
+  AdminPanelSection(
+    id: 'backup',
+    icon: Icons.backup_outlined,
+    title: (l10n) => l10n.backupRestoreAndMaintenance,
+    description: (l10n) => l10n.manageBackupsAndRestoreCopiesAnd,
+    builder: (_, app) {
+      final supportedActions =
+          app.adminMaintenanceJobsPage?.supportedActions ?? const <String>[];
+      return SettingsCards(
+        children: [
+          if (supportedActions.contains('backup_status'))
+            _InstanceAdminBackupStatusCard(app: app),
+          if (supportedActions.contains('backup_replication'))
+            _InstanceAdminBackupReplicationCard(app: app),
+          if (supportedActions.contains('backup_schedule'))
+            _InstanceAdminBackupScheduleCard(app: app),
+          _AdminMaintenanceJobsCard(app: app),
+          _InstanceAdminRestoreStageCard(app: app),
+        ],
+      );
+    },
+  ),
+  AdminPanelSection(
+    id: 'audit',
+    icon: Icons.fact_check_outlined,
+    title: (l10n) => l10n.auditLog,
+    description: (l10n) => l10n.reviewInstanceActionsAndAccessAudit,
+    builder: (_, app) =>
+        SettingsCards(children: [_InstanceAdminAuditCard(app: app)]),
+  ),
+];
 
 class _InstanceAdminPushHealthCard extends StatelessWidget {
   const _InstanceAdminPushHealthCard({required this.app});
@@ -19033,10 +19189,37 @@ class _AdminMaintenanceJobTile extends StatelessWidget {
   }
 }
 
-class _AdminAccountsCard extends StatelessWidget {
+class _AdminAccountsCard extends StatefulWidget {
   const _AdminAccountsCard({required this.app});
 
   final AppController app;
+
+  @override
+  State<_AdminAccountsCard> createState() => _AdminAccountsCardState();
+}
+
+class _AdminAccountsCardState extends State<_AdminAccountsCard> {
+  final _filter = TextEditingController();
+
+  AppController get app => widget.app;
+
+  @override
+  void dispose() {
+    _filter.dispose();
+    super.dispose();
+  }
+
+  /// Narrows the loaded page only; the server pages the full list.
+  List<AdminAccountMetadata> _visible(List<AdminAccountMetadata> accounts) {
+    final query = _filter.text.trim().toLowerCase();
+    if (query.isEmpty) return accounts;
+    return [
+      for (final account in accounts)
+        if (account.username.toLowerCase().contains(query) ||
+            account.userId.contains(query))
+          account,
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19142,8 +19325,41 @@ class _AdminAccountsCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 9),
                   child: Text(context.l10n.noAccountsOnThisPage),
                 ),
-              ...value.accounts.map(
-                (account) => _AdminAccountTile(app: app, account: account),
+              // The filter text outlives a page change, so the field stays as
+              // long as it holds text: a one-account page must not hide the
+              // only control that can clear it.
+              if (value.accounts.length > 1 ||
+                  _filter.text.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                TextField(
+                  key: const ValueKey('admin_accounts_filter'),
+                  controller: _filter,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                    hintText: context.l10n.adminPanelUserFilterHint,
+                  ),
+                ),
+              ],
+              if (value.accounts.isNotEmpty &&
+                  _visible(value.accounts).isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 9),
+                  child: Text(
+                    context.l10n.adminPanelUserFilterNoMatch,
+                    style: TextStyle(
+                      color: context.palette.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ..._visible(value.accounts).map(
+                (account) => _AdminAccountTile(
+                  key: ValueKey('admin_account_${account.userId}'),
+                  app: app,
+                  account: account,
+                ),
               ),
               if (value.hasPrevious || value.hasNext) ...[
                 const SizedBox(height: 10),
@@ -20510,7 +20726,11 @@ class _AdminAccountInvitationTile extends StatelessWidget {
 }
 
 class _AdminAccountTile extends StatelessWidget {
-  const _AdminAccountTile({required this.app, required this.account});
+  const _AdminAccountTile({
+    required this.app,
+    required this.account,
+    super.key,
+  });
 
   final AppController app;
   final AdminAccountMetadata account;
@@ -20544,9 +20764,40 @@ class _AdminAccountTile extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
-                Chip(label: Text(account.status)),
+                Chip(
+                  key: ValueKey('admin_account_status_${account.userId}'),
+                  label: Text(_adminAccountStatusLabel(context, account.status)),
+                ),
               ],
             ),
+            // The only administrator the account list can identify is the
+            // signed-in one; the server does not report the flag per account.
+            if (isCurrentAccount)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  key: const ValueKey('admin_account_self_chip'),
+                  children: [
+                    Icon(
+                      Icons.admin_panel_settings_outlined,
+                      size: 15,
+                      color: context.palette.lime,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '${context.l10n.adminPanelAccountYou} · '
+                        '${context.l10n.accountSettingsInstanceAdmin}',
+                        style: TextStyle(
+                          color: context.palette.lime,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             _DetailLine(label: context.l10n.userId, value: account.userId),
             _DetailLine(
               label: context.l10n.activeDevices,
@@ -20607,7 +20858,7 @@ class _AdminAccountTile extends StatelessWidget {
                     label: Text(
                       account.status == 'active'
                           ? context.l10n.disableAccount
-                          : 'Re-enable account',
+                          : context.l10n.adminPanelReEnableAccount,
                     ),
                   ),
                   TextButton.icon(
@@ -20682,6 +20933,16 @@ class _AdminAccountTile extends StatelessWidget {
     );
   }
 }
+
+/// Display label for an account's stable status id; unknown ids are shown
+/// verbatim.
+String _adminAccountStatusLabel(BuildContext context, String status) =>
+    switch (status) {
+      'active' => context.l10n.adminPanelAccountStatusActive,
+      'disabled' => context.l10n.adminPanelAccountStatusDisabled,
+      'deleting' => context.l10n.adminPanelAccountStatusDeleting,
+      _ => status,
+    };
 
 class _AdminAccountRelayPolicyPanel extends StatefulWidget {
   const _AdminAccountRelayPolicyPanel({

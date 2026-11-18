@@ -11468,9 +11468,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get refresh => 'Refresh';
 
   @override
-  String get encryptedSessionUnlocked => 'Encrypted session unlocked';
-
-  @override
   String get namedTerminalLayoutsSyncEncryptedIncluding =>
       'Named terminal layouts sync encrypted, including tab order or split direction and ratio. Previews never connect; each pane needs its own Connect confirmation.';
 
@@ -12170,9 +12167,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get accountEventsAreStillVisibleOnly =>
       'Account events are still visible. Only the Owner and Editors of this Vault can view Vault-scoped records.';
-
-  @override
-  String get accountSessionUnlocked => 'Account session unlocked';
 
   @override
   String get accountCreated => 'Account created';
@@ -19554,4 +19548,56 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverReinstalledConfirm => 'Continue with the new server';
+
+  @override
+  String get adminPanelNav => 'Admin';
+
+  @override
+  String get adminPanelTitle => 'Administration';
+
+  @override
+  String get adminPanelSections => 'Admin sections';
+
+  @override
+  String get adminPanelUsersTitle => 'Users';
+
+  @override
+  String get adminPanelUsersDescription =>
+      'Review the accounts on this instance, disable or re-enable them, revoke their sessions, set per-account relay policy and issue invitations.';
+
+  @override
+  String get adminPanelAccessTitle => 'Access and relay policy';
+
+  @override
+  String get adminPanelAccessDescription =>
+      'Manage the instance-wide relay policy, relay groups and credential visibility.';
+
+  @override
+  String get adminPanelVaultsTitle => 'Vaults and quotas';
+
+  @override
+  String get adminPanelVaultsDescription =>
+      'Review vault metadata on this instance and adjust storage quotas. Vault contents stay encrypted.';
+
+  @override
+  String get adminPanelUserFilterHint => 'Filter by username or user ID';
+
+  @override
+  String get adminPanelUserFilterNoMatch =>
+      'No account on this page matches the filter.';
+
+  @override
+  String get adminPanelAccountStatusActive => 'Active';
+
+  @override
+  String get adminPanelAccountStatusDisabled => 'Disabled';
+
+  @override
+  String get adminPanelAccountStatusDeleting => 'Deleting';
+
+  @override
+  String get adminPanelAccountYou => 'You';
+
+  @override
+  String get adminPanelReEnableAccount => 'Re-enable account';
 }

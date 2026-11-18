@@ -10765,9 +10765,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get refresh => '更新';
 
   @override
-  String get encryptedSessionUnlocked => '暗号化セッションのロックを解除しました';
-
-  @override
   String get namedTerminalLayoutsSyncEncryptedIncluding =>
       '名前付きのターミナルレイアウトは、タブの順序や分割の向きと比率を含めて暗号化して同期されます。プレビューでは接続せず、各ペインで個別に「接続」を確認する必要があります。';
 
@@ -11414,9 +11411,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get accountEventsAreStillVisibleOnly =>
       'アカウントのイベントは引き続き表示できます。保管庫の範囲の記録を表示できるのは、この保管庫のオーナーと編集者のみです。';
-
-  @override
-  String get accountSessionUnlocked => 'アカウントのセッションのロックを解除しました';
 
   @override
   String get accountCreated => 'アカウントの作成';
@@ -18424,4 +18418,55 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get serverReinstalledConfirm => '新しいサーバーで続行';
+
+  @override
+  String get adminPanelNav => '管理';
+
+  @override
+  String get adminPanelTitle => 'インスタンス管理';
+
+  @override
+  String get adminPanelSections => '管理カテゴリ';
+
+  @override
+  String get adminPanelUsersTitle => 'ユーザー';
+
+  @override
+  String get adminPanelUsersDescription =>
+      'このインスタンスのアカウントを確認し、無効化または再有効化、セッションの取り消し、アカウントごとのリレーポリシー設定、招待の発行を行います。';
+
+  @override
+  String get adminPanelAccessTitle => 'アクセスとリレーポリシー';
+
+  @override
+  String get adminPanelAccessDescription =>
+      'インスタンス全体のリレーポリシー、リレーグループ、資格情報の可視性を管理します。';
+
+  @override
+  String get adminPanelVaultsTitle => '保管庫とクォータ';
+
+  @override
+  String get adminPanelVaultsDescription =>
+      'このインスタンスの保管庫メタデータを確認し、ストレージクォータを調整します。保管庫の内容は暗号化されたままです。';
+
+  @override
+  String get adminPanelUserFilterHint => 'ユーザー名またはユーザー ID で絞り込み';
+
+  @override
+  String get adminPanelUserFilterNoMatch => 'このページに条件に一致するアカウントはありません。';
+
+  @override
+  String get adminPanelAccountStatusActive => '有効';
+
+  @override
+  String get adminPanelAccountStatusDisabled => '無効';
+
+  @override
+  String get adminPanelAccountStatusDeleting => '削除中';
+
+  @override
+  String get adminPanelAccountYou => 'あなた';
+
+  @override
+  String get adminPanelReEnableAccount => 'アカウントを再有効化';
 }

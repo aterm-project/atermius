@@ -76,4 +76,31 @@ void main() {
         ? false
         : 'Release Web bundle is not built; run flutter build web first.',
   );
+
+  test('the Web terminal font is served by the application itself', () {
+    // CanvasKit has no browser fonts: without these files 'monospace' is the
+    // proportional UI font and terminal glyphs are spread over wide cells.
+    final loader = File(
+      'lib/platform/web_monospace_font_web.dart',
+    ).readAsStringSync();
+    expect(loader, contains("FontLoader('monospace')"));
+    final files = RegExp(
+      r"'(fonts/[^']+\.ttf)'",
+    ).allMatches(loader).map((match) => match.group(1)!).toList();
+    expect(files, hasLength(2));
+    for (final file in files) {
+      final font = File('web/$file');
+      expect(font.existsSync(), isTrue, reason: 'Missing web/$file');
+      // TrueType outline font (0x00010000).
+      expect(font.readAsBytesSync().take(4), [0, 1, 0, 0]);
+    }
+    expect(
+      File('web/fonts/licenses/dejavusansmono-LICENSE.txt').existsSync(),
+      isTrue,
+    );
+    expect(
+      File('lib/main.dart').readAsStringSync(),
+      contains('loadWebMonospaceFont()'),
+    );
+  });
 }

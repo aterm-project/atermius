@@ -11468,9 +11468,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get refresh => 'Обновить';
 
   @override
-  String get encryptedSessionUnlocked => 'Зашифрованный сеанс разблокирован';
-
-  @override
   String get namedTerminalLayoutsSyncEncryptedIncluding =>
       'Именованные макеты терминала синхронизируются в зашифрованном виде, включая порядок вкладок или направление и пропорции разделения. Предпросмотр не подключается; для каждой панели нужно отдельно подтвердить подключение.';
 
@@ -12179,9 +12176,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get accountEventsAreStillVisibleOnly =>
       'События учётной записи по-прежнему видны. Записи уровня сейфа могут просматривать только владелец и редакторы этого сейфа.';
-
-  @override
-  String get accountSessionUnlocked => 'Сеанс учётной записи разблокирован';
 
   @override
   String get accountCreated => 'Учётная запись создана';
@@ -19616,4 +19610,56 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get serverReinstalledConfirm => 'Продолжить с новым сервером';
+
+  @override
+  String get adminPanelNav => 'Управление';
+
+  @override
+  String get adminPanelTitle => 'Администрирование';
+
+  @override
+  String get adminPanelSections => 'Разделы администрирования';
+
+  @override
+  String get adminPanelUsersTitle => 'Пользователи';
+
+  @override
+  String get adminPanelUsersDescription =>
+      'Просматривайте учётные записи этого экземпляра, отключайте и снова включайте их, отзывайте сеансы, задавайте политику ретрансляции для отдельных учётных записей и выдавайте приглашения.';
+
+  @override
+  String get adminPanelAccessTitle => 'Доступ и политика ретрансляции';
+
+  @override
+  String get adminPanelAccessDescription =>
+      'Управляйте политикой ретрансляции всего экземпляра, группами ретрансляции и видимостью учётных данных.';
+
+  @override
+  String get adminPanelVaultsTitle => 'Хранилища и квоты';
+
+  @override
+  String get adminPanelVaultsDescription =>
+      'Просматривайте метаданные хранилищ этого экземпляра и изменяйте квоты. Содержимое хранилищ остаётся зашифрованным.';
+
+  @override
+  String get adminPanelUserFilterHint => 'Фильтр по имени пользователя или ID';
+
+  @override
+  String get adminPanelUserFilterNoMatch =>
+      'На этой странице нет учётных записей, подходящих под фильтр.';
+
+  @override
+  String get adminPanelAccountStatusActive => 'Активна';
+
+  @override
+  String get adminPanelAccountStatusDisabled => 'Отключена';
+
+  @override
+  String get adminPanelAccountStatusDeleting => 'Удаляется';
+
+  @override
+  String get adminPanelAccountYou => 'Вы';
+
+  @override
+  String get adminPanelReEnableAccount => 'Снова включить учётную запись';
 }

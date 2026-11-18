@@ -23,8 +23,12 @@ class IosSettingsNavigator extends StatefulWidget {
     required this.sections,
     required this.openSectionId,
     required this.onOpenSectionChanged,
+    this.title,
   });
 
+  /// Large title of the root list and back label of detail pages; defaults to
+  /// "Settings".
+  final String? title;
   final List<SettingsSection> sections;
   final String? openSectionId;
   final ValueChanged<String?> onOpenSectionChanged;
@@ -46,7 +50,7 @@ class _IosSettingsNavigatorState extends State<IosSettingsNavigator> {
 
   @override
   Widget build(BuildContext context) {
-    final settingsTitle = context.l10n.settings;
+    final settingsTitle = widget.title ?? context.l10n.settings;
     final openId = widget.openSectionId;
     final openSection = openId == null
         ? null
@@ -61,6 +65,7 @@ class _IosSettingsNavigatorState extends State<IosSettingsNavigator> {
             key: const ValueKey('ios_settings_root'),
             title: settingsTitle,
             child: _IosSettingsRootPage(
+              title: settingsTitle,
               sections: widget.sections,
               onSelectSection: widget.onOpenSectionChanged,
             ),
@@ -91,10 +96,12 @@ class _IosSettingsNavigatorState extends State<IosSettingsNavigator> {
 
 class _IosSettingsRootPage extends StatelessWidget {
   const _IosSettingsRootPage({
+    required this.title,
     required this.sections,
     required this.onSelectSection,
   });
 
+  final String title;
   final List<SettingsSection> sections;
   final ValueChanged<String?> onSelectSection;
 
@@ -107,7 +114,15 @@ class _IosSettingsRootPage extends StatelessWidget {
       {'account', 'workspace', 'vaults', 'security', 'trust'},
       {'appearance', 'wallpaper', 'terminal', 'shortcuts', 'remote-desktop'},
       {'mcp', 'notifications', 'logs', 'session-logs', 'session_logs'},
-      {'data', 'instance', 'access', 'backup', 'audit'},
+      {
+        'data',
+        'instance',
+        'users',
+        'access',
+        'instance-vaults',
+        'backup',
+        'audit',
+      },
       {'about', 'lock', 'lock-profile', 'lock_profile'},
     ];
 
@@ -249,7 +264,7 @@ class _IosSettingsRootPage extends StatelessWidget {
         return KeyedSubtree(
           key: const ValueKey('ios_settings_category_list'),
           child: IosLargeTitlePage(
-            title: context.l10n.settings,
+            title: title,
             slivers: [
               for (final group in groups)
                 SliverToBoxAdapter(

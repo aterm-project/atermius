@@ -391,7 +391,7 @@ Future<void> _pumpSettings(WidgetTester tester, AppController app) async {
     ),
   );
   await tester.pump();
-  if (find.byKey(const ValueKey('cloud_settings')).evaluate().isNotEmpty) {
+  if (find.byKey(const ValueKey('admin_panel')).evaluate().isNotEmpty) {
     await openSettingsCategory(tester, 'backup', ifAvailable: true);
   }
   await tester.pump();
@@ -425,7 +425,7 @@ class _Harness {
           )
           ..api = api
           ..stage = ClientStage.workspace
-          ..page = WorkspacePage.settings
+          ..page = WorkspacePage.admin
           ..adminMaintenanceJobsPage = AdminMaintenanceJobsPage(
             jobs: const [],
             total: 0,
