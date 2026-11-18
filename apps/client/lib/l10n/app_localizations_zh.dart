@@ -17489,4 +17489,7 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get passwordVaultKeyNotSyncedYet =>
       '此账户的保管库密钥尚未同步到密码登录。请先在已登录过此账户的设备或浏览器上登录一次，然后再回到这里登录。';
+
+  @override
+  String get oneTimeBootstrapToken => '一次性引导令牌';
 }

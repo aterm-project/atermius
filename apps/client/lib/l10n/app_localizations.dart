@@ -30861,6 +30861,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This account’s vault key hasn’t been synced for password sign-in yet. Sign in once on a device or browser where this account is already signed in, then sign in here again.'**
   String get passwordVaultKeyNotSyncedYet;
+
+  /// Label of the first-account setup token field.
+  ///
+  /// In en, this message translates to:
+  /// **'One-time bootstrap token'**
+  String get oneTimeBootstrapToken;
 }
 
 class _AppLocalizationsDelegate

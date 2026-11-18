@@ -251,16 +251,16 @@ class _AuthFlowState extends State<AuthFlow> {
   }
 
   Widget _compactContent(ClientStage stage, {bool minimal = false}) =>
-    SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _brandPanel(compact: true, showHero: !minimal),
-          const SizedBox(height: 28),
-          _formPanel(stage, compact: true, minimal: minimal),
-        ],
-      ),
-    );
+      SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _brandPanel(compact: true, showHero: !minimal),
+            const SizedBox(height: 28),
+            _formPanel(stage, compact: true, minimal: minimal),
+          ],
+        ),
+      );
 
   Widget _brandPanel({bool compact = false, bool showHero = true}) => Column(
     crossAxisAlignment: compact
@@ -572,6 +572,9 @@ class _AuthFlowState extends State<AuthFlow> {
           _password,
           context.l10n.masterPassword,
           id: 'master_password',
+          onSubmitted: app.busy || app.hasPreparedFullAccountRecovery
+              ? null
+              : (_) => _login(),
         ),
         const SizedBox(height: 18),
         FilledButton.icon(
@@ -821,7 +824,7 @@ class _AuthFlowState extends State<AuthFlow> {
         _text(
           _bootstrap,
           isBootstrap
-              ? 'One-time bootstrap token'
+              ? context.l10n.oneTimeBootstrapToken
               : context.l10n.instanceInvitationToken,
           icon: Icons.key_rounded,
         ),
@@ -883,9 +886,12 @@ class _AuthFlowState extends State<AuthFlow> {
     TextEditingController controller,
     String label, {
     required String id,
+    ValueChanged<String>? onSubmitted,
   }) => PasswordField(
     fieldKey: ValueKey('auth_$id'),
     controller: controller,
+    textInputAction: onSubmitted == null ? null : TextInputAction.go,
+    onSubmitted: onSubmitted,
     decoration: InputDecoration(
       labelText: label,
       prefixIcon: const Icon(Icons.password_rounded),

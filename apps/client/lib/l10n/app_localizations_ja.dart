@@ -18401,4 +18401,7 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get passwordVaultKeyNotSyncedYet =>
       'このアカウントの保管庫キーは、まだパスワードサインイン用に同期されていません。このアカウントでサインイン済みのデバイスまたはブラウザーで一度サインインしてから、ここでもう一度サインインしてください。';
+
+  @override
+  String get oneTimeBootstrapToken => 'ワンタイム ブートストラップ トークン';
 }

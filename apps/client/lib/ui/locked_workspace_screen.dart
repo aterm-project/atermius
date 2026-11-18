@@ -72,7 +72,9 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
     'auth_required' => context.l10n.accountSessionExpiredSignInAgain,
     'revoked' => context.l10n.thisDeviceOrVaultAccessWas,
     'retry_wait' => context.l10n.encryptedSyncWillRetryWhenThe,
-    _ => app.syncStatus,
+    // Other states (idle, syncing, ...) describe the unlocked workspace and
+    // have no meaning here; never show the internal state name.
+    _ => '',
   };
 
   @override
@@ -196,28 +198,28 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
                 origin: insecureOrigin,
               ),
             ],
-            const SizedBox(height: 18),
-            Semantics(
-              container: true,
-              liveRegion: true,
-              label: _statusLabel,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (app.syncStatus == 'locked_receiving') ...[
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+            if (_statusLabel.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Semantics(
+                container: true,
+                liveRegion: true,
+                label: _statusLabel,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (app.syncStatus == 'locked_receiving') ...[
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                    ),
-                    const SizedBox(width: 9),
+                      const SizedBox(width: 9),
+                    ],
+                    Flexible(child: Text(_statusLabel)),
                   ],
-                  Flexible(child: Text(_statusLabel)),
-                ],
+                ),
               ),
-            ),
+            ],
             if (app.errorMessage != null) ...[
               const SizedBox(height: 14),
               Text(
@@ -285,9 +287,7 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
               TextButton.icon(
                 onPressed: app.syncing ? null : _receiveNow,
                 icon: const Icon(Icons.sync),
-                label: Text(
-                  context.l10n.receiveEncryptedChangesNow,
-                ),
+                label: Text(context.l10n.receiveEncryptedChangesNow),
               ),
             ],
             const SizedBox(height: 8),

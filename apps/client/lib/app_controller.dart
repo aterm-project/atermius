@@ -1522,6 +1522,9 @@ class AppController extends ChangeNotifier {
   bool vaultPresenceLoading = false;
   String? vaultPresenceError;
   Timer? _vaultPresenceHeartbeatTimer;
+  // The last immediate heartbeat, so a restart right after it (workspace
+  // open followed by Vault selection) does not trip the server's 5 s limit.
+  ({String vaultId, Object? session, DateTime at})? _lastVaultPresenceBeat;
   final Map<String, Future<void>> _vaultPresenceRefreshRequests = {};
   int _vaultPresenceRequestGeneration = 0;
   bool vaultMembershipBusy = false;
@@ -17007,7 +17010,19 @@ class AppController extends ChangeNotifier {
         stage != ClientStage.workspace) {
       return;
     }
-    unawaited(_sendVaultPresenceHeartbeat(selectedVaultId));
+    final last = _lastVaultPresenceBeat;
+    final now = DateTime.now();
+    if (last == null ||
+        last.vaultId != selectedVaultId ||
+        !identical(last.session, session) ||
+        now.difference(last.at) >= const Duration(seconds: 5)) {
+      _lastVaultPresenceBeat = (
+        vaultId: selectedVaultId,
+        session: session,
+        at: now,
+      );
+      unawaited(_sendVaultPresenceHeartbeat(selectedVaultId));
+    }
     _vaultPresenceHeartbeatTimer = Timer.periodic(
       vaultPresenceHeartbeatIntervalForTesting,
       (_) {

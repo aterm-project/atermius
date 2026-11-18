@@ -19592,4 +19592,7 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get passwordVaultKeyNotSyncedYet =>
       'Ключ хранилища этой учётной записи ещё не синхронизирован для входа по паролю. Войдите один раз на устройстве или в браузере, где эта учётная запись уже использовалась, а затем снова войдите здесь.';
+
+  @override
+  String get oneTimeBootstrapToken => 'Одноразовый токен начальной настройки';
 }

@@ -19530,4 +19530,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get passwordVaultKeyNotSyncedYet =>
       'This account’s vault key hasn’t been synced for password sign-in yet. Sign in once on a device or browser where this account is already signed in, then sign in here again.';
+
+  @override
+  String get oneTimeBootstrapToken => 'One-time bootstrap token';
 }
