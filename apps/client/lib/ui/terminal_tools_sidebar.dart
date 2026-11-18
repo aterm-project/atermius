@@ -874,7 +874,7 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
       _move(widget.next);
       return KeyEventResult.handled;
     }
-    return KeyEventResult.ignored;
+    return widget.onSearchKey?.call(node, event) ?? KeyEventResult.ignored;
   }
 
   Future<void> _action(
@@ -909,11 +909,7 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      canRequestFocus: false,
-      onKeyEvent: widget.onSearchKey,
-      child: isIosPhone(context) ? _buildIos(context) : _buildMaterial(context),
-    );
+    return isIosPhone(context) ? _buildIos(context) : _buildMaterial(context);
   }
 
   Widget _pinnedHeader({
