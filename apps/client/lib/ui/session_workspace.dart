@@ -408,6 +408,7 @@ class _SessionWorkspaceViewState extends State<SessionWorkspaceView> {
                       scope: widget.dragScope,
                       acceptsSession: widget.acceptsSession,
                       selected: widget.controller.selectedId == pane.id,
+                      movable: grouped && !immersive,
                       // Split does not count here: on a narrow pane the action
                       // row wraps instead of hiding Close behind a menu.
                       compactActions:
@@ -626,8 +627,13 @@ class _SessionPaneDropTarget extends StatefulWidget {
     this.onSplit,
     this.splitTargets,
     this.onSplitWith,
+    this.movable = false,
   });
   final String label;
+
+  /// The white handle can be dragged onto another pane's edge to move this
+  /// pane there (same drop as a workspace tab).
+  final bool movable;
   final bool compactActions;
   final String? status;
   final VoidCallback? onUnsplit, onClose, onDuplicate;
@@ -871,6 +877,59 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
     return true;
   }
 
+  /// Dragging the handle carries this pane to another pane's edge; a plain
+  /// tap still toggles the actions.
+  Widget _movable(Widget handle) {
+    if (!widget.movable) return handle;
+    final colors = Theme.of(context).colorScheme;
+    return MouseRegion(
+      cursor: SystemMouseCursors.grab,
+      child: Draggable<WorkspaceTabDragData>(
+        data: WorkspaceTabDragData(
+          tabId: widget.sessionId,
+          scope: widget.scope,
+        ),
+        allowedButtonsFilter: (buttons) => buttons == kPrimaryMouseButton,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        onDragStarted: () {
+          _controlsPinned = false;
+          _showControls(false);
+        },
+        feedback: Transform.translate(
+          offset: const Offset(12, 12),
+          child: Material(
+            key: const ValueKey('pane-drag-feedback'),
+            elevation: 10,
+            color: colors.surfaceContainerHigh,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: colors.primary.withValues(alpha: .6)),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 192),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        child: handle,
+      ),
+    );
+  }
+
   Widget _handle() => Tooltip(
     message: context.l10n.paneActionsLabel(widget.label),
     ignorePointer: true,
@@ -894,25 +953,27 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
       toggled: _controlsVisible,
       label: context.l10n.paneActionsLabel(widget.label),
       onTap: _toggleControls,
-      child: GestureDetector(
-        key: ValueKey('pane-handle-${widget.sessionId}'),
-        behavior: HitTestBehavior.opaque,
-        excludeFromSemantics: true,
-        onTap: _toggleControls,
-        child: SizedBox(
-          width: 44,
-          height: 24,
-          child: Center(
-            child: Container(
-              width: 24,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: const Color(0x33000000), width: .5),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x55000000), blurRadius: 3),
-                ],
+      child: _movable(
+        GestureDetector(
+          key: ValueKey('pane-handle-${widget.sessionId}'),
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          onTap: _toggleControls,
+          child: SizedBox(
+            width: 44,
+            height: 24,
+            child: Center(
+              child: Container(
+                width: 24,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: const Color(0x33000000), width: .5),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x55000000), blurRadius: 3),
+                  ],
+                ),
               ),
             ),
           ),

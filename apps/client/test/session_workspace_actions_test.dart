@@ -5,6 +5,80 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:aterm_client/ui/session_workspace.dart';
 
 void main() {
+  for (final kind in [PointerDeviceKind.mouse, PointerDeviceKind.touch]) {
+    testWidgets('dragging the white handle moves the pane ($kind)', (
+      tester,
+    ) async {
+      final workspace = SessionWorkspaceController()..activate('a');
+      workspace.split('b', 'a', SessionSplitEdge.right);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 640,
+              height: 400,
+              child: SessionWorkspaceView(
+                controller: workspace,
+                terminalBuilder: (_, id) => Text(id),
+                onClose: workspace.remove,
+              ),
+            ),
+          ),
+        ),
+      );
+      Rect pane(String id) =>
+          tester.getRect(find.byKey(ValueKey('session-pane-$id')));
+      expect(pane('a').left, lessThan(pane('b').left));
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('pane-handle-a'))),
+        kind: kind,
+      );
+      await tester.pump();
+      // Carry pane a over to the right edge of pane b.
+      final target = pane('b').centerRight - const Offset(20, 0);
+      for (var step = 1; step <= 10; step++) {
+        await gesture.moveTo(
+          Offset.lerp(
+            pane('a').topCenter + const Offset(0, 12),
+            target,
+            step / 10,
+          )!,
+        );
+        await tester.pump();
+      }
+      expect(find.byKey(const ValueKey('pane-drag-feedback')), findsOneWidget);
+      expect(find.byKey(const ValueKey('pane-split-preview')), findsOneWidget);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(workspace.sessionIds, ['b', 'a']);
+      expect(pane('b').left, lessThan(pane('a').left));
+      // Below b instead.
+      final again = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('pane-handle-a'))),
+        kind: kind,
+      );
+      await tester.pump();
+      final below = pane('b').bottomCenter - const Offset(0, 20);
+      for (var step = 1; step <= 10; step++) {
+        await again.moveTo(
+          Offset.lerp(
+            pane('a').topCenter + const Offset(0, 12),
+            below,
+            step / 10,
+          )!,
+        );
+        await tester.pump();
+      }
+      await again.up();
+      await tester.pumpAndSettle();
+      expect((workspace.root as SessionWorkspaceSplit).axis, Axis.vertical);
+      expect(pane('b').top, lessThan(pane('a').top));
+      // A plain tap still toggles the actions.
+      await tester.tap(find.byKey(const ValueKey('pane-handle-a')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('pane-close-a')), findsOneWidget);
+    });
+  }
   for (final width in [640.0, 140.0]) {
     testWidgets('pane note clears the hover buttons at width $width', (
       tester,
