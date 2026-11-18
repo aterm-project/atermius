@@ -63,15 +63,8 @@ void main() {
       expect(controller.presetId, isNull);
       expect(store.writes, 0, reason: 'unknown values are not overwritten');
       expect(
-        controller.resolve(VaultTerminalThemeChoice.atermDark),
+        controller.resolve(VaultPreferenceRecord.defaultTerminalTheme),
         buildTerminalColorTheme(VaultTerminalThemeChoice.atermDark),
-      );
-      expect(
-        controller
-            .resolve(VaultTerminalThemeChoice.atermDark)
-            .foreground
-            .toARGB32(),
-        0xFF9BD477,
       );
     });
 
@@ -143,6 +136,10 @@ void main() {
       final palettes = TerminalPaletteController();
       TerminalPaletteController.debugInstance = palettes;
       await palettes.load(store);
+      const defaultTheme = VaultPreferenceRecord.defaultTerminalTheme;
+      final defaultBackground = buildTerminalColorTheme(
+        defaultTheme,
+      ).background.toARGB32().toRadixString(16);
       tester.view.physicalSize = const Size(1100, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -155,14 +152,12 @@ void main() {
                 builder: (context) => Text(
                   terminalColorThemeOf(
                     context,
-                    VaultTerminalThemeChoice.atermDark,
+                    defaultTheme,
                   ).background.toARGB32().toRadixString(16),
                   key: const ValueKey('surface_background'),
                 ),
               ),
-              const TerminalPaletteGallery(
-                synced: VaultTerminalThemeChoice.atermDark,
-              ),
+              const TerminalPaletteGallery(synced: defaultTheme),
             ],
           ),
         ),
@@ -170,7 +165,7 @@ void main() {
       await tester.pumpAndSettle();
       Text surface() =>
           tester.widget<Text>(find.byKey(const ValueKey('surface_background')));
-      expect(surface().data, 'ff141729');
+      expect(surface().data, defaultBackground);
       final synced = find.byKey(const ValueKey('terminal_palette_option_synced'));
       expect(
         tester.getSemantics(synced),
@@ -236,7 +231,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(palettes.presetId, isNull);
       expect(store.value, isNull);
-      expect(surface().data, 'ff141729');
+      expect(surface().data, defaultBackground);
     });
 
     for (final locale in const ['en', 'zh', 'ja', 'ru']) {

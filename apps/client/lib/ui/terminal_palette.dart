@@ -19,8 +19,7 @@ final Map<String, TerminalPaletteSpec> terminalPalettePresets = {
 /// Device-local palette overlay on top of the Vault-synced terminal theme.
 ///
 /// * No preset selected (the default): terminals use the synced
-///   [VaultTerminalThemeChoice] exactly as before (default Atermius Dark with
-///   grass-green text).
+///   [VaultTerminalThemeChoice], which defaults to Atermius Dark.
 /// * A preset selected: every terminal surface on this device (local profile,
 ///   cloud workspace and separate terminal windows, which read the same store
 ///   at startup) uses it. The synced Vault record is never modified, so older

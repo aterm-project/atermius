@@ -3,17 +3,8 @@ import 'package:xterm/xterm.dart';
 
 import '../domain/vault_preference.dart';
 
-/// Default SSH terminal text color: a soft grass green. Owned by the terminal
-/// palette and intentionally independent of the app's emphasis colors.
-///
-/// The built-in dark palette is tuned as one family rather than colour by
-/// colour. In OKLCH the text sits at lightness 0.80 and chroma 0.135; the
-/// earlier 0xFF9BEF60 (0.87 / 0.195) read as fluorescent over long sessions.
-/// The ANSI colours keep their hue meanings with chroma between 0.09 and
-/// 0.145 and even lightness steps (normal around 0.72 to 0.84, bright about
-/// 0.07 above), so no single colour glares next to the others. All of them
-/// keep at least 4.5:1 contrast against the background, the text over 7:1.
-const atermDarkTerminalForeground = Color(0xFF91D27B);
+/// Matches the default text and cursor in the Termius 10.4.0 Dark palette.
+const atermDarkTerminalForeground = Color(0xFF21B568);
 // xterm paints the selection over glyphs, so it must be translucent.
 const _atermDarkTerminalSelection = Color(0x804A6FD0);
 

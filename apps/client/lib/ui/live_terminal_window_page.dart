@@ -206,7 +206,7 @@ class _LiveTerminalWindowPageState extends State<LiveTerminalWindowPage> {
                     foregroundDecorator: TerminalKeywordHighlighter.instance,
                     // Credential-free child window: no Vault preference is
                     // available, so it uses this device's palette overlay or
-                    // the default (grass-green text) palette.
+                    // the default terminal palette.
                     theme: terminalColorThemeOf(
                       context,
                       VaultPreferenceRecord.defaultTerminalTheme,
