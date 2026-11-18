@@ -1,0 +1,35 @@
+# Optional workspace control plane. Only the mTLS node listener is published.
+services:
+  server:
+    networks:
+      default: {}
+      workspace-relay: {}
+  workspace-hub:
+    build:
+      context: ../workspace-agent
+      target: hub
+    command: ["hub", "/state", "0.0.0.0:8443", "${ATERMIUS_AGENT_RELAY_IP:-172.30.83.2}"]
+    user: "${ATERMIUS_AGENT_HUB_UID:-10001}:${ATERMIUS_AGENT_HUB_GID:-10001}"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - type: bind
+        source: "${ATERMIUS_AGENT_HUB_STATE:?Set the absolute path to the provisioned hub directory}"
+        target: /state
+        bind:
+          create_host_path: false
+    ports:
+      - "${ATERMIUS_AGENT_BIND:-127.0.0.1}:${ATERMIUS_AGENT_PORT:-8443}:8443"
+    networks:
+      default: {}
+      workspace-relay:
+        ipv4_address: "${ATERMIUS_AGENT_RELAY_IP:-172.30.83.2}"
+networks:
+  workspace-relay:
+    internal: true
+    ipam:
+      config:
+        - subnet: "${ATERMIUS_AGENT_RELAY_SUBNET:-172.30.83.0/28}"

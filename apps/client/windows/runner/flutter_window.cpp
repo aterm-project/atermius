@@ -62,6 +62,24 @@ bool FlutterWindow::OnCreate() {
         } else if (method == "toggleMaximize") {
           ShowWindow(window, IsZoomed(window) ? SW_RESTORE : SW_MAXIMIZE);
           result->Success();
+        } else if (method == "setMaximizeButton") {
+          // Absent or malformed values turn native hit testing off.
+          int values[4] = {0, 0, 0, 0};
+          const auto args = call.arguments();
+          if (const auto map =
+                  args ? std::get_if<flutter::EncodableMap>(args) : nullptr) {
+            const char *const names[4] = {"rightInset", "top", "width",
+                                          "height"};
+            for (int i = 0; i < 4; i++) {
+              const auto item = map->find(flutter::EncodableValue(names[i]));
+              if (item != map->end()) {
+                if (const auto value = std::get_if<int32_t>(&item->second))
+                  values[i] = *value;
+              }
+            }
+          }
+          SetMaximizeButton(values[0], values[1], values[2], values[3]);
+          result->Success();
         } else if (method == "close") {
           result->Success();
           PostMessage(window, WM_SYSCOMMAND, SC_CLOSE, 0);
@@ -170,6 +188,13 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
        message == WM_NCHITTEST)) {
     return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
   }
+  if (message == WM_NCMOUSEMOVE || message == WM_NCMOUSELEAVE ||
+      message == WM_NCLBUTTONDOWN || message == WM_NCLBUTTONUP ||
+      message == WM_NCLBUTTONDBLCLK) {
+    LRESULT handled = 0;
+    if (HandleMaximizeButtonMessage(message, wparam, &handled))
+      return handled;
+  }
   if (message == WM_SIZE || message == WM_ACTIVATE ||
       message == WM_DPICHANGED || message == WM_SETTINGCHANGE ||
       message == WM_THEMECHANGED) {
@@ -210,6 +235,10 @@ flutter::EncodableValue FlutterWindow::ChromeState() {
        flutter::EncodableValue(window && IsIconic(window) != FALSE)},
       {flutter::EncodableValue("focused"),
        flutter::EncodableValue(window && GetForegroundWindow() == window)},
+      {flutter::EncodableValue("maximizeHovered"),
+       flutter::EncodableValue(maximize_hovered())},
+      {flutter::EncodableValue("maximizePressed"),
+       flutter::EncodableValue(maximize_pressed())},
   };
   // Lets Flutter draw the caption buttons the way this Windows draws its own
   // (rounded glyphs from Windows 11, build 22000). Omitted when unknown.
@@ -249,6 +278,8 @@ void FlutterWindow::ReleaseWindowResources(HWND window) {
     taskbar_identity_.Release(window);
   }
 }
+
+void FlutterWindow::OnMaximizeButtonState() { NotifyChromeState(); }
 
 void FlutterWindow::NotifyChromeState() {
   if (chrome_channel_) {

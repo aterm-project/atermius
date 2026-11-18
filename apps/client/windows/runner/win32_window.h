@@ -66,7 +66,24 @@ public:
   // GetDpiForWindow / 96. Returns 0 when the metric is unavailable.
   double CaptionHeightLogical() const;
 
+  // Where Flutter draws the maximize button, in physical pixels of the client
+  // area: the distance of its right edge from the client's right edge, its
+  // top, and its size. The window then reports HTMAXBUTTON there, which is
+  // what makes Windows 11 offer snap layouts on hover; since Flutter no
+  // longer sees the mouse over the button, hover, press and click are
+  // handled here. A zero width turns this off.
+  void SetMaximizeButton(int right_inset, int top, int width, int height);
+  bool maximize_hovered() const { return maximize_hovered_; }
+  bool maximize_pressed() const { return maximize_pressed_; }
+
 protected:
+  // Hover or press of the maximize button changed.
+  virtual void OnMaximizeButtonState() {}
+  // Non-client mouse messages over the maximize button. Returns true with
+  // |result| set when the message was consumed.
+  bool HandleMaximizeButtonMessage(UINT message, WPARAM wparam,
+                                   LRESULT *result);
+
   // The native window owns corner clipping, including the Flutter child HWND.
   void UpdateWindowCorners();
   // Processes and route salient window messages for mouse handling,
@@ -105,6 +122,15 @@ private:
                                             WPARAM wparam, LPARAM lparam,
                                             UINT_PTR id, DWORD_PTR reference);
 
+  bool InMaximizeButton(LPARAM screen_position) const;
+  void SetMaximizeButtonState(bool hovered, bool pressed);
+
+  int maximize_right_inset_ = 0;
+  int maximize_top_ = 0;
+  int maximize_width_ = 0;
+  int maximize_height_ = 0;
+  bool maximize_hovered_ = false;
+  bool maximize_pressed_ = false;
   bool child_subclass_installed_ = false;
   bool custom_chrome_enabled_ = false;
   bool quit_on_close_ = false;

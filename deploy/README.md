@@ -1,5 +1,7 @@
 # Deployment reference
 
+外挂机可通过可选的 Workspace Hub 主动接入。节点一键安装、私有 SSH 入口和跨 Agent 停机迁移见[工作区 Agent 部署指南](../workspace-agent/README.md)。
+
 The server image builds the API only. The browser frontend is built separately from the sibling Web repository. Start with the [English installation guide](../docs/INSTALLATION.en.md) or [中文安装指南](../docs/INSTALLATION.md) for API + Web, first account, HTTPS and temporary sharing. This page retains detailed operational/optional-overlay procedures.
 
 The following minimal commands are **API-only**; they do not serve the browser UI. For a Web or HTTPS stack, retain all of its active overlays in every command.

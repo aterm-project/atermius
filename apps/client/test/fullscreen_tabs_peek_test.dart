@@ -524,6 +524,72 @@ void main() {
     await cleanUp(tester);
   });
 
+  testWidgets('Windows fullscreen: a click on the white handle floats the '
+      'tabs over the panes without resizing them, and they retract', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.windows),
+        home: Scaffold(
+          body: _Harness(layout: layout, closed: closed, splits: splits),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await fullscreen.toggle();
+    await tester.pumpAndSettle();
+    expect(navBar, findsNothing);
+    final sizesA = List.of(_Term.sizes['a']!);
+    final sizesB = List.of(_Term.sizes['b']!);
+    final handle = find.byKey(const ValueKey('pane-handle-b'));
+
+    // A touch tap (no pointer left resting on the strip): it stays for the
+    // auto-hide period and then retracts by itself.
+    await tester.tap(handle);
+    await tester.pumpAndSettle();
+    expect(peek.visible, isTrue);
+    expect(navBar, findsOneWidget);
+    expect(_Term.sizes['a'], sizesA);
+    expect(_Term.sizes['b'], sizesB);
+    expect(find.text('term-a').hitTestable(), findsOneWidget);
+    await tester.pump(peek.autoHide + const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+    expect(peek.visible, isFalse);
+    expect(navBar, findsNothing);
+
+    // A mouse click: the strip appears under the pointer and stays while the
+    // pointer rests on it, then retracts shortly after the pointer leaves.
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(400, 300));
+    await mouse.moveTo(tester.getCenter(handle));
+    await mouse.down(tester.getCenter(handle));
+    await mouse.up();
+    await tester.pumpAndSettle();
+    expect(peek.visible, isTrue);
+    await tester.pump(const Duration(seconds: 10));
+    expect(peek.visible, isTrue);
+    expect(_Term.sizes['b'], sizesB);
+    await mouse.moveTo(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    expect(peek.visible, isFalse);
+    await mouse.removePointer();
+
+    await tester.tap(handle);
+    await tester.pumpAndSettle();
+    expect(peek.visible, isTrue);
+    // A tab in the floated strip works.
+    await tester.tapAt(
+      tester.getCenter(find.text('gamma')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('term-c').hitTestable(), findsOneWidget);
+    expect(fullscreen.enabled, isTrue);
+    await cleanUp(tester);
+  });
+
   test('peek timer pauses while held and blocked', () {
     final controller = FullscreenTabsPeek(autoHide: Duration.zero);
     controller.show();

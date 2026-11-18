@@ -1,0 +1,10 @@
+FROM debian:trixie-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      openssh-server openssh-client ca-certificates curl jq nano tmux tar socat \
+    && rm -rf /var/lib/apt/lists/* /etc/ssh/ssh_host_* \
+    && useradd -u 1000 -M -d /workspace/home -s /bin/bash sandbox \
+    && passwd -d sandbox
+COPY sshd_config /etc/ssh/sshd_workspace_config
+COPY workspace-start /usr/local/bin/workspace-start
+RUN chmod 0755 /usr/local/bin/workspace-start
+ENTRYPOINT ["/usr/local/bin/workspace-start"]

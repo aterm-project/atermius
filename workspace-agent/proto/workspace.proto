@@ -1,0 +1,71 @@
+syntax = "proto3";
+package atermius.workspace.v1;
+
+// Node-initiated RPCs share a mutually authenticated HTTP/2 channel.
+// The hub binds every call to the enrolled leaf certificate and process lease.
+service Workspace {
+  rpc Poll(Hello) returns (Plan);
+  rpc Ready(Completion) returns (Empty);
+  rpc Upload(stream Part) returns (Empty);
+  rpc Download(Key) returns (stream Part);
+  rpc Tunnel(stream Part) returns (stream Part);
+}
+
+message Empty {}
+message Hello {
+  string node = 1;
+  uint64 cursor = 2;
+  string instance = 3;
+}
+message Key {
+  string cluster = 1;
+  uint64 generation = 2;
+}
+
+enum Task {
+  START = 0;
+  SNAPSHOT = 1;
+  RESTORE = 2;
+  RETIRE = 3;
+  FENCE = 4;
+}
+message Completion {
+  Key key = 1;
+  Task task = 2;
+  uint64 volume_generation = 3;
+}
+message Job {
+  Key key = 1;
+  Task task = 2;
+  string authorized_key = 3;
+  string digest = 4;
+  uint64 size = 5;
+  uint64 volume_generation = 6;
+  bool create = 7;
+  string image = 8;
+  bool acknowledge = 9;
+}
+// SSH services are fixed by the local node configuration or workspace image.
+message Open {
+  Key key = 1;
+  string ticket = 2;
+  uint64 volume_generation = 3;
+  bool host = 4;
+}
+message Plan {
+  repeated Job jobs = 1;
+  repeated Open sessions = 2;
+  uint64 cursor = 3;
+}
+message Header {
+  Key key = 1;
+  string digest = 2;
+  uint64 size = 3;
+  string ticket = 4;
+}
+message Part {
+  oneof payload {
+    Header header = 1;
+    bytes data = 2;
+  }
+}

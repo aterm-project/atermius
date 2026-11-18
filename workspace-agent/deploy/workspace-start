@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+umask 077
+install -d -m 0755 /run/sshd
+install -d -m 0700 -o sandbox -g sandbox /workspace/home
+install -d -m 0700 /workspace/identity
+if [ ! -f /workspace/identity/host_ed25519 ]; then
+    ssh-keygen -q -t ed25519 -N '' -f /workspace/identity/host_ed25519
+fi
+printf '%s\n' "${WORKSPACE_AUTHORIZED_KEYS:?}" > /run/sshd/authorized_keys
+chmod 0644 /run/sshd/authorized_keys
+exec /usr/sbin/sshd -D -e -f /etc/ssh/sshd_workspace_config

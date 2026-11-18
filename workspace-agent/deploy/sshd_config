@@ -1,0 +1,16 @@
+Port 2222
+PidFile /run/sshd/workspace.pid
+ListenAddress 127.0.0.1
+HostKey /workspace/identity/host_ed25519
+PermitRootLogin no
+AllowUsers sandbox
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+AuthorizedKeysFile /run/sshd/authorized_keys
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+UsePAM no
+DisableForwarding yes
+PermitUserEnvironment no
+Subsystem sftp internal-sftp

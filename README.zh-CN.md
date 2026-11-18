@@ -5,6 +5,8 @@
 <p align="center">覆盖 Android、iOS、Windows、macOS、Linux 与浏览器的加密 SSH 工作区，可选自托管同步服务端。</p>
 <p align="center"><a href="README.md">English</a> · <a href="docs/INSTALLATION.md">安装指南</a> · <a href="docs/README.md">文档导航</a> · <a href="https://github.com/aterm-project/atermius/releases">Releases</a> · <a href="https://github.com/aterm-project/atermius/actions">CI</a></p>
 
+[可选工作区 Agent](workspace-agent/README.md) 支持外挂服务器主动连回、按需开通 Debian 工具工作区，以及保留文件和 SSH 身份的跨节点停机迁移。
+
 ## 从这里开始
 
 当前没有与最新主干对应的正式用户安装包，请按指南从源码构建，或试用每日预发布构建。源码 CI 通过或每日构建成功，都不代表已经提供商店签名的发行版。
