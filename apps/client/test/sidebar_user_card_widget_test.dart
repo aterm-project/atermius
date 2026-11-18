@@ -121,6 +121,9 @@ void main() {
       expect(find.text('加密会话已解锁'), findsNothing);
       expect(find.text('账户会话已解锁'), findsNothing);
       expect(find.byKey(_role), findsNothing);
+      // Members get no admin destination either.
+      expect(_nav('admin'), findsNothing);
+      expect(_nav('settings'), findsOneWidget);
       expect(
         find.descendant(of: find.byKey(_card), matching: find.byType(Text)),
         findsOneWidget,
@@ -199,13 +202,19 @@ void main() {
       expect(card.bottom, lessThanOrEqualTo(800));
       expect(importExport.bottom, lessThanOrEqualTo(card.top));
       // The last entries used to sit below the fold.
-      for (final page in ['hosts', 'audit', 'devices', 'settings']) {
+      // The admin entry is the last row for an instance administrator.
+      for (final page in ['hosts', 'audit', 'devices', 'settings', 'admin']) {
         final rect = tester.getRect(_nav(page));
         expect(rect.top, greaterThanOrEqualTo(0), reason: page);
         expect(rect.bottom, lessThanOrEqualTo(importExport.top), reason: page);
       }
+      expect(
+        tester.getRect(_nav('admin')).top,
+        greaterThanOrEqualTo(tester.getRect(_nav('settings')).bottom),
+      );
       // Rows are compacted, not clipped.
       expect(tester.getSize(_nav('hosts')).height, inInclusiveRange(30, 38));
+      expect(find.text('管理'), findsOneWidget);
       expect(find.text('设备'), findsOneWidget);
       expect(find.text('设置'), findsOneWidget);
       // Nothing to scroll, so no permanent scrollbar thumb.
