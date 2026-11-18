@@ -24,6 +24,7 @@ import 'desktop/window/desktop_window_page.dart';
 import 'platform/application_windows.dart';
 import 'platform/file_drop_region.dart' show initializeFileDrop;
 import 'platform/files_window_launch.dart';
+import 'platform/web_monospace_font.dart';
 import 'terminal/live_terminal_window.dart';
 import 'ui/app_motion.dart';
 import 'ui/live_terminal_window_page.dart';
@@ -90,6 +91,8 @@ Future<void> main(List<String> arguments) async {
   );
   // Bounded browser-drop policy + central drop cleanup before any root runs.
   initializeFileDrop();
+  // Web only: gives terminals (also a visitor's) a real fixed-width font.
+  unawaited(loadWebMonospaceFont());
   if (kIsWeb) {
     // Temporary-link visitors get a separate account-free app. The link
     // secret was already removed from the address bar by share-bootstrap.js.

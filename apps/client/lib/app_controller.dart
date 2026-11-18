@@ -7431,8 +7431,11 @@ class AppController extends ChangeNotifier {
 
     while (deadline.elapsed < _knownHostDecisionBudget) {
       final generationBeforePreflight = _knownHostDecisionGeneration;
+      final int generationOfPull;
       try {
-        await _pullVaultBeforeKnownHostDecision(deadline: deadline);
+        generationOfPull = await _pullVaultBeforeKnownHostDecision(
+          deadline: deadline,
+        );
       } on SyncReadTransportUnavailableException {
         // Only a typed read-only sync GET that failed before receiving an
         // HTTP response may reach this branch. Timeouts, HTTP responses,
@@ -7485,7 +7488,12 @@ class AppController extends ChangeNotifier {
           offlineTransportUnavailable: true,
         );
       }
-      if (generationBeforePreflight != _knownHostDecisionGeneration ||
+      // Compare with the generation the pull finished its sync under, not
+      // with the one from before the pull: the pull may itself run the due
+      // account refresh, which advances the generation and is followed by a
+      // sync of the refreshed state. Asking for the older generation repeated
+      // that whole pull once more (seconds per SSH connect in a browser).
+      if (generationOfPull != _knownHostDecisionGeneration ||
           _knownHostStateTransitionPending) {
         continue;
       }
@@ -7731,9 +7739,12 @@ class AppController extends ChangeNotifier {
     return record;
   }
 
-  Future<void> _pullVaultBeforeKnownHostDecision({
+  /// Returns the known-host decision generation that was current from the
+  /// start of the completed sync until this method returned.
+  Future<int> _pullVaultBeforeKnownHostDecision({
     required Stopwatch deadline,
   }) async {
+    var accountRefreshTried = false;
     while (deadline.elapsed < _knownHostDecisionBudget) {
       final generationBeforeTransitionWait = _knownHostDecisionGeneration;
       await _waitForKnownHostStateTransitions(deadline);
@@ -7751,6 +7762,24 @@ class AppController extends ChangeNotifier {
           throw StateError(currentL10n.theVaultSyncStateIsAbnormal);
         }
         await active.future.timeout(_remainingKnownHostDecisionTime(deadline));
+        continue;
+      }
+
+      if (!accountRefreshTried &&
+          stage == ClientStage.workspace &&
+          _accountControlPlaneRefreshIsDue) {
+        // The sync below would begin with this signed account refresh. It
+        // replaces the repository, so that sync could never be the one this
+        // method accepts and a second one had to follow. Refresh first; when
+        // it fails the sync repeats it and reports the failure as before.
+        accountRefreshTried = true;
+        try {
+          await _reloadVaultsForMembershipHint().timeout(
+            _remainingKnownHostDecisionTime(deadline),
+          );
+        } on TimeoutException {
+          rethrow;
+        } catch (_) {}
         continue;
       }
 
@@ -7780,7 +7809,7 @@ class AppController extends ChangeNotifier {
           currentL10n.couldntFinishSyncingTheCurrentVault(syncStatus),
         );
       }
-      return;
+      return generationBeforeSync;
     }
     throw TimeoutException(currentL10n.theCurrentVaultSyncTimedOut);
   }
@@ -15892,11 +15921,22 @@ class AppController extends ChangeNotifier {
             _workspacePaneTerminalTabIds[stagedWorkspaceIdBeforeRefresh] ??
                 const <String, String>{},
           );
+    // The projection reset drops the selected host; the reload below brings
+    // the same Vault's records back, so the selection follows the host id.
+    final selectedHostIdBeforeRefresh = selectedHost?.id;
     _clearVaultWorkspaceProjection(preserveSyncStatus: true);
     if (activeVault != null) {
       _traceSafeTeamLifecycle('reload.records.start');
       await reloadRecords();
       _traceSafeTeamLifecycle('reload.records.done');
+      if (selectedHost == null &&
+          selectedHostIdBeforeRefresh != null &&
+          previousActive != null &&
+          activeVault?.id == previousActive.id) {
+        selectedHost = hosts
+            .where((host) => host.id == selectedHostIdBeforeRefresh)
+            .firstOrNull;
+      }
       _restoreStagedWorkspaceAfterMembershipRefresh(
         workspaceId: stagedWorkspaceIdBeforeRefresh,
         paneTabIds: stagedPaneTabIdsBeforeRefresh,
@@ -21311,11 +21351,13 @@ class AppController extends ChangeNotifier {
           canonicalJson(currentHost.toJson()) != hostSnapshot) {
         throw StateError(currentL10n.theHostOrJumpHostRoute);
       }
+      // Resolve exactly like the snapshot above: a login stored on the host
+      // itself is only found when the host is passed along.
+      final currentTargetHost = currentHost ?? host;
       final currentTargetCredential = resolveHostCredential(
-        groupId: currentHost == null ? host.groupId : currentHost.groupId,
-        hostCredentialId: currentHost == null
-            ? host.credentialId
-            : currentHost.credentialId,
+        host: currentTargetHost,
+        groupId: currentTargetHost.groupId,
+        hostCredentialId: currentTargetHost.credentialId,
       ).credential;
       if (currentTargetCredential == null ||
           canonicalJson(currentTargetCredential.toJson()) !=
@@ -21928,8 +21970,9 @@ class AppController extends ChangeNotifier {
       tab._reconnectFailure = null;
       tab.recovery?.update(connected: true);
       tab.log?.markConnected();
-      // A reconnect reuses the tab's terminal; start from default modes.
-      resetTerminalForNewSession(tab.terminal);
+      // A reconnect reuses the tab's terminal; start from default modes, on
+      // a line of its own.
+      beginTerminalSession(tab.terminal);
       tab.outputSubscription = connection.output.listen(
         (text) {
           if (!attemptCurrent() || !identical(tab.connection, connection)) return;

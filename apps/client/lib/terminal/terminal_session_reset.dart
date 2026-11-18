@@ -49,3 +49,12 @@ const String terminalSessionReset =
 void resetTerminalForNewSession(Terminal terminal) {
   terminal.write(terminalSessionReset);
 }
+
+/// Applies [terminalSessionReset] for a connection that is about to be
+/// attached, and moves to a fresh line first when the previous session left
+/// the cursor in the middle of one (typically after its last prompt), so the
+/// new session's first output is not appended to that prompt.
+void beginTerminalSession(Terminal terminal) {
+  resetTerminalForNewSession(terminal);
+  if (terminal.buffer.cursorX > 0) terminal.write('\r\n');
+}

@@ -207,4 +207,24 @@ void main() {
     expect(late_.mouseMode, MouseMode.none);
     expect(late_.bracketedPasteMode, isFalse);
   });
+
+  test('a reconnected session starts on its own line, an empty terminal '
+      'stays untouched', () {
+    beginTerminalSession(terminal);
+    expect(terminal.buffer.cursorX, 0);
+    expect(terminal.buffer.absoluteCursorY, 0);
+
+    terminal.write('user@host:~\$ ');
+    beginTerminalSession(terminal);
+    terminal.write('Last login');
+    expect(terminal.buffer.lines[0].toString(), startsWith('user@host:~\$'));
+    expect(terminal.buffer.lines[0].toString(), isNot(contains('Last login')));
+    expect(terminal.buffer.lines[1].toString(), startsWith('Last login'));
+
+    // Already at the start of a line: no blank line is added.
+    terminal.write('\r\n');
+    beginTerminalSession(terminal);
+    terminal.write('next');
+    expect(terminal.buffer.lines[2].toString(), startsWith('next'));
+  });
 }

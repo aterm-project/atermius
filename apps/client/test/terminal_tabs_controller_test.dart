@@ -47,6 +47,68 @@ void main() {
     } finally { await app.closeWorkspace(); await fixture.database.close(); }
   });
 
+  test('a host with its login stored on the host itself connects', () async {
+    final seen = <CredentialRecord>[];
+    final fixture = await _Fixture.create(
+      connector:
+          ({required host, required credential, required verifyHostKey}) async {
+            seen.add(credential);
+            return _RecordingConnection();
+          },
+    );
+    final app = fixture.app;
+    try {
+      final host = _inlineLoginHost('inline-secret');
+      app.activeVault = const VaultDescriptor(
+        id: 'vault-inline',
+        role: 'owner',
+        activeKeyEpoch: 'epoch',
+        membershipVersion: 'membership',
+      );
+      app.hosts.add(host);
+      await app.openTerminalTab(host);
+      final tab = app.activeTerminalTab!;
+      expect(tab.errorMessage, isNull);
+      expect(tab.state, 'connected');
+      expect(seen.single.secret, 'inline-secret');
+      expect(seen.single.username, 'tester');
+    } finally {
+      await app.closeWorkspace();
+      await fixture.database.close();
+    }
+  });
+
+  test('an inline host login edited while preparing still stops the connect', () async {
+    var calls = 0;
+    final fixture = await _Fixture.create(
+      connector:
+          ({required host, required credential, required verifyHostKey}) async {
+            calls++;
+            return _RecordingConnection();
+          },
+    );
+    final app = fixture.app;
+    try {
+      final host = _inlineLoginHost('inline-secret');
+      app.activeVault = const VaultDescriptor(
+        id: 'vault-inline',
+        role: 'owner',
+        activeKeyEpoch: 'epoch',
+        membershipVersion: 'membership',
+      );
+      app.hosts.add(host);
+      final opening = app.openTerminalTab(host);
+      // Preparation is suspended on the credential fingerprint here.
+      app.hosts[0] = _inlineLoginHost('changed-secret');
+      await expectLater(opening, throwsStateError);
+      expect(calls, 0);
+      expect(app.activeTerminalTab!.state, isNot('connected'));
+    } finally {
+      await app.closeWorkspace();
+      await fixture.database.close();
+    }
+  });
+
   test('disconnect cancels a pending SSH restore and fences a late connector result', () async {
     final late = Completer<SshConnection>();
     var calls = 0;
@@ -1443,6 +1505,14 @@ void main() {
     },
   );
 }
+
+HostRecord _inlineLoginHost(String password) => HostRecord(
+  id: 'host-inline',
+  name: 'Inline',
+  address: 'inline.example.test',
+  username: 'tester',
+  login: HostLogin(kind: AuthKind.password, password: password),
+);
 
 String _bufferText(TerminalTabSession tab) {
   final lines = tab.terminal.buffer.lines;

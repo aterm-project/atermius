@@ -1155,6 +1155,33 @@ void main() {
     },
   );
 
+  test('membership reload keeps the selected host of the same Vault', () async {
+    final harness = await _createRegisteredSyncHarness(sodium);
+    final app = harness.app;
+    final database = harness.database;
+    try {
+      await app.saveHost(
+        const HostRecord(
+          id: '7f0c1d5e-2a4b-4c6d-8e9f-0a1b2c3d4e5f',
+          name: 'Selected',
+          address: 'selected.example.test',
+          username: 'workspace-user',
+          login: HostLogin(kind: AuthKind.password, password: 'inline-secret'),
+        ),
+      );
+      app.selectHost(app.hosts.single);
+
+      await app.reloadVaultsForTesting().timeout(const Duration(seconds: 10));
+
+      // The terminal sidebar's "new tab" button acts on this selection.
+      expect(app.selectedHost, isNotNull);
+      expect(app.selectedHost, same(app.hosts.single));
+    } finally {
+      app.dispose();
+      await database.close();
+    }
+  });
+
   test(
     'same-base API replacement drains a committed Vault load before swapping',
     () async {
@@ -2958,6 +2985,47 @@ void main() {
           pendingEnvelopeBefore,
         );
         expect(api.pushCalls, 0);
+      } finally {
+        app.dispose();
+        await harness.database.close();
+      }
+    },
+  );
+
+  test(
+    'a host key decision that falls on the due account refresh syncs once',
+    () async {
+      var now = DateTime.utc(2026, 10, 6);
+      final harness = await _createRegisteredSyncHarness(
+        sodium,
+        nowForTesting: () => now,
+      );
+      final app = harness.app;
+      final api = harness.api;
+      try {
+        Future<KnownHostTrustStatus> decide() => app.knownHostTrustStatus(
+          host: 'decision.example.test',
+          port: 22,
+          algorithm: 'ssh-ed25519',
+          fingerprint: 'SHA256:${'A' * 43}',
+        );
+
+        // Not due: one content pass, no account refresh.
+        var changesStart = api.changeReads;
+        var vaultReadsStart = api.vaultListReads;
+        expect(await decide(), KnownHostTrustStatus.unknown);
+        expect(api.vaultListReads, vaultReadsStart);
+        expect(api.changeReads, changesStart + 1);
+
+        // Due (every 45 seconds): the refresh replaces the repository. The
+        // decision used to answer that with three content passes; an SSH
+        // connect in a browser waited more than ten seconds for them.
+        now = now.add(const Duration(seconds: 46));
+        changesStart = api.changeReads;
+        vaultReadsStart = api.vaultListReads;
+        expect(await decide(), KnownHostTrustStatus.unknown);
+        expect(api.vaultListReads, vaultReadsStart + 1);
+        expect(api.changeReads, changesStart + 1);
       } finally {
         app.dispose();
         await harness.database.close();
@@ -4891,6 +4959,7 @@ class _RegistrationApi extends ApiClient {
     required String username,
     required String loginVerifier,
     required String deviceId,
+    Map<String, Object?>? newDevice,
   }) async {
     currentDeviceId = deviceId;
     accessToken = 'access-token-$deviceId';
