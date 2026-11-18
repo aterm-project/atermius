@@ -500,6 +500,10 @@ class _AuthFlowState extends State<AuthFlow> {
         const SizedBox(height: 16),
         _InstanceIdentityRollbackRecovery(app: app, recovery: recovery),
       ],
+      if (app.pendingInstanceReplacement case final replacement?) ...[
+        const SizedBox(height: 16),
+        _InstanceReplacementNotice(app: app, replacement: replacement),
+      ],
     ],
   );
 
@@ -550,6 +554,10 @@ class _AuthFlowState extends State<AuthFlow> {
       if (app.pendingInstanceIdentityRecovery case final recovery?) ...[
         const SizedBox(height: 16),
         _InstanceIdentityRollbackRecovery(app: app, recovery: recovery),
+      ],
+      if (app.pendingInstanceReplacement case final replacement?) ...[
+        const SizedBox(height: 16),
+        _InstanceReplacementNotice(app: app, replacement: replacement),
       ],
     ],
   );
@@ -1361,6 +1369,62 @@ class _AuthFlowState extends State<AuthFlow> {
   void _showError(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
+}
+
+class _InstanceReplacementNotice extends StatelessWidget {
+  const _InstanceReplacementNotice({
+    required this.app,
+    required this.replacement,
+  });
+
+  final AppController app;
+  final PendingInstanceReplacement replacement;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: context.palette.warningContainer,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            context.l10n.serverReinstalledTitle,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            context.l10n.serverReinstalledBody,
+            style: const TextStyle(fontSize: 12, height: 1.45),
+          ),
+          const SizedBox(height: 9),
+          Text(
+            context.l10n.fingerprintReturnedByThisServerSha,
+            style: TextStyle(color: context.palette.muted, fontSize: 11),
+          ),
+          SelectableText(
+            replacement.candidateFingerprint,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            key: const ValueKey('confirm_instance_replacement'),
+            onPressed: app.busy
+                ? null
+                : () async {
+                    try {
+                      await app.confirmPendingInstanceReplacement();
+                    } catch (_) {
+                      // The controller already published the reason.
+                    }
+                  },
+            icon: const Icon(Icons.restart_alt_rounded),
+            label: Text(context.l10n.serverReinstalledConfirm),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _InstanceIdentityRollbackRecovery extends StatefulWidget {

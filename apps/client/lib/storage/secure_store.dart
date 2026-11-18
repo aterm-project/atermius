@@ -732,6 +732,55 @@ class ClientSecureStore {
   Future<void> clearPendingDeviceApproval(String baseUrl) =>
       _storage.delete(key: _key(baseUrl, 'pending-device-approval'));
 
+  /// Account that enrolled the stored device identity. The device slot is
+  /// scoped to the server address, not to an account, so sign-in uses this to
+  /// tell "my device" from one left behind by a different account.
+  Future<String?> deviceAccountId(String baseUrl) =>
+      _storage.read(key: _key(baseUrl, 'device-account'));
+
+  Future<void> saveDeviceAccountId(String baseUrl, String accountId) =>
+      _storage.write(key: _key(baseUrl, 'device-account'), value: accountId);
+
+  /// Drops every sign-in artifact kept for [baseUrl]: the device identity,
+  /// pending enrollment and recovery state, resume hint and session
+  /// credentials. Used when the server at this address was replaced by a new
+  /// instance, where none of them can authenticate anything anymore. The
+  /// identity pin, SSH host trust and device preferences are left alone.
+  Future<void> forgetServerSignInState(String baseUrl) async {
+    final prefix = _key(baseUrl, '');
+    const exactKinds = {
+      'device',
+      'device-account',
+      'pending-device',
+      'pending-account',
+      'pending-device-approval',
+      'pending-full-account-recovery',
+      'session-resume.v1',
+    };
+    final entries = await _storage.readAll();
+    final usernames = <String>{};
+    for (final key in entries.keys) {
+      if (!key.startsWith(prefix)) continue;
+      final kind = key.substring(prefix.length);
+      if (kind.startsWith('refresh.')) {
+        usernames.add(Uri.decodeComponent(kind.substring('refresh.'.length)));
+      } else if (kind.startsWith('session.')) {
+        final rest = kind.substring('session.'.length);
+        // Usernames contain dots; the trailing segment is the device UUID.
+        final end = rest.lastIndexOf('.');
+        if (end > 0) usernames.add(Uri.decodeComponent(rest.substring(0, end)));
+      }
+    }
+    // Reuses the per-account cleanup so remembered account keys tied to the
+    // dropped sessions are revoked with them.
+    for (final username in usernames) {
+      await deleteRefreshToken(baseUrl, username);
+    }
+    for (final kind in exactKinds) {
+      await _storage.delete(key: _key(baseUrl, kind));
+    }
+  }
+
   Future<void> clearPendingDevice(String baseUrl) async {
     await _storage.delete(key: _key(baseUrl, 'pending-device'));
     await _storage.delete(key: _key(baseUrl, 'pending-account'));

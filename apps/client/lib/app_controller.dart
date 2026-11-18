@@ -593,6 +593,28 @@ class PendingInstanceIdentityRecovery {
   final String? insecureServerOrigin;
 }
 
+/// The server address now answers as a different instance than the one this
+/// device pinned: it was reinstalled or replaced, not merely re-keyed.
+class PendingInstanceReplacement {
+  const PendingInstanceReplacement({
+    required this.baseUrl,
+    required this.pinnedIdentity,
+    required this.candidate,
+    required this.candidateFingerprint,
+  });
+
+  final String baseUrl;
+  final ServerIdentityPin pinnedIdentity;
+  final InstanceInfo candidate;
+  final String candidateFingerprint;
+}
+
+class InstanceReplacedException extends FormatException {
+  const InstanceReplacedException(super.message, this.pin);
+
+  final ServerIdentityPin pin;
+}
+
 class InstanceIdentityRecoveryRequiredException implements Exception {
   const InstanceIdentityRecoveryRequiredException();
 
@@ -1257,6 +1279,8 @@ class AppController extends ChangeNotifier {
   InstanceInfo? instance;
   ApiClient? _pendingInstanceIdentityRecoveryApi;
   PendingInstanceIdentityRecovery? pendingInstanceIdentityRecovery;
+  ApiClient? _pendingInstanceReplacementApi;
+  PendingInstanceReplacement? pendingInstanceReplacement;
   bool _confirmingInstanceIdentityRecovery = false;
   AuthSession? _session;
   AuthSession? get session => _session;
@@ -3545,9 +3569,16 @@ class AppController extends ChangeNotifier {
       } else {
         notifyListeners();
       }
-    } on Object {
+    } on Object catch (error) {
       if (pendingInstanceIdentityRecovery != null) {
         errorMessage = _instanceIdentityRecoveryMessage;
+        notifyListeners();
+        return;
+      }
+      if (error is InstanceReplacedException) {
+        // Not a storage problem: say what actually happened so the user is
+        // not sent to check browser settings.
+        errorMessage = error.message;
         notifyListeners();
         return;
       }
@@ -3568,6 +3599,7 @@ class AppController extends ChangeNotifier {
         client == null ||
         stage != ClientStage.login ||
         pendingInstanceIdentityRecovery != null ||
+        pendingInstanceReplacement != null ||
         session != null) {
       return;
     }
@@ -3912,10 +3944,32 @@ class AppController extends ChangeNotifier {
               : apiClientFactoryForTesting?.call(normalized)) ??
           ApiClient(baseUrl: normalized, allowInsecure: allowInsecure);
       final candidateInfo = await candidate.fetchInstance();
-      final previousPin = await _verifyInstanceIdentity(
-        candidate.baseUrl,
-        candidateInfo,
-      );
+      final ServerIdentityPin? previousPin;
+      try {
+        previousPin = await _verifyInstanceIdentity(
+          candidate.baseUrl,
+          candidateInfo,
+        );
+      } on InstanceReplacedException catch (replaced) {
+        // The hosted browser client is served by this very server, so the
+        // pin cannot protect it from that server; offer to start over with
+        // the new instance. Other clients keep refusing.
+        if (serverHostedClient &&
+            serverOriginOf(candidate.baseUrl) == serverHostedOrigin) {
+          final fingerprint = await publicKeyFingerprint(
+            candidateInfo.signingPublicKey,
+          );
+          _pendingInstanceReplacementApi = candidate;
+          pendingInstanceReplacement = PendingInstanceReplacement(
+            baseUrl: candidate.baseUrl,
+            pinnedIdentity: replaced.pin,
+            candidate: candidateInfo,
+            candidateFingerprint: fingerprint,
+          );
+          candidate = null;
+        }
+        rethrow;
+      }
       if (previousPin != null) {
         await _retainPendingInstanceIdentityRecovery(
           baseUrl: candidate.baseUrl,
@@ -4111,7 +4165,10 @@ class AppController extends ChangeNotifier {
     }
     if (pin.instanceId != info.instanceId ||
         pin.serverSpaceId != info.serverSpaceId) {
-      throw FormatException(currentL10n.theServerInstanceIdentityChangedTo);
+      throw InstanceReplacedException(
+        currentL10n.theServerInstanceIdentityChangedTo,
+        pin,
+      );
     }
     if (!crypto.verifyInstanceKeyTransitions(
       instanceId: info.instanceId,
@@ -4160,6 +4217,81 @@ class AppController extends ChangeNotifier {
     _pendingInstanceIdentityRecoveryApi?.close();
     _pendingInstanceIdentityRecoveryApi = null;
     pendingInstanceIdentityRecovery = null;
+    _pendingInstanceReplacementApi?.close();
+    _pendingInstanceReplacementApi = null;
+    pendingInstanceReplacement = null;
+  }
+
+  /// Accepts the new instance now answering at a hosted address: forgets the
+  /// sign-in state this device kept for the previous instance, pins the new
+  /// identity and continues to sign-in or first-run setup.
+  Future<void> confirmPendingInstanceReplacement() async {
+    if (_confirmingInstanceIdentityRecovery) {
+      throw StateError(currentL10n.serverIdentityConfirmationIsInProgress);
+    }
+    final pending = pendingInstanceReplacement;
+    final candidateApi = _pendingInstanceReplacementApi;
+    if (pending == null || candidateApi == null) {
+      throw StateError(currentL10n.theresNoServerIdentityRecoveryWaiting);
+    }
+    _confirmingInstanceIdentityRecovery = true;
+    _setBusy(true);
+    try {
+      // Same guard as the key-rollback confirmation: act on what the server
+      // says now, not on what was shown when the card appeared.
+      final liveCandidate = await candidateApi.fetchInstance();
+      if (pendingInstanceReplacement != pending ||
+          _pendingInstanceReplacementApi != candidateApi) {
+        throw StateError(currentL10n.theServerIdentityAwaitingConfirmationWas);
+      }
+      if (liveCandidate.instanceId != pending.candidate.instanceId ||
+          liveCandidate.serverSpaceId != pending.candidate.serverSpaceId ||
+          liveCandidate.signingPublicKey !=
+              pending.candidate.signingPublicKey ||
+          !crypto.verifyInstanceKeyTransitions(
+            instanceId: liveCandidate.instanceId,
+            pinnedPublicKey: liveCandidate.signingPublicKey,
+            currentPublicKey: liveCandidate.signingPublicKey,
+            transitions: const [],
+          )) {
+        throw StateError(
+          currentL10n.theServerIdentityChangedDuringConfirmation,
+        );
+      }
+      final storedPin = await secureStore.readServerIdentityPin(
+        pending.baseUrl,
+      );
+      if (storedPin == null ||
+          storedPin.instanceId != pending.pinnedIdentity.instanceId ||
+          storedPin.serverSpaceId != pending.pinnedIdentity.serverSpaceId ||
+          storedPin.signingPublicKey !=
+              pending.pinnedIdentity.signingPublicKey) {
+        throw StateError(currentL10n.thePinnedServerIdentityChangedDuring);
+      }
+      await secureStore.forgetServerSignInState(pending.baseUrl);
+      await secureStore.saveServerIdentityPin(
+        pending.baseUrl,
+        ServerIdentityPin(
+          instanceId: liveCandidate.instanceId,
+          serverSpaceId: liveCandidate.serverSpaceId,
+          signingPublicKey: liveCandidate.signingPublicKey,
+        ),
+      );
+      pendingInstanceReplacement = null;
+      _pendingInstanceReplacementApi = null;
+      errorMessage = null;
+      await _activateConfiguredServer(candidateApi, liveCandidate);
+    } catch (error) {
+      errorMessage = friendlyError(error);
+      rethrow;
+    } finally {
+      _confirmingInstanceIdentityRecovery = false;
+      if (_controllerDisposed) {
+        busy = false;
+      } else {
+        _setBusy(false);
+      }
+    }
   }
 
   Future<void> cancelPendingInstanceIdentityRecovery() async {
@@ -4404,25 +4536,70 @@ class AppController extends ChangeNotifier {
         Map<String, dynamic>.from(prelogin['kdf'] as Map),
       );
       verifier = await crypto.deriveLoginVerifier(password, params);
+      final preloginAccountId = prelogin['account_id'] as String;
+      final canEnrollByPassword =
+          instance?.capabilities.contains('password_device_enrollment') ??
+          false;
       loadedIdentity = await secureStore.loadDevice(client.baseUrl, crypto);
-      final isNewDevice = loadedIdentity == null;
+      // The stored device belongs to whichever account last enrolled on this
+      // server address. Presenting it for another account (a second user of
+      // this browser, or an account recreated on the server) can only be
+      // rejected, and the rejection is indistinguishable from a wrong
+      // password, so decide here instead of asking the server.
+      final deviceOwner = loadedIdentity == null
+          ? null
+          : await secureStore.deviceAccountId(client.baseUrl);
+      if (loadedIdentity != null &&
+          canEnrollByPassword &&
+          deviceOwner != null &&
+          deviceOwner != preloginAccountId) {
+        loadedIdentity.dispose();
+        loadedIdentity = null;
+      }
+      var isNewDevice = loadedIdentity == null;
       loadedIdentity ??= DeviceIdentity.create(sodium);
-      final loginResult = await client.login(
-        username: username.trim(),
-        loginVerifier: encodeBase64Url(verifier),
-        deviceId: loadedIdentity.deviceId,
-        newDevice: isNewDevice
-            ? loadedIdentity.registrationProof(
-                sodium,
-                accountId: prelogin['account_id'] as String,
-                name: 'Atermius',
-              )
-            : null,
-      );
+      final encodedVerifier = encodeBase64Url(verifier);
+      Future<AuthLoginResult> attempt(DeviceIdentity device, bool enroll) =>
+          client.login(
+            username: username.trim(),
+            loginVerifier: encodedVerifier,
+            deviceId: device.deviceId,
+            newDevice: enroll
+                ? device.registrationProof(
+                    sodium,
+                    accountId: preloginAccountId,
+                    name: 'Atermius',
+                  )
+                : null,
+          );
+      AuthLoginResult loginResult;
+      try {
+        loginResult = await attempt(loadedIdentity, isNewDevice);
+      } on ApiException catch (error) {
+        // A device stored before the owner was recorded may also be someone
+        // else's. Retry once as a fresh enrollment; a wrong password fails
+        // again and nothing stored is replaced.
+        if (isNewDevice ||
+            !canEnrollByPassword ||
+            deviceOwner != null ||
+            error.code != 'AUTH_REQUIRED') {
+          rethrow;
+        }
+        loadedIdentity.dispose();
+        loadedIdentity = DeviceIdentity.create(sodium);
+        isNewDevice = true;
+        loginResult = await attempt(loadedIdentity, true);
+      }
       // Persist only after the server accepted the password. MFA completion
       // needs the same identity, but no vault key is returned before MFA.
       if (isNewDevice)
         await secureStore.saveDevice(client.baseUrl, loadedIdentity);
+      if (deviceOwner != preloginAccountId) {
+        await secureStore.saveDeviceAccountId(
+          client.baseUrl,
+          preloginAccountId,
+        );
+      }
       verifier.fillRange(0, verifier.length, 0);
       verifier = null;
       if (loginResult is MfaLoginChallenge) {
@@ -4476,7 +4653,11 @@ class AppController extends ChangeNotifier {
           // clears all in-memory keys even if the server is unreachable.
         }
       }
-      errorMessage = friendlyError(error);
+      // On the sign-in form this code means the credentials were rejected;
+      // "your session expired" would send the user in circles.
+      errorMessage = error is ApiException && error.code == 'AUTH_REQUIRED'
+          ? currentL10n.signInCredentialsRejected
+          : friendlyError(error);
       rethrow;
     } finally {
       verifier?.fillRange(0, verifier.length, 0);

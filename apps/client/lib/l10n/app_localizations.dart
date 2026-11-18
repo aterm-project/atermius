@@ -30879,6 +30879,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'One-time bootstrap token'**
   String get oneTimeBootstrapToken;
+
+  /// Shown on the sign-in form when the server rejects the credentials.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in failed. Check the email or username and the master password.'**
+  String get signInCredentialsRejected;
+
+  /// Title of the notice shown when the hosted server answers as a new instance.
+  ///
+  /// In en, this message translates to:
+  /// **'This server was reinstalled'**
+  String get serverReinstalledTitle;
+
+  /// Body of the notice shown when the hosted server answers as a new instance.
+  ///
+  /// In en, this message translates to:
+  /// **'The server at this address is a new instance, so the sign-in saved in this browser for the previous one no longer works. Continue to forget that saved sign-in and use the new server. Hosts and credentials are loaded from the server after you sign in.'**
+  String get serverReinstalledBody;
+
+  /// Button that accepts the new server instance.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with the new server'**
+  String get serverReinstalledConfirm;
 }
 
 class _AppLocalizationsDelegate

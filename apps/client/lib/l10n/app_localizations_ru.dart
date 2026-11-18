@@ -19602,4 +19602,18 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get oneTimeBootstrapToken => 'Одноразовый токен начальной настройки';
+
+  @override
+  String get signInCredentialsRejected =>
+      'Не удалось войти. Проверьте адрес почты или имя пользователя и мастер-пароль.';
+
+  @override
+  String get serverReinstalledTitle => 'Этот сервер был переустановлен';
+
+  @override
+  String get serverReinstalledBody =>
+      'Сервер по этому адресу — новый экземпляр, поэтому сохранённый в этом браузере вход для прежнего больше не действует. Продолжите, чтобы удалить сохранённые данные входа и подключиться к новому серверу. Хосты и учётные данные загрузятся с сервера после входа.';
+
+  @override
+  String get serverReinstalledConfirm => 'Продолжить с новым сервером';
 }

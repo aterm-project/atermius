@@ -7,7 +7,10 @@ import 'dart:typed_data';
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/crypto/jcs.dart';
+import 'package:aterm_client/auth/session_startup.dart';
 import 'package:aterm_client/crypto/vault_crypto.dart';
+import 'package:aterm_client/l10n/l10n.dart';
+import 'package:aterm_client/platform/server_hosted.dart';
 import 'package:aterm_client/storage/client_database.dart';
 import 'package:aterm_client/storage/secure_store.dart';
 import 'package:aterm_client/ui/app_theme.dart';
@@ -180,6 +183,277 @@ void main() {
       expect(requests, ['instance']);
     },
   );
+
+  group('server replaced by a new instance', () {
+    const replacedInstanceId = '55555555-5555-4555-8555-555555555555';
+    const replacedSpaceId = '66666666-6666-4666-8666-666666666666';
+
+    void hostAt(String page) {
+      debugServerHostedOverride = true;
+      debugServerHostedBase = Uri.parse(page);
+      addTearDown(() {
+        debugServerHostedOverride = null;
+        debugServerHostedBase = null;
+      });
+    }
+
+    test(
+      'hosted client names the cause and can start over with the new instance',
+      () async {
+        hostAt('https://restore.example.test/');
+        final origin = serverHostedOrigin;
+        final previous = DeviceIdentity.create(sodium);
+        final replacement = DeviceIdentity.create(sodium);
+        final staleDevice = DeviceIdentity.create(sodium);
+        addTearDown(previous.dispose);
+        addTearDown(replacement.dispose);
+        addTearDown(staleDevice.dispose);
+        await secureStore.saveServerIdentityPin(
+          origin,
+          _pin(previous.signingPublicKey),
+        );
+        await secureStore.saveDevice(origin, staleDevice);
+        await secureStore.saveDeviceAccountId(origin, 'old-account');
+        await secureStore.saveRefreshToken(origin, 'admin@example.test', 'r');
+        await secureStore.saveSessionResumeHint(
+          origin,
+          SessionResumeHint(
+            username: 'admin@example.test',
+            accountId: 'old-account',
+            deviceId: staleDevice.deviceId,
+          ),
+        );
+        await secureStore.saveKnownHost(origin, 'ssh.example.test:22', 'fp');
+        instanceResponses.add(
+          _instance(
+            replacement.signingPublicKey,
+            instanceId: replacedInstanceId,
+            serverSpaceId: replacedSpaceId,
+          ),
+        );
+
+        await app.restoreLastServer();
+
+        expect(app.pendingInstanceReplacement, isNotNull);
+        expect(app.api, isNull);
+        expect(
+          app.errorMessage,
+          isNot(currentL10n.couldntReadLocalSecuritySettingsCheck),
+        );
+        expect(
+          app.errorMessage,
+          currentL10n.theServerInstanceIdentityChangedTo,
+        );
+        expect(
+          (await secureStore.readServerIdentityPin(origin))?.instanceId,
+          _instanceId,
+        );
+
+        instanceResponses.add(
+          _instance(
+            replacement.signingPublicKey,
+            instanceId: replacedInstanceId,
+            serverSpaceId: replacedSpaceId,
+          ),
+        );
+        await app.confirmPendingInstanceReplacement();
+
+        expect(app.pendingInstanceReplacement, isNull);
+        expect(app.errorMessage, isNull);
+        expect(app.api, isNotNull);
+        final pin = await secureStore.readServerIdentityPin(origin);
+        expect(pin?.instanceId, replacedInstanceId);
+        expect(pin?.signingPublicKey, replacement.signingPublicKey);
+        expect(await secureStore.loadDevice(origin, app.crypto), isNull);
+        expect(await secureStore.deviceAccountId(origin), isNull);
+        expect(await secureStore.sessionResumeHint(origin), isNull);
+        expect(
+          await secureStore.readRefreshToken(origin, 'admin@example.test'),
+          isNull,
+        );
+        // SSH host trust is the user's data, not sign-in state.
+        expect(
+          await secureStore.readKnownHost(origin, 'ssh.example.test:22'),
+          'fp',
+        );
+      },
+    );
+
+    test(
+      'a different instance appearing during confirmation changes nothing',
+      () async {
+        hostAt('https://restore.example.test/');
+        final origin = serverHostedOrigin;
+        final previous = DeviceIdentity.create(sodium);
+        final shown = DeviceIdentity.create(sodium);
+        final other = DeviceIdentity.create(sodium);
+        final staleDevice = DeviceIdentity.create(sodium);
+        addTearDown(previous.dispose);
+        addTearDown(shown.dispose);
+        addTearDown(other.dispose);
+        addTearDown(staleDevice.dispose);
+        await secureStore.saveServerIdentityPin(
+          origin,
+          _pin(previous.signingPublicKey),
+        );
+        await secureStore.saveDevice(origin, staleDevice);
+        instanceResponses.add(
+          _instance(
+            shown.signingPublicKey,
+            instanceId: replacedInstanceId,
+            serverSpaceId: replacedSpaceId,
+          ),
+        );
+        await app.restoreLastServer();
+        instanceResponses.add(
+          _instance(
+            other.signingPublicKey,
+            instanceId: replacedInstanceId,
+            serverSpaceId: replacedSpaceId,
+          ),
+        );
+
+        await expectLater(
+          app.confirmPendingInstanceReplacement(),
+          throwsStateError,
+        );
+
+        expect(app.api, isNull);
+        expect(
+          (await secureStore.readServerIdentityPin(origin))?.instanceId,
+          _instanceId,
+        );
+        expect(await secureStore.loadDevice(origin, app.crypto), isNotNull);
+      },
+    );
+
+    test('a typed server address still refuses a replaced instance', () async {
+      final previous = DeviceIdentity.create(sodium);
+      final replacement = DeviceIdentity.create(sodium);
+      addTearDown(previous.dispose);
+      addTearDown(replacement.dispose);
+      await secureStore.saveServerIdentityPin(
+        _serverUrl,
+        _pin(previous.signingPublicKey),
+      );
+      instanceResponses.add(
+        _instance(
+          replacement.signingPublicKey,
+          instanceId: replacedInstanceId,
+          serverSpaceId: replacedSpaceId,
+        ),
+      );
+
+      await expectLater(
+        app.configureServer(_serverUrl),
+        throwsA(isA<InstanceReplacedException>()),
+      );
+
+      expect(app.pendingInstanceReplacement, isNull);
+      expect(app.api, isNull);
+      expect(clients.single.closed, isTrue);
+      expect(
+        (await secureStore.readServerIdentityPin(_serverUrl))?.instanceId,
+        _instanceId,
+      );
+    });
+  });
+
+  group('sign-in with a device left by another account', () {
+    const accountId = '77777777-7777-4777-8777-777777777777';
+
+    Future<_FakeSignInApi> connect() async {
+      final signing = DeviceIdentity.create(sodium);
+      addTearDown(signing.dispose);
+      final fake = _FakeSignInApi(baseUrl: _serverUrl, accountId: accountId);
+      final signIn = AppController(
+        sodium: sodium,
+        database: database,
+        secureStore: secureStore,
+        apiClientFactoryForTesting: (_) => fake,
+      );
+      addTearDown(signIn.dispose);
+      fake.instance = InstanceInfo(
+        instanceId: _instanceId,
+        serverSpaceId: _serverSpaceId,
+        generation: '44444444-4444-4444-8444-444444444444',
+        protocolVersion: 1,
+        setupRequired: false,
+        capabilities: const ['password_device_enrollment'],
+        signingPublicKey: signing.signingPublicKey,
+        signingKeyTransitions: const [],
+      );
+      await signIn.configureServer(_serverUrl);
+      fake.controller = signIn;
+      return fake;
+    }
+
+    Future<void> signIn(_FakeSignInApi fake) => expectLater(
+      fake.controller.login(
+        username: 'admin@example.test',
+        password: 'correct horse battery',
+      ),
+      throwsA(isA<ApiException>()),
+    );
+
+    test('a device recorded for another account is not presented', () async {
+      final stale = DeviceIdentity.create(sodium);
+      addTearDown(stale.dispose);
+      await secureStore.saveDevice(_serverUrl, stale);
+      await secureStore.saveDeviceAccountId(_serverUrl, 'someone-else');
+      final fake = await connect();
+
+      await signIn(fake);
+
+      expect(fake.logins, hasLength(1));
+      expect(fake.logins.single.enrolled, isTrue);
+      expect(fake.logins.single.deviceId, isNot(stale.deviceId));
+      // Nothing was accepted, so the stored device is untouched.
+      final kept = await secureStore.loadDevice(
+        _serverUrl,
+        fake.controller.crypto,
+      );
+      addTearDown(() => kept?.dispose());
+      expect(kept?.deviceId, stale.deviceId);
+    });
+
+    test(
+      'a device of unknown owner is retried once as an enrollment',
+      () async {
+        final stale = DeviceIdentity.create(sodium);
+        addTearDown(stale.dispose);
+        await secureStore.saveDevice(_serverUrl, stale);
+        final fake = await connect();
+
+        await signIn(fake);
+
+        expect(fake.logins.map((l) => l.enrolled), [false, true]);
+        expect(fake.logins.first.deviceId, stale.deviceId);
+        expect(fake.logins.last.deviceId, isNot(stale.deviceId));
+        expect(
+          fake.controller.errorMessage,
+          currentL10n.signInCredentialsRejected,
+        );
+      },
+    );
+
+    test(
+      'this account\'s own device is presented once, without a retry',
+      () async {
+        final own = DeviceIdentity.create(sodium);
+        addTearDown(own.dispose);
+        await secureStore.saveDevice(_serverUrl, own);
+        await secureStore.saveDeviceAccountId(_serverUrl, accountId);
+        final fake = await connect();
+
+        await signIn(fake);
+
+        expect(fake.logins, hasLength(1));
+        expect(fake.logins.single.enrolled, isFalse);
+        expect(fake.logins.single.deviceId, own.deviceId);
+      },
+    );
+  });
 
   test('server identity pins persist per canonical URL namespace', () async {
     final oldKey = DeviceIdentity.create(sodium);
@@ -629,5 +903,47 @@ class _FakeInstanceApi extends ApiClient {
   void close() {
     closed = true;
     super.close();
+  }
+}
+
+class _FakeSignInApi extends ApiClient {
+  _FakeSignInApi({required super.baseUrl, required this.accountId});
+
+  final String accountId;
+  late InstanceInfo instance;
+  late AppController controller;
+  final logins = <({String deviceId, bool enrolled})>[];
+
+  @override
+  Future<InstanceInfo> fetchInstance() async => instance;
+
+  @override
+  Future<Map<String, dynamic>> prelogin(String username) async => {
+    'account_id': accountId,
+    'kdf': {
+      'id': 'argon2id13',
+      'iterations': 3,
+      'mem_kib': 65536,
+      'parallelism': 1,
+      'salt': 'TAW9hVBsv6IxMQolQub8Bg',
+      'version': 1,
+    },
+  };
+
+  /// Rejects every attempt the way the server rejects both a wrong password
+  /// and an unknown device.
+  @override
+  Future<AuthLoginResult> login({
+    required String username,
+    required String loginVerifier,
+    required String deviceId,
+    Map<String, Object?>? newDevice,
+  }) async {
+    logins.add((deviceId: deviceId, enrolled: newDevice != null));
+    throw const ApiException(
+      statusCode: 401,
+      code: 'AUTH_REQUIRED',
+      message: 'authentication is required',
+    );
   }
 }

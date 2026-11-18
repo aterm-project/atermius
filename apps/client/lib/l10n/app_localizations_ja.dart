@@ -18410,4 +18410,18 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get oneTimeBootstrapToken => 'ワンタイム ブートストラップ トークン';
+
+  @override
+  String get signInCredentialsRejected =>
+      'サインインできませんでした。メールアドレスまたはユーザー名とマスターパスワードを確認してください。';
+
+  @override
+  String get serverReinstalledTitle => 'このサーバーは再インストールされました';
+
+  @override
+  String get serverReinstalledBody =>
+      'このアドレスのサーバーは新しいインスタンスになったため、このブラウザーに保存された以前のサインイン情報は使用できません。続行すると、保存されたサインイン情報を削除して新しいサーバーに接続します。ホストと認証情報はサインイン後にサーバーから読み込まれます。';
+
+  @override
+  String get serverReinstalledConfirm => '新しいサーバーで続行';
 }

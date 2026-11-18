@@ -5175,5 +5175,9 @@
   "keybarResetTextSize": "字号复原",
   "resetTerminalTextScale": "恢复为设置中的默认终端字号",
   "passwordVaultKeyNotSyncedYet": "此账户的保管库密钥尚未同步到密码登录。请先在已登录过此账户的设备或浏览器上登录一次，然后再回到这里登录。",
-  "oneTimeBootstrapToken": "一次性引导令牌"
+  "oneTimeBootstrapToken": "一次性引导令牌",
+  "signInCredentialsRejected": "登录失败。请检查邮箱或用户名，以及主密码是否正确。",
+  "serverReinstalledTitle": "此服务器已重新安装",
+  "serverReinstalledBody": "此地址上的服务器已是一个新的实例，此浏览器为旧实例保存的登录信息已无法使用。继续后将清除这些旧登录信息并连接新服务器；主机和凭据会在登录后从服务器加载。",
+  "serverReinstalledConfirm": "连接新服务器"
 }

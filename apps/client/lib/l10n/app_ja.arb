@@ -5175,5 +5175,9 @@
   "keybarResetTextSize": "文字サイズを戻す",
   "resetTerminalTextScale": "設定で指定したターミナルの文字サイズに戻す",
   "passwordVaultKeyNotSyncedYet": "このアカウントの保管庫キーは、まだパスワードサインイン用に同期されていません。このアカウントでサインイン済みのデバイスまたはブラウザーで一度サインインしてから、ここでもう一度サインインしてください。",
-  "oneTimeBootstrapToken": "ワンタイム ブートストラップ トークン"
+  "oneTimeBootstrapToken": "ワンタイム ブートストラップ トークン",
+  "signInCredentialsRejected": "サインインできませんでした。メールアドレスまたはユーザー名とマスターパスワードを確認してください。",
+  "serverReinstalledTitle": "このサーバーは再インストールされました",
+  "serverReinstalledBody": "このアドレスのサーバーは新しいインスタンスになったため、このブラウザーに保存された以前のサインイン情報は使用できません。続行すると、保存されたサインイン情報を削除して新しいサーバーに接続します。ホストと認証情報はサインイン後にサーバーから読み込まれます。",
+  "serverReinstalledConfirm": "新しいサーバーで続行"
 }

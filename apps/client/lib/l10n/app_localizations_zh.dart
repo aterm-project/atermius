@@ -17498,4 +17498,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get oneTimeBootstrapToken => '一次性引导令牌';
+
+  @override
+  String get signInCredentialsRejected => '登录失败。请检查邮箱或用户名，以及主密码是否正确。';
+
+  @override
+  String get serverReinstalledTitle => '此服务器已重新安装';
+
+  @override
+  String get serverReinstalledBody =>
+      '此地址上的服务器已是一个新的实例，此浏览器为旧实例保存的登录信息已无法使用。继续后将清除这些旧登录信息并连接新服务器；主机和凭据会在登录后从服务器加载。';
+
+  @override
+  String get serverReinstalledConfirm => '连接新服务器';
 }

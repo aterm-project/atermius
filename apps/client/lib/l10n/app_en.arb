@@ -16269,5 +16269,21 @@
   "oneTimeBootstrapToken": "One-time bootstrap token",
   "@oneTimeBootstrapToken": {
     "description": "Label of the first-account setup token field."
+  },
+  "signInCredentialsRejected": "Sign-in failed. Check the email or username and the master password.",
+  "@signInCredentialsRejected": {
+    "description": "Shown on the sign-in form when the server rejects the credentials."
+  },
+  "serverReinstalledTitle": "This server was reinstalled",
+  "@serverReinstalledTitle": {
+    "description": "Title of the notice shown when the hosted server answers as a new instance."
+  },
+  "serverReinstalledBody": "The server at this address is a new instance, so the sign-in saved in this browser for the previous one no longer works. Continue to forget that saved sign-in and use the new server. Hosts and credentials are loaded from the server after you sign in.",
+  "@serverReinstalledBody": {
+    "description": "Body of the notice shown when the hosted server answers as a new instance."
+  },
+  "serverReinstalledConfirm": "Continue with the new server",
+  "@serverReinstalledConfirm": {
+    "description": "Button that accepts the new server instance."
   }
 }
