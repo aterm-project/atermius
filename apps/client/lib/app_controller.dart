@@ -21295,11 +21295,13 @@ class AppController extends ChangeNotifier {
           canonicalJson(currentHost.toJson()) != hostSnapshot) {
         throw StateError(currentL10n.theHostOrJumpHostRoute);
       }
+      // Resolve exactly like the snapshot above: a login stored on the host
+      // itself is only found when the host is passed along.
+      final currentTargetHost = currentHost ?? host;
       final currentTargetCredential = resolveHostCredential(
-        groupId: currentHost == null ? host.groupId : currentHost.groupId,
-        hostCredentialId: currentHost == null
-            ? host.credentialId
-            : currentHost.credentialId,
+        host: currentTargetHost,
+        groupId: currentTargetHost.groupId,
+        hostCredentialId: currentTargetHost.credentialId,
       ).credential;
       if (currentTargetCredential == null ||
           canonicalJson(currentTargetCredential.toJson()) !=
