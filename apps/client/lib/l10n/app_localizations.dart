@@ -17832,12 +17832,6 @@ abstract class AppLocalizations {
   /// **'Refresh'**
   String get refresh;
 
-  /// No description provided for @encryptedSessionUnlocked.
-  ///
-  /// In en, this message translates to:
-  /// **'Encrypted session unlocked'**
-  String get encryptedSessionUnlocked;
-
   /// No description provided for @namedTerminalLayoutsSyncEncryptedIncluding.
   ///
   /// In en, this message translates to:
@@ -18961,12 +18955,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Account events are still visible. Only the Owner and Editors of this Vault can view Vault-scoped records.'**
   String get accountEventsAreStillVisibleOnly;
-
-  /// No description provided for @accountSessionUnlocked.
-  ///
-  /// In en, this message translates to:
-  /// **'Account session unlocked'**
-  String get accountSessionUnlocked;
 
   /// No description provided for @accountCreated.
   ///

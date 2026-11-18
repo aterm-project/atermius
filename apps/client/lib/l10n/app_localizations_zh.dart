@@ -10147,9 +10147,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get refresh => '刷新';
 
   @override
-  String get encryptedSessionUnlocked => '加密会话已解锁';
-
-  @override
   String get namedTerminalLayoutsSyncEncryptedIncluding =>
       '加密同步命名终端布局，包括标签顺序或双窗格方向与分割比例。预览不会建立连接；每个窗格都要单独确认 Connect。';
 
@@ -10767,9 +10764,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get accountEventsAreStillVisibleOnly =>
       '账户事件仍可查看。只有该 Vault 的 Owner 和 Editor 能查看 Vault 范围记录。';
-
-  @override
-  String get accountSessionUnlocked => '账户会话已解锁';
 
   @override
   String get accountCreated => '账户创建';

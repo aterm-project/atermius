@@ -11468,9 +11468,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get refresh => 'Обновить';
 
   @override
-  String get encryptedSessionUnlocked => 'Зашифрованный сеанс разблокирован';
-
-  @override
   String get namedTerminalLayoutsSyncEncryptedIncluding =>
       'Именованные макеты терминала синхронизируются в зашифрованном виде, включая порядок вкладок или направление и пропорции разделения. Предпросмотр не подключается; для каждой панели нужно отдельно подтвердить подключение.';
 
@@ -12179,9 +12176,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get accountEventsAreStillVisibleOnly =>
       'События учётной записи по-прежнему видны. Записи уровня сейфа могут просматривать только владелец и редакторы этого сейфа.';
-
-  @override
-  String get accountSessionUnlocked => 'Сеанс учётной записи разблокирован';
 
   @override
   String get accountCreated => 'Учётная запись создана';

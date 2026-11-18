@@ -2662,6 +2662,15 @@ class _SideNavigation extends StatelessWidget {
     final phone = MediaQuery.sizeOf(context).width < 600;
     final itemHeight = touch ? 48.0 : 38.0;
     final itemInset = wide ? 8.0 : touch ? 1.0 : 6.0;
+    // The signed-in account's own name; the id prefix is only a fallback for
+    // a session whose username is not known on this device.
+    final username = app.authenticatedUsername?.trim();
+    final accountId = app.currentAccountId;
+    final identity = username != null && username.isNotEmpty
+        ? username
+        : accountId != null
+        ? (accountId.length > 8 ? accountId.substring(0, 8) : accountId)
+        : context.l10n.localDevice;
     final items = app.activeVault == null
         ? _items
               .where(
@@ -2772,14 +2781,22 @@ class _SideNavigation extends StatelessWidget {
               ),
             ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.only(bottom: 8),
+            child: _SideNavScrollArea(
+              itemCount: items.length,
+              itemHeight: itemHeight,
+              // Touch rows keep their full tap target; they scroll instead.
+              minItemHeight: touch ? itemHeight : 30,
+              builder: (context, controller, itemHeight, itemGap) => ListView(
+              controller: controller,
+              padding: const EdgeInsets.only(
+                bottom: _SideNavScrollArea.bottomPadding,
+              ),
               children: items.map((item) {
                 final selected = app.page == item.page;
                 return Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: itemInset,
-                    vertical: 2,
+                    vertical: itemGap,
                   ),
                   child: Tooltip(
                     message: item.label(context.l10n),
@@ -2850,6 +2867,7 @@ class _SideNavigation extends StatelessWidget {
                 );
               }).toList(),
             ),
+            ),
           ),
           if (importExportActions.isNotEmpty)
             Padding(
@@ -2914,8 +2932,9 @@ class _SideNavigation extends StatelessWidget {
           ),
           if (wide)
             Container(
+              key: const ValueKey('home_nav_user_card'),
               margin: const EdgeInsets.all(14),
-              padding: const EdgeInsets.all(13),
+              padding: const EdgeInsets.fromLTRB(13, 9, 7, 9),
               decoration: BoxDecoration(
                 color: context.palette.surface,
                 borderRadius: BorderRadius.circular(14),
@@ -2936,28 +2955,45 @@ class _SideNavigation extends StatelessWidget {
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          app.account?.accountId.substring(0, 8) ??
-                              context.l10n.localDevice,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                        // Who is signed in, on one line; the full value is
+                        // in the tooltip. No session/encryption remarks.
+                        Tooltip(
+                          message: identity,
+                          child: Text(
+                            identity,
+                            key: const ValueKey('home_nav_user_identity'),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          app.activeVault == null ? context.l10n.accountSessionUnlocked : context.l10n.encryptedSessionUnlocked,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: context.palette.muted,
+                        // The only secondary line is the account's role on
+                        // this instance.
+                        if (app.isInstanceAdmin) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            context.l10n.accountSettingsInstanceAdmin,
+                            key: const ValueKey('home_nav_user_role'),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: context.palette.muted,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
                   IconButton(
+                    key: const ValueKey('home_nav_lock'),
                     tooltip: context.l10n.lockWorkspace,
                     visualDensity: VisualDensity.compact,
                     onPressed: () => app.lock(),
@@ -2981,6 +3017,73 @@ class _SideNavigation extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Scroll area of the sidebar destinations. On a tall window it lays rows out
+/// at [itemHeight] with the regular gap. When the rows do not fit, they are
+/// compacted down to [minItemHeight]; if that is still not enough the list
+/// scrolls with an always-visible scrollbar, so the pinned footer (import or
+/// export, user card) never pushes destinations out of reach unnoticed.
+class _SideNavScrollArea extends StatefulWidget {
+  const _SideNavScrollArea({
+    required this.itemCount,
+    required this.itemHeight,
+    required this.minItemHeight,
+    required this.builder,
+  });
+
+  static const double bottomPadding = 8;
+  static const double _gap = 2;
+  static const double _denseGap = 1;
+
+  final int itemCount;
+  final double itemHeight;
+  final double minItemHeight;
+  final Widget Function(
+    BuildContext context,
+    ScrollController controller,
+    double itemHeight,
+    double itemGap,
+  )
+  builder;
+
+  @override
+  State<_SideNavScrollArea> createState() => _SideNavScrollAreaState();
+}
+
+class _SideNavScrollAreaState extends State<_SideNavScrollArea> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final count = widget.itemCount;
+      final available =
+          constraints.maxHeight - _SideNavScrollArea.bottomPadding;
+      var height = widget.itemHeight;
+      var gap = _SideNavScrollArea._gap;
+      if (count > 0 && count * (height + 2 * gap) > available) {
+        gap = _SideNavScrollArea._denseGap;
+        height = (available / count - 2 * gap)
+            .floorToDouble()
+            .clamp(widget.minItemHeight, widget.itemHeight)
+            .toDouble();
+      }
+      final overflows = count * (height + 2 * gap) > available;
+      return Scrollbar(
+        key: const ValueKey('home_nav_scrollbar'),
+        controller: _controller,
+        thumbVisibility: overflows,
+        child: widget.builder(context, _controller, height, gap),
+      );
+    },
+  );
 }
 
 enum _NavLabel {

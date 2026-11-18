@@ -10765,9 +10765,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get refresh => '更新';
 
   @override
-  String get encryptedSessionUnlocked => '暗号化セッションのロックを解除しました';
-
-  @override
   String get namedTerminalLayoutsSyncEncryptedIncluding =>
       '名前付きのターミナルレイアウトは、タブの順序や分割の向きと比率を含めて暗号化して同期されます。プレビューでは接続せず、各ペインで個別に「接続」を確認する必要があります。';
 
@@ -11414,9 +11411,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get accountEventsAreStillVisibleOnly =>
       'アカウントのイベントは引き続き表示できます。保管庫の範囲の記録を表示できるのは、この保管庫のオーナーと編集者のみです。';
-
-  @override
-  String get accountSessionUnlocked => 'アカウントのセッションのロックを解除しました';
 
   @override
   String get accountCreated => 'アカウントの作成';
