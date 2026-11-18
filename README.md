@@ -5,6 +5,8 @@
 <p align="center">An encrypted SSH workspace for Android, iOS, Windows, macOS, Linux and the browser, with an optional self-hosted sync server.</p>
 <p align="center"><a href="README.zh-CN.md">简体中文</a> · <a href="docs/INSTALLATION.en.md">Install</a> · <a href="docs/README.md">Documentation</a> · <a href="https://github.com/aterm-project/atermius/releases">Releases</a> · <a href="https://github.com/aterm-project/atermius/actions">CI</a></p>
 
+The optional [workspace agent](workspace-agent/README.md) connects external servers outbound and can provision and cold-migrate Debian workspaces between nodes.
+
 ## Start here
 
 There is no published consumer installer matching the current main branch. Build from source using the guides, or try a daily pre-release build. Do not treat a successful source CI run or a daily build as a signed store distribution.
