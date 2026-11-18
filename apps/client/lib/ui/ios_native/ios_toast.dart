@@ -191,6 +191,7 @@ class _IosToastViewState extends State<_IosToastView>
                           style: IosType.subheadline.copyWith(
                             color: c.label,
                             fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.none,
                           ),
                         ),
                       ),

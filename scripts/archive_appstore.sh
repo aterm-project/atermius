@@ -834,6 +834,32 @@ if [ -n "$DISPLAY_NAME" ]; then
   done
 fi
 
+# 防止 xcodebuild 命令行全局 PRODUCT_BUNDLE_IDENTIFIER 覆盖子 .bundle / .framework 触发 ITMS-90685 冲突
+echo "==> [Step 3c/5] 校验并去重内嵌子 Bundle 的 CFBundleIdentifier (防止 ITMS-90685)..."
+/usr/bin/python3 - "$ARCHIVE_APP" "$BUNDLE_ID" <<'PY'
+import plistlib, re, sys
+from pathlib import Path
+
+app = Path(sys.argv[1])
+main_bid = sys.argv[2]
+for p in sorted(app.rglob("Info.plist")):
+    if p.parent == app:
+        continue
+    try:
+        data = plistlib.loads(p.read_bytes())
+    except Exception:
+        continue
+    if data.get("CFBundleIdentifier") == main_bid:
+        raw_name = data.get("CFBundleName") or p.parent.stem
+        slug = re.sub(r"[^A-Za-z0-9.-]", "-", str(raw_name)).strip("-") or "subbundle"
+        data["CFBundleIdentifier"] = f"{main_bid}.pkg.{slug}"
+        p.write_bytes(plistlib.dumps(data, fmt=plistlib.FMT_XML))
+PY
+for fw in "$ARCHIVE_APP/Frameworks"/*.framework; do
+  [ -d "$fw" ] && /usr/bin/codesign --remove-signature "$fw" 2>/dev/null || true
+done
+/usr/bin/codesign --remove-signature "$ARCHIVE_APP" 2>/dev/null || true
+
 echo "==> [Step 4/5] 执行 .xcarchive 归档产物洁净度与完整性门禁断言..."
 if [ ! -f "$ARCHIVE_APP/PrivacyInfo.xcprivacy" ]; then
   echo "[ERROR] 归档阻断：$ARCHIVE_APP/PrivacyInfo.xcprivacy 缺失 (ITMS-91053)！" >&2
