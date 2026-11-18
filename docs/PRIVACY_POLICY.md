@@ -1,28 +1,16 @@
-# 隐私政策与技术支持 / Privacy Policy & Technical Support
+# Atermius 隐私政策与技术支持 / Privacy Policy & Technical Support
 
-> **发布使用说明（部署前可删除本引用块）**：
-> 1. 将全文中的占位符替换为您的实际发布信息：
->    - `[APP_NAME]`：您的新 App 正式上架名称（如 `Aterm`）
->    - `[DEVELOPER_NAME]`：开发者个人姓名或公司法定主体名称
->    - `[SUPPORT_EMAIL]`：接收隐私问询与技术支持的有效电子邮箱
->    - `[EFFECTIVE_DATE]`：生效日期（例如 `2026-11-16`）
-> 2. 将本文件直接发布至 **GitHub Pages**（如 `docs/privacy.md`）或独立 HTTPS 域名：
->    - **App Store Connect 隐私政策网址 (Privacy Policy URL)** 填入：`https://<your-domain>/privacy`
->    - **App Store Connect 技术支持网址 (Support URL)** 填入：`https://<your-domain>/privacy#support`
-
----
-
-**应用名称 / Application:** `[APP_NAME]`  
-**运营主体 / Developer:** `[DEVELOPER_NAME]`  
-**生效日期 / Effective Date:** `[EFFECTIVE_DATE]`  
-**最后更新 / Last Updated:** `[EFFECTIVE_DATE]`  
+**应用名称 / Application:** Atermius  
+**运营主体 / Developer:** Zenwalk LLC  
+**生效日期 / Effective Date:** 2026-11-18  
+**最后更新 / Last Updated:** 2026-11-18  
 **快速跳转 / Quick Links:** [简体中文隐私政策](#隐私政策简体中文) · [Privacy Policy (English)](#privacy-policy-english) · [技术支持与联系我们 / Technical Support (`#support`)](#support)
 
 ---
 
 ## 隐私政策（简体中文）
 
-欢迎使用 **`[APP_NAME]`**（以下简称“本应用”或“我们”）。本应用是一款面向开发者与系统运维人员的安全远程终端与文件管理客户端（支持 SSH、SFTP/SCP、Telnet、RDP 与 VNC）。我们坚持**“本地优先（Local-First）”**与**“端到端零知识加密（Zero-Knowledge End-to-End Encryption）”**设计原则，最大限度保护您的服务器凭证、密钥与个人隐私。
+欢迎使用 **Atermius**（以下简称“本应用”或“我们”）。本应用是一款面向开发者与系统运维人员的安全远程终端与文件管理客户端（支持 SSH、SFTP/SCP、Telnet、RDP 与 VNC）。我们坚持**“本地优先（Local-First）”**与**“端到端零知识加密（Zero-Knowledge End-to-End Encryption）”**设计原则，最大限度保护您的服务器凭证、密钥与个人隐私。
 
 ### 1. 我们的核心隐私架构
 
@@ -67,11 +55,11 @@
 1. **本地数据清除**：您可以随时在应用内删除单条主机、密钥或整个本地加密配置库，也可以通过直接卸载本应用立即清除设备沙盒内的所有本地数据（卸载后如无提前导出的备份文件，数据无法找回）。
 2. **可选云端账户应用内一键永久删除**：如果您注册并登录了云端同步账户，您拥有随时在应用内直接永久注销账户的完整权利，无需人工联系客服审批：
    - **操作路径**：打开本应用 -> 进入 **设置（Settings）** -> 打开 **账户与登录（Account & sign-in）** 并点击 **“密码、两步验证与恢复”**（或直接在顶部设置分类中切换至 **“账户安全 / Account security”**）-> 滑动至底部 **“账户删除（Account deletion）”** 面板 -> 点击 **“安排账户删除（Schedule account deletion）”** -> 输入 `DELETE` 并验证账户密码确认。
-   - **删除效果**：确认提交后，服务器将**立即吊销该账户下的全部活动登录会话与设备授权令牌**，客户端同步清空本机登录状态；在服务器展示的宽限期（`purge_after`）截止时，您的个人账户信息、个人加密保险库密文及在其他共享保险库中的成员访问权限将被永久物理清除且不可恢复（宽限期内若属误操作，可重新验证身份取消注销）。您也可以随时发送邮件至 `[SUPPORT_EMAIL]` 请求协助核销数据。
+   - **删除效果**：确认提交后，服务器将**立即吊销该账户下的全部活动登录会话与设备授权令牌**，客户端同步清空本机登录状态；在服务器展示的宽限期（`purge_after`）截止时，您的个人账户信息、个人加密保险库密文及在其他共享保险库中的成员访问权限将被永久物理清除且不可恢复（宽限期内若属误操作，可重新验证身份取消注销）。您也可以随时发送邮件至 yangyifeifly@gmail.com 请求协助核销数据。
 
 ### 6. 儿童隐私保护
 
-本应用属于专业信息技术与软件开发工具（年龄分级 `4+`），不针对未满 13 周岁（或您所在司法辖区规定的最低数字同意年龄）的儿童设计，也不会故意收集儿童的个人信息。如发现误收集情况，请立即联系 `[SUPPORT_EMAIL]`，我们将第一时间予以彻底删除。
+本应用属于专业信息技术与软件开发工具（年龄分级 `4+`），不针对未满 13 周岁（或您所在司法辖区规定的最低数字同意年龄）的儿童设计，也不会故意收集儿童的个人信息。如发现误收集情况，请立即联系 yangyifeifly@gmail.com，我们将第一时间予以彻底删除。
 
 ### 7. 您的全球隐私权利（GDPR / CCPA / APPI 等）
 
@@ -85,7 +73,7 @@
 
 ## Privacy Policy (English)
 
-Welcome to **`[APP_NAME]`** ("the App", "we", "us", or "our"). `[APP_NAME]` is a security-focused remote terminal, file transfer, and remote desktop client supporting SSH, SFTP/SCP, Telnet, RDP, and VNC. We engineer our product around **Local-First architecture** and **Zero-Knowledge End-to-End Encryption** so that your infrastructure credentials and cryptographic keys remain exclusively under your control.
+Welcome to **Atermius** ("the App", "we", "us", or "our"). Atermius is a security-focused remote terminal, file transfer, and remote desktop client supporting SSH, SFTP/SCP, Telnet, RDP, and VNC. We engineer our product around **Local-First architecture** and **Zero-Knowledge End-to-End Encryption** so that your infrastructure credentials and cryptographic keys remain exclusively under your control.
 
 ### 1. Core Security & Privacy Architecture
 
@@ -128,15 +116,15 @@ The App requests operating-system permissions strictly on demand when you invoke
 1. **Local Data Deletion:** You may delete individual hosts, keys, or entire local profiles within the App at any time, or uninstall the App to immediately erase all sandboxed local data on your device.
 2. **Direct In-App Cloud Account Deletion:** If you sign into an optional cloud synchronization account, you can permanently delete your account directly inside the App at any time without contacting customer support:
    - **In-App Path:** Open **Settings** -> **Account & sign-in** -> tap **"Password, two-factor and recovery"** (or select **"Account security"** from the Settings category selector) -> scroll to **"Account deletion"** -> tap **"Schedule account deletion"** -> type `DELETE` and confirm with your password.
-   - **Immediate & Permanent Effect:** Confirming deletion immediately revokes all active login sessions and device tokens and clears local authenticated state on your device. Upon expiration of the server's displayed grace window (`purge_after`), your account record, personal encrypted Vault payloads, and memberships in shared Vaults are permanently and irreversibly purged from server storage. You may also contact us at `[SUPPORT_EMAIL]` for assistance at any time.
+   - **Immediate & Permanent Effect:** Confirming deletion immediately revokes all active login sessions and device tokens and clears local authenticated state on your device. Upon expiration of the server's displayed grace window (`purge_after`), your account record, personal encrypted Vault payloads, and memberships in shared Vaults are permanently and irreversibly purged from server storage. You may also contact us at yangyifeifly@gmail.com for assistance at any time.
 
 ### 6. Children's Privacy
 
-The App is a professional software engineering and IT administration utility (rated `4+`) and does not knowingly collect personal information from children under the age of 13 (or the applicable age of digital consent in your jurisdiction). If you believe such information has been inadvertently provided, please contact `[SUPPORT_EMAIL]` for immediate removal.
+The App is a professional software engineering and IT administration utility (rated `4+`) and does not knowingly collect personal information from children under the age of 13 (or the applicable age of digital consent in your jurisdiction). If you believe such information has been inadvertently provided, please contact yangyifeifly@gmail.com for immediate removal.
 
 ### 7. International User Rights (GDPR / CCPA / APPI)
 
-Depending on your jurisdiction (including the EEA/UK under GDPR, California under CCPA/CPRA, and Japan under APPI), you have the right to access, rectify, export (via built-in archive export), restrict, or erase your personal account data. You can exercise data portability and permanent deletion directly inside the App or by emailing `[SUPPORT_EMAIL]`.
+Depending on your jurisdiction (including the EEA/UK under GDPR, California under CCPA/CPRA, and Japan under APPI), you have the right to access, rectify, export (via built-in archive export), restrict, or erase your personal account data. You can exercise data portability and permanent deletion directly inside the App or by emailing yangyifeifly@gmail.com.
 
 ### 8. Changes to This Policy
 
@@ -148,8 +136,8 @@ We may update this Privacy Policy periodically to reflect technical improvements
 
 ## 技术支持与联系我们 / Technical Support & Contact Us
 
-如果您在使用 **`[APP_NAME]`** 过程中遇到任何连接问题、功能建议、数据导出疑问或隐私合规问询，请参考以下快速自助指南或直接联系我们的支持团队。  
-If you need technical assistance, troubleshooting guidance, or privacy support regarding **`[APP_NAME]`**, please review the quick FAQ below or reach out to us directly.
+如果您在使用 **Atermius** 过程中遇到任何连接问题、功能建议、数据导出疑问或隐私合规问询，请参考以下快速自助指南或直接联系我们的支持团队。  
+If you need technical assistance, troubleshooting guidance, or privacy support regarding **Atermius**, please review the quick FAQ below or reach out to us directly.
 
 ### 常见问题快速排障 / Quick Troubleshooting FAQ
 
@@ -164,7 +152,7 @@ If you need technical assistance, troubleshooting guidance, or privacy support r
 
 ### 联系方式 / Contact Channels
 
-- **支持与隐私联系邮箱 / Support & Privacy Email:** `mailto:[SUPPORT_EMAIL]`
+- **支持与隐私联系邮箱 / Support & Privacy Email:** `mailto:yangyifeifly@gmail.com`
 - **问题反馈需附带信息（请勿发送任何私钥或密码！）/ Helpful Diagnostics (Never include private keys or passwords!):**
   - 设备型号与系统版本 / Device model & iOS / iPadOS / macOS version
   - 应用版本号 / App version (e.g., `1.0.0 (1)`)
