@@ -3,7 +3,8 @@
 # Releases are namespaced by tag: android-* starts release-android.yml and
 # desktop-* starts release-desktop.yml. Daily releases (<platform>-daily-*, and
 # the pre-monorepo daily-*) are created by the daily build with GITHUB_TOKEN,
-# which starts no workflow, and are skipped here as well. Any other tag (ios-*,
+# which starts no workflow, and are skipped here as well. Releases tagged
+# local-* already contain their locally built packages. Any other tag (ios-*,
 # web-*, server-*, unprefixed) has no package build and only gets a warning.
 #
 # A release event runs the workflow file of the tagged commit, which need not
@@ -22,7 +23,7 @@ permissions: {}
 jobs:
   dispatch:
     name: Start the platform release build on main
-    if: ${{ !startsWith(github.event.release.tag_name, 'daily-') && !contains(github.event.release.tag_name, '-daily-') }}
+    if: ${{ !startsWith(github.event.release.tag_name, 'daily-') && !contains(github.event.release.tag_name, '-daily-') && !startsWith(github.event.release.tag_name, 'local-') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
