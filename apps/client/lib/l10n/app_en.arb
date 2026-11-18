@@ -16353,5 +16353,85 @@
   "openTabsAutomaticWorkspaceName": "Open tabs (web, automatic)",
   "@openTabsAutomaticWorkspaceName": {
     "description": "Name of the record in which the browser client keeps its open tabs by itself. Only clients older than this record show it, as a saved workspace."
+  },
+  "waTitle": "Workspace agents",
+  "waDescription": "Manage external nodes, SSH services and workspace migrations.",
+  "waNotConfigured": "Workspace Hub is turned off on this server. Enable the optional compose.agent.yaml service to manage nodes here.",
+  "waUnavailable": "Cannot reach Workspace Hub. Refresh the status before retrying.",
+  "waConflict": "The state changed or these settings conflict. Refresh and check the node, port and migration phase.",
+  "waInvalid": "Check the node or workspace name, port and public keys.",
+  "waNodes": "Agent nodes",
+  "waNoNodes": "No nodes registered.",
+  "waRegister": "Register node",
+  "waDescriptor": "Public registration JSON",
+  "waDescriptorHelp": "Import the .public.json file from provision.py enroll --prepare-only, or paste its contents.",
+  "waChooseFile": "Choose public JSON",
+  "waBadDescriptor": "Expected a public node descriptor, up to 32 KiB.",
+  "waFingerprint": "Node certificate SHA-256",
+  "waImage": "Workspace image",
+  "waNetwork": "Egress network",
+  "waHost": "Existing SSH service",
+  "waWorkspace": "Docker workspace",
+  "waEnable": "Enable node",
+  "waDisable": "Disable node",
+  "waDisableInfo": "Disabling this node revokes its access and disconnects its SSH streams.",
+  "waOnline": "Online",
+  "waNeverSeen": "Awaiting first connection",
+  "waLastSeen": "Last seen {seconds}s ago",
+  "@waLastSeen": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "waClusters": "Workspaces and SSH services",
+  "waNoClusters": "No workspaces or SSH services published.",
+  "waCreate": "Create workspace",
+  "waPublish": "Publish SSH service",
+  "waNode": "Node",
+  "waKeys": "Authorized SSH public keys, one per line",
+  "waNameHint": "Start with a lowercase letter. Use up to 40 lowercase letters, digits or hyphens.",
+  "waPortHint": "Stable SSH port (1024–65535)",
+  "waMigrate": "Migrate",
+  "waTarget": "Destination node",
+  "waMigrationHelp": "Migration stops the workspace and its SSH sessions. Files, SSH address and host key are preserved. The destination must use the same image and egress network.",
+  "waAbort": "Cancel migration",
+  "waAbortInfo": "The Hub will stop the destination if necessary and resume the source workspace.",
+  "waPhase": "{phase, select, Provisioning{Provisioning} Running{Running} Snapshot{Saving snapshot} Restore{Restoring snapshot} Fence{Stopping destination} Resume{Resuming source} other{Unknown}}",
+  "@waPhase": {
+    "placeholders": {
+      "phase": {
+        "type": "String"
+      }
+    }
+  },
+  "waSnapshot": "Snapshot · {size} bytes",
+  "@waSnapshot": {
+    "placeholders": {
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "waCleanup": "Old volumes awaiting cleanup · {count}",
+  "@waCleanup": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "waAccess": "Relay access policies",
+  "waNodeDetails": "Node details",
+  "waNoTarget": "No compatible destination",
+  "waInitial": "Initial workspace",
+  "waRetrying": "{node} is retrying this operation. Check the agent log for details.",
+  "@waRetrying": {
+    "placeholders": {
+      "node": {
+        "type": "String"
+      }
+    }
   }
 }

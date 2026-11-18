@@ -19670,4 +19670,170 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get openTabsAutomaticWorkspaceName =>
       'Открытые вкладки (веб, автоматически)';
+
+  @override
+  String get waTitle => 'Агенты рабочих пространств';
+
+  @override
+  String get waDescription =>
+      'Управление внешними узлами, SSH-сервисами и переносом рабочих пространств.';
+
+  @override
+  String get waNotConfigured =>
+      'Workspace Hub отключён. Включите сервис из compose.agent.yaml, чтобы управлять узлами.';
+
+  @override
+  String get waUnavailable =>
+      'Workspace Hub недоступен. Обновите состояние перед повторной попыткой.';
+
+  @override
+  String get waConflict =>
+      'Состояние изменилось или параметры конфликтуют. Обновите данные и проверьте узел, порт и этап переноса.';
+
+  @override
+  String get waInvalid =>
+      'Проверьте имя узла или пространства, порт и открытые ключи.';
+
+  @override
+  String get waNodes => 'Узлы агентов';
+
+  @override
+  String get waNoNodes => 'Зарегистрированных узлов нет.';
+
+  @override
+  String get waRegister => 'Зарегистрировать узел';
+
+  @override
+  String get waDescriptor => 'Публичный JSON регистрации';
+
+  @override
+  String get waDescriptorHelp =>
+      'Загрузите файл .public.json, созданный provision.py enroll --prepare-only, или вставьте его содержимое.';
+
+  @override
+  String get waChooseFile => 'Выбрать публичный JSON';
+
+  @override
+  String get waBadDescriptor =>
+      'Укажите действительный публичный файл узла размером до 32 КиБ.';
+
+  @override
+  String get waFingerprint => 'SHA-256 сертификата узла';
+
+  @override
+  String get waImage => 'Образ пространства';
+
+  @override
+  String get waNetwork => 'Исходящая сеть';
+
+  @override
+  String get waHost => 'Существующий SSH-сервис';
+
+  @override
+  String get waWorkspace => 'Пространство Docker';
+
+  @override
+  String get waEnable => 'Включить узел';
+
+  @override
+  String get waDisable => 'Отключить узел';
+
+  @override
+  String get waDisableInfo =>
+      'Отключение отзывает доступ узла и разрывает его SSH-соединения.';
+
+  @override
+  String get waOnline => 'В сети';
+
+  @override
+  String get waNeverSeen => 'Ожидание первого подключения';
+
+  @override
+  String waLastSeen(int seconds) {
+    return 'Последняя связь $seconds с назад';
+  }
+
+  @override
+  String get waClusters => 'Рабочие пространства и SSH-сервисы';
+
+  @override
+  String get waNoClusters =>
+      'Нет рабочих пространств или опубликованных SSH-сервисов.';
+
+  @override
+  String get waCreate => 'Создать пространство';
+
+  @override
+  String get waPublish => 'Опубликовать SSH-сервис';
+
+  @override
+  String get waNode => 'Узел';
+
+  @override
+  String get waKeys => 'Разрешённые открытые ключи SSH, по одному в строке';
+
+  @override
+  String get waNameHint =>
+      'Начните со строчной буквы. Допустимо до 40 строчных букв, цифр и дефисов.';
+
+  @override
+  String get waPortHint => 'Постоянный порт SSH (1024–65535)';
+
+  @override
+  String get waMigrate => 'Перенести';
+
+  @override
+  String get waTarget => 'Целевой узел';
+
+  @override
+  String get waMigrationHelp =>
+      'Перенос остановит пространство и SSH-сессии. Файлы, адрес SSH и ключ хоста сохранятся. Образ и исходящая сеть должны совпадать.';
+
+  @override
+  String get waAbort => 'Отменить перенос';
+
+  @override
+  String get waAbortInfo =>
+      'Hub при необходимости остановит целевой узел и возобновит исходное пространство.';
+
+  @override
+  String waPhase(String phase) {
+    String _temp0 = intl.Intl.selectLogic(phase, {
+      'Provisioning': 'Подготовка',
+      'Running': 'Работает',
+      'Snapshot': 'Сохранение снимка',
+      'Restore': 'Восстановление снимка',
+      'Fence': 'Остановка целевого узла',
+      'Resume': 'Возобновление источника',
+      'other': 'Неизвестно',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String waSnapshot(int size) {
+    return 'Снимок · $size байт';
+  }
+
+  @override
+  String waCleanup(int count) {
+    return 'Старые тома на очистке · $count';
+  }
+
+  @override
+  String get waAccess => 'Политики доступа Relay';
+
+  @override
+  String get waNodeDetails => 'Сведения об узле';
+
+  @override
+  String get waNoTarget => 'Нет совместимого целевого узла';
+
+  @override
+  String get waInitial => 'Начальное рабочее пространство';
+
+  @override
+  String waRetrying(String node) {
+    return 'Узел $node повторяет операцию. Сведения доступны в журнале агента.';
+  }
 }

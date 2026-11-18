@@ -64,6 +64,14 @@ sudo "$AGENT_BIN" hub "$INSTANCE/hub" 0.0.0.0:8443 127.0.0.1
 
 仅接入已有 SSH 服务时，登记参数使用 `--host-ssh-port 22`，省略 `--image` 及初始工作区参数。节点安装器会跳过 Docker。中心端执行 `publish-host "$INSTANCE/hub" office node-a 24002`（前面加 `sudo "$AGENT_BIN"`）后，`24002` 只接到该节点本机登记的 SSH 端口。用户在 SSH 协议内用自己的远端账户认证。此类主机入口固定在对应机器上。Docker 工作区才支持下述跨节点迁移。
 
+## 网页 Admin 管理
+
+更新 Server、Web 和 Hub，并对 Server 与 Hub 应用同一份 `deploy/compose.agent.yaml`。实例管理员打开 **Admin → 工作区 Agent**，可以查看心跳和节点能力、停用或启用节点、创建 Docker 工作区、发布已有 SSH 服务、选择兼容节点迁移或取消迁移。进行中的迁移会自动刷新，显示源端、目标端、执行阶段、当前快照传输字节进度和旧卷清理数。新版节点会报告正在重试的任务。运行中的入口可打开现有 SSH 快速连接流程，沿用用户凭据和 Relay 访问策略。
+
+发证机执行上面的 `provision.py enroll` 时增加 `--prepare-only`，生成给目标机器的私有安装包和供管理员导入的 `.public.json`。在网页点击「登记节点」，选择公开 JSON 并核对证书指纹、工作区镜像及初始工作区。确认后，Hub 在同一事务内登记节点和可选的初始工作区。节点仍用私有安装包启动。CA 私钥、节点私钥和快照不进入浏览器或主 Server。
+
+Server 从 `ATERMIUS_WORKSPACE_ADMIN_SOCKET` 访问 Hub，两端在该覆盖文件中共享一个专用 Unix 套接字卷。主 Server 只读挂载此卷，Hub 状态目录和 Docker socket 保留在原有权限边界内。未启用覆盖文件的实例会在网页显示 Hub 未配置。普通账号没有此管理入口或 API 权限。
+
 ## 跨 Agent 迁移
 
 用同一镜像登记并安装 `node-b`。备用节点的登记命令可以省略 `--cluster`、`--port`、`--keys`。两个节点只需能连回 Hub。对正在运行的 cluster 执行：
@@ -89,7 +97,7 @@ sudo "$AGENT_BIN" status "$INSTANCE/hub"
 - SSH 用户以 UID 1000 运行。工作区根文件系统只读，`/tmp` 和 `/run` 是临时文件系统。用户文件位于 `/workspace/home`，主机私钥位于独立的 root 私有目录。持久卷中可能有用户数据和私钥。迁移会在两端和受信 Hub 上处理这些数据，适宜使用加密磁盘。该状态目录独立于实例数据库备份。
 - 默认工作区使用 Docker `none` 网络。SSH 入口通过 Agent 内部固定通道进入容器。如果工作台需要访问批准的业务网络，管理员先在各候选节点配置出口防火墙和专用 Docker bridge，再在登记时传 `--network NAME`。Agent 要求 bridge 带 `com.atermius.workspace.egress=true` 标签并关闭 `com.docker.network.bridge.enable_icc`。同一 cluster 的迁移目标须具有相同网络配置名和镜像 ID。固定公网 IP 取决于出口的 NAT 配置，容器内出网策略由运维方执行。
 - 每个工作区限制 1 核、512 MiB 内存、128 个进程。每个 SSH 入口最多 16 个并发连接，Hub 合计 128 个。持久卷的**运行时磁盘硬配额由底层卷存储提供**，512 MiB 快照上限不是写入配额。普通 Docker 容器与节点共享内核。运行工作区的 Agent 有 Docker 管理权限，应部署在受信专用机器上。
-- 本版的服务端管理入口是本地运维 CLI。节点端支持 Debian/systemd，示例镜像支持 Linux 工作区。已有 SSH 入口继续使用实例与组的 Relay 授权。将多个 cluster 分别授权给不同用户时使用不同 SSH 密钥，并按各自端口配置组策略。
+- 服务端提供原生 Admin API 和与 CLI 共用同一状态机的网页管理页面。节点端支持 Debian/systemd，示例镜像支持 Linux 工作区。已有 SSH 入口继续使用实例与组的 Relay 授权。将多个 cluster 分别授权给不同用户时使用不同 SSH 密钥，并按各自端口配置组策略。
 - 状态目录由同一 Hub 实例持有。节点私钥及数据目录都应一机一份。迁移中保留当前状态目录，不要把旧的 Hub 备份恢复到仍在提供写服务的节点集群。
 
 ## 验证

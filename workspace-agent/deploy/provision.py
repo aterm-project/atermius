@@ -227,7 +227,39 @@ def enroll(args):
         with tarfile.open(tmp / "bundle.tar", "w") as tar:
             for name, file in entries.items():
                 tar.add(file, arcname=name, recursive=False)
-        run(*registration)
+        if args.prepare_only:
+            public = {
+                "node": args.node,
+                "fingerprint": hashlib.sha256(der).hexdigest(),
+                "image": image,
+                "network": args.network,
+                "host_ssh": bool(args.host_ssh_port),
+            }
+            if args.cluster:
+                public["initial_workspace"] = {
+                    "cluster": args.cluster,
+                    "port": args.port,
+                    "authorized_keys": args.keys.read_text().strip(),
+                }
+            descriptor = output.with_name(output.name + ".public.json")
+            (tmp / "public.json").write_text(json.dumps(public, indent=2) + "\n")
+            run(binary, "check-registration", tmp / "public.json")
+            if args.cluster:
+                # Only algorithm and key bytes are required by sshd. A local key
+                # comment can contain a username, machine name or other notes.
+                public["initial_workspace"]["authorized_keys"] = "\n".join(
+                    " ".join(line.split()[:2])
+                    for line in public["initial_workspace"][
+                        "authorized_keys"
+                    ].splitlines()
+                )
+                (tmp / "public.json").write_text(json.dumps(public, indent=2) + "\n")
+            os.replace(tmp / "public.json", descriptor)
+            print(
+                f"Import the public descriptor in Admin > Workspace agents: {descriptor}"
+            )
+        else:
+            run(*registration)
         os.replace(tmp / "bundle.tar", output)
     print(f"Private enrollment bundle ready: {output}")
 
@@ -246,6 +278,11 @@ def main():
     e.add_argument("--binary", type=Path, required=True)
     e.add_argument("--node", required=True)
     e.add_argument("--server", required=True)
+    e.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="prepare the private bundle and public Admin registration descriptor without registering the node",
+    )
     e.add_argument("--output", type=Path, required=True)
     e.add_argument("--image")
     e.add_argument(

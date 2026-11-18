@@ -1,6 +1,11 @@
 # Optional workspace control plane. Only the mTLS node listener is published.
 services:
   server:
+    environment:
+      ATERMIUS_WORKSPACE_ADMIN_SOCKET: /run/atermius-workspace/admin.sock
+    group_add: ["10001"]
+    volumes:
+      - workspace-admin:/run/atermius-workspace:ro
     networks:
       default: {}
       workspace-relay: {}
@@ -10,12 +15,16 @@ services:
       target: hub
     command: ["hub", "/state", "0.0.0.0:8443", "${ATERMIUS_AGENT_RELAY_IP:-172.30.83.2}"]
     user: "${ATERMIUS_AGENT_HUB_UID:-10001}:${ATERMIUS_AGENT_HUB_GID:-10001}"
+    environment:
+      ATERMIUS_WORKSPACE_ADMIN_SOCKET: /run/atermius-workspace/admin.sock
+    group_add: ["10001"]
     restart: unless-stopped
     init: true
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     volumes:
+      - workspace-admin:/run/atermius-workspace
       - type: bind
         source: "${ATERMIUS_AGENT_HUB_STATE:?Set the absolute path to the provisioned hub directory}"
         target: /state
@@ -33,3 +42,6 @@ networks:
     ipam:
       config:
         - subnet: "${ATERMIUS_AGENT_RELAY_SUBNET:-172.30.83.0/28}"
+
+volumes:
+  workspace-admin:

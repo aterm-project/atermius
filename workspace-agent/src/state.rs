@@ -12,28 +12,7 @@ use std::{
 pub const MAX_SNAPSHOT: u64 = 512 * 1024 * 1024;
 pub const MAX_CLUSTERS: usize = 256;
 
-pub fn name(s: &str) -> Result<()> {
-    ensure!(
-        !s.is_empty()
-            && s.len() <= 40
-            && s.as_bytes()[0].is_ascii_lowercase()
-            && s.bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'),
-        "invalid node or cluster name"
-    );
-    Ok(())
-}
-pub fn valid_network(s: &str) -> bool {
-    name(s).is_ok() && !matches!(s, "host" | "bridge" | "none" | "default")
-}
-pub fn sha(s: &str) -> bool {
-    s.len() == 64
-        && s.bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-pub fn image_id(s: &str) -> bool {
-    s.strip_prefix("sha256:").is_some_and(sha)
-}
+pub use atermius_workspace_admin::{Phase, image_id, name, sha, valid_network, validate_keys};
 pub fn private_dir(p: &Path) -> Result<()> {
     fs::DirBuilder::new()
         .mode(0o700)
@@ -102,15 +81,6 @@ pub struct Node {
     pub network: String,
     pub fingerprint: String,
     pub image: String,
-}
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub enum Phase {
-    Provisioning,
-    Running,
-    Snapshot,
-    Restore,
-    Fence,
-    Resume,
 }
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Blob {
@@ -375,30 +345,6 @@ impl State {
         Ok(c.snapshot.take().map(|b| (k.cluster.clone(), b)))
     }
 }
-pub fn validate_keys(s: &str) -> Result<()> {
-    ensure!(
-        !s.is_empty() && s.len() <= 16384 && s.lines().count() <= 32,
-        "supply 1 to 32 SSH public keys"
-    );
-    for line in s.lines() {
-        let mut words = line.split_ascii_whitespace();
-        let alg = words.next().unwrap_or("");
-        let key = words.next().unwrap_or("");
-        ensure!(
-            matches!(
-                alg,
-                "ssh-ed25519" | "ssh-rsa" | "ecdsa-sha2-nistp256" | "sk-ssh-ed25519@openssh.com"
-            ) && key.len() >= 32
-                && key
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b"+/=".contains(&b))
-                && !line.chars().any(char::is_control),
-            "invalid public key"
-        );
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,6 +1,6 @@
 # Atermius 在线沙箱与出口设计（提案）
 
-- 状态：**设计提案，未实现**。文中的表、路由、字段、环境变量都是待评审草案，不代表任何功能已交付。
+- 交付状态：主动回连 Agent、可选 Debian 工作区、跨节点停机迁移，以及实例管理员使用的 Server API 和网页管理页面已经实现。部署、公开登记文件和权限边界见[工作区 Agent 指南](../../workspace-agent/README.md)。通用出口选择和本文其他规划仍处于提案阶段。
 - 日期：2026-11-18。
 - 范围：Web 客户端（`serverHostedClient == true`）经服务端发起的 SSH/SFTP/Telnet/RDP/VNC 连接，其**发起位置**（目标看到的源 IP）和**可用环境**（Linux 工具环境、Windows 环境）如何提供、如何共享、如何由实例管理员管理。
 - 安全门槛：沙箱是对外暴露的服务端执行与出网能力，按 [`../cloud-collaboration-design/DESIGN.md`](../cloud-collaboration-design/DESIGN.md) 头部同一条规则处理：对象级授权、目标策略复查、并发与速率上限、凭据与日志泄露防护以及对应的负向测试必须随功能一起交付，不归入「加固放最后」。

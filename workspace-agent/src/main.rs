@@ -1,6 +1,7 @@
 mod wire {
     tonic::include_proto!("atermius.workspace.v1");
 }
+mod admin;
 mod hub;
 mod node;
 mod runtime;
@@ -17,7 +18,8 @@ atermius-agent create STATE CLUSTER NODE STABLE_SSH_PORT PUBLIC_KEYS_FILE
 atermius-agent publish-host STATE NAME NODE STABLE_SSH_PORT
 atermius-agent migrate STATE CLUSTER DESTINATION_NODE
 atermius-agent abort STATE CLUSTER
-atermius-agent status STATE";
+atermius-agent status STATE
+atermius-agent check-registration FILE";
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<_> = env::args().skip(1).collect();
@@ -29,6 +31,15 @@ async fn main() -> Result<()> {
     let path = Path::new(*a.get(1).context("missing state/config directory")?);
     let store = Store(path.into());
     match a.as_slice() {
+        ["check-registration", _] => {
+            use atermius_workspace_admin::{Command, MAX_COMMAND, Registration};
+            anyhow::ensure!(
+                fs::metadata(path)?.len() <= MAX_COMMAND as u64,
+                "descriptor too large"
+            );
+            let registration: Registration = serde_json::from_slice(&fs::read(path)?)?;
+            Command::RegisterNode { registration }.validate()?;
+        }
         ["hub", _, addr, access] => hub::serve(path, addr.parse()?, access.parse()?).await?,
         ["run", _, dir] => node::run(path, Path::new(dir)).await?,
         ["register", _, id, fp, image, network, host, rest @ ..] => {
@@ -57,15 +68,9 @@ async fn main() -> Result<()> {
                 Ok(())
             })?;
         }
-        [op @ ("disable" | "enable"), _, id] => store.update(|s| {
-            let node = s.nodes.get_mut(*id).context("unknown node")?;
-            let enabled = *op == "enable";
-            if node.enabled != enabled {
-                node.revision += 1;
-                node.enabled = enabled;
-            }
-            Ok(())
-        })?,
+        [op @ ("disable" | "enable"), _, id] => {
+            store.update(|s| s.set_enabled(id, *op == "enable", None))?
+        }
         ["create", _, id, node, port, file] => {
             let keys = fs::read_to_string(file)?;
             store.update(|s| s.create(id, node, port.parse()?, keys.trim(), false))?;
@@ -75,38 +80,7 @@ async fn main() -> Result<()> {
         }
         ["migrate", _, id, to] => store.update(|s| s.migrate(id, to))?,
         ["abort", _, id] => store.update(|s| s.abort(id))?,
-        ["status", _] => {
-            let state = store.read()?;
-            let nodes: Vec<_> = state
-                .nodes
-                .iter()
-                .map(|(id, node)| {
-                    let seen = fs::metadata(store.0.join(format!("seen-{id}")))
-                        .and_then(|m| m.modified())
-                        .ok()
-                        .and_then(|t| t.elapsed().ok())
-                        .map(|d| d.as_secs());
-                    serde_json::json!({
-                        "name": id, "enabled": node.enabled, "last_seen_seconds_ago": seen,
-                        "online": node.enabled && seen.is_some_and(|s|s<30),
-                        "network": node.network, "host_ssh": node.host_ssh
-                    })
-                })
-                .collect();
-            let clusters:Vec<_> = state.clusters.iter().map(|(id,c)| {
-                serde_json::json!({
-                    "cluster": id, "node": c.owner, "target": c.target, "phase": c.phase,
-                    "generation": c.generation, "volume_generation": c.volume, "port": c.port, "pending_cleanup": c.retired.len(),
-                    "type": if c.image.is_empty() { "host" } else { "workspace" }
-                })
-            }).collect();
-            println!(
-                "{}",
-                serde_json::to_string_pretty(
-                    &serde_json::json!({"nodes":nodes,"clusters":clusters})
-                )?
-            );
-        }
+        ["status", _] => println!("{}", serde_json::to_string_pretty(&store.overview()?)?),
         _ => bail!("{HELP}"),
     }
     Ok(())

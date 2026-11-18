@@ -1,3 +1,4 @@
+import 'package:aterm_client/api/workspace_agents.dart';
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/l10n/l10n.dart';
@@ -29,7 +30,100 @@ const _navEntry = ValueKey('home_nav_admin');
 const _panel = ValueKey('admin_panel');
 
 void main() {
+  testWidgets(
+    'native Agent section follows capability, revision and migration state',
+    (tester) async {
+      final harness = await _Harness.create(isAdmin: true);
+      try {
+        harness.app.instance = const InstanceInfo(
+          instanceId: 'test-instance',
+          serverSpaceId: 'test-space',
+          generation: '1',
+          protocolVersion: 1,
+          setupRequired: false,
+          capabilities: ['workspace_agent_admin_v1'],
+        );
+        harness.app.page = WorkspacePage.admin;
+        await _pump(tester, harness.app);
+        await openSettingsCategory(tester, 'workspace-agents');
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const PageStorageKey('workspace_node_alpha')),
+          findsOneWidget,
+        );
+        final cluster = find.byKey(
+          const PageStorageKey('workspace_cluster_lab'),
+        );
+        await tester.ensureVisible(cluster);
+        await tester.tap(
+          find.descendant(of: cluster, matching: find.text('lab')),
+        );
+        await tester.pumpAndSettle();
+        final migrate = find.byKey(const ValueKey('workspace_migrate_lab'));
+        await tester.ensureVisible(migrate);
+        await tester.tap(migrate);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('workspace_confirm')));
+        await tester.pumpAndSettle();
+        expect(harness.api.agentChanges.single, {
+          'action': 'migrate',
+          'cluster': 'lab',
+          'destination': 'beta',
+          'expected_generation': 1,
+        });
+        final abort = find.byKey(const ValueKey('workspace_abort_lab'));
+        await tester.ensureVisible(abort);
+        await tester.tap(abort);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('workspace_confirm')));
+        await tester.pumpAndSettle();
+        expect(harness.api.agentChanges.last, {
+          'action': 'abort',
+          'cluster': 'lab',
+          'expected_generation': 2,
+        });
+      } finally {
+        await _dispose(tester, harness);
+      }
+    },
+  );
+
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('losing admin access dismisses a pending node confirmation', (
+    tester,
+  ) async {
+    final h = await _Harness.create(isAdmin: true);
+    try {
+      h.app.instance = const InstanceInfo(
+        instanceId: 'id',
+        serverSpaceId: 'space',
+        generation: '1',
+        protocolVersion: 1,
+        setupRequired: false,
+        capabilities: ['workspace_agent_admin_v1'],
+      );
+      h.app.page = WorkspacePage.admin;
+      await _pump(tester, h.app);
+      await openSettingsCategory(tester, 'workspace-agents');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('alpha').first);
+      await tester.pumpAndSettle();
+      final toggle = find.byKey(const ValueKey('workspace_toggle_alpha'));
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('workspace_confirm')), findsOneWidget);
+      h.app
+        ..account = _profile(isAdmin: false)
+        ..setStage(ClientStage.workspace);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('workspace_confirm')), findsNothing);
+      expect(h.api.agentChanges, isEmpty);
+    } finally {
+      await _dispose(tester, h);
+    }
+  });
 
   testWidgets('instance admin sees the entry, the panel and every section', (
     tester,
@@ -265,41 +359,40 @@ void main() {
   });
 
   for (final isAdmin in [true, false]) {
-    testWidgets(
-      'Settings lists no instance admin section (admin: $isAdmin)',
-      (tester) async {
-        final harness = await _Harness.create(isAdmin: isAdmin);
-        try {
-          harness.app.page = WorkspacePage.settings;
-          await _pump(tester, harness.app);
-          final settings = find.byKey(const ValueKey('cloud_settings'));
-          expect(settings, findsOneWidget);
-          final ids = tester
-              .widget<SettingsScaffold>(settings)
-              .sections
-              .map((section) => section.id)
-              .toSet();
-          expect(ids.intersection(_adminSectionIds.toSet()), isEmpty);
-          expect(ids, containsAll(['workspace', 'security', 'vaults', 'about']));
-          for (final id in _adminSectionIds) {
-            expect(find.byKey(ValueKey('settings_category_$id')), findsNothing);
-          }
-          final l10n = currentL10n;
-          for (final title in [
-            l10n.instanceOverview,
-            l10n.adminPanelUsersTitle,
-            l10n.adminPanelAccessTitle,
-            l10n.backupRestoreAndMaintenance,
-            l10n.auditLog,
-          ]) {
-            expect(find.text(title), findsNothing);
-          }
-          expect(harness.api.adminCalls, 0);
-        } finally {
-          await _dispose(tester, harness);
+    testWidgets('Settings lists no instance admin section (admin: $isAdmin)', (
+      tester,
+    ) async {
+      final harness = await _Harness.create(isAdmin: isAdmin);
+      try {
+        harness.app.page = WorkspacePage.settings;
+        await _pump(tester, harness.app);
+        final settings = find.byKey(const ValueKey('cloud_settings'));
+        expect(settings, findsOneWidget);
+        final ids = tester
+            .widget<SettingsScaffold>(settings)
+            .sections
+            .map((section) => section.id)
+            .toSet();
+        expect(ids.intersection(_adminSectionIds.toSet()), isEmpty);
+        expect(ids, containsAll(['workspace', 'security', 'vaults', 'about']));
+        for (final id in _adminSectionIds) {
+          expect(find.byKey(ValueKey('settings_category_$id')), findsNothing);
         }
-      },
-    );
+        final l10n = currentL10n;
+        for (final title in [
+          l10n.instanceOverview,
+          l10n.adminPanelUsersTitle,
+          l10n.adminPanelAccessTitle,
+          l10n.backupRestoreAndMaintenance,
+          l10n.auditLog,
+        ]) {
+          expect(find.text(title), findsNothing);
+        }
+        expect(harness.api.adminCalls, 0);
+      } finally {
+        await _dispose(tester, harness);
+      }
+    });
   }
 }
 
@@ -365,6 +458,44 @@ class _AdminApi extends ApiClient {
         }),
       );
 
+  final agentChanges = <Map<String, Object?>>[];
+  @override
+  Future<WorkspaceAgentOverview> workspaceAgents() async =>
+      WorkspaceAgentOverview.fromJson({
+        'configured': true,
+        'ssh_host': '172.30.83.2',
+        'nodes': [
+          for (final name in ['alpha', 'beta'])
+            <String, dynamic>{
+              'name': name,
+              'enabled': true,
+              'revision': 1,
+              'online': true,
+              'last_seen_seconds_ago': 1,
+              'network': 'none',
+              'host_ssh': true,
+              'image': 'sha256:${'a' * 64}',
+              'fingerprint': 'b' * 64,
+            },
+        ],
+        'clusters': [
+          <String, dynamic>{
+            'cluster': 'lab',
+            'node': 'alpha',
+            'target': agentChanges.isEmpty ? null : 'beta',
+            'phase': agentChanges.isEmpty ? 'Running' : 'Snapshot',
+            'generation': agentChanges.isEmpty ? 1 : 2,
+            'port': 24001,
+            'pending_cleanup': 0,
+            'type': 'workspace',
+          },
+        ],
+      });
+  @override
+  Future<void> manageWorkspaceAgent(Map<String, Object?> command) async {
+    agentChanges.add(command);
+  }
+
   int adminCalls = 0;
   int accountListCalls = 0;
   List<Map<String, dynamic>>? accounts;
@@ -383,15 +514,17 @@ class _AdminApi extends ApiClient {
     adminCalls++;
     accountListCalls++;
     return AdminAccountPage.fromJson({
-      'accounts': accounts ?? [
-        _account(_adminId, 'admin@example.test'),
-        _account(_memberId, 'alice@example.test'),
-        _account(
-          'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-          'dana@example.test',
-          status: 'disabled',
-        ),
-      ],
+      'accounts':
+          accounts ??
+          [
+            _account(_adminId, 'admin@example.test'),
+            _account(_memberId, 'alice@example.test'),
+            _account(
+              'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+              'dana@example.test',
+              status: 'disabled',
+            ),
+          ],
       'total': accounts == null ? 3 : offset + accounts!.length,
       'limit': limit,
       'offset': offset,

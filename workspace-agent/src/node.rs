@@ -236,21 +236,22 @@ impl Node {
         let mut busy = HashSet::new();
         let mut tickets = HashSet::new();
         let mut next = HashMap::new();
+        let mut failures = HashSet::new();
         let mut connected = false;
         loop {
             while let Some(result) = jobs.try_join_next() {
                 let (id, generation, task, result): (String, u64, i32, Result<()>) = result?;
                 busy.remove(&id);
+                let stamp = (id, generation, task);
                 let pause = if let Err(e) = result {
-                    eprintln!("cluster {id}: {e:#}");
+                    eprintln!("cluster {}: {e:#}", stamp.0);
+                    failures.insert(stamp.clone());
                     8
                 } else {
+                    failures.remove(&stamp);
                     30
                 };
-                next.insert(
-                    (id, generation, task),
-                    Instant::now() + Duration::from_secs(pause),
-                );
+                next.insert(stamp, Instant::now() + Duration::from_secs(pause));
             }
             while let Some(result) = sessions.try_join_next() {
                 let (ticket, result): (String, Result<()>) = result?;
@@ -263,6 +264,17 @@ impl Node {
                 node: self.cfg.node.clone(),
                 instance: self.instance.clone(),
                 cursor,
+                failures: failures
+                    .iter()
+                    .take(crate::state::MAX_CLUSTERS)
+                    .map(|(id, g, t)| FailedJob {
+                        key: Some(Key {
+                            cluster: id.clone(),
+                            generation: *g,
+                        }),
+                        task: *t,
+                    })
+                    .collect(),
             });
             request.set_timeout(Duration::from_secs(12));
             let mut plan = match self.client.clone().poll(request).await {
@@ -297,6 +309,7 @@ impl Node {
             };
             let current: HashSet<_> = plan.jobs.iter().filter_map(job_stamp).collect();
             next.retain(|stamp, _| current.contains(stamp));
+            failures.retain(|stamp| current.contains(stamp));
             plan.jobs.sort_by_key(|j| {
                 let checked = job_stamp(j).and_then(|stamp| next.get(&stamp).copied());
                 let priority = if j.task == Task::Start as i32 && !j.acknowledge {

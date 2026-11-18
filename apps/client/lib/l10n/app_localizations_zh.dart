@@ -17561,4 +17561,161 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get openTabsAutomaticWorkspaceName => '已打开的标签页（网页版，自动）';
+
+  @override
+  String get waTitle => '工作区 Agent';
+
+  @override
+  String get waDescription => '管理外挂节点、SSH 服务和工作区迁移。';
+
+  @override
+  String get waNotConfigured =>
+      '此实例尚未启用 Workspace Hub。启用可选的 compose.agent.yaml 服务后即可在这里管理节点。';
+
+  @override
+  String get waUnavailable => '暂时无法连接 Workspace Hub。请刷新状态后再重试。';
+
+  @override
+  String get waConflict => '状态已变化或配置冲突。请刷新并核对节点、端口和迁移阶段。';
+
+  @override
+  String get waInvalid => '请检查节点或工作区名称、端口及 SSH 公钥。';
+
+  @override
+  String get waNodes => 'Agent 节点';
+
+  @override
+  String get waNoNodes => '暂无已登记节点。';
+
+  @override
+  String get waRegister => '登记节点';
+
+  @override
+  String get waDescriptor => '公开登记 JSON';
+
+  @override
+  String get waDescriptorHelp =>
+      '选择 provision.py enroll --prepare-only 生成的 .public.json 文件，或粘贴该文件的内容。';
+
+  @override
+  String get waChooseFile => '选择公开登记文件';
+
+  @override
+  String get waBadDescriptor => '请选择有效的节点公开登记文件，最大 32 KiB。';
+
+  @override
+  String get waFingerprint => '节点证书 SHA-256';
+
+  @override
+  String get waImage => '工作区镜像';
+
+  @override
+  String get waNetwork => '出口网络';
+
+  @override
+  String get waHost => '已有 SSH 服务';
+
+  @override
+  String get waWorkspace => 'Docker 工作区';
+
+  @override
+  String get waEnable => '启用节点';
+
+  @override
+  String get waDisable => '停用节点';
+
+  @override
+  String get waDisableInfo => '停用会撤销此节点的访问，并断开它承载的 SSH 连接。';
+
+  @override
+  String get waOnline => '在线';
+
+  @override
+  String get waNeverSeen => '等待首次回连';
+
+  @override
+  String waLastSeen(int seconds) {
+    return '上次心跳在 $seconds 秒前';
+  }
+
+  @override
+  String get waClusters => '工作区与 SSH 服务';
+
+  @override
+  String get waNoClusters => '暂无工作区或已发布的 SSH 服务。';
+
+  @override
+  String get waCreate => '创建工作区';
+
+  @override
+  String get waPublish => '发布已有 SSH 服务';
+
+  @override
+  String get waNode => '节点';
+
+  @override
+  String get waKeys => '允许登录的 SSH 公钥，每行一把';
+
+  @override
+  String get waNameHint => '以小写字母开头，最多 40 个小写字母、数字或连字符。';
+
+  @override
+  String get waPortHint => '固定 SSH 端口（1024–65535）';
+
+  @override
+  String get waMigrate => '迁移';
+
+  @override
+  String get waTarget => '目标节点';
+
+  @override
+  String get waMigrationHelp =>
+      '迁移会停止工作区并断开 SSH 会话，保留文件、SSH 地址和主机指纹。目标节点须使用相同镜像及出口网络。';
+
+  @override
+  String get waAbort => '取消迁移';
+
+  @override
+  String get waAbortInfo => 'Hub 会按需停写目标节点，再恢复源工作区。';
+
+  @override
+  String waPhase(String phase) {
+    String _temp0 = intl.Intl.selectLogic(phase, {
+      'Provisioning': '正在开通',
+      'Running': '运行中',
+      'Snapshot': '正在保存快照',
+      'Restore': '正在恢复快照',
+      'Fence': '正在停止目标端',
+      'Resume': '正在恢复源端',
+      'other': '未知',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String waSnapshot(int size) {
+    return '快照 · $size 字节';
+  }
+
+  @override
+  String waCleanup(int count) {
+    return '待清理旧卷 · $count';
+  }
+
+  @override
+  String get waAccess => 'Relay 访问策略';
+
+  @override
+  String get waNodeDetails => '节点详情';
+
+  @override
+  String get waNoTarget => '暂无兼容的目标节点';
+
+  @override
+  String get waInitial => '初始工作区';
+
+  @override
+  String waRetrying(String node) {
+    return '$node 正在重试此操作，详情见该节点的 Agent 日志。';
+  }
 }

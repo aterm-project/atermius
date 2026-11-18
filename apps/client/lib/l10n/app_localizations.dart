@@ -30999,6 +30999,276 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open tabs (web, automatic)'**
   String get openTabsAutomaticWorkspaceName;
+
+  /// No description provided for @waTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace agents'**
+  String get waTitle;
+
+  /// No description provided for @waDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage external nodes, SSH services and workspace migrations.'**
+  String get waDescription;
+
+  /// No description provided for @waNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace Hub is turned off on this server. Enable the optional compose.agent.yaml service to manage nodes here.'**
+  String get waNotConfigured;
+
+  /// No description provided for @waUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot reach Workspace Hub. Refresh the status before retrying.'**
+  String get waUnavailable;
+
+  /// No description provided for @waConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'The state changed or these settings conflict. Refresh and check the node, port and migration phase.'**
+  String get waConflict;
+
+  /// No description provided for @waInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the node or workspace name, port and public keys.'**
+  String get waInvalid;
+
+  /// No description provided for @waNodes.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent nodes'**
+  String get waNodes;
+
+  /// No description provided for @waNoNodes.
+  ///
+  /// In en, this message translates to:
+  /// **'No nodes registered.'**
+  String get waNoNodes;
+
+  /// No description provided for @waRegister.
+  ///
+  /// In en, this message translates to:
+  /// **'Register node'**
+  String get waRegister;
+
+  /// No description provided for @waDescriptor.
+  ///
+  /// In en, this message translates to:
+  /// **'Public registration JSON'**
+  String get waDescriptor;
+
+  /// No description provided for @waDescriptorHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Import the .public.json file from provision.py enroll --prepare-only, or paste its contents.'**
+  String get waDescriptorHelp;
+
+  /// No description provided for @waChooseFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose public JSON'**
+  String get waChooseFile;
+
+  /// No description provided for @waBadDescriptor.
+  ///
+  /// In en, this message translates to:
+  /// **'Expected a public node descriptor, up to 32 KiB.'**
+  String get waBadDescriptor;
+
+  /// No description provided for @waFingerprint.
+  ///
+  /// In en, this message translates to:
+  /// **'Node certificate SHA-256'**
+  String get waFingerprint;
+
+  /// No description provided for @waImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace image'**
+  String get waImage;
+
+  /// No description provided for @waNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Egress network'**
+  String get waNetwork;
+
+  /// No description provided for @waHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing SSH service'**
+  String get waHost;
+
+  /// No description provided for @waWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Docker workspace'**
+  String get waWorkspace;
+
+  /// No description provided for @waEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable node'**
+  String get waEnable;
+
+  /// No description provided for @waDisable.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable node'**
+  String get waDisable;
+
+  /// No description provided for @waDisableInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabling this node revokes its access and disconnects its SSH streams.'**
+  String get waDisableInfo;
+
+  /// No description provided for @waOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get waOnline;
+
+  /// No description provided for @waNeverSeen.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting first connection'**
+  String get waNeverSeen;
+
+  /// No description provided for @waLastSeen.
+  ///
+  /// In en, this message translates to:
+  /// **'Last seen {seconds}s ago'**
+  String waLastSeen(int seconds);
+
+  /// No description provided for @waClusters.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspaces and SSH services'**
+  String get waClusters;
+
+  /// No description provided for @waNoClusters.
+  ///
+  /// In en, this message translates to:
+  /// **'No workspaces or SSH services published.'**
+  String get waNoClusters;
+
+  /// No description provided for @waCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create workspace'**
+  String get waCreate;
+
+  /// No description provided for @waPublish.
+  ///
+  /// In en, this message translates to:
+  /// **'Publish SSH service'**
+  String get waPublish;
+
+  /// No description provided for @waNode.
+  ///
+  /// In en, this message translates to:
+  /// **'Node'**
+  String get waNode;
+
+  /// No description provided for @waKeys.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorized SSH public keys, one per line'**
+  String get waKeys;
+
+  /// No description provided for @waNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Start with a lowercase letter. Use up to 40 lowercase letters, digits or hyphens.'**
+  String get waNameHint;
+
+  /// No description provided for @waPortHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Stable SSH port (1024–65535)'**
+  String get waPortHint;
+
+  /// No description provided for @waMigrate.
+  ///
+  /// In en, this message translates to:
+  /// **'Migrate'**
+  String get waMigrate;
+
+  /// No description provided for @waTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Destination node'**
+  String get waTarget;
+
+  /// No description provided for @waMigrationHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Migration stops the workspace and its SSH sessions. Files, SSH address and host key are preserved. The destination must use the same image and egress network.'**
+  String get waMigrationHelp;
+
+  /// No description provided for @waAbort.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel migration'**
+  String get waAbort;
+
+  /// No description provided for @waAbortInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'The Hub will stop the destination if necessary and resume the source workspace.'**
+  String get waAbortInfo;
+
+  /// No description provided for @waPhase.
+  ///
+  /// In en, this message translates to:
+  /// **'{phase, select, Provisioning{Provisioning} Running{Running} Snapshot{Saving snapshot} Restore{Restoring snapshot} Fence{Stopping destination} Resume{Resuming source} other{Unknown}}'**
+  String waPhase(String phase);
+
+  /// No description provided for @waSnapshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Snapshot · {size} bytes'**
+  String waSnapshot(int size);
+
+  /// No description provided for @waCleanup.
+  ///
+  /// In en, this message translates to:
+  /// **'Old volumes awaiting cleanup · {count}'**
+  String waCleanup(int count);
+
+  /// No description provided for @waAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Relay access policies'**
+  String get waAccess;
+
+  /// No description provided for @waNodeDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Node details'**
+  String get waNodeDetails;
+
+  /// No description provided for @waNoTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'No compatible destination'**
+  String get waNoTarget;
+
+  /// No description provided for @waInitial.
+  ///
+  /// In en, this message translates to:
+  /// **'Initial workspace'**
+  String get waInitial;
+
+  /// No description provided for @waRetrying.
+  ///
+  /// In en, this message translates to:
+  /// **'{node} is retrying this operation. Check the agent log for details.'**
+  String waRetrying(String node);
 }
 
 class _AppLocalizationsDelegate

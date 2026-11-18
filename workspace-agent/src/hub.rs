@@ -47,6 +47,7 @@ struct Hub {
     pending: Arc<Mutex<HashMap<String, Pending>>>,
     signal: watch::Sender<u64>,
     transfers: Arc<Semaphore>,
+    progress: crate::admin::Transfers,
     sessions: Arc<Semaphore>,
 }
 fn fault(e: impl std::fmt::Display) -> Status {
@@ -260,7 +261,22 @@ impl Workspace for Hub {
             .filter(|p| p.node == id)
             .map(|p| p.open.clone())
             .collect();
-        std::fs::write(self.store.0.join(format!("seen-{id}")), b"").map_err(fault)?;
+        let reported: std::collections::HashSet<_> = hello
+            .failures
+            .into_iter()
+            .take(state::MAX_CLUSTERS)
+            .filter_map(|f| f.key.map(|k| (k.cluster, k.generation, f.task)))
+            .collect();
+        let failures: Vec<_> = jobs
+            .iter()
+            .filter_map(|job| {
+                let k = job.key.as_ref()?;
+                let stamp = (k.cluster.clone(), k.generation, job.task);
+                reported.contains(&stamp).then_some(stamp)
+            })
+            .collect();
+        let seen = self.store.0.join(format!("seen-{id}"));
+        std::fs::write(seen, serde_json::to_vec(&failures).map_err(fault)?).map_err(fault)?;
         Ok(Response::new(Plan {
             jobs,
             sessions,
@@ -319,6 +335,7 @@ impl Workspace for Hub {
         let mut out = tokio::fs::File::from_std(temp.reopen().map_err(fault)?);
         let mut hash = Sha256::new();
         let mut size = 0u64;
+        let progress = self.progress.begin(&k, Phase::Snapshot, h.size);
         let deadline = tokio::time::Instant::now() + Duration::from_secs(1800);
         let mut checked = Instant::now();
         while let Some(p) = tokio::time::timeout_at(deadline, message(&mut stream))
@@ -338,6 +355,7 @@ impl Workspace for Hub {
             }
             out.write_all(&b).await.map_err(fault)?;
             hash.update(&b);
+            progress.add(b.len());
         }
         if size != h.size || hex::encode(hash.finalize()) != h.digest {
             return Err(Status::data_loss("snapshot checksum or length mismatch"));
@@ -384,6 +402,7 @@ impl Workspace for Hub {
         let mut f = tokio::fs::File::open(self.store.blob(&k.cluster, b.generation, &b.digest))
             .await
             .map_err(fault)?;
+        let progress = self.progress.begin(&k, Phase::Restore, b.size);
         let store = self.store.clone();
         let revision = s.nodes[&node].revision;
         let (tx, rx) = mpsc::channel(4);
@@ -420,6 +439,7 @@ impl Workspace for Hub {
                         ) {
                             break;
                         }
+                        progress.add(n);
                     }
                     Err(e) => {
                         let _ = tx.send(Err(fault(e))).await;
@@ -562,16 +582,34 @@ pub async fn serve(dir: &Path, addr: SocketAddr, access: IpAddr) -> Result<()> {
         pending: Default::default(),
         signal: watch::channel(1).0,
         transfers: Arc::new(Semaphore::new(4)),
+        progress: Default::default(),
         sessions: Arc::new(Semaphore::new(128)),
     };
+    let admin_listener = match std::env::var_os("ATERMIUS_WORKSPACE_ADMIN_SOCKET") {
+        Some(path) => Some(crate::admin::bind(Path::new(&path)).await?),
+        None => None,
+    };
     let routes = tokio::spawn(hub.clone().listen_routes(access));
-    let result = Server::builder()
+    let admin = async {
+        if let Some(listener) = admin_listener {
+            crate::admin::serve(
+                listener,
+                hub.store.clone(),
+                access,
+                hub.signal.clone(),
+                hub.progress.clone(),
+            )
+            .await
+        } else {
+            std::future::pending().await
+        }
+    };
+    let server = Server::builder()
         .tls_config(tls)?
         .concurrency_limit_per_connection(128)
-        .add_service(WorkspaceServer::new(hub).max_decoding_message_size(128 * 1024))
-        .serve(addr)
-        .await;
+        .add_service(WorkspaceServer::new(hub.clone()).max_decoding_message_size(128 * 1024))
+        .serve(addr);
+    let result = tokio::select! {result=server=>result.map_err(Into::into),result=admin=>result};
     routes.abort();
-    result?;
-    Ok(())
+    result
 }

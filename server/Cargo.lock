@@ -37,6 +37,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.102"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
+
+[[package]]
 name = "arc-swap"
 version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -62,6 +68,7 @@ name = "atermius-server"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "atermius-workspace-admin",
  "aws-config",
  "aws-credential-types",
  "aws-sdk-s3",
@@ -100,6 +107,17 @@ dependencies = [
  "url",
  "uuid",
  "zeroize",
+]
+
+[[package]]
+name = "atermius-workspace-admin"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

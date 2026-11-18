@@ -19607,4 +19607,169 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get openTabsAutomaticWorkspaceName => 'Open tabs (web, automatic)';
+
+  @override
+  String get waTitle => 'Workspace agents';
+
+  @override
+  String get waDescription =>
+      'Manage external nodes, SSH services and workspace migrations.';
+
+  @override
+  String get waNotConfigured =>
+      'Workspace Hub is turned off on this server. Enable the optional compose.agent.yaml service to manage nodes here.';
+
+  @override
+  String get waUnavailable =>
+      'Cannot reach Workspace Hub. Refresh the status before retrying.';
+
+  @override
+  String get waConflict =>
+      'The state changed or these settings conflict. Refresh and check the node, port and migration phase.';
+
+  @override
+  String get waInvalid =>
+      'Check the node or workspace name, port and public keys.';
+
+  @override
+  String get waNodes => 'Agent nodes';
+
+  @override
+  String get waNoNodes => 'No nodes registered.';
+
+  @override
+  String get waRegister => 'Register node';
+
+  @override
+  String get waDescriptor => 'Public registration JSON';
+
+  @override
+  String get waDescriptorHelp =>
+      'Import the .public.json file from provision.py enroll --prepare-only, or paste its contents.';
+
+  @override
+  String get waChooseFile => 'Choose public JSON';
+
+  @override
+  String get waBadDescriptor =>
+      'Expected a public node descriptor, up to 32 KiB.';
+
+  @override
+  String get waFingerprint => 'Node certificate SHA-256';
+
+  @override
+  String get waImage => 'Workspace image';
+
+  @override
+  String get waNetwork => 'Egress network';
+
+  @override
+  String get waHost => 'Existing SSH service';
+
+  @override
+  String get waWorkspace => 'Docker workspace';
+
+  @override
+  String get waEnable => 'Enable node';
+
+  @override
+  String get waDisable => 'Disable node';
+
+  @override
+  String get waDisableInfo =>
+      'Disabling this node revokes its access and disconnects its SSH streams.';
+
+  @override
+  String get waOnline => 'Online';
+
+  @override
+  String get waNeverSeen => 'Awaiting first connection';
+
+  @override
+  String waLastSeen(int seconds) {
+    return 'Last seen ${seconds}s ago';
+  }
+
+  @override
+  String get waClusters => 'Workspaces and SSH services';
+
+  @override
+  String get waNoClusters => 'No workspaces or SSH services published.';
+
+  @override
+  String get waCreate => 'Create workspace';
+
+  @override
+  String get waPublish => 'Publish SSH service';
+
+  @override
+  String get waNode => 'Node';
+
+  @override
+  String get waKeys => 'Authorized SSH public keys, one per line';
+
+  @override
+  String get waNameHint =>
+      'Start with a lowercase letter. Use up to 40 lowercase letters, digits or hyphens.';
+
+  @override
+  String get waPortHint => 'Stable SSH port (1024–65535)';
+
+  @override
+  String get waMigrate => 'Migrate';
+
+  @override
+  String get waTarget => 'Destination node';
+
+  @override
+  String get waMigrationHelp =>
+      'Migration stops the workspace and its SSH sessions. Files, SSH address and host key are preserved. The destination must use the same image and egress network.';
+
+  @override
+  String get waAbort => 'Cancel migration';
+
+  @override
+  String get waAbortInfo =>
+      'The Hub will stop the destination if necessary and resume the source workspace.';
+
+  @override
+  String waPhase(String phase) {
+    String _temp0 = intl.Intl.selectLogic(phase, {
+      'Provisioning': 'Provisioning',
+      'Running': 'Running',
+      'Snapshot': 'Saving snapshot',
+      'Restore': 'Restoring snapshot',
+      'Fence': 'Stopping destination',
+      'Resume': 'Resuming source',
+      'other': 'Unknown',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String waSnapshot(int size) {
+    return 'Snapshot · $size bytes';
+  }
+
+  @override
+  String waCleanup(int count) {
+    return 'Old volumes awaiting cleanup · $count';
+  }
+
+  @override
+  String get waAccess => 'Relay access policies';
+
+  @override
+  String get waNodeDetails => 'Node details';
+
+  @override
+  String get waNoTarget => 'No compatible destination';
+
+  @override
+  String get waInitial => 'Initial workspace';
+
+  @override
+  String waRetrying(String node) {
+    return '$node is retrying this operation. Check the agent log for details.';
+  }
 }

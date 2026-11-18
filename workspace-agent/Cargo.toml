@@ -6,6 +6,7 @@ license = "AGPL-3.0-or-later"
 description = "Outbound authenticated workspace nodes for Atermius Server"
 
 [dependencies]
+atermius-workspace-admin = { path = "admin-protocol" }
 anyhow = "1"
 hex = "0.4"
 prost = "0.14"

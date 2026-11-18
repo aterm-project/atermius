@@ -143,6 +143,7 @@ mod recovery;
 mod password_keyring;
 mod relay;
 mod relay_groups;
+mod workspace_admin;
 mod secure_file;
 mod share_gateway;
 mod share_guest;
@@ -1261,6 +1262,7 @@ pub async fn run_maintenance(state: &AppState) -> Result<(), ApiError> {
 
 pub async fn router(state: AppState) -> Router {
     let mut app = Router::new()
+        .merge(workspace_admin::routes())
         .route("/health/live", get(health_live))
         .route("/health/ready", get(health_ready))
         .route("/api/v1/instance", get(instance_info))
@@ -1715,6 +1717,9 @@ fn pg_sync_route_is_supported(method: &Method, path: &str) -> bool {
     }
     if path == "/relay/v1/connect" || path == "/desktop/v1/connect" {
         return method == Method::GET;
+    }
+    if path == "/api/v1/admin/workspace-agents" {
+        return method == Method::GET || method == Method::POST;
     }
     if path == "/api/v1/admin/relay-policy" {
         return method == Method::GET || method == Method::PUT;
@@ -2982,6 +2987,7 @@ async fn instance_info(
                 ]
             };
             c.push("password_device_enrollment");
+            c.push("workspace_agent_admin_v1");
             if !state.pg_sync_only
                 && state.config.relay_enabled
                 && !state.config.relay_allow_cidrs.is_empty()

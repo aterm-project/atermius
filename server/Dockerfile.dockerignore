@@ -10,3 +10,9 @@
 !server/migrations/**
 !server/openapi.yaml
 !server/Dockerfile
+
+!workspace-agent/
+!workspace-agent/admin-protocol/
+!workspace-agent/admin-protocol/Cargo.toml
+!workspace-agent/admin-protocol/src/
+!workspace-agent/admin-protocol/src/**

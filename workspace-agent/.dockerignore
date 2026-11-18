@@ -6,3 +6,8 @@
 !proto/**
 !src/
 !src/**
+
+!admin-protocol/
+!admin-protocol/Cargo.toml
+!admin-protocol/src/
+!admin-protocol/src/**

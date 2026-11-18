@@ -120,6 +120,7 @@ import '../l10n/l10n.dart';
 import 'app_language_settings.dart';
 import 'account_settings.dart';
 import 'admin_panel.dart';
+import 'admin_workspace_agents.dart';
 // credential-visibility
 import 'credential_visibility/credential_visibility_admin_ui.dart';
 import 'credential_visibility/credential_visibility_widgets.dart';
@@ -3525,7 +3526,7 @@ class _WorkspacePage extends StatelessWidget {
       ),
       WorkspacePage.admin => AdminPanel(
         app: app,
-        sections: _adminPanelSections,
+        sections: _adminPanelSections(onQuickConnect),
       ),
     };
   }
@@ -16563,7 +16564,9 @@ class _SettingsPage extends StatelessWidget {
 /// another global function later (for example an online sandbox), append an
 /// [AdminPanelSection] with its own id, labels and builder; use `available`
 /// when the instance may not offer it.
-final List<AdminPanelSection> _adminPanelSections = [
+List<AdminPanelSection> _adminPanelSections(
+  ValueChanged<QuickConnectRequest> onQuickConnect,
+) => [
   AdminPanelSection(
     id: 'instance',
     icon: Icons.dns_outlined,
@@ -16613,6 +16616,22 @@ final List<AdminPanelSection> _adminPanelSections = [
         if (credentialVisibilitySupported(app))
           CredentialVisibilityAdminCard(app: app),
       ],
+    ),
+  ),
+  AdminPanelSection(
+    id: 'workspace-agents',
+    icon: Icons.hub_outlined,
+    title: (l10n) => l10n.waTitle,
+    description: (l10n) => l10n.waDescription,
+    available: (app) =>
+        app.instance?.capabilities.contains('workspace_agent_admin_v1') ?? false,
+    builder: (_, app) => WorkspaceAgentsAdmin(
+      key: ValueKey((
+        app, app.api, app.session?.accountId, app.session?.deviceId,
+        app.instance?.instanceId, app.instance?.generation,
+      )),
+      app: app,
+      onConnect: onQuickConnect,
     ),
   ),
   AdminPanelSection(

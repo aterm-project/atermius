@@ -1223,6 +1223,39 @@ paths:
         '401': {description: AUTH_REQUIRED for missing, invalid, expired, or revoked session}
         '403': {description: INSTANCE_ADMIN_REQUIRED for authenticated caller outside the allowlist}
         '400': {description: INVALID_REQUEST when a non-empty request body is supplied}
+  /admin/workspace-agents:
+    get:
+      summary: List enrolled workspace nodes and portable clusters
+      description: Requires a current instance administrator. If the optional management socket is not configured, returns configured=false and empty lists. Node credentials, authorized keys and snapshot contents are never returned.
+      responses:
+        '200':
+          description: Current Hub view, with byte counts only while a snapshot is being transferred
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WorkspaceAdminOverview'}
+        '401': {description: Authentication required}
+        '403': {description: Instance administrator required}
+        '503': {description: Configured Hub is unavailable}
+    post:
+      summary: Submit a typed Workspace Hub administrative action
+      description: Node enablement checks the displayed revision. Migration and cancellation check the displayed cluster generation in the Hub transaction. Registration can atomically create an initial workspace. HTTP success acknowledges a desired-state change; poll GET for execution progress.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WorkspaceAdminAction'}
+      responses:
+        '200':
+          description: Hub accepted the action
+          content:
+            application/json:
+              schema: {type: object, required: [accepted], properties: {accepted: {type: boolean, enum: [true]}}}
+        '400': {description: Invalid action or field}
+        '401': {description: Authentication required}
+        '403': {description: Instance administrator required}
+        '409': {description: Stale revision or generation, incompatible destination, occupied port or conflicting identity}
+        '413': {description: Request exceeds 32 KiB}
+        '503': {description: Hub unavailable or outcome unconfirmed; refresh before retrying}
   /admin/relay-policy:
     get:
       summary: Read the durable administrator-selected SSH Relay policy
@@ -3688,6 +3721,120 @@ paths:
     get: {summary: Readiness, security: [], responses: {'200': {description: Ready}}}
 components:
   schemas:
+    WorkspaceAdminName:
+      type: string
+      pattern: '^[a-z][a-z0-9-]{0,39}$'
+    WorkspaceInitialCluster:
+      type: object
+      additionalProperties: false
+      required: [cluster, port, authorized_keys]
+      properties:
+        cluster: {$ref: '#/components/schemas/WorkspaceAdminName'}
+        port: {type: integer, minimum: 1024, maximum: 65535}
+        authorized_keys: {type: string, maxLength: 16384, description: Up to 32 SSH public keys}
+    WorkspaceRegistration:
+      type: object
+      additionalProperties: false
+      required: [node, fingerprint, network, host_ssh]
+      properties:
+        node: {$ref: '#/components/schemas/WorkspaceAdminName'}
+        fingerprint: {type: string, pattern: '^[0-9a-f]{64}$'}
+        image: {type: string, pattern: '^(sha256:[0-9a-f]{64})?$'}
+        network: {type: string}
+        host_ssh: {type: boolean}
+        initial_workspace: {$ref: '#/components/schemas/WorkspaceInitialCluster'}
+    WorkspaceAdminOverview:
+      type: object
+      required: [configured, ssh_host, nodes, clusters]
+      properties:
+        configured: {type: boolean}
+        ssh_host: {type: [string, 'null']}
+        nodes:
+          type: array
+          items:
+            type: object
+            required: [name, enabled, revision, online, last_seen_seconds_ago, network, host_ssh, image, fingerprint]
+            properties:
+              name: {$ref: '#/components/schemas/WorkspaceAdminName'}
+              enabled: {type: boolean}
+              revision: {type: integer}
+              online: {type: boolean}
+              last_seen_seconds_ago: {type: [integer, 'null']}
+              network: {type: string}
+              host_ssh: {type: boolean}
+              image: {type: string}
+              fingerprint: {type: string}
+        clusters:
+          type: array
+          items:
+            type: object
+            required: [cluster, node, target, phase, generation, volume_generation, port, pending_cleanup, type, snapshot_bytes, transfer, retrying_on]
+            properties:
+              cluster: {$ref: '#/components/schemas/WorkspaceAdminName'}
+              node: {$ref: '#/components/schemas/WorkspaceAdminName'}
+              target: {type: [string, 'null']}
+              phase: {type: string, enum: [Provisioning, Running, Snapshot, Restore, Fence, Resume]}
+              generation: {type: integer}
+              volume_generation: {type: integer}
+              port: {type: integer}
+              pending_cleanup: {type: integer}
+              type: {type: string, enum: [host, workspace]}
+              snapshot_bytes: {type: [integer, 'null']}
+              retrying_on: {type: [string, 'null']}
+              transfer:
+                type: [object, 'null']
+                required: [bytes, total]
+                properties:
+                  bytes: {type: integer}
+                  total: {type: integer}
+    WorkspaceAdminAction:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [action, registration]
+          properties:
+            action: {type: string, enum: [register_node]}
+            registration: {$ref: '#/components/schemas/WorkspaceRegistration'}
+        - type: object
+          additionalProperties: false
+          required: [action, node, enabled, expected_revision]
+          properties:
+            action: {type: string, enum: [set_node_enabled]}
+            node: {$ref: '#/components/schemas/WorkspaceAdminName'}
+            enabled: {type: boolean}
+            expected_revision: {type: integer, minimum: 1}
+        - type: object
+          additionalProperties: false
+          required: [action, cluster, node, port, authorized_keys]
+          properties:
+            action: {type: string, enum: [create_workspace]}
+            cluster: {$ref: '#/components/schemas/WorkspaceAdminName'}
+            node: {$ref: '#/components/schemas/WorkspaceAdminName'}
+            port: {type: integer, minimum: 1024, maximum: 65535}
+            authorized_keys: {type: string, maxLength: 16384}
+        - type: object
+          additionalProperties: false
+          required: [action, cluster, node, port]
+          properties:
+            action: {type: string, enum: [publish_host]}
+            cluster: {$ref: '#/components/schemas/WorkspaceAdminName'}
+            node: {$ref: '#/components/schemas/WorkspaceAdminName'}
+            port: {type: integer, minimum: 1024, maximum: 65535}
+        - type: object
+          additionalProperties: false
+          required: [action, cluster, destination, expected_generation]
+          properties:
+            action: {type: string, enum: [migrate]}
+            cluster: {$ref: '#/components/schemas/WorkspaceAdminName'}
+            destination: {$ref: '#/components/schemas/WorkspaceAdminName'}
+            expected_generation: {type: integer, minimum: 1}
+        - type: object
+          additionalProperties: false
+          required: [action, cluster, expected_generation]
+          properties:
+            action: {type: string, enum: [abort]}
+            cluster: {$ref: '#/components/schemas/WorkspaceAdminName'}
+            expected_generation: {type: integer, minimum: 1}
     TerminalSessionCreate:
       type: object
       additionalProperties: false

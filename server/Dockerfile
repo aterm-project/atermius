@@ -3,6 +3,7 @@
 # and make shipped in the rust:bookworm image); the runtime needs no OpenSSL.
 FROM rust:1.94.1-bookworm AS server-build
 WORKDIR /src
+COPY workspace-agent/admin-protocol /src/workspace-agent/admin-protocol
 COPY server/Cargo.toml server/Cargo.lock ./server/
 COPY server/migrations ./server/migrations
 COPY server/src ./server/src
@@ -24,6 +25,7 @@ ENV ATERMIUS_DATA_DIR=/data \
 VOLUME ["/data", "/object-store"]
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 CMD ["/usr/local/bin/atermius-server", "healthcheck"]
+RUN install -d -m 2770 -o 10001 -g 10001 /run/atermius-workspace
 USER aterm
 ENTRYPOINT ["/usr/local/bin/atermius-server"]
 CMD ["serve"]

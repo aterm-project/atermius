@@ -9,6 +9,7 @@ import '../attachments/attachment_file_saver.dart'
 import 'browser_offline_signal.dart' as browser;
 import 'insecure_server.dart';
 import 'server_transport.dart';
+import 'workspace_agents.dart';
 import '../domain/conflict_feed.dart';
 import '../l10n/l10n.dart';
 
@@ -4709,6 +4710,16 @@ class ApiClient {
   /// Native clients set this as the exact Origin header expected by the
   /// notification service. Browsers set their page origin automatically.
   String get notificationsOrigin => Uri.parse(baseUrl).origin;
+
+  Future<WorkspaceAgentOverview> workspaceAgents() async =>
+      WorkspaceAgentOverview.fromJson(await get('/api/v1/admin/workspace-agents'));
+
+  Future<void> manageWorkspaceAgent(Map<String, Object?> command) async {
+    final response = await post('/api/v1/admin/workspace-agents', command);
+    if (response['accepted'] != true) {
+      throw const FormatException('Invalid workspace acknowledgement');
+    }
+  }
 
   /// Creates an ephemeral, host-owned collaboration room. The request contains
   /// only signed opaque observer keyboxes; the server never receives the

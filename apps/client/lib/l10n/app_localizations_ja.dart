@@ -18476,4 +18476,161 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get openTabsAutomaticWorkspaceName => '開いているタブ（Web 版、自動）';
+
+  @override
+  String get waTitle => 'ワークスペースエージェント';
+
+  @override
+  String get waDescription => '外部ノード、SSH サービス、ワークスペースの移行を管理します。';
+
+  @override
+  String get waNotConfigured =>
+      'Workspace Hub は無効です。compose.agent.yaml のサービスを有効にするとノードを管理できます。';
+
+  @override
+  String get waUnavailable => 'Workspace Hub に接続できません。再試行する前に状態を更新してください。';
+
+  @override
+  String get waConflict => '状態が変わったか設定が競合しています。ノード、ポート、移行状態を確認してください。';
+
+  @override
+  String get waInvalid => 'ノード名、ワークスペース名、ポート、公開鍵を確認してください。';
+
+  @override
+  String get waNodes => 'エージェントノード';
+
+  @override
+  String get waNoNodes => '登録済みのノードはありません。';
+
+  @override
+  String get waRegister => 'ノードを登録';
+
+  @override
+  String get waDescriptor => '公開登録 JSON';
+
+  @override
+  String get waDescriptorHelp =>
+      'provision.py enroll --prepare-only が生成した .public.json を読み込むか、内容を貼り付けます。';
+
+  @override
+  String get waChooseFile => '公開 JSON を選択';
+
+  @override
+  String get waBadDescriptor => '32 KiB 以下の有効な公開登録ファイルを指定してください。';
+
+  @override
+  String get waFingerprint => 'ノード証明書 SHA-256';
+
+  @override
+  String get waImage => 'ワークスペースイメージ';
+
+  @override
+  String get waNetwork => '送信ネットワーク';
+
+  @override
+  String get waHost => '既存の SSH サービス';
+
+  @override
+  String get waWorkspace => 'Docker ワークスペース';
+
+  @override
+  String get waEnable => 'ノードを有効化';
+
+  @override
+  String get waDisable => 'ノードを無効化';
+
+  @override
+  String get waDisableInfo => '無効にするとノードのアクセスが取り消され、SSH 接続が切断されます。';
+
+  @override
+  String get waOnline => 'オンライン';
+
+  @override
+  String get waNeverSeen => '初回の接続待ち';
+
+  @override
+  String waLastSeen(int seconds) {
+    return '最終接続は $seconds 秒前';
+  }
+
+  @override
+  String get waClusters => 'ワークスペースと SSH サービス';
+
+  @override
+  String get waNoClusters => 'ワークスペースや公開済みの SSH サービスはありません。';
+
+  @override
+  String get waCreate => 'ワークスペースを作成';
+
+  @override
+  String get waPublish => 'SSH サービスを公開';
+
+  @override
+  String get waNode => 'ノード';
+
+  @override
+  String get waKeys => '許可する SSH 公開鍵（1 行に 1 個）';
+
+  @override
+  String get waNameHint => '小文字で開始し、小文字、数字、ハイフンを最大 40 文字まで使用できます。';
+
+  @override
+  String get waPortHint => '固定 SSH ポート（1024～65535）';
+
+  @override
+  String get waMigrate => '移行';
+
+  @override
+  String get waTarget => '移行先ノード';
+
+  @override
+  String get waMigrationHelp =>
+      '移行中はワークスペースと SSH セッションを停止します。ファイル、SSH アドレス、ホスト鍵は保持され、同じイメージと送信ネットワークが必要です。';
+
+  @override
+  String get waAbort => '移行を取り消す';
+
+  @override
+  String get waAbortInfo => '必要に応じて移行先を停止し、移行元を再開します。';
+
+  @override
+  String waPhase(String phase) {
+    String _temp0 = intl.Intl.selectLogic(phase, {
+      'Provisioning': '準備中',
+      'Running': '稼働中',
+      'Snapshot': 'スナップショットを保存中',
+      'Restore': 'スナップショットを復元中',
+      'Fence': '移行先を停止中',
+      'Resume': '移行元を再開中',
+      'other': '不明',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String waSnapshot(int size) {
+    return 'スナップショット · $size バイト';
+  }
+
+  @override
+  String waCleanup(int count) {
+    return '削除待ちの旧ボリューム · $count';
+  }
+
+  @override
+  String get waAccess => 'Relay アクセスポリシー';
+
+  @override
+  String get waNodeDetails => 'ノード詳細';
+
+  @override
+  String get waNoTarget => '互換性のある移行先がありません';
+
+  @override
+  String get waInitial => '初期ワークスペース';
+
+  @override
+  String waRetrying(String node) {
+    return '$node が操作を再試行中です。詳細はエージェントログを確認してください。';
+  }
 }

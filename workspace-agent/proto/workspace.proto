@@ -16,6 +16,8 @@ message Hello {
   string node = 1;
   uint64 cursor = 2;
   string instance = 3;
+  // Only job identities are reported; error output stays on the node.
+  repeated FailedJob failures = 4;
 }
 message Key {
   string cluster = 1;
@@ -28,6 +30,10 @@ enum Task {
   RESTORE = 2;
   RETIRE = 3;
   FENCE = 4;
+}
+message FailedJob {
+  Key key = 1;
+  Task task = 2;
 }
 message Completion {
   Key key = 1;

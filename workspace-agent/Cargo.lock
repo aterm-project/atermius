@@ -33,6 +33,7 @@ name = "atermius-agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "atermius-workspace-admin",
  "hex",
  "prost",
  "serde",
@@ -45,6 +46,17 @@ dependencies = [
  "tonic-prost",
  "tonic-prost-build",
  "uuid",
+]
+
+[[package]]
+name = "atermius-workspace-admin"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
