@@ -916,7 +916,7 @@ Keep each old key paired with the encrypted backups that still require it.
 ### Manually request an encrypted backup
 
 An allowlisted administrator can request the fixed `backup` action from
-**Settings → Instance jobs**. The request enters the durable admin-job queue;
+**Admin → Instance jobs**. The request enters the durable admin-job queue;
 only one maintenance or backup job can be queued or running at a time. The
 server chooses the archive filename and encrypts the archive with the mounted
 operator key. The UI reports job state and fixed result categories but never
@@ -1062,12 +1062,12 @@ multipart upload IDs are persisted immediately. Configure the bucket to abort
 incomplete multipart uploads after one day as a fallback for a process crash
 between multipart creation and ID persistence. The normal worker also lists
 and aborts incomplete uploads for a retried key before starting a new upload.
-Use **Settings → Backup replication** to review only the configured flag,
+Use **Admin → Backup replication** to review only the configured flag,
 waiting count, and latest fixed failure category. Paths, bucket, endpoint, keys,
 object names, and provider errors are not returned.
 
 An allowlisted instance administrator can enable scheduled backups from
-**Settings → Instance backup schedule** after the private backup overlay is
+**Admin → Instance backup schedule** after the private backup overlay is
 configured. Choose an interval from **1 through 720 hours**; the default is
 disabled. Schedule and occurrence state are stored durably with the instance
 database. The server claims each due occurrence once, advances the next due

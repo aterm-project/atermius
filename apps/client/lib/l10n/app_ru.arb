@@ -5177,5 +5177,21 @@
   "signInCredentialsRejected": "Не удалось войти. Проверьте адрес почты или имя пользователя и мастер-пароль.",
   "serverReinstalledTitle": "Этот сервер был переустановлен",
   "serverReinstalledBody": "Сервер по этому адресу — новый экземпляр, поэтому сохранённый в этом браузере вход для прежнего больше не действует. Продолжите, чтобы удалить сохранённые данные входа и подключиться к новому серверу. Хосты и учётные данные загрузятся с сервера после входа.",
-  "serverReinstalledConfirm": "Продолжить с новым сервером"
+  "serverReinstalledConfirm": "Продолжить с новым сервером",
+  "adminPanelNav": "Управление",
+  "adminPanelTitle": "Администрирование",
+  "adminPanelSections": "Разделы администрирования",
+  "adminPanelUsersTitle": "Пользователи",
+  "adminPanelUsersDescription": "Просматривайте учётные записи этого экземпляра, отключайте и снова включайте их, отзывайте сеансы, задавайте политику ретрансляции для отдельных учётных записей и выдавайте приглашения.",
+  "adminPanelAccessTitle": "Доступ и политика ретрансляции",
+  "adminPanelAccessDescription": "Управляйте политикой ретрансляции всего экземпляра, группами ретрансляции и видимостью учётных данных.",
+  "adminPanelVaultsTitle": "Хранилища и квоты",
+  "adminPanelVaultsDescription": "Просматривайте метаданные хранилищ этого экземпляра и изменяйте квоты. Содержимое хранилищ остаётся зашифрованным.",
+  "adminPanelUserFilterHint": "Фильтр по имени пользователя или ID",
+  "adminPanelUserFilterNoMatch": "На этой странице нет учётных записей, подходящих под фильтр.",
+  "adminPanelAccountStatusActive": "Активна",
+  "adminPanelAccountStatusDisabled": "Отключена",
+  "adminPanelAccountStatusDeleting": "Удаляется",
+  "adminPanelAccountYou": "Вы",
+  "adminPanelReEnableAccount": "Снова включить учётную запись"
 }

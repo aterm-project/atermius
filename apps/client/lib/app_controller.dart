@@ -811,6 +811,10 @@ enum WorkspacePage {
   audit,
   devices,
   settings,
+
+  /// Instance administration. Only offered to and reachable by accounts whose
+  /// policy marks them as an instance administrator.
+  admin,
 }
 
 class _PendingAccountPasswordChange {
@@ -23896,7 +23900,14 @@ class AppController extends ChangeNotifier {
     syncCheckpointServerGeneration = null;
   }
 
+  /// Whether [value] may be shown for the signed-in account. The admin panel
+  /// is never exposed to accounts that are not instance administrators; the
+  /// server enforces the same rule on every admin endpoint.
+  bool canShowWorkspacePage(WorkspacePage value) =>
+      value != WorkspacePage.admin || isInstanceAdmin;
+
   void showWorkspacePage(WorkspacePage value) {
+    if (!canShowWorkspacePage(value)) return;
     if (value == WorkspacePage.terminal &&
         activeTerminalTab?.detached == true) {
       _activeTerminalTabId = visibleTerminalTabs.lastOrNull?.id;

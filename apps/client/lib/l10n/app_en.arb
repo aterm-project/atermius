@@ -16281,5 +16281,69 @@
   "serverReinstalledConfirm": "Continue with the new server",
   "@serverReinstalledConfirm": {
     "description": "Button that accepts the new server instance."
+  },
+  "adminPanelNav": "Admin",
+  "@adminPanelNav": {
+    "description": "Sidebar entry that opens the instance administration panel; shown to instance administrators only."
+  },
+  "adminPanelTitle": "Administration",
+  "@adminPanelTitle": {
+    "description": "Heading of the instance administration panel."
+  },
+  "adminPanelSections": "Admin sections",
+  "@adminPanelSections": {
+    "description": "Label of the section picker of the administration panel on narrow layouts."
+  },
+  "adminPanelUsersTitle": "Users",
+  "@adminPanelUsersTitle": {
+    "description": "Administration panel section that lists and edits instance accounts."
+  },
+  "adminPanelUsersDescription": "Review the accounts on this instance, disable or re-enable them, revoke their sessions, set per-account relay policy and issue invitations.",
+  "@adminPanelUsersDescription": {
+    "description": "Description of the users section of the administration panel."
+  },
+  "adminPanelAccessTitle": "Access and relay policy",
+  "@adminPanelAccessTitle": {
+    "description": "Administration panel section for instance-wide relay policy, relay groups and credential visibility."
+  },
+  "adminPanelAccessDescription": "Manage the instance-wide relay policy, relay groups and credential visibility.",
+  "@adminPanelAccessDescription": {
+    "description": "Description of the access section of the administration panel."
+  },
+  "adminPanelVaultsTitle": "Vaults and quotas",
+  "@adminPanelVaultsTitle": {
+    "description": "Administration panel section that lists vault metadata and storage quotas."
+  },
+  "adminPanelVaultsDescription": "Review vault metadata on this instance and adjust storage quotas. Vault contents stay encrypted.",
+  "@adminPanelVaultsDescription": {
+    "description": "Description of the vaults section of the administration panel."
+  },
+  "adminPanelUserFilterHint": "Filter by username or user ID",
+  "@adminPanelUserFilterHint": {
+    "description": "Hint of the field that filters the loaded account list in the administration panel."
+  },
+  "adminPanelUserFilterNoMatch": "No account on this page matches the filter.",
+  "@adminPanelUserFilterNoMatch": {
+    "description": "Shown when no account on the loaded page matches the filter."
+  },
+  "adminPanelAccountStatusActive": "Active",
+  "@adminPanelAccountStatusActive": {
+    "description": "Status chip of an account that can sign in."
+  },
+  "adminPanelAccountStatusDisabled": "Disabled",
+  "@adminPanelAccountStatusDisabled": {
+    "description": "Status chip of an account disabled by an administrator."
+  },
+  "adminPanelAccountStatusDeleting": "Deleting",
+  "@adminPanelAccountStatusDeleting": {
+    "description": "Status chip of an account that is scheduled for deletion."
+  },
+  "adminPanelAccountYou": "You",
+  "@adminPanelAccountYou": {
+    "description": "Chip that marks the signed-in administrator's own row in the account list."
+  },
+  "adminPanelReEnableAccount": "Re-enable account",
+  "@adminPanelReEnableAccount": {
+    "description": "Button that re-enables a disabled account."
   }
 }

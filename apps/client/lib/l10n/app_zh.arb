@@ -5177,5 +5177,21 @@
   "signInCredentialsRejected": "登录失败。请检查邮箱或用户名，以及主密码是否正确。",
   "serverReinstalledTitle": "此服务器已重新安装",
   "serverReinstalledBody": "此地址上的服务器已是一个新的实例，此浏览器为旧实例保存的登录信息已无法使用。继续后将清除这些旧登录信息并连接新服务器；主机和凭据会在登录后从服务器加载。",
-  "serverReinstalledConfirm": "连接新服务器"
+  "serverReinstalledConfirm": "连接新服务器",
+  "adminPanelNav": "管理",
+  "adminPanelTitle": "实例管理",
+  "adminPanelSections": "管理分类",
+  "adminPanelUsersTitle": "用户",
+  "adminPanelUsersDescription": "查看本实例的账户，停用或重新启用账户，撤销会话，设置单个账户的中继策略并签发邀请。",
+  "adminPanelAccessTitle": "访问与中继策略",
+  "adminPanelAccessDescription": "管理全实例的中继策略、中继组和凭据可见性。",
+  "adminPanelVaultsTitle": "保险库与配额",
+  "adminPanelVaultsDescription": "查看本实例的保险库元数据并调整存储配额。保险库内容始终保持加密。",
+  "adminPanelUserFilterHint": "按用户名或用户 ID 筛选",
+  "adminPanelUserFilterNoMatch": "当前页没有符合筛选条件的账户。",
+  "adminPanelAccountStatusActive": "正常",
+  "adminPanelAccountStatusDisabled": "已停用",
+  "adminPanelAccountStatusDeleting": "删除中",
+  "adminPanelAccountYou": "当前账户",
+  "adminPanelReEnableAccount": "重新启用账户"
 }

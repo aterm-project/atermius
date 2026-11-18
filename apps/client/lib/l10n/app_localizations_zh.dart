@@ -17505,4 +17505,53 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get serverReinstalledConfirm => '连接新服务器';
+
+  @override
+  String get adminPanelNav => '管理';
+
+  @override
+  String get adminPanelTitle => '实例管理';
+
+  @override
+  String get adminPanelSections => '管理分类';
+
+  @override
+  String get adminPanelUsersTitle => '用户';
+
+  @override
+  String get adminPanelUsersDescription =>
+      '查看本实例的账户，停用或重新启用账户，撤销会话，设置单个账户的中继策略并签发邀请。';
+
+  @override
+  String get adminPanelAccessTitle => '访问与中继策略';
+
+  @override
+  String get adminPanelAccessDescription => '管理全实例的中继策略、中继组和凭据可见性。';
+
+  @override
+  String get adminPanelVaultsTitle => '保险库与配额';
+
+  @override
+  String get adminPanelVaultsDescription => '查看本实例的保险库元数据并调整存储配额。保险库内容始终保持加密。';
+
+  @override
+  String get adminPanelUserFilterHint => '按用户名或用户 ID 筛选';
+
+  @override
+  String get adminPanelUserFilterNoMatch => '当前页没有符合筛选条件的账户。';
+
+  @override
+  String get adminPanelAccountStatusActive => '正常';
+
+  @override
+  String get adminPanelAccountStatusDisabled => '已停用';
+
+  @override
+  String get adminPanelAccountStatusDeleting => '删除中';
+
+  @override
+  String get adminPanelAccountYou => '当前账户';
+
+  @override
+  String get adminPanelReEnableAccount => '重新启用账户';
 }

@@ -507,6 +507,12 @@ void main() {
         ),
       ]);
       harness.api.pages.addAll([
+        // Opening the Users section loads the account list once.
+        _accountPage(
+          [_account(_activeId, 'alice@example.test')],
+          total: 1,
+          offset: 0,
+        ),
         _accountPage(
           [_account(_activeId, 'alice@example.test')],
           total: 1,
@@ -607,7 +613,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(harness.api.invitationRevocations, [_invitationId]);
         expect(harness.api.invitationListOffsets, [0, 0, 0]);
-        expect(harness.api.listOffsets, [0, 0, 0]);
+        expect(harness.api.listOffsets, [0, 0, 0, 0]);
         expect(find.text('Revoked'), findsOneWidget);
         expect(find.text('Pending'), findsOneWidget);
         expect(find.text(_invitationToken), findsNothing);
@@ -631,6 +637,8 @@ void main() {
       ),
     );
     harness.api.pages.addAll([
+      // Opening the Users section loads the account list once.
+      _accountPage([], total: 0, offset: 0),
       _accountPage([], total: 0, offset: 0),
       _accountPage([], total: 0, offset: 0),
     ]);
@@ -648,7 +656,7 @@ void main() {
       expect(find.text('No account invitations found.'), findsOneWidget);
       expect(find.textContaining('Invitation list denied.'), findsNothing);
       expect(harness.api.invitationListOffsets, [0, 0]);
-      expect(harness.api.listOffsets, [0, 0]);
+      expect(harness.api.listOffsets, [0, 0, 0]);
     } finally {
       await _dispose(tester, harness);
     }
@@ -837,7 +845,7 @@ void main() {
           contains('ACCOUNT_DELETING'),
         );
         expect(harness.app.adminAccountActionNotice, isNull);
-        expect(find.text('deleting'), findsOneWidget);
+        expect(find.text('Deleting'), findsOneWidget);
         expect(
           find.text('Deleting account · administrative actions unavailable'),
           findsOneWidget,
@@ -1094,8 +1102,8 @@ Future<void> _pumpSettings(WidgetTester tester, AppController app) async {
     ),
   );
   await tester.pump();
-  if (find.byKey(const ValueKey('cloud_settings')).evaluate().isNotEmpty) {
-    await openSettingsCategory(tester, 'access', ifAvailable: true);
+  if (find.byKey(const ValueKey('admin_panel')).evaluate().isNotEmpty) {
+    await openSettingsCategory(tester, 'users', ifAvailable: true);
     expect(tester.takeException(), isNull);
   }
   await tester.pump();
@@ -1105,6 +1113,13 @@ Future<void> _tapAdminAccountsLoad(
   WidgetTester tester, {
   bool refresh = false,
 }) async {
+  // The Users section loads the account list when it is first opened, so the
+  // initial load needs no tap once that request is running or has finished.
+  if (!refresh &&
+      (find.byTooltip('Load admin accounts').evaluate().isEmpty ||
+          find.text('Reading admin account list…').evaluate().isNotEmpty)) {
+    return;
+  }
   final button = find.byTooltip(
     refresh ? 'Refresh admin accounts' : 'Load admin accounts',
   );
@@ -1143,7 +1158,7 @@ class _Harness {
           )
           ..api = api
           ..stage = ClientStage.workspace
-          ..page = WorkspacePage.settings
+          ..page = WorkspacePage.admin
           ..account = AccountProfile(
             accountId: _adminId,
             deviceId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',

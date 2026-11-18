@@ -93,7 +93,7 @@ schema must be a dedicated schema name;
 `atermius_restore_control` name are rejected. The target must be reachable
 with the service's normal PostgreSQL connection settings. Restore is
 advertised only while this target is ready. An allowlisted administrator
-selects a local server-generated archive in **Settings → Instance restore**.
+selects a local server-generated archive in **Admin → Instance restore**.
 The worker authenticates and validates the archive, restores it into that
 database, places external object bytes into a private filesystem store below
 `$ATERMIUS_BACKUP_ARCHIVE_DIR/restore-staging/atermius-pg-restore-<job-id>`,
@@ -146,7 +146,7 @@ that it is otherwise suitable before reusing it as a fresh restore target.
 ### Discard a PostgreSQL isolated restore stage
 
 After reviewing a ready stage, its original requesting user can discard it in
-**Settings → Instance jobs → Discard isolated copy**, while that user is still
+**Admin → Instance jobs → Discard isolated copy**, while that user is still
 an active instance administrator. Another administrator cannot discard that
 job. A restore job that was interrupted after its durable stage became ready
 can also be discarded. The API is
@@ -359,7 +359,7 @@ off the instance host and verify that the recovery key can be retrieved from
 its separate storage location.
 
 An allowlisted instance administrator can also request the fixed `backup`
-action from **Settings → Instance jobs**. The durable job worker uses the same
+action from **Admin → Instance jobs**. The durable job worker uses the same
 SQLite snapshot and encrypted archive implementation as the CLI, with a
 server-generated filename in the configured archive directory. One backup or
 maintenance job may be active at a time. The API and UI expose only job state
@@ -427,7 +427,7 @@ requests cannot select a target or supply remote paths. Replication copies only
 the already encrypted `.atb` file and uses the stable key
 `<prefix>/atermius/v1/<instance-id>/<archive-id>.atb`.
 
-An instance administrator can use **Settings → Backup replication → Check bucket access**
+An instance administrator can use **Admin → Backup replication → Check bucket access**
 to run a bounded `HeadBucket` request against the server-configured target. The
 request accepts no endpoint, bucket, or credentials from the client. A passing
 result verifies bucket access only; it does not verify object uploads,
@@ -435,8 +435,8 @@ multipart operations, restores, or broad provider compatibility. Missing or
 invalid server configuration and provider failures return fixed, generic
 results without provider diagnostics.
 
-An allowlisted administrator can review **Settings → Backup replication** and
-select a `replica` row from **Settings → Instance restore**. The catalog entry
+An allowlisted administrator can review **Admin → Backup replication** and
+select a `replica` row from **Admin → Instance restore**. The catalog entry
 means the service previously completed and verified that copy; it is not a
 promise that an operator or provider has not since removed it. SQLite checks
 its successful local outbox row; PostgreSQL checks the shared successful
@@ -480,7 +480,7 @@ fail validation when selected for restore.
 ## Review the last local backup attempt
 
 An authenticated instance administrator on the `ATERMIUS_ADMIN_USERNAMES`
-allowlist can open **Settings → Instance backup status** to view the latest
+allowlist can open **Admin → Instance backup status** to view the latest
 `backup` CLI or server-triggered job result recorded for this data directory. The private
 `backup-status.json` sidecar records the latest attempt time and fixed success
 or failure result, migration version, encrypted archive byte count, and the
@@ -510,7 +510,7 @@ off-host replication or restore success.
 ## Prepare an isolated restore from Settings
 
 An allowlisted administrator can prepare a restore copy while the service
-continues to serve the current data directory. In **Settings → Instance
+continues to serve the current data directory. In **Admin → Instance
 restore**, select an available server-generated archive by its creation time,
 size, and origin, then confirm the action. The catalog contains only archives
 created by an admin backup or scheduled backup job; CLI-created archives remain
@@ -535,7 +535,7 @@ offline CLI procedure below.
 ### Discard an isolated stage
 
 After reviewing a completed restore stage, the original job owner can use
-**Settings → Instance jobs → Discard isolated copy**. The confirmation explains
+**Admin → Instance jobs → Discard isolated copy**. The confirmation explains
 that the service first validates the server-created receipt and exact private
 stage contents. Cancel sends no request. Only an instance administrator who
 created that restore job can see or invoke the action; another administrator
