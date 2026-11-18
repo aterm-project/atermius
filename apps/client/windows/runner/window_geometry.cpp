@@ -209,7 +209,9 @@ bool WindowGeometryChannel::Cover(HWND window, const RECT& monitor) {
 }
 
 bool WindowGeometryChannel::Uncover(HWND window) {
-  if (!SetStyle(window, saved_style_)) return false;
+  // SetWindowPlacement restores the show state and computes the maximized
+  // frame. Setting WS_MAXIMIZE here would leave it at the fullscreen bounds.
+  if (!SetStyle(window, saved_style_ & ~(WS_MAXIMIZE | WS_MINIMIZE))) return false;
   const BOOL framed = SetWindowPos(window, nullptr, 0, 0, 0, 0,
       SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
       SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
