@@ -19600,4 +19600,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get adminPanelReEnableAccount => 'Re-enable account';
+
+  @override
+  String get touchpadGestureUsedByWindows =>
+      'Windows is using this touchpad gesture itself. To send three- and four-finger gestures to the remote desktop, set them to \"Nothing\" in Windows Settings > Bluetooth & devices > Touchpad.';
 }

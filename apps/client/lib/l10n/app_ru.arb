@@ -5193,5 +5193,6 @@
   "adminPanelAccountStatusDisabled": "Отключена",
   "adminPanelAccountStatusDeleting": "Удаляется",
   "adminPanelAccountYou": "Вы",
-  "adminPanelReEnableAccount": "Снова включить учётную запись"
+  "adminPanelReEnableAccount": "Снова включить учётную запись",
+  "touchpadGestureUsedByWindows": "Этот жест сенсорной панели использует сама Windows на этом компьютере. Чтобы жесты тремя и четырьмя пальцами отправлялись на удалённый рабочий стол, выберите для них «Ничего» в «Параметры Windows» > «Bluetooth и устройства» > «Сенсорная панель»."
 }

@@ -18469,4 +18469,8 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get adminPanelReEnableAccount => 'アカウントを再有効化';
+
+  @override
+  String get touchpadGestureUsedByWindows =>
+      'このタッチパッド ジェスチャは、このパソコンの Windows が使用しています。3 本指と 4 本指のジェスチャをリモート デスクトップに送るには、Windows の「設定」>「Bluetooth とデバイス」>「タッチパッド」で「なし」に設定してください。';
 }

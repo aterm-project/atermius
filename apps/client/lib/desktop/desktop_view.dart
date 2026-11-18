@@ -237,6 +237,9 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     // Windows: three- and four-finger touchpad gestures for the desktop
     // under the pointer (they never reach Flutter).
     TouchpadGestureController.instance.attach();
+    TouchpadGestureController.instance.usedLocally.addListener(
+      _touchpadGestureUsedLocally,
+    );
     session.onNotice = _showNotice;
     session.onFilesSaved = _filesSaved;
     session.addListener(_certificateChanged);
@@ -391,6 +394,22 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (route.isActive) route.navigator?.removeRoute(route);
     });
+  }
+
+  /// Shown once per run: the hint stays long enough to be read after the
+  /// local gesture (task view, app switching) has run its course.
+  static bool _touchpadHintShown = false;
+  void _touchpadGestureUsedLocally() {
+    if (_touchpadHintShown || !mounted || session.state != 'connected') return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    _touchpadHintShown = true;
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 12),
+        content: Text(context.l10n.touchpadGestureUsedByWindows),
+      ),
+    );
   }
 
   void _showNotice(String text) {
@@ -583,6 +602,9 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
   void dispose() {
     DesktopKeyboardController.instance.keyboardVisible(this, false);
     session.removeListener(_captureSessionChanged);
+    TouchpadGestureController.instance.usedLocally.removeListener(
+      _touchpadGestureUsedLocally,
+    );
     session.removeListener(_certificateChanged);
     _removeCertificateDialog();
     if (session.onNotice == _showNotice) session.onNotice = null;

@@ -30987,6 +30987,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Re-enable account'**
   String get adminPanelReEnableAccount;
+
+  /// Notice in a remote desktop view on Windows when a three- or four-finger touchpad gesture was made but the local system handles it.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows is using this touchpad gesture itself. To send three- and four-finger gestures to the remote desktop, set them to \"Nothing\" in Windows Settings > Bluetooth & devices > Touchpad.'**
+  String get touchpadGestureUsedByWindows;
 }
 
 class _AppLocalizationsDelegate

@@ -16345,5 +16345,9 @@
   "adminPanelReEnableAccount": "Re-enable account",
   "@adminPanelReEnableAccount": {
     "description": "Button that re-enables a disabled account."
+  },
+  "touchpadGestureUsedByWindows": "Windows is using this touchpad gesture itself. To send three- and four-finger gestures to the remote desktop, set them to \"Nothing\" in Windows Settings > Bluetooth & devices > Touchpad.",
+  "@touchpadGestureUsedByWindows": {
+    "description": "Notice in a remote desktop view on Windows when a three- or four-finger touchpad gesture was made but the local system handles it."
   }
 }

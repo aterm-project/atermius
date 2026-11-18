@@ -5193,5 +5193,6 @@
   "adminPanelAccountStatusDisabled": "無効",
   "adminPanelAccountStatusDeleting": "削除中",
   "adminPanelAccountYou": "あなた",
-  "adminPanelReEnableAccount": "アカウントを再有効化"
+  "adminPanelReEnableAccount": "アカウントを再有効化",
+  "touchpadGestureUsedByWindows": "このタッチパッド ジェスチャは、このパソコンの Windows が使用しています。3 本指と 4 本指のジェスチャをリモート デスクトップに送るには、Windows の「設定」>「Bluetooth とデバイス」>「タッチパッド」で「なし」に設定してください。"
 }

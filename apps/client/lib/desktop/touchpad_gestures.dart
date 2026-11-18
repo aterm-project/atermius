@@ -359,6 +359,11 @@ class TouchpadGestureController {
   /// As last reported by the runner.
   TouchpadGestureSettings settings = const TouchpadGestureSettings();
 
+  /// Counts gestures made over a remote desktop that were not forwarded
+  /// because this computer's Windows uses them itself, so the view can tell
+  /// the user how to hand them to the remote side.
+  final usedLocally = ValueNotifier<int>(0);
+
   /// Starts following the desktop under the pointer. Called by every remote
   /// desktop view; does nothing off Windows or when called again.
   void attach() {
@@ -427,6 +432,15 @@ class TouchpadGestureController {
           contacts.add(TouchpadContact(id.toInt(), x.toDouble(), y.toDouble()));
         }
         for (final event in _recognizer.add(contacts, time)) {
+          final blocked = switch (event) {
+            TouchpadTap() => !settings.free(event.fingers, tap: true),
+            TouchpadSwipeStarted() => !settings.free(
+              event.fingers,
+              tap: false,
+            ),
+            _ => false,
+          };
+          if (blocked) usedLocally.value++;
           mapper.handle(event, settings);
         }
     }
