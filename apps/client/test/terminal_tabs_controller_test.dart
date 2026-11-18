@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
+import 'package:aterm_client/l10n/l10n.dart';
 import 'package:aterm_client/terminal/session_log.dart';
 import 'package:aterm_client/crypto/vault_crypto.dart';
 import 'package:aterm_client/domain/models.dart';
@@ -100,7 +101,67 @@ void main() {
       final opening = app.openTerminalTab(host);
       // Preparation is suspended on the credential fingerprint here.
       app.hosts[0] = _inlineLoginHost('changed-secret');
-      await expectLater(opening, throwsStateError);
+      // The login is part of the host record, so the host comparison is the
+      // check that fires; the credential comparison has its own test below.
+      await expectLater(
+        opening,
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            currentL10n.theHostOrJumpHostRoute,
+          ),
+        ),
+      );
+      expect(calls, 0);
+      expect(app.activeTerminalTab!.state, isNot('connected'));
+    } finally {
+      await app.closeWorkspace();
+      await fixture.database.close();
+    }
+  });
+
+  test('a keychain credential replaced while preparing stops the connect', () async {
+    var calls = 0;
+    final fixture = await _Fixture.create(
+      connector:
+          ({required host, required credential, required verifyHostKey}) async {
+            calls++;
+            return _RecordingConnection();
+          },
+    );
+    final app = fixture.app;
+    try {
+      final host = _host('host-a', 'Alpha');
+      app.activeVault = const VaultDescriptor(
+        id: 'vault-keychain',
+        role: 'owner',
+        activeKeyEpoch: 'epoch',
+        membershipVersion: 'membership',
+      );
+      app.hosts.add(host);
+      final index = app.credentials.indexWhere(
+        (credential) => credential.id == host.credentialId,
+      );
+      final opening = app.openTerminalTab(host);
+      // Preparation is suspended on the credential fingerprint here. The host
+      // record is untouched; only the credential it points at is replaced.
+      app.credentials[index] = CredentialRecord(
+        id: host.credentialId!,
+        name: 'Test credential',
+        username: 'tester',
+        secret: 'rotated-secret',
+      );
+      await expectLater(
+        opening,
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            currentL10n.theTargetHostsSshCredentialChanged,
+          ),
+        ),
+      );
       expect(calls, 0);
       expect(app.activeTerminalTab!.state, isNot('connected'));
     } finally {

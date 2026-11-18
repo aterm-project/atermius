@@ -51,7 +51,7 @@
 | Web 选传输 | `serverHostedClient => kIsWeb`；`SshService` 的 `_useRelay = useRelay ?? kIsWeb`。Web 上每条 SSH 连接先 `POST /api/v1/relay/tickets`，再用票据打开 `wss://…/relay/v1/connect`，其上跑完整的 SSH。Telnet、桌面走同一套票据。跳板链只有第一跳走 Relay，后面各跳是 SSH `direct-tcpip`。 | `apps/client/lib/platform/server_hosted.dart:8`、`lib/ssh/ssh_service.dart:862,1083-1124`、`lib/telnet/telnet_transport.dart:53`、`lib/desktop/desktop_session.dart:365` |
 | Relay 拨号 | 票据 30 秒、单次、只存哈希，目标加密存放，绑定会话/设备/授权版本。消费后服务端 `TcpStream::connect(ip:port)`，所以**源 IP 就是 `server` 容器的出口 IP**。单连接上限 60 分钟、1 GiB，全局 256 条，每用户 `relay_max_connections_per_user` 条，每约 2 秒复查会话与策略。 | `server/src/relay.rs:43-50`、`create_ticket`(1498)、`consume_ticket`、`relay_socket`(2047 处拨号)、`relay_connection_active` |
 | 目标策略 | 永久禁止环回、链路本地、组播、云元数据地址（`is_forbidden_ip`，不含私网段，私网靠白名单约束）。有效策略 = 部署环境变量上限 ∩ 实例策略 ∩ 用户策略 ∩ 该用户所在每个组的策略，全部是**收窄**语义。 | `relay.rs:154`、`effective_policy_tx`(335)、`effective_policy_for_user_tx`(452)、`restrict_effective_policy`(472)、`relay_groups.rs:1020` |
-| 管理 API | `GET/PUT /api/v1/admin/relay-policy`、`…/relay-policy/users/{user_id}`、`…/relay-groups`、`…/relay-groups/{group_id}`、`…/{group_id}/members`、`…/{group_id}/relay-policy`。全部 CAS（`expected_revision`），写入实例管理员审计（`admin.relay_*`）。策略或成员变化推进 `relay_user_authorization_versions`，使已建立的连接在下一次复查时断开。 | `server/src/lib.rs:1527-1591`、迁移 `0030`、`0042`、`0043` |
+| 管理 API | `GET/PUT /api/v1/admin/relay-policy`、`…/relay-policy/users/{user_id}`、`…/relay-groups`、`…/relay-groups/{group_id}`、`…/{group_id}/members`、`…/{group_id}/relay-policy`。全部 CAS（`expected_revision`），写入实例管理员审计（`admin.relay_*`）。**只有 Relay 组的成员变化和组策略变化**推进 `relay_user_authorization_versions`（`relay_groups.rs` 的 `bump_user_authorization_revision_tx`，PostgreSQL 模式为 `pg_relay.rs` 的 `bump_user_authorization_tx`）。实例策略和单用户策略的更新不推进版本；它们之所以对已建立的连接生效，是因为复查时用最新策略重新判定目标（`effective_target_allowed`）。目前没有「实例范围变更推进全体用户」的路径。 | `server/src/lib.rs:1527-1591`、`relay_groups.rs:434,799`、迁移 `0030`、`0042`、`0043` |
 | 桌面网关 | `/desktop/v1/connect` 用同一种票据；服务端连 guacd，浏览器首帧 `DesktopHello` 带**明文**用户名和密码，由服务端构造 guacd `connect`，目标 IP/端口取自票据。RDP/VNC 的凭据因此在传输中对服务端可见，这是已有且已写明的受信模式。 | `server/src/desktop.rs`、`relay.rs` `connect_desktop`(1705)、`deploy/compose.desktop.yaml` |
 | 分享网关 | 访客链接用网关 X25519 密钥解封胶囊，由 guacd 终止 SSH/RDP。有独立的 `ATERMIUS_SHARE_ALLOW_CIDRS` 和 `ATERMIUS_SHARE_DENY_CIDRS`（默认拒绝 `172.16.0.0/12`，即 compose 网络）。 | `server/src/share_gateway.rs`、`deploy/compose.share.yaml` |
 | 实例管理员 | `ATERMIUS_ADMIN_USERNAMES` 列出的账户。 | `server/src/audit.rs:660`、`cloud_orgs.rs:338` |
@@ -62,7 +62,11 @@
 两个结论直接决定了设计：
 
 - Relay 是字节管道，换一个拨号位置不触碰凭据。所以「出口」可以做得很轻。
-- 当前只有一个拨号点（`TcpStream::connect`）和一条策略链。出口选择加在这两处即可，不需要第二套授权体系。
+- 当前只有一个拨号点（`TcpStream::connect`）和一条策略链。**普通票据的出口选择**加在这两处即可，不需要第二套授权体系。
+- 有三处现有行为不能直接套用，是本设计必须新写的改动点，后文分别说明：
+  1. **沙箱票据不能走用户目标策略**。`consume_ticket` 在 `effective_target_allowed(policy, ip, port)` 不成立时丢弃票据，`relay_connection_active` 每约 2 秒对 `target.ip/target.port` 重复同一判定，`relay_available` 还要求部署白名单非空。容器 sshd 在私有 Docker 网络上（§7.3 规定该网段始终拒绝），不可能是用户策略允许的目标，所以沙箱票据要走单独的授权分支（§9.3）。
+  2. **授权版本今天只覆盖组变更**。出口、分配、模板出网模式的变更需要新的失效路径（§7.2）。
+  3. **每用户 Relay 连接数是写死的 4**（`server/src/lib.rs:688` 的 `relay_max_connections_per_user`，没有环境变量），`acquire_connection` 把该用户的 SSH、SFTP、Telnet、桌面连接一起计数。沙箱会话需要单独计数（§6.3）。
 
 ---
 
@@ -171,7 +175,7 @@
 - **空闲停止**：没有任何接入会话持续 `idle_stop_seconds`（模板默认 1800 秒）后 runner 停止容器。停止只释放内存和 CPU，主目录保留。后台进程随之结束，界面在停止前的会话里不做提示，但在沙箱卡片上写明这一规则。
 - **重置**：用户或管理员可销毁容器并从模板镜像重建，主目录保留。用于「把环境弄坏了」。
 - **销毁**：管理员操作，或用户对自己的沙箱操作。可选是否同时删除主目录。
-- **模板变更**：镜像或配额变更只影响下一次启动；管理员可在「运行中」页对旧版本的沙箱逐个或批量停止。出口或出网模式变更会推进授权版本，立即断开受影响的连接并重写防火墙。
+- **模板变更**：镜像或配额变更只影响下一次启动；管理员可在「运行中」页对旧版本的沙箱逐个或批量停止。出口或出网模式变更会推进出口版本（§7.2 的新增机制），在下一次复查时断开受影响的连接并重写防火墙。
 
 ### 6.2 持久化
 
@@ -191,7 +195,13 @@
 | 实例同时运行的沙箱数 | 20 | 实例设置 |
 | 每用户沙箱数 | 每模板 1 个 | 固定 |
 
-达到实例运行上限时，新的启动请求返回 `429 SANDBOX_CAPACITY`，界面显示「实例的沙箱已满」，不排队。接入会话走 Relay，因此同时受 Relay 的每用户连接数、单连接 60 分钟与 1 GiB 上限约束（`relay.rs:44-49`）；这对长时间终端偏紧，P2 需要把沙箱接入的时长上限单独设为模板字段，默认 8 小时。
+达到实例运行上限时，新的启动请求返回 `429 SANDBOX_CAPACITY`，界面显示「实例的沙箱已满」，不排队。接入会话走 Relay，因此受 Relay 的全局 256 条、单连接 60 分钟与 1 GiB 上限约束（`relay.rs:44-49`）；这对长时间终端偏紧，P2 需要把沙箱接入的时长上限单独设为模板字段，默认 8 小时。
+
+**沙箱会话不占用每用户 Relay 连接数。** 该上限今天写死为 4（`server/src/lib.rs:688`，无环境变量），`acquire_connection`（`relay.rs:1971`）对用户的全部 Relay 连接一起计数，超限时直接关闭 WebSocket、不带错误体。如果沙箱会话也计入，用户开着两个主机标签和一个 SFTP 时第二个沙箱终端就会被无声关闭，「每沙箱 8 个会话」在个人沙箱里永远达不到。因此 P2 要做的是：
+
+- 沙箱接入连接在 `acquire_connection` 里走单独的计数器，键是 `sandbox_id`，上限是模板的 `max_sessions`；仍占用全局连接槽。共享容器（P3）另加每用户每沙箱上限，默认 4，防止一名成员占满。
+- 超限在**签发票据时**就拒绝，返回 `429 SANDBOX_SESSION_LIMIT`，界面显示「这个沙箱的同时会话已满」；消费时再次检查，输掉竞争的一方收到带原因的关闭帧，而不是无说明的断开。
+- 普通 Relay 连接的每用户上限不在本设计里改动；把它做成可配置是独立的事项。
 
 主目录硬配额依赖宿主文件系统（如 XFS 项目配额）。不支持时 runner 周期性统计用量，超限后拒绝下次启动并在卡片上说明；这种情况下它是软配额，部署文档如实写明。
 
@@ -224,7 +234,11 @@ effective_policy_for_user(用户)            # 现有：部署 ∩ 实例 ∩ �
 
 - 票据签发和票据消费两处都检查，和今天一样；域名在签发时解析，全部答案都必须被允许，拨号用已校验的 IP 字面量。
 - 出口不能放宽策略。想让某个出口可达一个私网段，管理员需要先在部署上限和实例策略里放开，再用用户/组策略把其他人收窄。这保持「部署环境变量是硬上限」的现有约定。
-- 出口、分配、模板出网模式的任何变更都推进受影响用户的 `relay_user_authorization_versions`，已建立的连接在约 2 秒内断开，未消费的票据作废。这是现有机制（`relay_connection_active`），不另造。
+- 出口、分配、模板出网模式的任何变更都必须使已建立的连接在约 2 秒内断开、未消费的票据作废。**这不是现有机制能直接给出的**：今天只有组成员和组策略变更推进 `relay_user_authorization_versions`；出口被停用或分配从「可用」改为「必须」时，目标 IP 和端口仍被 Relay 策略允许，现有复查会让连接继续从旧的源 IP 发流量。需要新写：
+  - 新增单行表 `relay_egress_revision(revision)`。任何出口的启用、停用、地址或自带策略变更，任何范围（实例、组、用户）的分配变更，任何模板出网模式变更，都在同一事务里把它加一。用一个全局版本而不是逐用户推进，是因为实例范围的变更没有「受影响用户」列表可遍历，而这类变更很少发生。
+  - `relay_tickets` 增加 `egress_revision` 列，签发时写入；`RelayTarget` 带上它。`consume_ticket` 与 `relay_connection_active` 在现有的授权版本比较旁边再比较它，不相等即丢弃票据或断开连接（`session_inactive`）。
+  - 代价是一次出口变更会断开实例上全部经 Relay 的连接，客户端的自动重连会按新的解析结果重新取票据。如果以后觉得太粗，再细化为按出口或按用户的版本；先保证正确。
+  - 组成员变化仍走现有的逐用户版本，不重复推进。
 
 ### 7.3 容器自己的出网
 
@@ -377,6 +391,14 @@ CREATE TABLE sandbox_assignment_revisions (
 
 ALTER TABLE relay_tickets ADD COLUMN egress_id TEXT;   -- NULL = server
 ALTER TABLE relay_tickets ADD COLUMN sandbox_id TEXT;  -- 非 NULL = 接入沙箱终端的票据
+ALTER TABLE relay_tickets ADD COLUMN egress_revision INTEGER NOT NULL DEFAULT 0;  -- 签发时的出口版本（§7.2）
+-- 沙箱票据不带用户策略意义上的目标：sandbox_id 非空时 target_ip/target_port 不参与授权（§9.3）。
+
+CREATE TABLE relay_egress_revision (
+    id       INTEGER PRIMARY KEY CHECK (id = 1),
+    revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0)
+);
+INSERT INTO relay_egress_revision(id, revision) VALUES (1, 0);
 
 -- P2
 CREATE TABLE sandbox_templates (
@@ -467,9 +489,17 @@ Windows 登记式环境（P3）在 `sandbox_templates` 里用 `kind='windows_hos
 | `POST /api/v1/sandboxes` | `{"template_id": …}`，创建或返回已有的沙箱 |
 | `POST /api/v1/sandboxes/{sandbox_id}/start` / `stop` / `reset` | 生命周期 |
 | `DELETE /api/v1/sandboxes/{sandbox_id}` | 销毁自己的沙箱，`?delete_home=true` |
-| `POST /api/v1/sandboxes/{sandbox_id}/tickets` | `{"device_id": …, "public_key": "ssh-ed25519 …"}` → `{"ticket", "expires_at", "host_key_sha256", "username"}`。票据在现有 `/relay/v1/connect` 上消费，服务端经 runner 接到该容器的 sshd；目标不可由请求指定。 |
+| `POST /api/v1/sandboxes/{sandbox_id}/tickets` | `{"device_id": …, "public_key": "ssh-ed25519 …"}` → `{"ticket", "expires_at", "host_key_sha256", "username"}`。票据在现有 `/relay/v1/connect` 端点上消费，但走下述沙箱分支；服务端经 runner 接到该容器的 sshd，目标不可由请求指定。 |
 
-对象级授权：每个带 `sandbox_id` 的请求都核对调用者是该沙箱范围内的成员；不是则统一返回 404。沙箱票据与普通票据一样绑定会话、设备、授权版本，并且每约 2 秒复查。
+对象级授权：每个带 `sandbox_id` 的请求都核对调用者是该沙箱范围内的成员；不是则统一返回 404。沙箱票据与普通票据一样绑定会话、设备、授权版本和出口版本，并且每约 2 秒复查。
+
+**沙箱票据的授权分支（第三个改动点）。** `sandbox_id` 非空的票据不存 `target_ip/target_port`，也不经过 `effective_target_allowed`：
+
+- `consume_ticket`：会话、设备、账户状态的 SQL 条件不变；授权版本和出口版本照常比较；目标策略判定换成「调用者此刻仍是该沙箱范围内的成员，且沙箱处于 `running`」。通过后由 runner 返回该容器 sshd 的连接端点，server 只对这一次连接使用，不写回票据，也不出现在任何用户可见的字段里。
+- `relay_connection_active`：同样按 `sandbox_id` 分支，复查会话、设备、两个版本、沙箱成员资格与沙箱状态（停止、重置、销毁即断开），不调用 `effective_target_allowed`。
+- `relay_available` 对沙箱票据不要求部署 Relay 白名单非空，只要求沙箱功能开启且 runner 在线；用户的 Relay 策略为 `enabled=false` 时仍可接入自己的沙箱终端（容器的出网另由 §7.3 按该策略限制，即全部拒绝）。
+- 绝不采用的做法：把容器网段加进任何用户、组或实例的 Relay 策略。那会让同一用户用普通票据拨到其他容器和 compose 服务，直接破坏 §7.3。
+- 普通票据的路径不变：`sandbox_id` 为空的票据若解析到容器网段，仍被 §7.3 的拒绝表挡住。
 
 ### 9.4 server 与 runner 之间（内部，不对外）
 
@@ -574,15 +604,16 @@ volumes:
 ## 12. 验收要点（随功能交付的负向测试）
 
 1. 不带 `egress_id` 的票据使用解析后的默认出口；被强制的用户请求 `server` 出口或任何未授予的出口得到 `403 EGRESS_DENIED`，且有审计。
-2. 出口被停用、分配被收回、用户被移出组后，约 2 秒内已建立的连接断开，未消费的票据失效。
+2. 出口被停用、分配被收回、用户被移出组后，约 2 秒内已建立的连接断开，未消费的票据失效。实例范围和用户范围的分配从「可用」改为「必须」时同样如此，即使目标仍被 Relay 策略允许（验证出口版本这条新路径，而不是目标复查）。
 3. 经任何出口都不能到达 Relay 策略之外的目标；域名解析出任一不允许的地址即拒绝。
 4. 被强制出口的用户在出口不可达时连接失败，流量不会从服务器 IP 发出（抓包验证）。
-5. 沙箱票据只能接到调用者有权的沙箱；猜测他人的 `sandbox_id` 得到 404。
+5. 沙箱票据只能接到调用者有权的沙箱；猜测他人的 `sandbox_id` 得到 404。Relay 策略只允许公网目标或已停用（`enabled=false`）的用户仍能接入自己的沙箱，连接在 2 秒复查后保持；同一用户用普通票据请求容器网段的任何地址被拒绝；被移出沙箱范围或沙箱停止后，已建立的沙箱连接在约 2 秒内断开。
 6. 从容器内连接 server、数据库、对象存储、guacd、runner 控制端口、宿主机地址、云元数据地址、同网络其他容器，全部失败。
 7. 容器内无法提权：不是 root、无 capabilities、根文件系统只读、超出进程数与内存上限时被限制而不影响其他容器。
 8. 伪造的 runner 请求（无密钥、错误密钥）被拒绝；带任意镜像名或额外容器参数的创建请求被拒绝。
 9. 账户停用即停止其沙箱并断开会话；账户删除在宽限期结束时删除主目录。
 10. 日志、审计、错误响应里不出现代理口令、公钥对应的私钥材料或任何会话内容。
+11. 用户已有 4 条普通 Relay 连接时仍能打开沙箱终端；第 `max_sessions + 1` 个沙箱会话在签发票据时得到 `429 SANDBOX_SESSION_LIMIT`，界面有明确提示。
 
 外挂节点另验收三种行为。关闭沙箱且未部署 runner 时，两名获准用户能经同一节点建立各自的 SSH/SFTP 会话。撤销其中一名用户的授权后，另一名用户的会话继续。节点掉线时，设有必须出口的连接按原策略失败，节点恢复后新会话可重新授权连接。
 

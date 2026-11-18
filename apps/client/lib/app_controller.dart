@@ -1299,7 +1299,21 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  AccountProfile? account;
+  AccountProfile? _account;
+  AccountProfile? get account => _account;
+
+  /// Replacing the profile is the only way the instance-admin flag changes in
+  /// a signed-in session. When it is lost, the admin page selection and the
+  /// lists loaded as an administrator go with it: otherwise the workspace
+  /// would render Hosts with no sidebar entry highlighted, jump back to the
+  /// panel if the flag returned, and show lists cached before the change.
+  set account(AccountProfile? value) {
+    final wasInstanceAdmin = isInstanceAdmin;
+    _account = value;
+    if (!wasInstanceAdmin || isInstanceAdmin) return;
+    if (page == WorkspacePage.admin) page = WorkspacePage.hosts;
+    _resetInstanceAdminOverview();
+  }
   DeviceIdentity? identity;
   Uint8List? _accountKey;
   RecoveryIdentity? _recoveryIdentity;

@@ -19308,7 +19308,11 @@ class _AdminAccountsCardState extends State<_AdminAccountsCard> {
                   padding: const EdgeInsets.only(top: 9),
                   child: Text(context.l10n.noAccountsOnThisPage),
                 ),
-              if (value.accounts.length > 1) ...[
+              // The filter text outlives a page change, so the field stays as
+              // long as it holds text: a one-account page must not hide the
+              // only control that can clear it.
+              if (value.accounts.length > 1 ||
+                  _filter.text.trim().isNotEmpty) ...[
                 const SizedBox(height: 10),
                 TextField(
                   key: const ValueKey('admin_accounts_filter'),

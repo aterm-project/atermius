@@ -109,6 +109,41 @@ void main() {
     }
   });
 
+  testWidgets('an active filter stays clearable on a one-account page', (
+    tester,
+  ) async {
+    final harness = await _Harness.create(isAdmin: true);
+    try {
+      harness.app.page = WorkspacePage.admin;
+      await _pump(tester, harness.app);
+      await openSettingsCategory(tester, 'users');
+      await tester.pumpAndSettle();
+      final filter = find.byKey(const ValueKey('admin_accounts_filter'));
+      await tester.enterText(filter, 'ali');
+      await tester.pumpAndSettle();
+
+      // The next page (or a refresh) holds a single account that the filter
+      // hides: the field must still be there to clear.
+      harness.api.accounts = [
+        _account('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'bob@example.test'),
+      ];
+      await harness.app.loadAdminAccounts(offset: 50);
+      await tester.pumpAndSettle();
+      expect(find.text('bob@example.test'), findsNothing);
+      expect(find.text(currentL10n.adminPanelUserFilterNoMatch), findsOne);
+      expect(filter, findsOneWidget);
+
+      await tester.enterText(filter, '');
+      await tester.pumpAndSettle();
+      expect(find.text('bob@example.test'), findsOneWidget);
+      expect(find.text(currentL10n.adminPanelUserFilterNoMatch), findsNothing);
+      // With nothing typed a one-account page needs no filter.
+      expect(filter, findsNothing);
+    } finally {
+      await _dispose(tester, harness);
+    }
+  });
+
   testWidgets('every admin section lays out on desktop and narrow windows', (
     tester,
   ) async {
@@ -211,6 +246,19 @@ void main() {
       expect(find.byKey(_panel), findsNothing);
       expect(find.byKey(_navEntry), findsNothing);
       expect(find.text('Instance admin overview'), findsNothing);
+      // The controller agrees with what is rendered, and nothing loaded as
+      // an administrator is kept for a later return of the flag.
+      expect(harness.app.page, WorkspacePage.hosts);
+      expect(harness.app.instanceAdminOverview, isNull);
+      expect(harness.app.adminAccountsPage, isNull);
+
+      harness.app
+        ..account = _profile(isAdmin: true)
+        ..setStage(ClientStage.workspace);
+      await tester.pumpAndSettle();
+      expect(harness.app.page, WorkspacePage.hosts);
+      expect(find.byKey(_panel), findsNothing);
+      expect(find.byKey(_navEntry), findsOneWidget);
     } finally {
       await _dispose(tester, harness);
     }
@@ -319,6 +367,7 @@ class _AdminApi extends ApiClient {
 
   int adminCalls = 0;
   int accountListCalls = 0;
+  List<Map<String, dynamic>>? accounts;
 
   @override
   Future<InstanceAdminOverview> instanceAdminOverview() async {
@@ -334,7 +383,7 @@ class _AdminApi extends ApiClient {
     adminCalls++;
     accountListCalls++;
     return AdminAccountPage.fromJson({
-      'accounts': [
+      'accounts': accounts ?? [
         _account(_adminId, 'admin@example.test'),
         _account(_memberId, 'alice@example.test'),
         _account(
@@ -343,7 +392,7 @@ class _AdminApi extends ApiClient {
           status: 'disabled',
         ),
       ],
-      'total': 3,
+      'total': accounts == null ? 3 : offset + accounts!.length,
       'limit': limit,
       'offset': offset,
     });
