@@ -13,6 +13,7 @@ import 'package:flutter/cupertino.dart'
     show CupertinoActivityIndicator, CupertinoButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart' show BrowserContextMenu;
 import 'package:sodium/sodium_sumo.dart';
 
 import 'app_controller.dart';
@@ -73,6 +74,7 @@ import 'cloud/cloud_access_api.dart';
 import 'cloud/cloud_access_crypto.dart';
 import 'cloud/pending_cloud_link.dart';
 import 'ui/cloud_access/guest_app.dart';
+import 'web/page_address.dart';
 import 'web/splash_bridge.dart';
 
 Future<void> main(List<String> arguments) async {
@@ -91,6 +93,11 @@ Future<void> main(List<String> arguments) async {
   // Bounded browser-drop policy + central drop cleanup before any root runs.
   initializeFileDrop();
   if (kIsWeb) {
+    // The app draws its own right-click menus; the browser's would open on
+    // top of them. Fields then get the in-app text menu instead.
+    unawaited(BrowserContextMenu.disableContextMenu());
+    // Page links (/settings, /hosts, …) are kept by the workspace itself.
+    takeOverBrowserAddress();
     // Temporary-link visitors get a separate account-free app. The link
     // secret was already removed from the address bar by share-bootstrap.js.
     PendingCloudLink.capture();

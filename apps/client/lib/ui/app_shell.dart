@@ -14,6 +14,7 @@ import 'window_combinations.dart';
 import '../terminal/keyword_highlighter.dart';
 import '../terminal/terminal_tools.dart';
 import 'terminal_tools_sidebar.dart';
+import '../web/page_address.dart';
 import '../mcp/app_mcp_workspace.dart';
 import '../mcp/mcp_service.dart';
 import '../mcp/mcp_workspace.dart';
@@ -179,6 +180,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  PageAddressBinding? _pageAddress;
   /// R7-INTEGRATION(forwarding): after the forwarding branch merges, root
   /// changes this to `=> _buildSshForwardingPage;` (state-owned controller and
   /// source survive leaving the page). Null hides the destination.
@@ -328,6 +330,13 @@ class _AppShellState extends State<AppShell> {
     if (_webUpdateMonitor != null) unawaited(_webUpdateMonitor!.start());
     app.addListener(_onControllerChanged);
     _syncSessionWorkspace();
+    if (browserPageAddressBar() case final bar?) {
+      final binding = _pageAddress = PageAddressBinding(app, bar);
+      // After the frame: following a link notifies listeners.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) binding.attach();
+      });
+    }
     _fileTabs.addListener(_onFilesChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _consumeFilesLaunch());
     _unregisterVisibleOwner = ApplicationWindows.instance.registerVisibleOwner(
@@ -352,6 +361,7 @@ class _AppShellState extends State<AppShell> {
     unawaited(TrackedFilesWindows.instance.releaseOwner(app));
     McpService.instance.detach(_mcpWorkspace);
     _groupGeneration++;
+    _pageAddress?.detach();
     app.removeListener(_onControllerChanged);
     _unregisterVisibleOwner?.call();
     _fileTabs.removeListener(_onFilesChanged);
@@ -8993,10 +9003,16 @@ class _TerminalPageState extends State<_TerminalPage> {
     } else {
       _focusRequestedForTab = null;
     }
+    // In the browser an open terminal takes the full width; the tab bar
+    // already switches and opens sessions. The list stays for the empty page
+    // and for a staged saved layout, whose panes are connected from it.
+    final showConnections =
+        !kIsWeb || activeTab == null || stagedWorkspace != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(17, 15, 17, 17),
       child: Row(
         children: [
+          if (showConnections) ...[
           Container(
             width: 250,
             decoration: BoxDecoration(
@@ -9142,6 +9158,7 @@ class _TerminalPageState extends State<_TerminalPage> {
             ),
           ),
           const SizedBox(width: 13),
+          ],
           Expanded(
             child: Column(
               children: [

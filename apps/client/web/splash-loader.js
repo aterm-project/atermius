@@ -40,6 +40,13 @@
   var FALLBACK_RELEASE_MS = 20000;
 
   var splashEl = document.getElementById("atermius-splash");
+  // The splash covers the page before the app's own right-click handling
+  // exists; keep the browser menu off it too.
+  if (splashEl) {
+    splashEl.addEventListener("contextmenu", function (event) {
+      event.preventDefault();
+    });
+  }
   var wordmarkEl = document.getElementById("atermius-wordmark");
   var progressEl = document.getElementById("atermius-progress");
   var fillEl = document.getElementById("atermius-progress-fill");
