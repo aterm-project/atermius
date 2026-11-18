@@ -16968,7 +16968,7 @@ class AppController extends ChangeNotifier {
     required bool renewLease,
   }) async {
     try {
-      if (renewLease) {
+      if (renewLease && _claimVaultPresenceBeat(vaultId)) {
         try {
           // Members refreshes renew this profile before reading. A recent
           // heartbeat is a fixed 429; its existing lease remains visible, so
@@ -17010,17 +17010,7 @@ class AppController extends ChangeNotifier {
         stage != ClientStage.workspace) {
       return;
     }
-    final last = _lastVaultPresenceBeat;
-    final now = DateTime.now();
-    if (last == null ||
-        last.vaultId != selectedVaultId ||
-        !identical(last.session, session) ||
-        now.difference(last.at) >= const Duration(seconds: 5)) {
-      _lastVaultPresenceBeat = (
-        vaultId: selectedVaultId,
-        session: session,
-        at: now,
-      );
+    if (_claimVaultPresenceBeat(selectedVaultId)) {
       unawaited(_sendVaultPresenceHeartbeat(selectedVaultId));
     }
     _vaultPresenceHeartbeatTimer = Timer.periodic(
@@ -17032,6 +17022,7 @@ class AppController extends ChangeNotifier {
             stage != ClientStage.workspace) {
           return;
         }
+        _claimVaultPresenceBeat(currentVaultId, force: true);
         unawaited(_sendVaultPresenceHeartbeat(currentVaultId));
       },
     );
@@ -17044,6 +17035,22 @@ class AppController extends ChangeNotifier {
   @visibleForTesting
   void stopVaultPresenceHeartbeatsForTesting() =>
       _stopVaultPresenceHeartbeats(clearState: true);
+
+  /// Whether a heartbeat for [vaultId] may go out now; records it if so.
+  /// The server rejects a second heartbeat of the same session within 5 s.
+  bool _claimVaultPresenceBeat(String vaultId, {bool force = false}) {
+    final last = _lastVaultPresenceBeat;
+    final now = DateTime.now();
+    if (!force &&
+        last != null &&
+        last.vaultId == vaultId &&
+        identical(last.session, session) &&
+        now.difference(last.at) < const Duration(seconds: 5)) {
+      return false;
+    }
+    _lastVaultPresenceBeat = (vaultId: vaultId, session: session, at: now);
+    return true;
+  }
 
   Future<void> _sendVaultPresenceHeartbeat(String vaultId) async {
     try {
