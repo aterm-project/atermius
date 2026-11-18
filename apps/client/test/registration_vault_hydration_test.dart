@@ -1155,6 +1155,33 @@ void main() {
     },
   );
 
+  test('membership reload keeps the selected host of the same Vault', () async {
+    final harness = await _createRegisteredSyncHarness(sodium);
+    final app = harness.app;
+    final database = harness.database;
+    try {
+      await app.saveHost(
+        const HostRecord(
+          id: '7f0c1d5e-2a4b-4c6d-8e9f-0a1b2c3d4e5f',
+          name: 'Selected',
+          address: 'selected.example.test',
+          username: 'workspace-user',
+          login: HostLogin(kind: AuthKind.password, password: 'inline-secret'),
+        ),
+      );
+      app.selectHost(app.hosts.single);
+
+      await app.reloadVaultsForTesting().timeout(const Duration(seconds: 10));
+
+      // The terminal sidebar's "new tab" button acts on this selection.
+      expect(app.selectedHost, isNotNull);
+      expect(app.selectedHost, same(app.hosts.single));
+    } finally {
+      app.dispose();
+      await database.close();
+    }
+  });
+
   test(
     'same-base API replacement drains a committed Vault load before swapping',
     () async {
@@ -4891,6 +4918,7 @@ class _RegistrationApi extends ApiClient {
     required String username,
     required String loginVerifier,
     required String deviceId,
+    Map<String, Object?>? newDevice,
   }) async {
     currentDeviceId = deviceId;
     accessToken = 'access-token-$deviceId';

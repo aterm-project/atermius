@@ -15891,11 +15891,22 @@ class AppController extends ChangeNotifier {
             _workspacePaneTerminalTabIds[stagedWorkspaceIdBeforeRefresh] ??
                 const <String, String>{},
           );
+    // The projection reset drops the selected host; the reload below brings
+    // the same Vault's records back, so the selection follows the host id.
+    final selectedHostIdBeforeRefresh = selectedHost?.id;
     _clearVaultWorkspaceProjection(preserveSyncStatus: true);
     if (activeVault != null) {
       _traceSafeTeamLifecycle('reload.records.start');
       await reloadRecords();
       _traceSafeTeamLifecycle('reload.records.done');
+      if (selectedHost == null &&
+          selectedHostIdBeforeRefresh != null &&
+          previousActive != null &&
+          activeVault?.id == previousActive.id) {
+        selectedHost = hosts
+            .where((host) => host.id == selectedHostIdBeforeRefresh)
+            .firstOrNull;
+      }
       _restoreStagedWorkspaceAfterMembershipRefresh(
         workspaceId: stagedWorkspaceIdBeforeRefresh,
         paneTabIds: stagedPaneTabIdsBeforeRefresh,
