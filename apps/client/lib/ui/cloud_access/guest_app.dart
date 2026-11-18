@@ -58,6 +58,7 @@ class GuestApp extends StatelessWidget {
           accent: AppThemeController.instance.accent,
         ),
         themeMode: themeMode,
+        color: browserThemeColor(context, themeMode),
         home: GuestPage(slug: slug, secret: secret, api: api, sodium: sodium),
       ),
     ),

@@ -1,3 +1,5 @@
+import 'dart:js_interop';
+
 import 'package:web/web.dart' as web;
 
 import 'app_theme_store.dart';
@@ -18,8 +20,16 @@ class BrowserAppThemeStore implements AppThemeStore {
   }
 
   @override
-  Future<void> write(String code) async =>
-      web.window.localStorage.setItem(_key, code);
+  Future<void> write(String code) async {
+    // Update the page in this tab even when storage cannot persist the choice.
+    web.window.dispatchEvent(
+      web.CustomEvent(
+        'atermius:app-theme',
+        web.CustomEventInit(detail: code.toJS),
+      ),
+    );
+    web.window.localStorage.setItem(_key, code);
+  }
 }
 
 AppThemeStore createThemeStore() => BrowserAppThemeStore();

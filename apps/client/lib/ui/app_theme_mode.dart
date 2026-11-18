@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
@@ -63,6 +64,20 @@ String encodeAppTheme(AppThemePreference preference, AppAccent accent) =>
     accent == AppAccent.emerald
     ? preference.code
     : '${preference.code}$_accentSeparator${accent.code}';
+
+/// Color Flutter publishes to the browser via its application title.
+Color? browserThemeColor(BuildContext context, ThemeMode mode) {
+  if (!kIsWeb) return null;
+  final brightness = switch (mode) {
+    ThemeMode.light => Brightness.light,
+    ThemeMode.dark => Brightness.dark,
+    ThemeMode.system => MediaQuery.platformBrightnessOf(context),
+  };
+  return AppPalette.resolve(
+    AppThemeController.instance.accent,
+    brightness,
+  ).background;
+}
 
 /// Owns the persisted UI theme preference and color scheme. Changing either
 /// only swaps the [ThemeData] handed to the app roots, so sessions, panes and

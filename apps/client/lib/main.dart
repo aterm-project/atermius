@@ -383,6 +383,7 @@ class _AtermiusStartupState extends State<AtermiusStartup> {
             accent: AppThemeController.instance.accent,
           ),
           themeMode: themeMode,
+          color: browserThemeColor(context, themeMode),
           builder: (context, child) => WindowsWindowChrome(child: child!),
           home: _StartupRecovery(
             starting: _starting,
@@ -862,6 +863,7 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
       accent: AppThemeController.instance.accent,
     ),
     themeMode: themeMode,
+    color: browserThemeColor(context, themeMode),
     builder: (context, child) => WindowsWindowChrome(
       navigationState: _controller,
       navigationEmbedded: () =>

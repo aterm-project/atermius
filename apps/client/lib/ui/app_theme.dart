@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'app_density.dart';
@@ -443,6 +443,8 @@ ThemeData buildAppTheme({
   final p = AppPalette.resolve(accent, brightness);
   final effectivePlatform = platform ?? defaultTargetPlatform;
   final apple = isApplePlatform(effectivePlatform);
+  // Browser controls share the Windows colors, including on Apple devices.
+  final nativeAppleColors = apple && !kIsWeb;
   final base = dark
       ? ThemeData.dark(useMaterial3: true)
       : ThemeData.light(useMaterial3: true);
@@ -458,9 +460,9 @@ ThemeData buildAppTheme({
   return base.copyWith(
     platform: effectivePlatform,
     splashFactory: apple ? NoSplash.splashFactory : null,
-    splashColor: apple ? Colors.transparent : null,
-    highlightColor: apple ? p.text.withValues(alpha: dark ? 0.07 : 0.05) : null,
-    hoverColor: apple ? p.text.withValues(alpha: dark ? 0.04 : 0.03) : null,
+    splashColor: nativeAppleColors ? Colors.transparent : null,
+    highlightColor: nativeAppleColors ? p.text.withValues(alpha: dark ? 0.07 : 0.05) : null,
+    hoverColor: nativeAppleColors ? p.text.withValues(alpha: dark ? 0.04 : 0.03) : null,
     extensions: <ThemeExtension<dynamic>>[density, p],
     pageTransitionsTheme: appPageTransitionsTheme,
     scaffoldBackgroundColor: p.background,
@@ -587,7 +589,7 @@ ThemeData buildAppTheme({
             : null,
       ),
     ),
-    switchTheme: apple
+    switchTheme: nativeAppleColors
         ? SwitchThemeData(
             trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
             trackOutlineWidth: const WidgetStatePropertyAll(0),
@@ -619,7 +621,7 @@ ThemeData buildAppTheme({
         radiusMd,
         platform: effectivePlatform,
         side: BorderSide(
-          color: apple ? p.line.withValues(alpha: dark ? 0.85 : 0.75) : p.line,
+          color: nativeAppleColors ? p.line.withValues(alpha: dark ? 0.85 : 0.75) : p.line,
         ),
       ),
       menuPadding: EdgeInsets.symmetric(vertical: density.space2),
@@ -631,14 +633,14 @@ ThemeData buildAppTheme({
     ),
     menuTheme: MenuThemeData(
       style: MenuStyle(
-        backgroundColor: apple
+        backgroundColor: nativeAppleColors
             ? WidgetStatePropertyAll(p.surfaceRaised)
             : null,
-        surfaceTintColor: apple
+        surfaceTintColor: nativeAppleColors
             ? const WidgetStatePropertyAll(Colors.transparent)
             : null,
         elevation: apple ? const WidgetStatePropertyAll(10) : null,
-        shadowColor: apple ? WidgetStatePropertyAll(menuShadowColor) : null,
+        shadowColor: nativeAppleColors ? WidgetStatePropertyAll(menuShadowColor) : null,
         padding: const WidgetStatePropertyAll(
           EdgeInsets.symmetric(vertical: 4),
         ),
@@ -647,7 +649,7 @@ ThemeData buildAppTheme({
             radiusMd,
             platform: effectivePlatform,
             side: BorderSide(
-              color: apple
+              color: nativeAppleColors
                   ? p.line.withValues(alpha: dark ? 0.85 : 0.75)
                   : p.line,
             ),
@@ -691,19 +693,19 @@ ThemeData buildAppTheme({
       border: OutlineInputBorder(
         borderRadius: radiusMd,
         borderSide: BorderSide(
-          color: apple ? p.line.withValues(alpha: dark ? 0.72 : 0.85) : p.line,
+          color: nativeAppleColors ? p.line.withValues(alpha: dark ? 0.72 : 0.85) : p.line,
         ),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: radiusMd,
         borderSide: BorderSide(
-          color: apple ? p.line.withValues(alpha: dark ? 0.72 : 0.85) : p.line,
+          color: nativeAppleColors ? p.line.withValues(alpha: dark ? 0.72 : 0.85) : p.line,
         ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: radiusMd,
         borderSide: BorderSide(
-          color: apple ? p.lime.withValues(alpha: dark ? 0.65 : 0.55) : p.lime,
+          color: nativeAppleColors ? p.lime.withValues(alpha: dark ? 0.65 : 0.55) : p.lime,
           width: apple ? 1.0 : 1.4,
         ),
       ),
@@ -723,7 +725,7 @@ ThemeData buildAppTheme({
           : null,
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: apple
+      backgroundColor: nativeAppleColors
           ? p.surface.withValues(alpha: dark ? 0.76 : 0.84)
           : p.surface,
       surfaceTintColor: Colors.transparent,
@@ -732,7 +734,7 @@ ThemeData buildAppTheme({
         BorderRadius.circular(density.radiusDialog),
         platform: effectivePlatform,
         side: BorderSide(
-          color: apple
+          color: nativeAppleColors
               ? (dark
                     ? Colors.white.withValues(alpha: 0.16)
                     : Colors.black.withValues(alpha: 0.09))

@@ -5,7 +5,7 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Atermius self-hosted encrypted SSH workspace">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#111827">
+  <meta id="atermius-theme-color" name="theme-color" content="#0b0f10">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="icon" href="favicon.ico?v=65a0c1a5">
@@ -13,15 +13,22 @@
   <link rel="manifest" href="manifest.json">
   <title>Atermius</title>
   <style>
-    html, body { margin: 0; background: #111827; height: 100%; overflow: hidden; }
+    :root {
+      color-scheme: dark;
+      --app-background: #0b0f10;
+      --app-text: #ecf3f2;
+      --app-progress: #4fd8c4;
+      --app-warning: #ffb55e;
+    }
+    html, body { margin: 0; background: var(--app-background); height: 100%; overflow: hidden; }
     /* Silent-loading splash: the animated startup state lives here until the
        splash controller (splash-loader.js) releases it. */
     #atermius-splash {
       position: fixed;
       inset: 0;
       z-index: 20;
-      background: #111827;
-      color: #d8e0ed;
+      background: var(--app-background);
+      color: var(--app-text);
       font: 15px system-ui, sans-serif;
       letter-spacing: .2px;
       display: grid;
@@ -54,12 +61,13 @@
     #atermius-progress-fill {
       height: 100%;
       width: 0%;
-      background: #34d399;
+      background: var(--app-progress);
       transition: width .3s ease;
     }
-    #atermius-progress.is-failed #atermius-progress-fill { background: #f59e0b; }
+    #atermius-progress.is-failed #atermius-progress-fill { background: var(--app-warning); }
   </style>
 <script src="share-bootstrap.js"></script>
+<script src="startup-theme.js"></script>
 <script src="gsap/gsap.min.js"></script>
 <script type="text/javascript" src="sodium.js" async="true"></script></head>
 <body>
