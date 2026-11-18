@@ -2137,6 +2137,16 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
           adoptSavedHost(saved);
           return saved;
         },
+        saveOperatingSystem: (connected, system) async {
+          final saved = await HostOperatingSystemPersistence.saveLocal(
+            repository: repository,
+            connectedHost: connected,
+            observation: system,
+            isCurrentConnection: current,
+          );
+          if (saved != null) adoptSavedHost(saved);
+          return saved;
+        },
         // In-session resolution/scaling changes persist on top of the current
         // Host revision; a changed scope or Host keeps them session-only.
         saveDisplaySettings: (updated) async {

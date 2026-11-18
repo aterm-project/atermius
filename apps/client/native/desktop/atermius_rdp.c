@@ -205,6 +205,7 @@ typedef struct {
   BYTE* cursor_pixels;
   UINT32 cursor_revision, cursor_kind, cursor_width, cursor_height;
   UINT32 cursor_hot_x, cursor_hot_y, pointer_revision, pointer_x, pointer_y;
+  UINT32 server_os;  // see aterm_rdp_server_os
 } AtermContext;
 
 // FreeRDP owns the pointer cache. Keep its decoded shape separate from the
@@ -1024,9 +1025,23 @@ API void* aterm_rdp_create(const char* host, int port, const char* user,
   return aterm_rdp_create_ex(host, port, user, password, pin,
                              "version=1\naudio=2\nclipboard=1\n");
 }
+// FreeRDP patch 5 (freerdp_patches.cmake): the version in the NTLM challenge
+// of the NLA handshake that ran on this thread since the last call.
+extern UINT32 atermius_take_ntlm_server_os(void);
 API int aterm_rdp_connect(void* handle) {
   AtermContext* c = (AtermContext*)handle;
-  return freerdp_connect(c->context.instance) ? 1 : 0;
+  (void)atermius_take_ntlm_server_os();
+  const BOOL connected = freerdp_connect(c->context.instance);
+  c->server_os = atermius_take_ntlm_server_os();
+  return connected ? 1 : 0;
+}
+// The Windows version the server stated during NLA, as major << 24 |
+// minor << 16 | build; 0 when it stated none (no NLA, xrdp and other
+// non-Windows servers). The server states it before the credentials are
+// checked, so it is also set after a rejected sign-in. Informational: never
+// used for trust decisions.
+API UINT32 aterm_rdp_server_os(void* handle) {
+  return ((AtermContext*)handle)->server_os;
 }
 API UINT32 aterm_rdp_error(void* handle) {
   return freerdp_get_last_error(&((AtermContext*)handle)->context);

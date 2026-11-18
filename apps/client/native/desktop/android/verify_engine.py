@@ -33,6 +33,7 @@ REQUIRED_EXPORTS = frozenset(
         "aterm_rdp_create_ex",
         "aterm_rdp_connect",
         "aterm_rdp_error",
+        "aterm_rdp_server_os",
         "aterm_rdp_rejected_certificate",
         "aterm_rdp_poll",
         "aterm_rdp_frame",

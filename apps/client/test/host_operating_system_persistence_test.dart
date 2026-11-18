@@ -63,6 +63,59 @@ void main() {
     await catalog.close();
   });
 
+  test('an RDP Host keeps the system its server stated; other protocols do not', () async {
+    final windows = HostOperatingSystem(
+      family: HostOperatingSystemFamily.windows,
+      displayName: 'Windows',
+      version: '10.0.22631',
+      detectedAt: DateTime.utc(2026, 11, 18),
+    );
+    final rdp = await repository.createHost(
+      const HostRecord(
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'Desktop',
+        address: 'desktop.example.test',
+        port: 3389,
+        username: 'demo',
+        protocol: HostProtocol.rdp,
+      ),
+    );
+    final saved = await HostOperatingSystemPersistence.saveLocal(
+      repository: repository,
+      connectedHost: rdp,
+      observation: windows,
+      isCurrentConnection: () => true,
+    );
+    expect(saved!.detectedOperatingSystem!.sameSystem(windows), isTrue);
+    expect(saved.revisionId, isNot(rdp.revisionId));
+    // The same system again writes no new revision.
+    final again = await HostOperatingSystemPersistence.saveLocal(
+      repository: repository,
+      connectedHost: saved,
+      observation: windows,
+      isCurrentConnection: () => true,
+    );
+    expect(again!.revisionId, saved.revisionId);
+    final vnc = await repository.createHost(
+      const HostRecord(
+        id: '33333333-3333-4333-8333-333333333333',
+        name: 'Screen',
+        address: 'screen.example.test',
+        port: 5900,
+        protocol: HostProtocol.vnc,
+      ),
+    );
+    expect(
+      await HostOperatingSystemPersistence.saveLocal(
+        repository: repository,
+        connectedHost: vnc,
+        observation: windows,
+        isCurrentConnection: () => true,
+      ),
+      isNull,
+    );
+  });
+
   test('encrypted metadata roundtrips through strict repository while preserving current edits', () async {
     await repository.updateHost(
       host: original.copyWith(name: 'Edited while connecting'),

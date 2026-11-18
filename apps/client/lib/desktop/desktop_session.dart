@@ -10,6 +10,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../api/api_client.dart';
 import '../api/server_transport.dart';
+import '../domain/host_operating_system.dart';
 import '../domain/models.dart';
 import '../ssh/ssh_transport.dart' as transport;
 import 'desktop_display.dart';
@@ -38,6 +39,7 @@ class DesktopSession extends ChangeNotifier {
     this.saveRdpCertificate,
     this.directConnectionForTesting,
     this.saveDisplaySettings,
+    this.saveOperatingSystem,
     this.reconnectAllowed,
     this.latestHost,
     this.localDrives,
@@ -60,6 +62,16 @@ class DesktopSession extends ChangeNotifier {
   final Future<HostRecord> Function(HostRecord updated)? saveDisplaySettings;
   final Future<HostRecord> Function(HostRecord host, String sha256)?
   saveRdpCertificate;
+
+  /// Records the system an RDP server stated while authenticating, so the
+  /// Host shows its icon (optional, best effort). Returns the saved Host, or
+  /// null when nothing was written; servers that state no system never call
+  /// it and the Host keeps what it showed before.
+  final Future<HostRecord?> Function(
+    HostRecord host,
+    HostOperatingSystem system,
+  )?
+  saveOperatingSystem;
   @visibleForTesting
   final DirectDesktopConnection Function(HostRecord host)?
   directConnectionForTesting;
@@ -601,6 +613,29 @@ class DesktopSession extends ChangeNotifier {
             display.movePointer(Offset(event.x.toDouble(), event.y.toDouble()));
           } else if (event is DesktopClipboard) {
             if (_clipboardText) display.clipboard = event.text;
+          } else if (event is DesktopServerSystem) {
+            final save = saveOperatingSystem, connected = _host;
+            if (save == null || connected == null) return;
+            unawaited(
+              () async {
+                final saved = await save(
+                  connected,
+                  HostOperatingSystem(
+                    family: HostOperatingSystemFamily.windows,
+                    displayName: 'Windows',
+                    version: '${event.major}.${event.minor}.${event.build}',
+                    detectedAt: DateTime.now().toUtc(),
+                  ),
+                );
+                // Later saves of this session build on the new revision.
+                if (saved != null &&
+                    !_closed &&
+                    attempt == _directAttempt &&
+                    identical(_host, connected)) {
+                  _host = saved;
+                }
+              }().catchError((Object _) {}),
+            );
           } else if (event is DesktopTouchSupport) {
             if (nativeTouch != event.available) {
               nativeTouch = event.available;

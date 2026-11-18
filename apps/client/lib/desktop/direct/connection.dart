@@ -72,6 +72,13 @@ class DesktopClipboard extends DesktopEvent {
 
 class DesktopReady extends DesktopEvent {}
 
+/// The Windows version an RDP server stated while authenticating (NLA).
+/// Not sent by servers that state none; informational only.
+class DesktopServerSystem extends DesktopEvent {
+  DesktopServerSystem(this.major, this.minor, this.build);
+  final int major, minor, build;
+}
+
 /// True only after the server's native touch channel has completed negotiation.
 class DesktopTouchSupport extends DesktopEvent {
   DesktopTouchSupport(this.available);

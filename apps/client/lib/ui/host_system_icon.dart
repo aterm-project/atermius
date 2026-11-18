@@ -14,8 +14,9 @@ import '../l10n/l10n.dart';
 /// A Host whose operating system was observed over an authenticated
 /// connection shows that system's local vector mark. Without an observation
 /// the address or name never predicts a system: a remote desktop Host shows
-/// its protocol's icon (only SSH connections observe the system, so this is
-/// what RDP and VNC Hosts show), any other Host the ordinary server icon.
+/// its protocol's icon (an RDP Host until a Windows server states its version
+/// while authenticating, a VNC Host always), any other Host the ordinary
+/// server icon.
 class HostSystemIcon extends StatelessWidget {
   const HostSystemIcon({
     required this.host,

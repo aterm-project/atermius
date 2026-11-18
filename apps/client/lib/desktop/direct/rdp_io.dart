@@ -175,6 +175,15 @@ class RdpConnection implements DirectDesktopConnection {
     switch (message[0]) {
       case 'ready':
         _events.add(DesktopReady());
+      case 'system':
+        final packed = message[1] as int;
+        _events.add(
+          DesktopServerSystem(
+            packed >> 24 & 0xff,
+            packed >> 16 & 0xff,
+            packed & 0xffff,
+          ),
+        );
       case 'frame':
         _events.add(
           DesktopFrame(
@@ -428,6 +437,8 @@ void _rdpWorker(List<dynamic> args) {
     eventHeader = calloc<Uint32>(6);
     eventBuffer = calloc<Uint8>(_eventBufferBytes);
     output.send(['ready']);
+    final serverOs = api.serverOs?.call(handle) ?? 0;
+    if (serverOs != 0) output.send(['system', serverOs]);
 
     void transfer(
       int done,
@@ -1015,6 +1026,13 @@ class _RdpNative {
             Uint32 Function(Pointer<Void>),
             int Function(Pointer<Void>)
           >('aterm_rdp_error'),
+      // Absent from engines built before system detection.
+      serverOs = library.providesSymbol('aterm_rdp_server_os')
+          ? library.lookupFunction<
+              Uint32 Function(Pointer<Void>),
+              int Function(Pointer<Void>)
+            >('aterm_rdp_server_os')
+          : null,
       rejectedCertificate = library.lookupFunction<_BufferNative, _Buffer>(
         'aterm_rdp_rejected_certificate',
       ),
@@ -1143,6 +1161,7 @@ class _RdpNative {
   final _Create create;
   final _CreateEx? createEx;
   final int Function(Pointer<Void>) connect, error, poll;
+  final int Function(Pointer<Void>)? serverOs;
   final _Buffer rejectedCertificate, paste;
   final _Frame frame;
   final _Frame? frameEx;

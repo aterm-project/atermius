@@ -40,6 +40,7 @@ import 'domain/device_redaction_capability.dart';
 import 'domain/host_security_conflict_merge.dart';
 import 'domain/known_host.dart';
 import 'domain/models.dart';
+import 'ssh/host_operating_system_persistence.dart';
 import 'ssh/port_forward_rule_change.dart';
 import 'domain/record_redaction.dart';
 import 'domain/shell_history_record.dart';
@@ -20778,6 +20779,21 @@ class AppController extends ChangeNotifier {
         );
         if (!current()) throw StateError(currentL10n.theWorkspaceChanged);
         tab.host = saved;
+        return saved;
+      },
+      saveOperatingSystem: (connected, system) async {
+        final vaultId = reviewedVault;
+        if (vaultId == null) return null;
+        final saved = await HostOperatingSystemPersistence.saveCloud(
+          controller: this,
+          connectedHost: connected,
+          observation: system,
+          vaultId: vaultId,
+          isCurrentConnection: current,
+        );
+        if (saved == null || !current()) return null;
+        tab.host = saved;
+        _notifyListenersIfAlive();
         return saved;
       },
       // In-session display changes persist at the current Host revision and

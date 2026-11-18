@@ -10,7 +10,10 @@ import '../storage/local_host_repository.dart';
 class HostOperatingSystemPersistence {
   static bool _sameEndpoint(HostRecord current, HostRecord connected) =>
       current.id == connected.id &&
-      current.protocol == HostProtocol.ssh &&
+      // SSH probes the system; RDP reads what the server states (NLA).
+      (connected.protocol == HostProtocol.ssh ||
+          connected.protocol == HostProtocol.rdp) &&
+      current.protocol == connected.protocol &&
       current.address == connected.address &&
       current.port == connected.port &&
       current.username == connected.username &&
