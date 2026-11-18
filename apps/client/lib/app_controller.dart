@@ -21925,8 +21925,9 @@ class AppController extends ChangeNotifier {
       tab._reconnectFailure = null;
       tab.recovery?.update(connected: true);
       tab.log?.markConnected();
-      // A reconnect reuses the tab's terminal; start from default modes.
-      resetTerminalForNewSession(tab.terminal);
+      // A reconnect reuses the tab's terminal; start from default modes, on
+      // a line of its own.
+      beginTerminalSession(tab.terminal);
       tab.outputSubscription = connection.output.listen(
         (text) {
           if (!attemptCurrent() || !identical(tab.connection, connection)) return;
