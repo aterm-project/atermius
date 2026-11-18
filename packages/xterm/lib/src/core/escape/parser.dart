@@ -274,9 +274,11 @@ class EscapeParser {
   var _csiParameterFieldCount = 1;
   var _csiCurrentParameter = 0;
   var _csiHasCurrentParameter = false;
+  var _csiNextIsSubParameter = false;
 
   void _beginCsi() {
     _csi.params.clear();
+    _csi.subParameter.clear();
     _csi.prefix = null;
     _csi.finalByte = 0;
     _csiInProgress = true;
@@ -286,6 +288,7 @@ class EscapeParser {
     _csiParameterFieldCount = 1;
     _csiCurrentParameter = 0;
     _csiHasCurrentParameter = false;
+    _csiNextIsSubParameter = false;
   }
 
   void _finishCsi({required bool dispatch}) {
@@ -305,6 +308,7 @@ class EscapeParser {
   void _discardCsi() {
     _csiDiscarding = true;
     _csi.params.clear();
+    _csi.subParameter.clear();
   }
 
   /// Consume available input from the active CSI. Incomplete CSI input is
@@ -359,10 +363,25 @@ class EscapeParser {
         return true;
       }
 
-      if (char == Ascii.semicolon) {
-        if (_csiHasCurrentParameter) {
-          _csi.params.add(_csiCurrentParameter);
+      if (char == Ascii.colon) {
+        // `4:3`, `38:2::r:g:b`: a colon joins sub-parameters to the parameter
+        // before it. An empty field keeps its place as 0.
+        _csi.addParam(_csiCurrentParameter, joined: _csiNextIsSubParameter);
+        _csiNextIsSubParameter = true;
+        _csiParameterFieldCount++;
+        if (_csiParameterFieldCount > maxCsiParameterCount) {
+          _discardCsi();
         }
+        _csiCurrentParameter = 0;
+        _csiHasCurrentParameter = false;
+        continue;
+      }
+
+      if (char == Ascii.semicolon) {
+        if (_csiHasCurrentParameter || _csiNextIsSubParameter) {
+          _csi.addParam(_csiCurrentParameter, joined: _csiNextIsSubParameter);
+        }
+        _csiNextIsSubParameter = false;
         _csiParameterFieldCount++;
         if (_csiParameterFieldCount > maxCsiParameterCount) {
           _discardCsi();
@@ -389,8 +408,8 @@ class EscapeParser {
       }
 
       if (char >= Ascii.atSign && char <= Ascii.tilde) {
-        if (_csiHasCurrentParameter) {
-          _csi.params.add(_csiCurrentParameter);
+        if (_csiHasCurrentParameter || _csiNextIsSubParameter) {
+          _csi.addParam(_csiCurrentParameter, joined: _csiNextIsSubParameter);
         }
 
         _csi.finalByte = char;
@@ -539,10 +558,52 @@ class EscapeParser {
     }
   }
 
+  /// One SGR parameter with colon sub-parameters, `params[start..end)`.
+  void _sgrColonGroup(List<int> params, int start, int end) {
+    final count = end - start - 1;
+    switch (params[start]) {
+      case 4:
+        // 4:0 none, 4:1 single, 4:2 double, 4:3 curly, 4:4 dotted, 4:5 dashed.
+        if (params[start + 1] == 0) {
+          handler.unsetCursorUnderline();
+        } else {
+          handler.setCursorUnderline();
+        }
+        return;
+      case 38:
+      case 48:
+        final foreground = params[start] == 38;
+        final mode = params[start + 1];
+        if (mode == 5 && count >= 2) {
+          final index = params[start + 2];
+          foreground
+              ? handler.setForegroundColor256(index)
+              : handler.setBackgroundColor256(index);
+        } else if (mode == 2 && count >= 4) {
+          // `38:2:r:g:b` and `38:2:<colour space>:r:g:b`.
+          final r = params[end - 3];
+          final g = params[end - 2];
+          final b = params[end - 1];
+          foreground
+              ? handler.setForegroundColorRgb(r, g, b)
+              : handler.setBackgroundColorRgb(r, g, b);
+        }
+        return;
+      default:
+        // 58 (underline colour) and anything unknown: ignore the whole group.
+        return;
+    }
+  }
+
   /// `ESC [ [ Ps ] m` Select Graphic Rendition (SGR)
   ///
   /// https://terminalguide.namepad.de/seq/csi_sm/
   void _csiHandleSgr() {
+    // `CSI > Pp ; Pv m` (XTMODKEYS) and `CSI ? Pp m` (XTQMODKEYS) set and
+    // query key modifier options. They share the final byte with SGR but are
+    // not text attributes: `CSI > 4 ; 2 m` must not underline anything.
+    if (_csi.prefix != null) return;
+
     final params = _csi.params;
 
     if (params.isEmpty) {
@@ -553,6 +614,32 @@ class EscapeParser {
     // ignore: dead_code
     for (var i = 0; i < _csi.params.length; i++) {
       final param = params[i];
+
+      var groupEnd = i + 1;
+      while (groupEnd < params.length && _csi.subParameter[groupEnd]) {
+        groupEnd++;
+      }
+      if (groupEnd > i + 1) {
+        _sgrColonGroup(params, i, groupEnd);
+        i = groupEnd - 1;
+        continue;
+      }
+
+      // Semicolon colour forms need their arguments; a truncated one ends
+      // the sequence instead of reading past the parameters.
+      if (param == 38 || param == 48 || param == 58) {
+        final needed = i + 1 >= params.length
+            ? 1
+            : switch (params[i + 1]) { 2 => 4, 5 => 2, _ => 1 };
+        if (i + needed >= params.length) return;
+        if (param == 58) {
+          // Underline colour is not drawn; skip its arguments so they are
+          // not read as attributes.
+          i += needed;
+          continue;
+        }
+      }
+
       switch (param) {
         case 0:
           handler.resetCursorStyle();
@@ -1344,6 +1431,15 @@ class _Csi {
   int? prefix;
 
   List<int> params;
+
+  /// Parallel to [params]: whether the parameter followed a colon, i.e. is a
+  /// sub-parameter of the one before it.
+  final subParameter = <bool>[];
+
+  void addParam(int value, {required bool joined}) {
+    params.add(value);
+    subParameter.add(joined);
+  }
 
   int finalByte;
   // final List<int> intermediates;
