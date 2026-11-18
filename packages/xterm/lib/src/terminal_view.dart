@@ -182,6 +182,8 @@ class TerminalViewState extends State<TerminalView> {
 
   late ScrollController _scrollController;
 
+  ScrollPosition? get scrollPosition => _scrollableKey.currentState?.position;
+
   RenderTerminal get renderTerminal =>
       _viewportKey.currentContext!.findRenderObject() as RenderTerminal;
 
@@ -522,7 +524,7 @@ class TerminalViewState extends State<TerminalView> {
   }
 
   void _scrollToBottom() {
-    final position = _scrollableKey.currentState?.position;
+    final position = scrollPosition;
     if (position != null) {
       position.jumpTo(position.maxScrollExtent);
     }

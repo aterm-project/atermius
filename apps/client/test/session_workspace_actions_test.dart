@@ -5,6 +5,68 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:aterm_client/ui/session_workspace.dart';
 
 void main() {
+  for (final width in [640.0, 140.0]) {
+    testWidgets('pane note clears the hover buttons at width $width', (
+      tester,
+    ) async {
+      final workspace = SessionWorkspaceController()..activate('a');
+      workspace.split('b', 'a', SessionSplitEdge.right);
+      String? duplicated;
+      const note = 'Production host\nMaintenance window at midnight';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: width,
+              height: 240,
+              child: SessionWorkspaceView(
+                controller: workspace,
+                paneLabel: (_) => note,
+                terminalBuilder: (_, id) => Text(id),
+                onDuplicate: (id) => duplicated = id,
+                onClose: workspace.remove,
+              ),
+            ),
+          ),
+        ),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(2, 180));
+      await mouse.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('pane-handle-a'))),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      final noteBox = tester.getRect(
+        find.text('Pane actions · $note', findRichText: true),
+      );
+      final actions = find.descendant(
+        of: find.byKey(const ValueKey('session-pane-a')),
+        matching: find.byType(Wrap),
+      );
+      expect(noteBox.top, greaterThanOrEqualTo(tester.getRect(actions).bottom));
+      final compact = find.byKey(const ValueKey('pane-actions-a'));
+      final hasMenu = compact.evaluate().isNotEmpty;
+      final button = hasMenu
+          ? compact
+          : find.byKey(const ValueKey('pane-duplicate-a'));
+      await mouse.moveTo(tester.getCenter(button));
+      await mouse.down(tester.getCenter(button));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      if (hasMenu) {
+        final item = tester.getCenter(find.text('Duplicate tab'));
+        await mouse.moveTo(item);
+        await mouse.down(item);
+        await mouse.up();
+        await tester.pumpAndSettle();
+      }
+      expect(duplicated, 'a');
+      await mouse.removePointer();
+    });
+  }
   for (final width in [640.0, 220.0]) {
     testWidgets(
       'clone the requested pane and retain its split group at $width',

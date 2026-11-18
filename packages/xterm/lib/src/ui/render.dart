@@ -256,6 +256,8 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   /// Height of the entire terminal is expected to be a multiple of this value.
   double get lineHeight => _painter.cellSize.height;
 
+  Rect get contentRect => _padding.deflateRect(Offset.zero & size);
+
   /// Get the top-left corner of the cell at [cellOffset] in pixels.
   Offset getOffset(CellOffset cellOffset) {
     final row = cellOffset.y;
@@ -309,13 +311,25 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         _terminal.buffer.createAnchorFromOffset(fromPosition),
       );
     } else {
-      var toPosition = getCellOffset(to);
-      if (toPosition.x >= fromPosition.x) {
-        toPosition = CellOffset(toPosition.x + 1, toPosition.y);
-      }
-      final range = BufferRangeLine(fromPosition, toPosition).normalized;
-      _setSnappedSelection(range.begin, range.end, mode: null);
+      selectCharactersFromCell(fromPosition, to);
     }
+  }
+
+  /// Extends a drag from its buffer cell after the viewport has scrolled.
+  void selectCharactersFromCell(CellOffset from, Offset to) {
+    final cell = getCellOffset(to);
+    if (_controller.selectionMode == SelectionMode.block) {
+      final end = cell.x >= from.x ? CellOffset(cell.x + 1, cell.y) : cell;
+      final range = BufferRangeLine(from, end).normalized;
+      _setSnappedSelection(range.begin, range.end, mode: null);
+      return;
+    }
+    final range = BufferRangeLine(from, cell).normalized;
+    _setSnappedSelection(
+      range.begin,
+      CellOffset(range.end.x + 1, range.end.y),
+      mode: null,
+    );
   }
 
   /// Sets a selection from [begin] to the exclusive [end], widening either

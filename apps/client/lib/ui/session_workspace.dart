@@ -660,6 +660,7 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
   bool _controlsVisible = false;
   bool _controlsPinned = false;
   final _controlsFocus = FocusNode(debugLabel: 'Split pane actions');
+  final _controlsBottom = GlobalKey();
 
   /// A control the pane content shows in the actions (see
   /// [SessionPaneActionSlot]).
@@ -872,6 +873,22 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
 
   Widget _handle() => Tooltip(
     message: context.l10n.paneActionsLabel(widget.label),
+    ignorePointer: true,
+    positionDelegate: (info) {
+      // The handle triggers the tooltip, but the buttons below it can wrap.
+      final marker =
+          _controlsBottom.currentContext!.findRenderObject()! as RenderBox;
+      final height = marker
+          .localToGlobal(Offset.zero, ancestor: marker.parent)
+          .dy;
+      return positionDependentBox(
+        size: info.overlaySize,
+        childSize: info.tooltipSize,
+        target: info.target.translate(0, (height - info.targetSize.height) / 2),
+        verticalOffset: height / 2 + 4,
+        preferBelow: true,
+      );
+    },
     child: Semantics(
       button: true,
       toggled: _controlsVisible,
@@ -1060,6 +1077,7 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
                                 offset: const Offset(0, -4),
                                 child: _actions(context),
                               ),
+                            SizedBox.shrink(key: _controlsBottom),
                           ],
                         ),
                       ),
@@ -1148,6 +1166,8 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
                 key: ValueKey('pane-split-${widget.sessionId}'),
                 popUpAnimationStyle: AppMotion.menuStyle(context),
                 tooltip: context.l10n.splitSelectedPane,
+                onOpened: _holdActions,
+                onCanceled: _releaseActions,
                 icon: Icon(
                   Icons.vertical_split_outlined,
                   size: appMenuIconSize(context),
@@ -1193,6 +1213,8 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
               key: ValueKey('pane-actions-${widget.sessionId}'),
               popUpAnimationStyle: AppMotion.menuStyle(context),
               tooltip: context.l10n.paneActionsLabel(widget.label),
+              onOpened: _holdActions,
+              onCanceled: _releaseActions,
               icon: Icon(Icons.more_horiz, size: appMenuIconSize(context)),
               constraints: const BoxConstraints(minWidth: 160),
               padding: EdgeInsets.zero,
