@@ -16260,6 +16260,8 @@
   "@sessionReconnectNote": {
     "description": "Note under the automatic reconnect setting."
   },
+  "keybarResetTextSize": "Reset text size",
+  "resetTerminalTextScale": "Restore the terminal text size set in Settings",
   "passwordVaultKeyNotSyncedYet": "This account’s vault key hasn’t been synced for password sign-in yet. Sign in once on a device or browser where this account is already signed in, then sign in here again.",
   "@passwordVaultKeyNotSyncedYet": {
     "description": "Sign-in error on a new device when the account has no password-wrapped vault key on the server yet."

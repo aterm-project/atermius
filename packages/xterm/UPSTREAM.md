@@ -71,6 +71,9 @@ changes here. The application selects this package through the path override in
   are no longer off by one. Wheel buttons are 64/65/66/67; upstream's 68+ set the
   Shift bit. Alternate-screen wheel reports use local coordinates, and `readOnly`
   views no longer turn alternate-screen swipes into wheel reports or arrow keys.
+- Mouse drag selection scrolls the local history while the pointer is held near
+  the top or bottom of the viewport. A buffer anchor tracks the original cell
+  while the view scrolls. Moving away from the edge or ending the drag stops it.
 - Wide (CJK) characters: `getWordBoundary` no longer treats the empty trailing cell
   of a double-width character as a separator. Word/character selections widen to
   whole wide characters, so the copied text matches the highlight.

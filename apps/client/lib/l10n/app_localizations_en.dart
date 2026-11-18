@@ -19528,6 +19528,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Stored on this device only. When the time limit is reached, automatic attempts stop and “Restore connection” stays available. Changes also apply to sessions that are reconnecting now.';
 
   @override
+  String get keybarResetTextSize => 'Reset text size';
+
+  @override
+  String get resetTerminalTextScale =>
+      'Restore the terminal text size set in Settings';
+
+  @override
   String get passwordVaultKeyNotSyncedYet =>
       'This account’s vault key hasn’t been synced for password sign-in yet. Sign in once on a device or browser where this account is already signed in, then sign in here again.';
 

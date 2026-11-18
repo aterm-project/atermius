@@ -17487,6 +17487,12 @@ class AppLocalizationsZh extends AppLocalizations {
       '仅保存在本设备。达到重连时限后停止自动重连，仍可点击“恢复连接”手动重连。更改对正在重连的会话同样生效。';
 
   @override
+  String get keybarResetTextSize => '字号复原';
+
+  @override
+  String get resetTerminalTextScale => '恢复为设置中的默认终端字号';
+
+  @override
   String get passwordVaultKeyNotSyncedYet =>
       '此账户的保管库密钥尚未同步到密码登录。请先在已登录过此账户的设备或浏览器上登录一次，然后再回到这里登录。';
 

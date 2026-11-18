@@ -1,3 +1,4 @@
+import 'terminal_font_zoom.dart';
 import 'app_menu.dart';
 import '../platform/file_window_tracking.dart';
 import '../desktop/window/desktop_window.dart';
@@ -5146,21 +5147,20 @@ _showMessage(
                         if (session.isTelnet) {
                           return _withLocalConnectProgress(session, SessionRecoveryOverlay(recovery: session.recovery, onClose: () => _closeTerminalTab(session.id), child: ExcludeFocus(
                             excluding: _selectedTabId != id,
-                            child: TerminalView(
-                              session.terminal,
-                              foregroundDecorator: TerminalKeywordHighlighter.instance,
-                              key: ValueKey('local_telnet_view_${session.id}'),
-                              autofocus: _selectedTabId == id,
-                              readOnly: !session.connected.value,
-                              hardwareKeyboardOnly: false,
-                              backgroundOpacity:
-                                  wallpaperTerminalBackgroundOpacity(context),
-                              textStyle: TerminalStyle(
-                                fontSize: _terminalFontSizeChoice.toDouble(),
-                              ),
-                              theme: terminalColorThemeOf(
-                                context,
-                                _savedTerminalThemeChoice,
+                            child: TerminalFontZoom(
+                              terminal: session.terminal,
+                              builder: (context, fontScale) => TerminalView(
+                                session.terminal,
+                                foregroundDecorator: TerminalKeywordHighlighter.instance,
+                                key: ValueKey('local_telnet_view_${session.id}'),
+                                autofocus: _selectedTabId == id,
+                                readOnly: !session.connected.value,
+                                hardwareKeyboardOnly: false,
+                                backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
+                                textStyle: TerminalStyle(
+                                  fontSize: _terminalFontSizeChoice.toDouble() * fontScale,
+                                ),
+                                theme: terminalColorThemeOf(context, _savedTerminalThemeChoice),
                               ),
                             ),
                           )));
@@ -5168,19 +5168,18 @@ _showMessage(
                         if (session.console != null) {
                           return ExcludeFocus(
                             excluding: _selectedTabId != id,
-                            child: TerminalView(
-                              session.terminal,
-                              foregroundDecorator: TerminalKeywordHighlighter.instance,
-                              autofocus: _selectedTabId == id,
-                              readOnly: !session.connected.value,
-                              backgroundOpacity:
-                                  wallpaperTerminalBackgroundOpacity(context),
-                              textStyle: TerminalStyle(
-                                fontSize: _terminalFontSizeChoice.toDouble(),
-                              ),
-                              theme: terminalColorThemeOf(
-                                context,
-                                _savedTerminalThemeChoice,
+                            child: TerminalFontZoom(
+                              terminal: session.terminal,
+                              builder: (context, fontScale) => TerminalView(
+                                session.terminal,
+                                foregroundDecorator: TerminalKeywordHighlighter.instance,
+                                autofocus: _selectedTabId == id,
+                                readOnly: !session.connected.value,
+                                backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
+                                textStyle: TerminalStyle(
+                                  fontSize: _terminalFontSizeChoice.toDouble() * fontScale,
+                                ),
+                                theme: terminalColorThemeOf(context, _savedTerminalThemeChoice),
                               ),
                             ),
                           );
@@ -8514,25 +8513,28 @@ throw StateError(context.l10n.snippetChanged);
       body: Column(
           children: [
             Expanded(
-              child: TerminalView(
-                _terminal,
-                foregroundDecorator: TerminalKeywordHighlighter.instance,
-                key: const ValueKey('local_ssh_terminal_view'),
-                readOnly: !widget.session.connected.value,
-                controller: _terminalController,
-                scrollController: _terminalScrollController,
-                focusNode: _terminalFocus,
-                autofocus: widget.active && !_searchOpen,
-                showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
-                keyboardAppearance: Theme.of(context).brightness,
-                onKeyEvent: _handleTerminalKeyEvent,
-                padding: const EdgeInsets.all(12),
-                backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
-                textStyle: TerminalStyle(
-                  fontSize: widget.fontSize.toDouble(),
-                  fontFamily: 'monospace',
+              child: TerminalFontZoom(
+                terminal: _terminal,
+                builder: (context, fontScale) => TerminalView(
+                  _terminal,
+                  foregroundDecorator: TerminalKeywordHighlighter.instance,
+                  key: const ValueKey('local_ssh_terminal_view'),
+                  readOnly: !widget.session.connected.value,
+                  controller: _terminalController,
+                  scrollController: _terminalScrollController,
+                  focusNode: _terminalFocus,
+                  autofocus: widget.active && !_searchOpen,
+                  showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
+                  keyboardAppearance: Theme.of(context).brightness,
+                  onKeyEvent: _handleTerminalKeyEvent,
+                  padding: const EdgeInsets.all(12),
+                  backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
+                  textStyle: TerminalStyle(
+                    fontSize: widget.fontSize.toDouble() * fontScale,
+                    fontFamily: 'monospace',
+                  ),
+                  theme: terminalColorThemeOf(context, widget.theme),
                 ),
-                theme: terminalColorThemeOf(context, widget.theme),
               ),
             ),
           ],

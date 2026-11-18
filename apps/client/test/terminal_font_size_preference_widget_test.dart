@@ -16,6 +16,7 @@ import 'package:aterm_client/ui/app_theme.dart';
 import 'package:aterm_client/ui/terminal_palette_picker.dart';
 import 'package:aterm_client/ui/terminal_palette.dart';
 import 'package:aterm_client/ui/terminal_color_theme.dart';
+import 'package:aterm_client/ui/terminal_font_zoom.dart';
 import 'package:aterm_client/ui/settings_scaffold.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:drift/native.dart';
@@ -871,13 +872,31 @@ void main() {
             .toARGB32(),
         0xFFF8FAFC,
       );
+      if (TerminalFontZoom.enabled) {
+        final terminal = app.activeTerminalTab!.terminal;
+        TerminalFontZoom.scaleFor(terminal).value = 2.0;
+        await tester.pump();
+        expect(tester.widget<TerminalView>(find.byType(TerminalView)).textStyle.fontSize, 36);
+        app
+          ..setFontSizeForTesting(16)
+          ..notifyUnrelatedForTesting();
+        await tester.pump();
+        expect(tester.widget<TerminalView>(find.byType(TerminalView)).textStyle.fontSize, 32);
+        await tester.tap(find.text('More'));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Reset text size'));
+        await tester.tap(find.text('Reset text size'));
+        await tester.pump();
+        expect(tester.widget<TerminalView>(find.byType(TerminalView)).textStyle.fontSize, 16);
+        expect(app.terminalFontSize, 16);
+      }
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());
       app.dispose();
       await database.close();
       await tester.binding.setSurfaceSize(null);
     }
-  });
+  }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.android}));
 
   group('Theme settings category (terminal palette apply)', () {
     late TerminalPaletteController palettes;

@@ -30856,6 +30856,18 @@ abstract class AppLocalizations {
   /// **'Stored on this device only. When the time limit is reached, automatic attempts stop and “Restore connection” stays available. Changes also apply to sessions that are reconnecting now.'**
   String get sessionReconnectNote;
 
+  /// No description provided for @keybarResetTextSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset text size'**
+  String get keybarResetTextSize;
+
+  /// No description provided for @resetTerminalTextScale.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore the terminal text size set in Settings'**
+  String get resetTerminalTextScale;
+
   /// Sign-in error on a new device when the account has no password-wrapped vault key on the server yet.
   ///
   /// In en, this message translates to:

@@ -14,6 +14,7 @@
 - [功能与平台边界](docs/FEATURES.md)
 - [分享主机](docs/SHARING.md)
 - [自托管服务端](docs/install/server.md)
+- [在线测试环境](docs/ONLINE-TEST.md)：`https://200.180.166.253`，使用自签名证书。
 - [凭据可见性与管理员托管](docs/CREDENTIAL-VISIBILITY.zh-CN.md)
 - [常见问题](docs/TROUBLESHOOTING.md)
 - [开发与验证](docs/DEVELOPMENT.md)

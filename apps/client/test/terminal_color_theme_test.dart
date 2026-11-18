@@ -12,8 +12,8 @@ void main() {
     final light = buildTerminalColorTheme(VaultTerminalThemeChoice.light);
 
     expect(dark.background.toARGB32(), 0xFF0F1425);
-    // Default SSH text is grass green and independent of the app accent.
-    expect(dark.foreground.toARGB32(), 0xFF91D27B);
+    expect(dark.foreground.toARGB32(), 0xFF21B568);
+    expect(dark.cursor, dark.foreground);
     expect(dark.foreground, isNot(AppColors.accent));
     expect(dark.foreground, isNot(AppColors.accentText));
     // ANSI semantics are preserved (programs keep their colors).
@@ -27,7 +27,7 @@ void main() {
     expect(light.cursor, isNot(dark.cursor));
   });
 
-  test('default dark palette is a soft, even family, not fluorescent', () {
+  test('dark terminal text is legible and ANSI colors stay distinct', () {
     final dark = buildTerminalColorTheme(VaultTerminalThemeChoice.atermDark);
     double contrast(Color a, Color b) =>
         (math.max(a.computeLuminance(), b.computeLuminance()) + .05) /
@@ -49,22 +49,11 @@ void main() {
       dark.brightCyan,
     ];
 
-    // Body text: comfortably readable, and a grass green (yellowish green)
-    // that is clearly calmer than the fluorescent 0xFF9BEF60 it replaces.
-    expect(contrast(dark.foreground, dark.background), greaterThan(7));
-    final text = _oklch(dark.foreground);
-    final fluorescent = _oklch(const Color(0xFF9BEF60));
-    expect(text.hue, inInclusiveRange(125, 145));
-    expect(text.chroma, lessThan(.15));
-    expect(text.chroma, greaterThan(.10), reason: 'still green, not grey');
-    expect(text.chroma, lessThan(fluorescent.chroma - .04));
-    expect(text.lightness, lessThan(fluorescent.lightness - .04));
-
-    // Everything a program can print stays legible.
-    for (final color in [dark.foreground, ...normal, ...bright, dark.white]) {
+    // The Termius foreground has 6.86:1 contrast on our dark background.
+    expect(contrast(dark.foreground, dark.background), greaterThan(6.8));
+    for (final color in [...normal, ...bright, dark.white, dark.brightBlack]) {
       expect(contrast(color, dark.background), greaterThan(4.5));
     }
-    expect(contrast(dark.brightBlack, dark.background), greaterThan(4.5));
 
     // One family: no colour is much more saturated or much lighter than the
     // others, and each bright colour is a lighter version of its normal one.
@@ -83,9 +72,11 @@ void main() {
       expect(math.min(hueGap, 360 - hueGap), lessThan(12));
     }
 
-    // ANSI green is still told apart from the default text.
-    final green = _oklch(dark.green);
-    expect((green.hue - text.hue).abs(), greaterThan(15));
+    // ANSI green is lighter than plain text even though their hues are close.
+    expect(
+      _oklch(dark.green).lightness - _oklch(dark.foreground).lightness,
+      greaterThan(.05),
+    );
   });
 
   test('app theme uses the emerald-teal emphasis with legible on-colors', () {

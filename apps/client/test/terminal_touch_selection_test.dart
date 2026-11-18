@@ -198,6 +198,67 @@ void main() {
     },
   );
 
+  for (final up in [true, false]) {
+    testWidgets(
+      'holding a mouse selection at the ${up ? 'top' : 'bottom'} edge scrolls history',
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      (tester) async {
+        final h = await _Harness.pump(tester);
+        for (var i = 0; i < 200; i++) {
+          h.terminal.write('line $i\r\n');
+        }
+        await tester.pump();
+        final scroll = h.scrollController;
+        scroll.jumpTo(scroll.position.maxScrollExtent / 2);
+        await tester.pump();
+        final bounds = tester.getRect(find.byType(TerminalView));
+        final render = h.view.renderTerminal;
+        final start = render.getCellOffset(render.globalToLocal(bounds.center));
+        final mouse = await tester.startGesture(
+          bounds.center,
+          kind: PointerDeviceKind.mouse,
+        );
+        final edge = Offset(
+          bounds.center.dx,
+          up ? bounds.top + 1 : bounds.bottom - 1,
+        );
+        await mouse.moveTo(edge);
+        await tester.pump();
+        final first = h.controller.selection!.normalized;
+        final before = scroll.offset;
+        await tester.pump(const Duration(milliseconds: 320));
+        final later = h.controller.selection!.normalized;
+        if (up) {
+          expect(scroll.offset, lessThan(before));
+          expect(later.begin.y, lessThan(first.begin.y));
+          expect(later.end, CellOffset(start.x + 1, start.y));
+        } else {
+          expect(scroll.offset, greaterThan(before));
+          expect(later.end.y, greaterThan(first.end.y));
+          expect(later.begin, start);
+        }
+        await mouse.moveTo(bounds.center);
+        final paused = scroll.offset;
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(scroll.offset, paused);
+        await mouse.moveTo(edge);
+        await tester.pump(const Duration(milliseconds: 160));
+        expect(scroll.offset, isNot(paused));
+        if (up) {
+          await mouse.up();
+        } else {
+          await mouse.cancel();
+        }
+        final stopped = scroll.offset;
+        final selected = h.selectedText;
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(scroll.offset, stopped);
+        expect(h.selectedText, selected);
+        expect(h.output, isEmpty);
+      },
+    );
+  }
+
   testWidgets(
     'toolbar is dismissed by focus loss, outside taps, session replacement '
     'and disposal',
