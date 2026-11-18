@@ -24,6 +24,7 @@ const Map<WorkspacePage, String> _pageNames = {
   WorkspacePage.audit: 'audit',
   WorkspacePage.devices: 'devices',
   WorkspacePage.settings: 'settings',
+  WorkspacePage.admin: 'admin',
 };
 
 /// First path segments the server or the sharing pages already own.
