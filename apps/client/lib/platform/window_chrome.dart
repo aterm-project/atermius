@@ -13,13 +13,15 @@ class WindowChromeState {
     this.focused = true,
     this.captionHeight,
     this.leadingInset = 0,
+    this.osBuild,
   }) : customFrame = customFrame ?? enabled;
 
   final bool enabled;
 
   /// True when the native runner removed the OS title bar so Flutter should
-  /// draw caption controls. Current Windows and macOS runners keep their native
-  /// captions while enabling the lifecycle and close-guard channel.
+  /// draw custom caption controls (Windows). False when native window lifecycle
+  /// and close-guard control are enabled while keeping the native title bar
+  /// (macOS traffic-light title bar).
   final bool customFrame;
   final bool maximized;
   final bool minimized;
@@ -34,6 +36,14 @@ class WindowChromeState {
   /// Leading horizontal safe inset reserved for native window controls inside a
   /// full-size unified title bar (e.g. macOS traffic lights, 0 in fullscreen).
   final double leadingInset;
+
+  /// Windows build number of the system (22000 is the first Windows 11), so
+  /// the caption buttons can match the system's own. Null when unreported.
+  final int? osBuild;
+
+  /// Windows 11 draws its caption glyphs with rounded corners, Windows 10
+  /// with square ones. An unreported build is taken as current Windows.
+  bool get roundedCaptionGlyphs => osBuild == null || osBuild! >= 22000;
 
   /// Plausibility bounds for the reported metric. Values outside them are
   /// ignored (treated as unreported) rather than trusted.
@@ -82,6 +92,9 @@ class WindowChromeState {
       focused: value['focused'] as bool,
       captionHeight: _captionHeight(value['captionHeight']),
       leadingInset: enabled ? _leadingInset(value['leadingInset']) : 0,
+      osBuild: value['osBuild'] is int && (value['osBuild'] as int) > 0
+          ? value['osBuild'] as int
+          : null,
     );
   }
 }
@@ -150,7 +163,8 @@ class WindowChromeController extends ChangeNotifier {
         next.minimized == _state.minimized &&
         next.focused == _state.focused &&
         next.captionHeight == _state.captionHeight &&
-        next.leadingInset == _state.leadingInset) {
+        next.leadingInset == _state.leadingInset &&
+        next.osBuild == _state.osBuild) {
       return;
     }
     _state = next;

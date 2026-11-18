@@ -128,8 +128,15 @@ class _WindowsWindowChromeState extends State<WindowsWindowChrome> {
   );
 }
 
-/// Sizes the workspace tab strip using the window's native caption metric
-/// where available, with room for the user's text scale.
+/// Sizes for the single merged Windows top bar (caption, drag region, Home and
+/// session tabs, search/tools icons and caption buttons share one row).
+///
+/// On a custom-chrome Windows window the row height is the runner-reported
+/// native caption metric ([WindowChromeState.captionHeight]); it follows DPI,
+/// non-client metric and theme changes through `stateChanged`. It only grows
+/// beyond the metric when the user's text scale would otherwise clip the tab
+/// label. Elsewhere (Android/iOS/web/macOS/Linux, or Windows with the system
+/// frame) the existing 48 px touch-sized bar is kept unchanged.
 @immutable
 class WindowBarMetrics {
   const WindowBarMetrics._({
@@ -165,10 +172,7 @@ class WindowBarMetrics {
     WindowChromeController controller,
   ) {
     final scaler = MediaQuery.textScalerOf(context);
-    if (controller.supported &&
-        (controller.state.customFrame ||
-            (controller.state.enabled &&
-                Theme.of(context).platform == TargetPlatform.windows))) {
+    if (controller.supported && controller.state.customFrame) {
       return WindowBarMetrics.native(
         controller.state.captionHeight ?? fallbackCaptionHeight,
         scaler,
@@ -316,11 +320,6 @@ class WindowDragArea extends StatelessWidget {
     onPanStart: (_) => unawaited(controller.beginDrag()),
     onDoubleTap: () => unawaited(controller.toggleMaximize()),
     onSecondaryTapDown: (event) {
-      if (Theme.of(context).platform == TargetPlatform.windows &&
-          controller.state.enabled && !controller.state.customFrame) {
-        unawaited(controller.showSystemMenu());
-        return;
-      }
       final target = Navigator.maybeOf(context) != null
           ? context
           : context
@@ -389,7 +388,9 @@ class WindowCaptionControls extends StatelessWidget {
                 height: height,
                 id: 'minimize',
                 label: context.l10n.minimize,
-                icon: Icons.remove,
+                glyph: _CaptionGlyph.minimize,
+                focused: controller.state.focused,
+                rounded: controller.state.roundedCaptionGlyphs,
                 onPressed: controller.minimize,
               ),
               _CaptionButton(
@@ -398,17 +399,20 @@ class WindowCaptionControls extends StatelessWidget {
                 label: controller.state.maximized
                     ? context.l10n.restore
                     : context.l10n.maximize,
-                icon: controller.state.maximized
-                    ? Icons.filter_none
-                    : Icons.crop_square,
+                glyph: controller.state.maximized
+                    ? _CaptionGlyph.restore
+                    : _CaptionGlyph.maximize,
+                focused: controller.state.focused,
+                rounded: controller.state.roundedCaptionGlyphs,
                 onPressed: controller.toggleMaximize,
               ),
               _CaptionButton(
                 height: height,
                 id: 'close',
                 label: context.l10n.closeWindow,
-                icon: Icons.close,
-                close: true,
+                glyph: _CaptionGlyph.close,
+                focused: controller.state.focused,
+                rounded: controller.state.roundedCaptionGlyphs,
                 onPressed: controller.close,
               ),
             ],
@@ -417,55 +421,150 @@ class WindowCaptionControls extends StatelessWidget {
   );
 }
 
-class _CaptionButton extends StatelessWidget {
+enum _CaptionGlyph { minimize, maximize, restore, close }
+
+/// One of the three window buttons, drawn the way Windows draws its own:
+/// 46 px wide and as tall as the caption, a 10 px hairline glyph (rounded on
+/// Windows 11, square on Windows 10), the system's subtle hover and pressed
+/// fills, the red Close fill, and dimmed glyphs while the window is inactive.
+class _CaptionButton extends StatefulWidget {
   const _CaptionButton({
     required this.id,
     required this.label,
-    required this.icon,
+    required this.glyph,
     required this.onPressed,
-    this.close = false,
     required this.height,
+    required this.focused,
+    required this.rounded,
   });
   final String id;
   final String label;
-  final IconData icon;
+  final _CaptionGlyph glyph;
   final Future<void> Function() onPressed;
-  final bool close;
   final double height;
+  final bool focused, rounded;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 46,
-    height: height,
-    child: Tooltip(
-      message: label,
-      child: TextButton(
-        key: ValueKey('window_caption_$id'),
-        onPressed: () => unawaited(onPressed()),
-        style: ButtonStyle(
-          padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-          minimumSize: const WidgetStatePropertyAll(Size.zero),
-          shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
-          foregroundColor: WidgetStateProperty.resolveWith(
-            (states) =>
-                close &&
-                    (states.contains(WidgetState.hovered) ||
-                        states.contains(WidgetState.pressed))
-                ? Colors.white
-                : Theme.of(context).colorScheme.onSurface,
+  State<_CaptionButton> createState() => _CaptionButtonState();
+}
+
+class _CaptionButtonState extends State<_CaptionButton> {
+  bool _hovered = false, _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final close = widget.glyph == _CaptionGlyph.close;
+    final active = _hovered || _pressed;
+    // Windows 11 caption button colours (WinUI title bar resources).
+    final Color fill = !active
+        ? Colors.transparent
+        : close
+        ? (_pressed ? const Color(0xE6C42B1C) : const Color(0xFFC42B1C))
+        : dark
+        ? (_pressed ? const Color(0x0AFFFFFF) : const Color(0x0FFFFFFF))
+        : (_pressed ? const Color(0x06000000) : const Color(0x09000000));
+    final Color ink = close && active
+        ? (_pressed ? const Color(0xB3FFFFFF) : Colors.white)
+        : !widget.focused && !active
+        ? (dark ? const Color(0x5DFFFFFF) : const Color(0x5C000000))
+        : dark
+        ? Colors.white
+        : const Color(0xE4000000);
+    return Tooltip(
+      message: widget.label,
+      waitDuration: const Duration(milliseconds: 600),
+      child: Semantics(
+        button: true,
+        label: widget.label,
+        onTap: () => unawaited(widget.onPressed()),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = _pressed = false),
+          child: GestureDetector(
+            key: ValueKey('window_caption_${widget.id}'),
+            behavior: HitTestBehavior.opaque,
+            excludeFromSemantics: true,
+            onTapDown: (_) => setState(() => _pressed = true),
+            onTapCancel: () => setState(() => _pressed = false),
+            onTap: () {
+              setState(() => _pressed = false);
+              unawaited(widget.onPressed());
+            },
+            child: ColoredBox(
+              color: fill,
+              child: SizedBox(
+                width: 46,
+                height: widget.height,
+                child: CustomPaint(
+                  painter: _CaptionGlyphPainter(
+                    widget.glyph,
+                    ink,
+                    rounded: widget.rounded,
+                  ),
+                ),
+              ),
+            ),
           ),
-          overlayColor: close
-              ? WidgetStateProperty.resolveWith(
-                  (states) =>
-                      states.contains(WidgetState.hovered) ||
-                          states.contains(WidgetState.pressed)
-                      ? const Color(0xFFE81123)
-                      : null,
-                )
-              : null,
         ),
-        child: Semantics(label: label, child: Icon(icon, size: 16)),
       ),
-    ),
-  );
+    );
+  }
+}
+
+class _CaptionGlyphPainter extends CustomPainter {
+  const _CaptionGlyphPainter(this.glyph, this.color, {required this.rounded});
+  final _CaptionGlyph glyph;
+  final Color color;
+  final bool rounded;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // A 10 px glyph centred in the button, snapped to whole pixels so the
+    // one-pixel strokes stay crisp.
+    final left = ((size.width - 10) / 2).floorToDouble() + .5;
+    final top = ((size.height - 10) / 2).floorToDouble() + .5;
+    canvas.translate(left, top);
+    final pen = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..isAntiAlias = true;
+    final corner = Radius.circular(rounded ? 1.5 : 0);
+    switch (glyph) {
+      case _CaptionGlyph.minimize:
+        canvas.drawLine(const Offset(0, 5), const Offset(10, 5), pen);
+      case _CaptionGlyph.maximize:
+        canvas.drawRRect(
+          RRect.fromLTRBR(0, 0, 10, 10, corner),
+          pen,
+        );
+      case _CaptionGlyph.restore:
+        final front = RRect.fromLTRBR(0, 2, 8, 10, corner);
+        canvas.drawRRect(front, pen);
+        // The window behind: only what shows past the front one.
+        canvas.save();
+        canvas.clipPath(
+          Path.combine(
+            PathOperation.difference,
+            Path()..addRect(const Rect.fromLTRB(-1, -1, 11, 11)),
+            Path()..addRect(const Rect.fromLTRB(-1, 1.5, 8.5, 11)),
+          ),
+        );
+        canvas.drawRRect(
+          RRect.fromLTRBR(2, 0, 10, 8, Radius.circular(rounded ? 2.5 : 0)),
+          pen,
+        );
+        canvas.restore();
+      case _CaptionGlyph.close:
+        canvas.drawLine(Offset.zero, const Offset(10, 10), pen);
+        canvas.drawLine(const Offset(10, 0), const Offset(0, 10), pen);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CaptionGlyphPainter oldDelegate) =>
+      glyph != oldDelegate.glyph ||
+      color != oldDelegate.color ||
+      rounded != oldDelegate.rounded;
 }

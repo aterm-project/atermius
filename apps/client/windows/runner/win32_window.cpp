@@ -2,7 +2,9 @@
 
 #include <commctrl.h>
 #include <dwmapi.h>
+#include <windowsx.h>
 
+#include <algorithm>
 #include <flutter_windows.h>
 
 #include "resource.h"
@@ -95,7 +97,7 @@ const wchar_t *WindowClassRegistrar::GetWindowClass() {
     WNDCLASS window_class{};
     window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
     window_class.lpszClassName = kWindowClassName;
-    window_class.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+    window_class.style = CS_HREDRAW | CS_VREDRAW;
     window_class.cbClsExtra = 0;
     window_class.cbWndExtra = 0;
     window_class.hInstance = GetModuleHandle(nullptr);
@@ -175,6 +177,46 @@ LRESULT
 Win32Window::MessageHandler(HWND hwnd, UINT const message, WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+  case WM_NCCALCSIZE:
+    // WS_CAPTION/THICKFRAME/SYSMENU remain set for native resize, taskbar,
+    // Alt+Space, Alt+F4 and Windows snapping. Only the visible NC layout goes.
+    if (custom_chrome_enabled_) {
+      // A maximized overlapped window includes invisible resize borders outside
+      // rcWork. Keep Flutter's client inside the monitor work area even though
+      // the native outer frame may extend beyond it.
+      if (IsZoomed(hwnd)) {
+        auto client = wparam
+                          ? &reinterpret_cast<NCCALCSIZE_PARAMS *>(lparam)->rgrc[0]
+                          : reinterpret_cast<RECT *>(lparam);
+        MONITORINFO monitor{sizeof(MONITORINFO)};
+        if (GetMonitorInfo(MonitorFromRect(client, MONITOR_DEFAULTTONEAREST),
+                           &monitor)) {
+          RECT visible_client;
+          if (IntersectRect(&visible_client, client, &monitor.rcWork))
+            *client = visible_client;
+        }
+      }
+      return 0;
+    }
+    break;
+  case WM_NCHITTEST:
+    if (custom_chrome_enabled_)
+      return HitTestResizeBorder(lparam);
+    break;
+  case WM_GETMINMAXINFO:
+    if (custom_chrome_enabled_) {
+      MONITORINFO monitor{sizeof(MONITORINFO)};
+      if (GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST),
+                         &monitor)) {
+        auto limits = reinterpret_cast<MINMAXINFO *>(lparam);
+        limits->ptMaxPosition.x = monitor.rcWork.left - monitor.rcMonitor.left;
+        limits->ptMaxPosition.y = monitor.rcWork.top - monitor.rcMonitor.top;
+        limits->ptMaxSize.x = monitor.rcWork.right - monitor.rcWork.left;
+        limits->ptMaxSize.y = monitor.rcWork.bottom - monitor.rcWork.top;
+        return 0;
+      }
+    }
+    break;
   case WM_DESTROY:
     window_handle_ = nullptr;
     Destroy();
@@ -194,6 +236,7 @@ Win32Window::MessageHandler(HWND hwnd, UINT const message, WPARAM const wparam,
     return 0;
   }
   case WM_SIZE: {
+    UpdateWindowCorners();
     RECT rect = GetClientArea();
     if (child_content_ != nullptr) {
       // Size and position the child window.
@@ -209,8 +252,6 @@ Win32Window::MessageHandler(HWND hwnd, UINT const message, WPARAM const wparam,
     }
     return 0;
 
-  case WM_SETTINGCHANGE:
-  case WM_THEMECHANGED:
   case WM_DWMCOLORIZATIONCOLORCHANGED:
     UpdateTheme(hwnd);
     return 0;
@@ -239,8 +280,9 @@ Win32Window *Win32Window::GetThisFromHandle(HWND const window) noexcept {
 void Win32Window::SetChildContent(HWND content) {
   child_content_ = content;
   SetParent(content, window_handle_);
-  SetWindowSubclass(content, ChildSubclassProc, 1,
-                    reinterpret_cast<DWORD_PTR>(this));
+  child_subclass_installed_ =
+      SetWindowSubclass(content, ChildSubclassProc, 1,
+                        reinterpret_cast<DWORD_PTR>(this)) != FALSE;
   RECT frame = GetClientArea();
 
   MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
@@ -271,6 +313,7 @@ void Win32Window::OnDestroy() {
     RemoveWindowSubclass(child_content_, ChildSubclassProc, 1);
   }
   child_content_ = nullptr;
+  child_subclass_installed_ = false;
 }
 
 void Win32Window::UpdateTheme(HWND const window) {
@@ -288,6 +331,22 @@ void Win32Window::UpdateTheme(HWND const window) {
   }
 }
 
+void Win32Window::SetCustomChrome(bool enabled) {
+  // Keep the original native frame if edge forwarding could not be installed.
+  if (enabled && !child_subclass_installed_)
+    return;
+  if (custom_chrome_enabled_ == enabled || !window_handle_)
+    return;
+  custom_chrome_enabled_ = enabled;
+  MARGINS margins{enabled ? 1 : 0, enabled ? 1 : 0, enabled ? 1 : 0,
+                  enabled ? 1 : 0};
+  DwmExtendFrameIntoClientArea(window_handle_, &margins);
+  SetWindowPos(window_handle_, nullptr, 0, 0, 0, 0,
+               SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+                   SWP_FRAMECHANGED);
+  UpdateWindowCorners();
+}
+
 double Win32Window::CaptionHeightLogical() const {
   if (!window_handle_)
     return 0;
@@ -303,18 +362,126 @@ double Win32Window::CaptionHeightLogical() const {
          static_cast<double>(dpi);
 }
 
+void Win32Window::UpdateWindowCorners() {
+  if (!window_handle_ || updating_corners_ || IsIconic(window_handle_))
+    return;
+
+  updating_corners_ = true;
+  // Documented Windows 11 values. Numeric constants allow building against
+  // older SDK headers; unsupported systems reject the attribute at runtime.
+  constexpr DWORD kCornerPreferenceAttribute = 33;
+  constexpr int kDefaultCorners = 0;
+  constexpr int kSquareCorners = 1;
+  constexpr int kRoundCorners = 2;
+  const bool rounded = custom_chrome_enabled_ && !IsZoomed(window_handle_);
+  const int preference = !custom_chrome_enabled_ ? kDefaultCorners
+                         : rounded ? kRoundCorners : kSquareCorners;
+  if (corner_preference_ != preference &&
+      SUCCEEDED(DwmSetWindowAttribute(window_handle_,
+          kCornerPreferenceAttribute, &preference, sizeof(preference)))) {
+    corner_preference_ = preference;
+  }
+
+  if (!rounded) {
+    // Maximized windows must fill the monitor work area without clipped gaps.
+    if (corner_region_applied_ &&
+        SetWindowRgn(window_handle_, nullptr, TRUE)) {
+      corner_region_applied_ = false;
+      corner_region_width_ = corner_region_height_ = 0;
+    }
+  } else {
+    // DWM accepts the corner preference even when it declines to draw corners
+    // (notably virtual machines and remote sessions). Enforce the same native
+    // region for every restored app window; its Flutter child is clipped too.
+    // Do not modify system-wide DWM settings or the user's remote session.
+    RECT rect{};
+    if (GetWindowRect(window_handle_, &rect)) {
+      const int width = rect.right - rect.left;
+      const int height = rect.bottom - rect.top;
+      const UINT dpi = GetDpiForWindow(window_handle_);
+      if (width > 0 && height > 0 &&
+          (!corner_region_applied_ || width != corner_region_width_ ||
+           height != corner_region_height_ || dpi != corner_region_dpi_)) {
+        const int diameter = std::max(2, MulDiv(16, static_cast<int>(dpi), 96));
+        HRGN region = CreateRoundRectRgn(0, 0, width + 1, height + 1,
+                                       diameter, diameter);
+        if (region) {
+          if (SetWindowRgn(window_handle_, region, TRUE)) {
+            // SetWindowRgn takes ownership on success.
+            corner_region_applied_ = true;
+            corner_region_width_ = width;
+            corner_region_height_ = height;
+            corner_region_dpi_ = dpi;
+          } else {
+            DeleteObject(region);
+          }
+        }
+      }
+    }
+  }
+  updating_corners_ = false;
+}
+
+LRESULT Win32Window::HitTestResizeBorder(LPARAM position) const {
+  if (!custom_chrome_enabled_ || !window_handle_ || IsZoomed(window_handle_) ||
+      IsIconic(window_handle_))
+    return HTCLIENT;
+  RECT bounds{};
+  if (!GetWindowRect(window_handle_, &bounds))
+    return HTCLIENT;
+  const UINT dpi = GetDpiForWindow(window_handle_);
+  const int horizontal =
+      std::max(1, GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) +
+                      GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi));
+  const int vertical =
+      std::max(1, GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
+                      GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi));
+  const int x = GET_X_LPARAM(position);
+  const int y = GET_Y_LPARAM(position);
+  if (x < bounds.left || x >= bounds.right || y < bounds.top ||
+      y >= bounds.bottom)
+    return HTNOWHERE;
+  const bool left = x >= bounds.left && x < bounds.left + horizontal;
+  const bool right = x < bounds.right && x >= bounds.right - horizontal;
+  const bool top = y >= bounds.top && y < bounds.top + vertical;
+  const bool bottom = y < bounds.bottom && y >= bounds.bottom - vertical;
+  if (top && left)
+    return HTTOPLEFT;
+  if (top && right)
+    return HTTOPRIGHT;
+  if (bottom && left)
+    return HTBOTTOMLEFT;
+  if (bottom && right)
+    return HTBOTTOMRIGHT;
+  if (left)
+    return HTLEFT;
+  if (right)
+    return HTRIGHT;
+  if (top)
+    return HTTOP;
+  if (bottom)
+    return HTBOTTOM;
+  return HTCLIENT;
+}
+
 LRESULT CALLBACK Win32Window::ChildSubclassProc(HWND window, UINT message,
                                                 WPARAM wparam, LPARAM lparam,
                                                 UINT_PTR id,
                                                 DWORD_PTR reference) {
   auto parent = reinterpret_cast<Win32Window *>(reference);
-  if (parent && message == WM_SYSKEYDOWN &&
+  if (parent && parent->custom_chrome_enabled() && message == WM_SYSKEYDOWN &&
       wparam == VK_F4 && (lparam & (static_cast<LPARAM>(1) << 29)) != 0) {
     // Alt+F4 belongs to the top-level window even while xterm owns key focus.
     PostMessage(parent->GetHandle(), WM_SYSCOMMAND, SC_CLOSE, 0);
     return 0;
   }
 
+  if (message == WM_NCHITTEST && parent &&
+      parent->HitTestResizeBorder(lparam) != HTCLIENT) {
+    // Let the owning top-level HWND perform native non-client resizing. A hit
+    // code returned directly by this child would resize the Flutter surface.
+    return HTTRANSPARENT;
+  }
   if (message == WM_NCDESTROY)
     RemoveWindowSubclass(window, ChildSubclassProc, id);
   return DefSubclassProc(window, message, wparam, lparam);

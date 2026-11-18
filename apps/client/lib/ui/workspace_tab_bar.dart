@@ -749,14 +749,12 @@ class WorkspaceTabBar extends StatelessWidget {
   ) {
     final palette = context.palette;
     final customCaption = chrome.supported && chrome.state.customFrame;
-    final draggableGap =
+    final mergedTitlebar =
         customCaption ||
         (chrome.supported &&
             (chrome.state.leadingInset > 0 ||
                 (chrome.state.enabled &&
-                    (Theme.of(context).platform == TargetPlatform.macOS ||
-                     (Theme.of(context).platform == TargetPlatform.windows &&
-                      !FullscreenController.instance.enabled)))));
+                    Theme.of(context).platform == TargetPlatform.macOS)));
     final bar = WindowBarMetrics.of(context, chrome);
     // Dense native-height bar: Windows custom-caption buttons stay flush with
     // caption controls; macOS unified titlebar uses rounded toolbar buttons.
@@ -892,7 +890,7 @@ class WorkspaceTabBar extends StatelessWidget {
                                                           ),
                                                     ),
                                             );
-                                            return draggableGap
+                                            return mergedTitlebar
                                                 ? WindowDragArea(
                                                     controller: chrome,
                                                     child: gap,
