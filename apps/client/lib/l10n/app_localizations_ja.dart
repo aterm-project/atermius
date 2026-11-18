@@ -18473,4 +18473,7 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get touchpadGestureUsedByWindows =>
       'このタッチパッド ジェスチャは、このパソコンの Windows が使用しています。3 本指と 4 本指のジェスチャをリモート デスクトップに送るには、Windows の「設定」>「Bluetooth とデバイス」>「タッチパッド」で「なし」に設定してください。';
+
+  @override
+  String get openTabsAutomaticWorkspaceName => '開いているタブ（Web 版、自動）';
 }

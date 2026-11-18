@@ -132,6 +132,20 @@ class WorkspaceTabOrder {
     return [for (final key in _ids) byId[key]!];
   }
 
+  /// [ids] in the arranged order, without changing it; those that were
+  /// never arranged follow in the order given.
+  List<String> ordered(List<String> ids) {
+    final known = [
+      for (final id in _ids)
+        if (ids.contains(id)) id,
+    ];
+    return [
+      ...known,
+      for (final id in ids)
+        if (!known.contains(id)) id,
+    ];
+  }
+
   void move(String id, String? beforeId) {
     if (id == beforeId || !_ids.remove(id)) return;
     final index = beforeId == null ? -1 : _ids.indexOf(beforeId);

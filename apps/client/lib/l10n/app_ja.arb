@@ -5194,5 +5194,6 @@
   "adminPanelAccountStatusDeleting": "削除中",
   "adminPanelAccountYou": "あなた",
   "adminPanelReEnableAccount": "アカウントを再有効化",
-  "touchpadGestureUsedByWindows": "このタッチパッド ジェスチャは、このパソコンの Windows が使用しています。3 本指と 4 本指のジェスチャをリモート デスクトップに送るには、Windows の「設定」>「Bluetooth とデバイス」>「タッチパッド」で「なし」に設定してください。"
+  "touchpadGestureUsedByWindows": "このタッチパッド ジェスチャは、このパソコンの Windows が使用しています。3 本指と 4 本指のジェスチャをリモート デスクトップに送るには、Windows の「設定」>「Bluetooth とデバイス」>「タッチパッド」で「なし」に設定してください。",
+  "openTabsAutomaticWorkspaceName": "開いているタブ（Web 版、自動）"
 }

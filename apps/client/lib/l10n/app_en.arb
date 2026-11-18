@@ -16349,5 +16349,9 @@
   "touchpadGestureUsedByWindows": "Windows is using this touchpad gesture itself. To send three- and four-finger gestures to the remote desktop, set them to \"Nothing\" in Windows Settings > Bluetooth & devices > Touchpad.",
   "@touchpadGestureUsedByWindows": {
     "description": "Notice in a remote desktop view on Windows when a three- or four-finger touchpad gesture was made but the local system handles it."
+  },
+  "openTabsAutomaticWorkspaceName": "Open tabs (web, automatic)",
+  "@openTabsAutomaticWorkspaceName": {
+    "description": "Name of the record in which the browser client keeps its open tabs by itself. Only clients older than this record show it, as a saved workspace."
   }
 }

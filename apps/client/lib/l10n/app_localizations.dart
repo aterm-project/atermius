@@ -30993,6 +30993,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Windows is using this touchpad gesture itself. To send three- and four-finger gestures to the remote desktop, set them to \"Nothing\" in Windows Settings > Bluetooth & devices > Touchpad.'**
   String get touchpadGestureUsedByWindows;
+
+  /// Name of the record in which the browser client keeps its open tabs by itself. Only clients older than this record show it, as a saved workspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Open tabs (web, automatic)'**
+  String get openTabsAutomaticWorkspaceName;
 }
 
 class _AppLocalizationsDelegate

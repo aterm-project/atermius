@@ -1,4 +1,5 @@
 import 'domain/window_combination.dart';
+import 'domain/open_workspace_snapshot.dart';
 import 'console/local_console.dart';
 import 'console/local_shell_l10n.dart';
 import 'desktop/desktop_session.dart';
@@ -1354,6 +1355,21 @@ class AppController extends ChangeNotifier {
   final List<SnippetRecord> snippets = [];
   final List<ShellHistoryRecord> shellHistoryRecords = [];
   final List<WorkspaceRecord> savedWorkspaces = [];
+
+  /// Records that carry an open-workspace snapshot (see
+  /// [OpenWorkspaceSnapshot]); kept out of [savedWorkspaces].
+  final List<WorkspaceRecord> _openWorkspaceRecords = [];
+
+  /// The Vault whose records are in the lists above; null until they are.
+  String? vaultRecordsLoadedFor;
+
+  /// Scopes (server, account, Vault) whose open tabs the browser client has
+  /// already brought back, or decided not to, since the page was loaded.
+  final Set<String> openWorkspaceRestoreHandled = {};
+
+  /// How many tabs were closed one by one ([closeTerminalTab]), as opposed
+  /// to all being dropped by a lock, a sign-out or a Vault change.
+  int terminalTabClosures = 0;
   String? activeSavedWorkspaceId;
   // A saved Workspace contains layout intent only. Runtime SSH tab bindings
   // stay in memory and are cleared with their tab/Vault; they are never synced.
@@ -4990,6 +5006,8 @@ class AppController extends ChangeNotifier {
     snippets.clear();
     shellHistoryRecords.clear();
     savedWorkspaces.clear();
+    _openWorkspaceRecords.clear();
+    vaultRecordsLoadedFor = null;
     activeSavedWorkspaceId = null;
     _workspacePaneTerminalTabIds.clear();
     knownHosts.clear();
@@ -6232,6 +6250,8 @@ class AppController extends ChangeNotifier {
     snippets.clear();
     shellHistoryRecords.clear();
     savedWorkspaces.clear();
+    _openWorkspaceRecords.clear();
+    vaultRecordsLoadedFor = null;
     activeSavedWorkspaceId = null;
     _workspacePaneTerminalTabIds.clear();
     knownHosts.clear();
@@ -6339,6 +6359,8 @@ class AppController extends ChangeNotifier {
     snippets.clear();
     shellHistoryRecords.clear();
     savedWorkspaces.clear();
+    _openWorkspaceRecords.clear();
+    vaultRecordsLoadedFor = null;
     knownHosts.clear();
     preferences.clear();
     preferenceError = null;
@@ -6389,7 +6411,10 @@ class AppController extends ChangeNotifier {
             if (revision is String) _revisionIds[record.id] = revision;
           case 'workspace':
             final record = WorkspaceRecord.fromJson(row);
-            savedWorkspaces.add(record);
+            (isOpenWorkspaceRecord(record)
+                    ? _openWorkspaceRecords
+                    : savedWorkspaces)
+                .add(record);
             if (revision is String) _revisionIds[record.id] = revision;
           case 'shellHistory':
             shellHistoryRecords.add(
@@ -6420,6 +6445,7 @@ class AppController extends ChangeNotifier {
         unavailableRecordCount++;
       }
     }
+    vaultRecordsLoadedFor = loadedVaultId;
     if (activeSavedWorkspaceId != null &&
         !savedWorkspaces.any((item) => item.id == activeSavedWorkspaceId)) {
       _workspacePaneTerminalTabIds.remove(activeSavedWorkspaceId);
@@ -6857,6 +6883,153 @@ class AppController extends ChangeNotifier {
       notifyListeners();
     } finally {
       _savingWindowCombinations = false;
+    }
+  }
+
+  // -- Open workspace (browser client) ---------------------------------------
+  //
+  // The browser client keeps the tabs it has open in one encrypted record of
+  // this account and Vault, so a reload or another browser can bring them
+  // back. See lib/domain/open_workspace_snapshot.dart for the record.
+
+  String? get _ownOpenWorkspaceRecordId {
+    final accountId = currentAccountId, vaultId = activeVault?.id;
+    return accountId == null || vaultId == null
+        ? null
+        : openWorkspaceRecordId(accountId: accountId, vaultId: vaultId);
+  }
+
+  bool _carriesOpenWorkspace(String recordId) =>
+      recordId == _ownOpenWorkspaceRecordId ||
+      _openWorkspaceRecords.any((record) => record.id == recordId);
+
+  /// The synced snapshot of this account's open tabs in the active Vault, as
+  /// of the last record load; null when there is none.
+  OpenWorkspaceSnapshot? get syncedOpenWorkspaceSnapshot {
+    final id = _ownOpenWorkspaceRecordId;
+    if (id == null || vaultRecordsLoadedFor != activeVault?.id) return null;
+    return openWorkspaceSnapshotOf(
+      _openWorkspaceRecords.where((record) => record.id == id).firstOrNull,
+    );
+  }
+
+  Future<void> _openWorkspaceWrites = Future<void>.value();
+
+  /// Stores [snapshot] as the synced copy. Returns false when it could not
+  /// be stored (Vault not writable, locked, not loaded, ...): nothing is
+  /// reported, and the caller simply tries again with a later snapshot.
+  Future<bool> saveOpenWorkspaceSnapshot(OpenWorkspaceSnapshot snapshot) {
+    final write = _openWorkspaceWrites.then(
+      (_) => _saveOpenWorkspaceSnapshot(snapshot),
+    );
+    _openWorkspaceWrites = write.then((_) {}, onError: (Object _) {});
+    return write.catchError((Object _) => false);
+  }
+
+  Future<bool> _saveOpenWorkspaceSnapshot(
+    OpenWorkspaceSnapshot snapshot,
+  ) async {
+    if (!serverHostedClient) return false;
+    final vault = activeVault, repository = _repository;
+    final id = _ownOpenWorkspaceRecordId;
+    if (vault == null ||
+        repository == null ||
+        id == null ||
+        repository.vaultId != vault.id ||
+        !vault.canWrite ||
+        vault.status != 'active' ||
+        vaultRecordsLoadedFor != vault.id) {
+      return false;
+    }
+    _assertEditsAllowed(requireWritableVault: true);
+    // The head as the local store has it now, including this browser's own
+    // unsent writes, so consecutive snapshots form one chain.
+    final head = await repository.database.cachedEnvelope(
+      vault.id,
+      id,
+      instanceId: repository.instanceId,
+      serverSpaceId: repository.serverSpaceId,
+    );
+    // Deleted (from a client that lists it as a saved workspace): the user
+    // does not want it in this Vault. This browser's own copy still works.
+    if (head != null && head.isDeleted) return false;
+    final previous = _openWorkspaceRecords
+        .where((record) => record.id == id)
+        .firstOrNull;
+    final record = openWorkspaceRecord(
+      id: id,
+      name: currentL10n.openTabsAutomaticWorkspaceName,
+      snapshot: snapshot,
+      previous: previous,
+    );
+    if (record == null) return false;
+    if (workspaceLocked ||
+        activeVault?.id != vault.id ||
+        !identical(_repository, repository)) {
+      return false;
+    }
+    final envelope = await repository.saveRecord(
+      recordId: id,
+      plaintext: record.toJson(),
+      baseRevisionId: head?.revisionId,
+      operation: head == null ? 'create' : 'update',
+    );
+    if (activeVault?.id != vault.id || !identical(_repository, repository)) {
+      return true;
+    }
+    final revision =
+        (envelope['header'] as Map<String, dynamic>)['revision_id'] as String;
+    _revisionIds[id] = revision;
+    _openWorkspaceRecords
+      ..removeWhere((item) => item.id == id)
+      ..add(record.copyWith(revisionId: revision));
+    _automaticSync.scheduleEdit();
+    unawaited(
+      refreshPendingCountForVault(vault.id).then((_) {}, onError: (Object _) {}),
+    );
+    return true;
+  }
+
+  final Set<String> _openWorkspaceConflictsSettled = {};
+  bool _settlingOpenWorkspaceConflicts = false;
+
+  /// Two browsers stored a snapshot at the same time. The later one already
+  /// is the record; the other branch is dropped without asking anyone.
+  Future<void> _settleOpenWorkspaceConflicts(
+    SyncRepository repository, {
+    required Iterable<String> local,
+    required Iterable<String> feed,
+  }) async {
+    final localIds = local.where(_openWorkspaceConflictsSettled.add).toList();
+    final feedIds = feed.where(_openWorkspaceConflictsSettled.add).toList();
+    if ((localIds.isEmpty && feedIds.isEmpty) ||
+        _settlingOpenWorkspaceConflicts ||
+        workspaceLocked ||
+        activeVault?.canWrite != true) {
+      return;
+    }
+    _settlingOpenWorkspaceConflicts = true;
+    try {
+      for (final id in localIds) {
+        try {
+          await repository.resolveConflictBranch(
+            conflictId: id,
+            keepLocal: false,
+          );
+        } on Object {
+          // Left as it is: it stays out of the conflict list either way.
+        }
+      }
+      for (final id in feedIds) {
+        try {
+          await repository.retainCurrentConflictHead(id);
+        } on Object {
+          // As above.
+        }
+      }
+      if (identical(_repository, repository)) _automaticSync.scheduleEdit();
+    } finally {
+      _settlingOpenWorkspaceConflicts = false;
     }
   }
 
@@ -16772,16 +16945,45 @@ class AppController extends ChangeNotifier {
             serverSpaceId: repository.serverSpaceId,
           )
         : 0;
-    final loadedFeedItems =
+    final everyFeedItem =
         await repository?.loadConflictFeedReviewItems() ??
         const <ConflictFeedReviewItem>[];
-    final localRows = repository?.vaultId == vaultId
+    final everyLocalRow = repository?.vaultId == vaultId
         ? await database.openConflicts(
             vaultId,
             instanceId: repository!.instanceId,
             serverSpaceId: repository.serverSpaceId,
           )
         : const <ConflictBranche>[];
+    // Conflicting open-workspace snapshots are settled here, not by the user.
+    final loadedFeedItems = everyFeedItem
+        .where((item) => !_carriesOpenWorkspace(item.recordId))
+        .toList(growable: false);
+    final localRows = everyLocalRow
+        .where((item) => !_carriesOpenWorkspace(item.recordId))
+        .toList(growable: false);
+    if (repository != null &&
+        (everyLocalRow.length != localRows.length ||
+            everyFeedItem.length != loadedFeedItems.length)) {
+      final local = everyLocalRow
+          .where((item) => _carriesOpenWorkspace(item.recordId))
+          .map((item) => item.conflictId)
+          .toSet();
+      unawaited(
+        _settleOpenWorkspaceConflicts(
+          repository,
+          local: local,
+          feed: everyFeedItem
+              .where(
+                (item) =>
+                    _carriesOpenWorkspace(item.recordId) &&
+                    !item.isTerminal &&
+                    !local.contains(item.conflictId),
+              )
+              .map((item) => item.conflictId),
+        ),
+      );
+    }
     final projection = projectConflictReviewItems(
       localOpenConflictRecords: {
         for (final item in localRows) item.conflictId: item.recordId,
@@ -22385,6 +22587,7 @@ class AppController extends ChangeNotifier {
     await stopTerminalShareFor(id);
     final tab = _terminalTabs.remove(id);
     if (tab == null) return;
+    terminalTabClosures++;
     _terminalShareStatuses.remove(id);
     final previousIndex = _terminalTabOrder.indexOf(id);
     _terminalTabOrder.remove(id);
@@ -23695,6 +23898,8 @@ class AppController extends ChangeNotifier {
     snippets.clear();
     shellHistoryRecords.clear();
     savedWorkspaces.clear();
+    _openWorkspaceRecords.clear();
+    vaultRecordsLoadedFor = null;
     activeSavedWorkspaceId = null;
     _workspacePaneTerminalTabIds.clear();
     knownHosts.clear();
@@ -23887,6 +24092,8 @@ class AppController extends ChangeNotifier {
     snippets.clear();
     shellHistoryRecords.clear();
     savedWorkspaces.clear();
+    _openWorkspaceRecords.clear();
+    vaultRecordsLoadedFor = null;
     activeSavedWorkspaceId = null;
     _workspacePaneTerminalTabIds.clear();
     knownHosts.clear();

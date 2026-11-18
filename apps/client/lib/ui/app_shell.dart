@@ -7,6 +7,9 @@ import '../desktop/desktop_keyboard_mode.dart';
 import '../platform/file_window_tracking.dart';
 import '../desktop/window/desktop_window.dart';
 import '../domain/window_combination.dart';
+import '../platform/server_hosted.dart';
+import '../domain/open_workspace_snapshot.dart';
+import 'open_workspace_restore.dart';
 import 'app_density.dart';
 import '../telnet/telnet_ui.dart';
 import 'app_motion.dart';
@@ -182,6 +185,13 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   PageAddressBinding? _pageAddress;
+
+  /// Browser client: remembers the open tabs and brings them back.
+  OpenWorkspaceKeeper? _openWorkspace;
+
+  /// The page the address named when the browser client was opened, if any.
+  WorkspacePage? _linkedPage;
+
   /// R7-INTEGRATION(forwarding): after the forwarding branch merges, root
   /// changes this to `=> _buildSshForwardingPage;` (state-owned controller and
   /// source survive leaving the page). Null hides the destination.
@@ -332,10 +342,24 @@ class _AppShellState extends State<AppShell> {
     app.addListener(_onControllerChanged);
     _syncSessionWorkspace();
     if (browserPageAddressBar() case final bar?) {
+      if (bar.linkPending) _linkedPage = pageForPath(bar.path);
       final binding = _pageAddress = PageAddressBinding(app, bar);
       // After the frame: following a link notifies listeners.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) binding.attach();
+      });
+    }
+    if (serverHostedClient) {
+      final keeper = _openWorkspace = OpenWorkspaceKeeper(
+        app: app,
+        scope: () => mounted ? _currentFilesScope : null,
+        capture: _captureOpenWorkspace,
+        restore: (layout) => _openWindowCombination(layout, automatic: true),
+      );
+      // After the frame, and after the address was followed: bringing tabs
+      // back changes what is on screen.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) keeper.attach([app, _sessionWorkspace]);
       });
     }
     _fileTabs.addListener(_onFilesChanged);
@@ -363,6 +387,7 @@ class _AppShellState extends State<AppShell> {
     McpService.instance.detach(_mcpWorkspace);
     _groupGeneration++;
     _pageAddress?.detach();
+    _openWorkspace?.dispose();
     app.removeListener(_onControllerChanged);
     _unregisterVisibleOwner?.call();
     _fileTabs.removeListener(_onFilesChanged);
@@ -789,6 +814,42 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  /// The open tabs as the layout the browser client remembers by itself: the
+  /// tabs of saved Hosts in tab-bar order, with their splits. Null when no
+  /// tab is open.
+  WindowCombination? _captureOpenWorkspace() {
+    final tabs = _tabOrder.ordered([
+      for (final tab in app.terminalTabs)
+        if (!tab.closed) tab.id,
+    ]);
+    if (tabs.isEmpty) return null;
+    return captureWindowCombination(
+      id: OpenWorkspaceSnapshot.layoutId,
+      name: OpenWorkspaceSnapshot.layoutId,
+      sessionIds: tabs,
+      workspace: _sessionWorkspace,
+      describe: (id) {
+        final tab = app.terminalTabFor(id);
+        final host = tab?.host;
+        return tab == null || tab.closed || tab.console != null || host == null
+            ? null
+            : CombinationPane(kind: host.protocol.name, hostId: host.id);
+      },
+    );
+  }
+
+  /// Puts the active tab of the tabs that were brought back in front. They
+  /// show on the terminal page, unless the address the browser client was
+  /// opened with names another page: that page stays in front.
+  void _showRestoredTab(String id) {
+    final linked = _linkedPage;
+    if (linked == null || linked == WorkspacePage.terminal) {
+      return _selectWorkspaceTab(id);
+    }
+    _sessionWorkspace.activate(id);
+    app.activateTerminalTab(id);
+  }
+
   bool _openingCombination = false;
   Future<void> _saveWindowCombination() async {
     final scope = _currentFilesScope;
@@ -961,7 +1022,14 @@ _snack(
   /// with retry) in that pane. The home page is busy only until the panes
   /// exist. File panes follow once their SSH owner is connected, separate
   /// windows once the session they show is.
-  Future<void> _openWindowCombination(WindowCombination recipe) async {
+  ///
+  /// [automatic] opens the tabs the browser client remembered by itself
+  /// ([OpenWorkspaceKeeper]) the same way, but quietly: a Host that is gone
+  /// or cannot be opened is left out and nothing is reported.
+  Future<void> _openWindowCombination(
+    WindowCombination recipe, {
+    bool automatic = false,
+  }) async {
     final scope = _currentFilesScope;
     final generation = _scopeGeneration;
     if (scope == null || _openingCombination) return;
@@ -977,10 +1045,22 @@ _snack(
     }
 
     try {
-      final latest = app.windowCombinations
-          .where((value) => value.id == recipe.id).firstOrNull;
-      if (latest == null || !current()) return;
-      recipe = latest;
+      if (!automatic) {
+        final latest = app.windowCombinations
+            .where((value) => value.id == recipe.id).firstOrNull;
+        if (latest == null || !current()) return;
+        recipe = latest;
+      }
+      bool resolvable(CombinationPane pane) {
+        if (pane.kind == 'console') return true;
+        final host = app.hosts.where((h) => h.id == pane.hostId).firstOrNull;
+        return host != null &&
+            host.protocol.name ==
+                (pane.kind == 'sftp' || pane.kind == 'scp'
+                    ? 'ssh'
+                    : pane.kind);
+      }
+
       var independentPlacementFailures = 0;
       Map<int, String>? placed;
       Future<int>? mainWindowFailures;
@@ -1003,7 +1083,11 @@ _snack(
             if (sessions.isNotEmpty) {
               applyWindowCombination(recipe, _sessionWorkspace, sessions);
               final selected = selectedHere = _sessionWorkspace.selectedId;
-              if (selected != null) _selectWorkspaceTab(selected);
+              if (selected != null) {
+                automatic
+                    ? _showRestoredTab(selected)
+                    : _selectWorkspaceTab(selected);
+              }
               mainWindowFailures = restoreWindowCombinationPlacements(
                 recipe: recipe,
                 sessions: sessions,
@@ -1082,15 +1166,9 @@ _snack(
             independentPlacementFailures++;
           return true;
         },
-        canResolve: (pane) {
-          if (pane.kind == 'console') return true;
-          final host = app.hosts.where((h) => h.id == pane.hostId).firstOrNull;
-          return host != null &&
-              host.protocol.name ==
-                  (pane.kind == 'sftp' || pane.kind == 'scp'
-                      ? 'ssh'
-                      : pane.kind);
-        },
+        // A window set opens whole or not at all; remembered tabs open as
+        // far as their Hosts still exist.
+        canResolve: automatic ? (_) => true : resolvable,
         openAttachedFile: (pane, ownerId) async {
           if (!current()) return null;
           final host = app.hosts.where((h) => h.id == pane.hostId).firstOrNull;
@@ -1142,6 +1220,11 @@ _snack(
         // Returns as soon as the pane's tab exists; it keeps connecting (and
         // reports a failure) there.
         open: (pane) async {
+          if (automatic &&
+              (!resolvable(pane) ||
+                  app.terminalTabs.length >= AppController.maxTerminalTabs)) {
+            return null;
+          }
           if (pane.kind == 'console') {
             if (!localConsoleSupported) return null;
             final before = app.terminalTabs.map((t) => t.id).toSet();
@@ -1176,7 +1259,7 @@ _snack(
         },
       );
       panesOpened();
-      if (result == null || result.stale || !current()) return;
+      if (result == null || result.stale || !current() || automatic) return;
       final windowFailures =
           independentPlacementFailures +
           (await mainWindowFailures ?? 0) +
@@ -1212,7 +1295,9 @@ _snack(
         );
 }
     } catch (error) {
-      if (current()) _snack(context, app.friendlyError(error), error: true);
+      if (current() && !automatic) {
+        _snack(context, app.friendlyError(error), error: true);
+      }
     } finally {
       panesOpened();
     }
@@ -2125,7 +2210,10 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                 onDuplicate: (id) => unawaited(_duplicateWorkspaceTab(id)),
                 onClose: (id) => unawaited(_closeWorkspaceTab(id)),
                 onReorder: (id, beforeId) =>
-                    setState(() => _tabOrder.move(id, beforeId)),
+                    setState(() {
+                      _tabOrder.move(id, beforeId);
+                      _openWorkspace?.changed();
+                    }),
                 onSplit: (id, axis) => unawaited(_splitSession(id, axis)),
                 onDetach: (id) => unawaited(
                   _fileTabs.find(id) != null

@@ -17558,4 +17558,7 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get touchpadGestureUsedByWindows =>
       '这个触控板手势正被本机 Windows 占用。要把三指和四指手势发送到远程桌面，请在 Windows 设置 > 蓝牙和其他设备 > 触控板 中把它们设为“无”。';
+
+  @override
+  String get openTabsAutomaticWorkspaceName => '已打开的标签页（网页版，自动）';
 }

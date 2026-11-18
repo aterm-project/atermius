@@ -19666,4 +19666,8 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get touchpadGestureUsedByWindows =>
       'Этот жест сенсорной панели использует сама Windows на этом компьютере. Чтобы жесты тремя и четырьмя пальцами отправлялись на удалённый рабочий стол, выберите для них «Ничего» в «Параметры Windows» > «Bluetooth и устройства» > «Сенсорная панель».';
+
+  @override
+  String get openTabsAutomaticWorkspaceName =>
+      'Открытые вкладки (веб, автоматически)';
 }
