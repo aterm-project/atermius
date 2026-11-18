@@ -7430,8 +7430,11 @@ class AppController extends ChangeNotifier {
 
     while (deadline.elapsed < _knownHostDecisionBudget) {
       final generationBeforePreflight = _knownHostDecisionGeneration;
+      final int generationOfPull;
       try {
-        await _pullVaultBeforeKnownHostDecision(deadline: deadline);
+        generationOfPull = await _pullVaultBeforeKnownHostDecision(
+          deadline: deadline,
+        );
       } on SyncReadTransportUnavailableException {
         // Only a typed read-only sync GET that failed before receiving an
         // HTTP response may reach this branch. Timeouts, HTTP responses,
@@ -7484,7 +7487,12 @@ class AppController extends ChangeNotifier {
           offlineTransportUnavailable: true,
         );
       }
-      if (generationBeforePreflight != _knownHostDecisionGeneration ||
+      // Compare with the generation the pull finished its sync under, not
+      // with the one from before the pull: the pull may itself run the due
+      // account refresh, which advances the generation and is followed by a
+      // sync of the refreshed state. Asking for the older generation repeated
+      // that whole pull once more (seconds per SSH connect in a browser).
+      if (generationOfPull != _knownHostDecisionGeneration ||
           _knownHostStateTransitionPending) {
         continue;
       }
@@ -7730,9 +7738,12 @@ class AppController extends ChangeNotifier {
     return record;
   }
 
-  Future<void> _pullVaultBeforeKnownHostDecision({
+  /// Returns the known-host decision generation that was current from the
+  /// start of the completed sync until this method returned.
+  Future<int> _pullVaultBeforeKnownHostDecision({
     required Stopwatch deadline,
   }) async {
+    var accountRefreshTried = false;
     while (deadline.elapsed < _knownHostDecisionBudget) {
       final generationBeforeTransitionWait = _knownHostDecisionGeneration;
       await _waitForKnownHostStateTransitions(deadline);
@@ -7750,6 +7761,24 @@ class AppController extends ChangeNotifier {
           throw StateError(currentL10n.theVaultSyncStateIsAbnormal);
         }
         await active.future.timeout(_remainingKnownHostDecisionTime(deadline));
+        continue;
+      }
+
+      if (!accountRefreshTried &&
+          stage == ClientStage.workspace &&
+          _accountControlPlaneRefreshIsDue) {
+        // The sync below would begin with this signed account refresh. It
+        // replaces the repository, so that sync could never be the one this
+        // method accepts and a second one had to follow. Refresh first; when
+        // it fails the sync repeats it and reports the failure as before.
+        accountRefreshTried = true;
+        try {
+          await _reloadVaultsForMembershipHint().timeout(
+            _remainingKnownHostDecisionTime(deadline),
+          );
+        } on TimeoutException {
+          rethrow;
+        } catch (_) {}
         continue;
       }
 
@@ -7779,7 +7808,7 @@ class AppController extends ChangeNotifier {
           currentL10n.couldntFinishSyncingTheCurrentVault(syncStatus),
         );
       }
-      return;
+      return generationBeforeSync;
     }
     throw TimeoutException(currentL10n.theCurrentVaultSyncTimedOut);
   }

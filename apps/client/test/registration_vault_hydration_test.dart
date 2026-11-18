@@ -2993,6 +2993,47 @@ void main() {
   );
 
   test(
+    'a host key decision that falls on the due account refresh syncs once',
+    () async {
+      var now = DateTime.utc(2026, 10, 6);
+      final harness = await _createRegisteredSyncHarness(
+        sodium,
+        nowForTesting: () => now,
+      );
+      final app = harness.app;
+      final api = harness.api;
+      try {
+        Future<KnownHostTrustStatus> decide() => app.knownHostTrustStatus(
+          host: 'decision.example.test',
+          port: 22,
+          algorithm: 'ssh-ed25519',
+          fingerprint: 'SHA256:${'A' * 43}',
+        );
+
+        // Not due: one content pass, no account refresh.
+        var changesStart = api.changeReads;
+        var vaultReadsStart = api.vaultListReads;
+        expect(await decide(), KnownHostTrustStatus.unknown);
+        expect(api.vaultListReads, vaultReadsStart);
+        expect(api.changeReads, changesStart + 1);
+
+        // Due (every 45 seconds): the refresh replaces the repository. The
+        // decision used to answer that with three content passes; an SSH
+        // connect in a browser waited more than ten seconds for them.
+        now = now.add(const Duration(seconds: 46));
+        changesStart = api.changeReads;
+        vaultReadsStart = api.vaultListReads;
+        expect(await decide(), KnownHostTrustStatus.unknown);
+        expect(api.vaultListReads, vaultReadsStart + 1);
+        expect(api.changeReads, changesStart + 1);
+      } finally {
+        app.dispose();
+        await harness.database.close();
+      }
+    },
+  );
+
+  test(
     '404 NOT_FOUND sync reloads signed roster and preserves revoked Vault outbox',
     () async {
       final controlPlaneTime = DateTime.utc(2026, 10, 6);
