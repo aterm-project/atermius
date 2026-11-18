@@ -50,6 +50,96 @@ void main() {
     expect(hostOperatingSystemUnixCommand, isNot(contains('source ')));
   });
 
+  test('keeps the systems a distribution is derived from', () {
+    final mint = parseHostOperatingSystem(
+      linuxRelease(
+        'NAME="Linux Mint"\nID=linuxmint\nID_LIKE="ubuntu debian"\nVERSION_ID="22"',
+      ),
+    )!;
+    expect(mint.distributionId, 'linuxmint');
+    expect(mint.distributionLike, ['ubuntu', 'debian']);
+    expect(mint.markId, 'mint');
+    final unknown = parseHostOperatingSystem(
+      linuxRelease('ID=kylin\nID_LIKE=debian\nPRETTY_NAME="Kylin V10"'),
+    )!;
+    expect(unknown.distributionLike, ['debian']);
+    expect(unknown.markId, 'debian');
+    final hostile = parseHostOperatingSystem(
+      linuxRelease(
+        r'ID=alpine'
+        '\n'
+        r'ID_LIKE="$(reboot) Debian ../x alpine arch"',
+      ),
+    )!;
+    expect(hostile.distributionLike, ['arch']);
+    expect(hostile.markId, 'alpine');
+    final read = HostOperatingSystem.read({
+      hostOperatingSystemManifestKey: mint.toJson(),
+    })!;
+    expect(read.sameSystem(mint), isTrue);
+    expect(read.distributionLike, ['ubuntu', 'debian']);
+    // Observations stored before ID_LIKE was kept still resolve by ID.
+    final old = Map<String, Object?>.of(mint.toJson())
+      ..remove('distribution_like');
+    final stored = HostOperatingSystem.read({
+      hostOperatingSystemManifestKey: old,
+    })!;
+    expect(stored.distributionLike, isEmpty);
+    expect(stored.markId, 'mint');
+    expect(stored.sameSystem(mint), isFalse);
+  });
+
+  test('recognizes products built on a general system', () {
+    String probe(String kernel, String release, String products) =>
+        '$kernel\n__ATERMIUS_RELEASE__\n$release\n__ATERMIUS_KERNEL__\n6.8.0\n'
+        '__ATERMIUS_MACOS__\n\n__ATERMIUS_PRODUCT__\n$products\n';
+    final pve = parseHostOperatingSystem(
+      probe(
+        'Linux',
+        'ID=debian\nPRETTY_NAME="Debian GNU/Linux 12 (bookworm)"\nVERSION_ID="12"',
+        'proxmox',
+      ),
+    )!;
+    expect(pve.family, HostOperatingSystemFamily.linux);
+    expect(pve.distributionId, 'proxmox');
+    expect(pve.distributionLike, ['debian']);
+    expect(pve.displayName, 'Proxmox VE (Debian GNU/Linux 12 (bookworm))');
+    expect(pve.version, isNull);
+    expect(pve.markId, 'proxmox');
+    final dsm = parseHostOperatingSystem(probe('Linux', '', 'synology'))!;
+    expect(dsm.displayName, 'Synology DSM');
+    expect(dsm.markId, 'synology');
+    final android = parseHostOperatingSystem(probe('Linux', '', 'android'))!;
+    expect(android.displayName, 'Android');
+    expect(android.markId, 'android');
+    final pfsense = parseHostOperatingSystem(probe('FreeBSD', '', 'pfsense'))!;
+    expect(pfsense.family, HostOperatingSystemFamily.freebsd);
+    expect(pfsense.displayName, 'pfSense');
+    expect(pfsense.markId, 'pfsense');
+    final plain = parseHostOperatingSystem(
+      probe('Linux', 'ID=debian\nNAME=Debian', 'not-a-product\n'),
+    )!;
+    expect(plain.distributionId, 'debian');
+    expect(plain.displayName, 'Debian');
+    // A marker inside os-release cannot name a product.
+    final spoofed = parseHostOperatingSystem(
+      'Linux\n__ATERMIUS_RELEASE__\nID=debian\n__ATERMIUS_PRODUCT__\nproxmox\n'
+      '__ATERMIUS_KERNEL__\n6.8.0\n__ATERMIUS_MACOS__\n',
+    )!;
+    expect(spoofed.distributionId, 'debian');
+    final esxi = parseHostOperatingSystem(
+      'VMkernel\n__ATERMIUS_RELEASE__\n__ATERMIUS_KERNEL__\n8.0.2\n'
+      '__ATERMIUS_MACOS__\n\n__ATERMIUS_PRODUCT__\n',
+    )!;
+    expect(esxi.family, HostOperatingSystemFamily.unix);
+    expect(esxi.displayName, 'VMware ESXi');
+    expect(esxi.version, '8.0.2');
+    expect(esxi.markId, 'vmware');
+    for (final product in hostSystemProducts.keys) {
+      expect(hostOperatingSystemUnixCommand, contains('&& echo $product'));
+    }
+  });
+
   test('recognizes macOS, BSD, Solaris, AIX and localized Windows versions', () {
     for (final entry in {
       'Darwin': HostOperatingSystemFamily.macos,

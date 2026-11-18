@@ -4,6 +4,8 @@ import '../domain/host_operating_system.dart';
 import '../domain/models.dart';
 import '../telnet/telnet_ui.dart' show hostProtocolIcon;
 import 'app_theme.dart';
+import 'host_system_marks.g.dart';
+import 'svg_path.dart';
 import '../l10n/l10n.dart';
 
 /// The icon that stands for a Host: on the home page cards and on the
@@ -43,8 +45,17 @@ class HostSystemIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final system = host.detectedOperatingSystem;
-    final color = _systemColor(system, context.palette.accentText);
-    final picture = system == null
+    final mark = hostSystemMarks[system?.markId];
+    final color = mark != null
+        ? Color(mark.color)
+        : _systemColor(system, context.palette.accentText);
+    final picture = mark != null
+        ? CustomPaint(
+            key: ValueKey('host-system-mark-${system!.markId}'),
+            size: Size.square(size),
+            painter: _OutlineMark(system.markId!, mark.path, color),
+          )
+        : system == null
         ? Icon(
             fallbackIcon ?? unidentifiedIcon(host),
             size: size,
@@ -85,19 +96,32 @@ Color _systemColor(HostOperatingSystem? system, Color fallback) {
   if (system.family != HostOperatingSystemFamily.linux) {
     return const Color(0xffef7064);
   }
-  return switch (system.distributionId) {
-    'ubuntu' => const Color(0xffe97943),
-    'debian' => const Color(0xffdf5275),
-    'alpine' || 'fedora' || 'rhel' || 'centos' => const Color(0xff669fe1),
-    'arch' || 'archlinux' => const Color(0xff42b4de),
-    'rocky' ||
-    'almalinux' ||
-    'opensuse' ||
-    'opensuse-leap' ||
-    'opensuse-tumbleweed' ||
-    'sles' => const Color(0xff64b985),
-    _ => const Color(0xffe9bb58),
-  };
+  // A Linux system without a mark of its own: the penguin's beak and feet.
+  return const Color(0xffe9bb58);
+}
+
+/// One identified system's outline (see host_system_marks.g.dart), drawn in
+/// a single colour on the 24-unit icon canvas.
+class _OutlineMark extends CustomPainter {
+  const _OutlineMark(this.name, this.data, this.color);
+  final String name, data;
+  final Color color;
+
+  /// Parsed once per mark for the lifetime of the app.
+  static final _paths = <String, Path>{};
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _paths[name] ??= parseSvgPath(data);
+    canvas.save();
+    canvas.scale(size.width / 24, size.height / 24);
+    canvas.drawPath(path, Paint()..color = color);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_OutlineMark oldDelegate) =>
+      name != oldDelegate.name || color != oldDelegate.color;
 }
 
 class _SystemMark extends CustomPainter {

@@ -1,0 +1,262 @@
+{
+  "alibaba": {
+    "hex": "FF6A00",
+    "source": "https://www.alibabagroup.com/en/ir/reports",
+    "title": "Alibaba Cloud"
+  },
+  "almalinux": {
+    "hex": "000000",
+    "source": "https://almalinux.org",
+    "title": "AlmaLinux"
+  },
+  "alpine": {
+    "hex": "0D597F",
+    "source": "https://alpinelinux.org",
+    "title": "Alpine Linux"
+  },
+  "amazon": {
+    "hex": "FF9900",
+    "source": "https://www.amazon.com",
+    "title": "Amazon"
+  },
+  "android": {
+    "hex": "34A853",
+    "source": "https://partnermarketinghub.withgoogle.com/brands/android/visual-identity/visual-identity/logo-lock-ups",
+    "title": "Android"
+  },
+  "arch": {
+    "hex": "1793D1",
+    "source": "https://www.archlinux.org/art",
+    "title": "Arch Linux"
+  },
+  "artix": {
+    "hex": "10A0CC",
+    "source": "https://gitea.artixlinux.org/artix/artwork/src/commit/256432e3d06b3e9024bfd6912768e80281ea3746/icons/logo-gray.svg",
+    "title": "Artix Linux"
+  },
+  "asahi": {
+    "hex": "A61200",
+    "source": "https://github.com/AsahiLinux/artwork/blob/292637c9658c1491ddc1128fb6134aec01d904dd/logos/svg/AsahiLinux_logomark_mono.svg",
+    "title": "Asahi Linux"
+  },
+  "centos": {
+    "hex": "262577",
+    "source": "https://wiki.centos.org/ArtWork/Brand/Logo",
+    "title": "CentOS"
+  },
+  "debian": {
+    "hex": "A81D33",
+    "license": "CC-BY-SA-3.0",
+    "source": "https://www.debian.org/logos",
+    "title": "Debian"
+  },
+  "deepin": {
+    "hex": "007CFF",
+    "source": "https://commons.wikimedia.org/wiki/File:Deepin_logo.svg",
+    "title": "deepin"
+  },
+  "elementary": {
+    "hex": "64BAFF",
+    "source": "https://elementary.io/brand",
+    "title": "elementary"
+  },
+  "endeavouros": {
+    "hex": "7F7FFF",
+    "source": "https://github.com/endeavouros-team/endeavouros-theming/blob/135f642c980ed8d8fc212783eb478f96226f6c72/endeavouros-logo-text.svg",
+    "title": "EndeavourOS"
+  },
+  "fedora": {
+    "hex": "51A2DA",
+    "license": "custom",
+    "source": "https://docs.fedoraproject.org/en-US/project/brand/",
+    "title": "Fedora"
+  },
+  "freebsd": {
+    "hex": "AB2B28",
+    "source": "https://www.freebsdfoundation.org/about/project/",
+    "title": "FreeBSD"
+  },
+  "gentoo": {
+    "hex": "54487A",
+    "license": "CC-BY-SA-2.5",
+    "source": "https://wiki.gentoo.org/wiki/Project:Artwork/Artwork#Variations_of_the_.22g.22_logo",
+    "title": "Gentoo"
+  },
+  "kali": {
+    "hex": "557C94",
+    "source": "https://www.kali.org/docs/policy/trademark/",
+    "title": "Kali Linux"
+  },
+  "manjaro": {
+    "hex": "35BF5C",
+    "source": "https://manjaro.org",
+    "title": "Manjaro"
+  },
+  "mint": {
+    "hex": "86BE43",
+    "source": "https://github.com/linuxmint/brand-logo/blob/540ac3b08e987866d77a340f557f994c988ac2ae/ring-mono-green.svg",
+    "title": "Linux Mint"
+  },
+  "mx": {
+    "hex": "000000",
+    "license": "GPL-3.0-only",
+    "source": "https://mxlinux.org/art/",
+    "title": "MX Linux"
+  },
+  "netbsd": {
+    "hex": "FF6600",
+    "source": "https://www.netbsd.org",
+    "title": "NetBSD"
+  },
+  "nixos": {
+    "hex": "5277C3",
+    "source": "https://github.com/NixOS/nixos-homepage/tree/58cfdb770aba28b73446a1b3ee65a5cec4f0d44f/logo",
+    "title": "NixOS"
+  },
+  "openbsd": {
+    "hex": "F2CA30",
+    "source": "https://en.wikipedia.org/wiki/OpenBSD",
+    "title": "OpenBSD"
+  },
+  "openmediavault": {
+    "hex": "5DACDF",
+    "source": "https://github.com/openmediavault/openmediavault/blob/12f8ef70f19f967733b744d6fb6156a4181f1ddc/deb/openmediavault/workbench/src/favicon.svg",
+    "title": "openmediavault"
+  },
+  "opensuse": {
+    "hex": "73BA25",
+    "source": "https://github.com/openSUSE/artwork/blob/33e94aa76837c09f03d1712705949b71a246a53b/logos/buttons/button-colour.svg",
+    "title": "openSUSE"
+  },
+  "openwrt": {
+    "hex": "00B5E2",
+    "source": "https://openwrt.org/docs/guide-graphic-designer/openwrt-logo",
+    "title": "OpenWrt"
+  },
+  "opnsense": {
+    "hex": "D94F00",
+    "source": "https://opnsense.org/about/legal-notices/",
+    "title": "OPNSense"
+  },
+  "oracle": {
+    "hex": "F80000",
+    "source": "https://www.oracle.com/opn/index.html",
+    "title": "Oracle"
+  },
+  "parrot": {
+    "hex": "15E0ED",
+    "source": "https://gitlab.com/parrotsec/project/documentation/-/blob/d1d426b9cb3ea0efd16a2b34056c1ebb21bb9af9/static/img/parrot-logo.svg",
+    "title": "Parrot Security"
+  },
+  "pfsense": {
+    "hex": "212121",
+    "source": "https://www.pfsense.org",
+    "title": "pfSense"
+  },
+  "pop": {
+    "hex": "48B9C7",
+    "source": "https://github.com/system76/brand/blob/7a31740b54f929b62a165baa61dfb0b5164261e8/Pop_OS%20branding/Pop_icon.svg",
+    "title": "Pop!_OS"
+  },
+  "proxmox": {
+    "hex": "E57000",
+    "source": "https://www.proxmox.com/en/news/media-kit",
+    "title": "Proxmox"
+  },
+  "qnap": {
+    "hex": "0C2E82",
+    "source": "https://marketing.qnap.com/resource/qnap-logo-k100",
+    "title": "QNAP"
+  },
+  "qubes": {
+    "hex": "3874D8",
+    "source": "https://github.com/QubesOS/qubes-attachment/blob/ed7e552eb8a5fca4e099361d137793d3551b3968/icons/qubes-logo-home.svg",
+    "title": "Qubes OS"
+  },
+  "raspberrypi": {
+    "hex": "A22846",
+    "source": "https://www.raspberrypi.org/trademark-rules",
+    "title": "Raspberry Pi"
+  },
+  "redhat": {
+    "hex": "EE0000",
+    "source": "https://www.redhat.com/en/about/brand/new-brand/details",
+    "title": "Red Hat"
+  },
+  "rocky": {
+    "hex": "10B981",
+    "license": "CC-BY-SA-4.0",
+    "source": "https://github.com/rocky-linux/branding/blob/94e97dd30b87d909cc4f6a6838a2926f77f9ac47/logo/src/icon-black.svg",
+    "title": "Rocky Linux"
+  },
+  "sailfish": {
+    "hex": "053766",
+    "source": "https://sailfishos.org",
+    "title": "Sailfish OS"
+  },
+  "slackware": {
+    "hex": "000000",
+    "source": "https://en.wikipedia.org/wiki/Slackware",
+    "title": "Slackware"
+  },
+  "solus": {
+    "hex": "5294E2",
+    "source": "https://getsol.us/branding/",
+    "title": "Solus"
+  },
+  "steamos": {
+    "hex": "1A9FFF",
+    "source": "https://partner.steamgames.com/doc/marketing/branding",
+    "title": "Steam Deck"
+  },
+  "suse": {
+    "hex": "0C322C",
+    "source": "https://brand.suse.com",
+    "title": "SUSE"
+  },
+  "synology": {
+    "hex": "B5B5B6",
+    "source": "https://www.synology.com/en-global/company/branding",
+    "title": "Synology"
+  },
+  "tails": {
+    "hex": "56347C",
+    "source": "https://tails.boum.org/contribute/how/promote/material/logo/",
+    "title": "Tails"
+  },
+  "talos": {
+    "hex": "FF7300",
+    "source": "https://github.com/siderolabs/talos/blob/e3fda049fee62f3c5cef4ae08eaf848826a6dbed/website/assets/icons/logo.svg",
+    "title": "Talos"
+  },
+  "truenas": {
+    "hex": "0095D5",
+    "source": "https://www.truenas.com",
+    "title": "TrueNAS"
+  },
+  "ubuntu": {
+    "hex": "E95420",
+    "source": "https://design.ubuntu.com/resources",
+    "title": "Ubuntu"
+  },
+  "unraid": {
+    "hex": "F15A2C",
+    "source": "https://unraid.net",
+    "title": "Unraid"
+  },
+  "vmware": {
+    "hex": "607078",
+    "source": "https://myvmware.workspaceair.com",
+    "title": "VMware"
+  },
+  "void": {
+    "hex": "478061",
+    "source": "https://alpha.de.repo.voidlinux.org/logos/void-dark2.svg",
+    "title": "Void Linux"
+  },
+  "zorin": {
+    "hex": "15A6F0",
+    "source": "https://zorin.com/press",
+    "title": "Zorin"
+  }
+}
