@@ -200,8 +200,13 @@ Win32Window::MessageHandler(HWND hwnd, UINT const message, WPARAM const wparam,
     }
     break;
   case WM_NCHITTEST:
-    if (custom_chrome_enabled_)
-      return HitTestResizeBorder(lparam);
+    if (custom_chrome_enabled_) {
+      // The resize border wins where it overlaps the button's top edge.
+      const LRESULT border = HitTestResizeBorder(lparam);
+      if (border == HTCLIENT && InMaximizeButton(lparam))
+        return HTMAXBUTTON;
+      return border;
+    }
     break;
   case WM_GETMINMAXINFO:
     if (custom_chrome_enabled_) {
@@ -464,6 +469,86 @@ LRESULT Win32Window::HitTestResizeBorder(LPARAM position) const {
   return HTCLIENT;
 }
 
+void Win32Window::SetMaximizeButton(int right_inset, int top, int width,
+                                    int height) {
+  const bool valid = right_inset >= 0 && top >= 0 && width > 0 && height > 0;
+  maximize_right_inset_ = valid ? right_inset : 0;
+  maximize_top_ = valid ? top : 0;
+  maximize_width_ = valid ? width : 0;
+  maximize_height_ = valid ? height : 0;
+  if (!valid)
+    SetMaximizeButtonState(false, false);
+}
+
+bool Win32Window::InMaximizeButton(LPARAM screen_position) const {
+  if (!custom_chrome_enabled_ || !window_handle_ || maximize_width_ <= 0 ||
+      IsIconic(window_handle_))
+    return false;
+  RECT client{};
+  POINT point{GET_X_LPARAM(screen_position), GET_Y_LPARAM(screen_position)};
+  if (!GetClientRect(window_handle_, &client) ||
+      !ScreenToClient(window_handle_, &point))
+    return false;
+  const int right = client.right - maximize_right_inset_;
+  return point.x >= right - maximize_width_ && point.x < right &&
+         point.y >= maximize_top_ && point.y < maximize_top_ + maximize_height_;
+}
+
+void Win32Window::SetMaximizeButtonState(bool hovered, bool pressed) {
+  if (maximize_hovered_ == hovered && maximize_pressed_ == pressed)
+    return;
+  maximize_hovered_ = hovered;
+  maximize_pressed_ = pressed;
+  OnMaximizeButtonState();
+}
+
+bool Win32Window::HandleMaximizeButtonMessage(UINT message, WPARAM wparam,
+                                              LRESULT *result) {
+  if (!custom_chrome_enabled_ || !window_handle_ || maximize_width_ <= 0)
+    return false;
+  const bool on_button = wparam == HTMAXBUTTON;
+  switch (message) {
+  case WM_NCMOUSEMOVE:
+    if (!on_button) {
+      SetMaximizeButtonState(false, false);
+      return false;
+    }
+    if (!maximize_hovered_) {
+      // WM_NCMOUSELEAVE ends the hover when the pointer goes elsewhere.
+      TRACKMOUSEEVENT track{sizeof(TRACKMOUSEEVENT), TME_LEAVE | TME_NONCLIENT,
+                            window_handle_, 0};
+      TrackMouseEvent(&track);
+    }
+    SetMaximizeButtonState(true, maximize_pressed_);
+    *result = 0;
+    return true;
+  case WM_NCMOUSELEAVE:
+    SetMaximizeButtonState(false, false);
+    return false;
+  case WM_NCLBUTTONDOWN:
+  case WM_NCLBUTTONDBLCLK:
+    if (!on_button)
+      return false;
+    // Not passed on: the default handler would run its own button tracking.
+    SetMaximizeButtonState(true, true);
+    *result = 0;
+    return true;
+  case WM_NCLBUTTONUP: {
+    if (!on_button)
+      return false;
+    const bool clicked = maximize_pressed_;
+    SetMaximizeButtonState(true, false);
+    if (clicked) {
+      ShowWindow(window_handle_,
+                 IsZoomed(window_handle_) ? SW_RESTORE : SW_MAXIMIZE);
+    }
+    *result = 0;
+    return true;
+  }
+  }
+  return false;
+}
+
 LRESULT CALLBACK Win32Window::ChildSubclassProc(HWND window, UINT message,
                                                 WPARAM wparam, LPARAM lparam,
                                                 UINT_PTR id,
@@ -477,7 +562,8 @@ LRESULT CALLBACK Win32Window::ChildSubclassProc(HWND window, UINT message,
   }
 
   if (message == WM_NCHITTEST && parent &&
-      parent->HitTestResizeBorder(lparam) != HTCLIENT) {
+      (parent->HitTestResizeBorder(lparam) != HTCLIENT ||
+       parent->InMaximizeButton(lparam))) {
     // Let the owning top-level HWND perform native non-client resizing. A hit
     // code returned directly by this child would resize the Flutter surface.
     return HTTRANSPARENT;

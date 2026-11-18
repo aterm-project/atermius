@@ -29,6 +29,8 @@ protected:
   LRESULT MessageHandler(HWND window, UINT const message, WPARAM const wparam,
                          LPARAM const lparam) noexcept override;
 
+  void OnMaximizeButtonState() override;
+
 private:
   flutter::EncodableValue ChromeState();
   void NotifyChromeState();

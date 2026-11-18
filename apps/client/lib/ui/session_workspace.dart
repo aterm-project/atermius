@@ -804,6 +804,13 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
       }
       return;
     }
+    // Desktop fullscreen hides the tab strip; the handle brings it out as an
+    // overlay (no layout change) together with the actions. It retracts when
+    // the pointer leaves it, after a pause, or with the next handle click.
+    if (widget.fullscreen) {
+      final peek = FullscreenTabsPeek.instance;
+      peek.visible ? peek.hide() : peek.show();
+    }
     _controlsPinned = !_controlsVisible;
     _showControls(!_controlsVisible);
   }
@@ -1160,7 +1167,13 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
   /// Fullscreen: the handle and its actions belong to the dropped-down tab
   /// strip's tap group, and touching them keeps the strip on screen.
   Widget _handleGroup(Widget child) {
-    if (!widget.immersive) return child;
+    if (!widget.immersive) {
+      // Desktop fullscreen: a click on the handle is not "outside" the strip
+      // it toggles.
+      return widget.fullscreen
+          ? TapRegion(groupId: FullscreenTabsPeek.tapGroup, child: child)
+          : child;
+    }
     final peek = FullscreenTabsPeek.instance;
     return TapRegion(
       groupId: FullscreenTabsPeek.tapGroup,

@@ -405,6 +405,9 @@ class WindowCaptionControls extends StatelessWidget {
                 focused: controller.state.focused,
                 rounded: controller.state.roundedCaptionGlyphs,
                 onPressed: controller.toggleMaximize,
+                native: controller.state.nativeMaximizeButton
+                    ? controller
+                    : null,
               ),
               _CaptionButton(
                 height: height,
@@ -436,7 +439,13 @@ class _CaptionButton extends StatefulWidget {
     required this.height,
     required this.focused,
     required this.rounded,
+    this.native,
   });
+
+  /// Set for the maximize button on Windows 11: the runner then answers for
+  /// this spot so Windows offers snap layouts on hover, and reports the
+  /// pointer state back, because Flutter no longer sees the mouse here.
+  final WindowChromeController? native;
   final String id;
   final String label;
   final _CaptionGlyph glyph;
@@ -450,22 +459,67 @@ class _CaptionButton extends StatefulWidget {
 
 class _CaptionButtonState extends State<_CaptionButton> {
   bool _hovered = false, _pressed = false;
+  WindowChromeController? _reportedTo;
+
+  /// Reports where the button is, after every layout that shows it.
+  void _reportGeometry() {
+    final native = widget.native;
+    if (native == null) {
+      _stopReporting();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.native != native) return;
+      final box = context.findRenderObject();
+      if (box is! RenderBox || !box.hasSize || !box.attached) return;
+      final view = View.of(context);
+      final scale = view.devicePixelRatio;
+      final origin = box.localToGlobal(Offset.zero);
+      final right = (origin.dx + box.size.width) * scale;
+      _reportedTo = native;
+      unawaited(
+        native.setMaximizeButton(
+          this,
+          rightInset: math.max(0, (view.physicalSize.width - right).round()),
+          top: math.max(0, (origin.dy * scale).round()),
+          width: (box.size.width * scale).round(),
+          height: (box.size.height * scale).round(),
+        ),
+      );
+    });
+  }
+
+  void _stopReporting() {
+    final reported = _reportedTo;
+    _reportedTo = null;
+    if (reported != null) unawaited(reported.clearMaximizeButton(this));
+  }
+
+  @override
+  void dispose() {
+    _stopReporting();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    _reportGeometry();
     final dark = Theme.of(context).brightness == Brightness.dark;
     final close = widget.glyph == _CaptionGlyph.close;
-    final active = _hovered || _pressed;
+    final nativeState = widget.native?.state;
+    final pressed = _pressed || (nativeState?.maximizePressed ?? false);
+    final hovered = _hovered || (nativeState?.maximizeHovered ?? false);
+    final active = hovered || pressed;
     // Windows 11 caption button colours (WinUI title bar resources).
     final Color fill = !active
         ? Colors.transparent
         : close
-        ? (_pressed ? const Color(0xE6C42B1C) : const Color(0xFFC42B1C))
+        ? (pressed ? const Color(0xE6C42B1C) : const Color(0xFFC42B1C))
         : dark
-        ? (_pressed ? const Color(0x0AFFFFFF) : const Color(0x0FFFFFFF))
-        : (_pressed ? const Color(0x06000000) : const Color(0x09000000));
+        ? (pressed ? const Color(0x0AFFFFFF) : const Color(0x0FFFFFFF))
+        : (pressed ? const Color(0x06000000) : const Color(0x09000000));
     final Color ink = close && active
-        ? (_pressed ? const Color(0xB3FFFFFF) : Colors.white)
+        ? (pressed ? const Color(0xB3FFFFFF) : Colors.white)
         : !widget.focused && !active
         ? (dark ? const Color(0x5DFFFFFF) : const Color(0x5C000000))
         : dark

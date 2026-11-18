@@ -14,6 +14,8 @@ class WindowChromeState {
     this.captionHeight,
     this.leadingInset = 0,
     this.osBuild,
+    this.maximizeHovered = false,
+    this.maximizePressed = false,
   }) : customFrame = customFrame ?? enabled;
 
   final bool enabled;
@@ -44,6 +46,15 @@ class WindowChromeState {
   /// Windows 11 draws its caption glyphs with rounded corners, Windows 10
   /// with square ones. An unreported build is taken as current Windows.
   bool get roundedCaptionGlyphs => osBuild == null || osBuild! >= 22000;
+
+  /// Windows 11 offers snap layouts when the pointer rests on a window's
+  /// maximize button, which requires the window itself (not Flutter) to
+  /// answer for that spot; see [WindowChromeController.setMaximizeButton].
+  bool get nativeMaximizeButton =>
+      customFrame && osBuild != null && osBuild! >= 22000;
+
+  /// Pointer state of the maximize button while the runner answers for it.
+  final bool maximizeHovered, maximizePressed;
 
   /// Plausibility bounds for the reported metric. Values outside them are
   /// ignored (treated as unreported) rather than trusted.
@@ -95,6 +106,8 @@ class WindowChromeState {
       osBuild: value['osBuild'] is int && (value['osBuild'] as int) > 0
           ? value['osBuild'] as int
           : null,
+      maximizeHovered: value['maximizeHovered'] == true,
+      maximizePressed: value['maximizePressed'] == true,
     );
   }
 }
@@ -164,7 +177,9 @@ class WindowChromeController extends ChangeNotifier {
         next.focused == _state.focused &&
         next.captionHeight == _state.captionHeight &&
         next.leadingInset == _state.leadingInset &&
-        next.osBuild == _state.osBuild) {
+        next.osBuild == _state.osBuild &&
+        next.maximizeHovered == _state.maximizeHovered &&
+        next.maximizePressed == _state.maximizePressed) {
       return;
     }
     _state = next;
@@ -208,6 +223,54 @@ class WindowChromeController extends ChangeNotifier {
       _closeGuard = previous;
     } on PlatformException {
       _closeGuard = previous;
+    }
+  }
+
+  Object? _maximizeButtonOwner;
+  List<int>? _maximizeButton;
+
+  /// Tells the runner where the maximize button is drawn so that it can
+  /// report it to Windows as the maximize button (snap layouts on hover) and
+  /// handle its clicks. Physical pixels: [rightInset] is the distance of the
+  /// button's right edge from the right edge of the view. [owner] is the
+  /// widget reporting; only it can later [clearMaximizeButton].
+  Future<void> setMaximizeButton(
+    Object owner, {
+    required int rightInset,
+    required int top,
+    required int width,
+    required int height,
+  }) async {
+    final next = [rightInset, top, width, height];
+    if (identical(_maximizeButtonOwner, owner) &&
+        listEquals(_maximizeButton, next)) {
+      return;
+    }
+    _maximizeButtonOwner = owner;
+    _maximizeButton = next;
+    await _sendMaximizeButton(next);
+  }
+
+  Future<void> clearMaximizeButton(Object owner) async {
+    if (!identical(_maximizeButtonOwner, owner)) return;
+    _maximizeButtonOwner = null;
+    _maximizeButton = null;
+    await _sendMaximizeButton(const [0, 0, 0, 0]);
+  }
+
+  Future<void> _sendMaximizeButton(List<int> rect) async {
+    if (!supported || _disposed || !_state.enabled) return;
+    try {
+      await _channel.invokeMethod<void>('setMaximizeButton', {
+        'rightInset': rect[0],
+        'top': rect[1],
+        'width': rect[2],
+        'height': rect[3],
+      });
+    } on MissingPluginException {
+      // An older runner: Flutter keeps handling the button itself.
+    } on PlatformException {
+      // Same fallback.
     }
   }
 
