@@ -75,10 +75,9 @@ void main() {
         expect(toggle, findsOneWidget);
         await tester.tap(toggle);
         await tester.pumpAndSettle();
-        expect(
-          find.byKey(ValueKey('terminal-tools-${ids.last}')),
-          findsOneWidget,
-        );
+        // One sidebar is shared by every pane and follows the focused one.
+        const sidebar = ValueKey('workspace-terminal-tools');
+        expect(find.byKey(sidebar), findsOneWidget);
         expect(layout.selectedId, ids.last);
         await tester.tap(toggle);
         await tester.pumpAndSettle();
@@ -89,10 +88,8 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(toggle);
         await tester.pumpAndSettle();
-        expect(
-          find.byKey(ValueKey('terminal-tools-${ids.first}')),
-          findsOneWidget,
-        );
+        expect(find.byKey(sidebar), findsOneWidget);
+        expect(layout.selectedId, ids.first);
         await tester.tap(toggle);
         await tester.pumpAndSettle();
         expect(fixture.calls, [_a.id, _b.id]);
