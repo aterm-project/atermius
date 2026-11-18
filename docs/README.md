@@ -58,6 +58,7 @@ SQLite cloud functionality and restricted PostgreSQL sync-core have different su
 - [Current cloud implementation decisions](cloud-collaboration-design/IMPLEMENTATION-ADR.md)
 - [Original cloud proposal](cloud-collaboration-design/DESIGN.md) · [API](cloud-collaboration-design/API.yaml) · [schema](cloud-collaboration-design/schema.sql) · [rollout](cloud-collaboration-design/ROLLOUT.md)
 - [Proposal acceptance plan](cloud-collaboration-design/ACCEPTANCE-TESTS.md)
+- [Online sandbox and egress proposal (not implemented) / 在线沙箱与出口设计提案（未实现）](design/online-sandbox.md)
 
 The proposal directory contains design history, not a promise that every proposed feature shipped. Use CLOUD-SHARING and the implementation ADR for current behavior. / 设计提案不是已交付功能清单，以当前实现说明为准。
 
