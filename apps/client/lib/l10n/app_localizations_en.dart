@@ -11468,9 +11468,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get refresh => 'Refresh';
 
   @override
-  String get encryptedSessionUnlocked => 'Encrypted session unlocked';
-
-  @override
   String get namedTerminalLayoutsSyncEncryptedIncluding =>
       'Named terminal layouts sync encrypted, including tab order or split direction and ratio. Previews never connect; each pane needs its own Connect confirmation.';
 
@@ -12170,9 +12167,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get accountEventsAreStillVisibleOnly =>
       'Account events are still visible. Only the Owner and Editors of this Vault can view Vault-scoped records.';
-
-  @override
-  String get accountSessionUnlocked => 'Account session unlocked';
 
   @override
   String get accountCreated => 'Account created';
