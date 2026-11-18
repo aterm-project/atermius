@@ -1025,14 +1025,37 @@ API void* aterm_rdp_create(const char* host, int port, const char* user,
   return aterm_rdp_create_ex(host, port, user, password, pin,
                              "version=1\naudio=2\nclipboard=1\n");
 }
-// FreeRDP patch 5 (freerdp_patches.cmake): the version in the NTLM challenge
-// of the NLA handshake that ran on this thread since the last call.
-extern UINT32 atermius_take_ntlm_server_os(void);
+// The system version a Windows server states in the NTLM challenge of NLA,
+// noted on the connecting thread (the handshake runs inside freerdp_connect).
+static WINPR_TLS UINT32 nla_server_os = 0;
+
+// Called by FreeRDP with every NLA token from the server (patch 5 in
+// freerdp_patches.cmake), raw or wrapped in SPNEGO. MS-NLMP 2.2.1.2
+// CHALLENGE_MESSAGE: signature, type 2, NegotiateFlags at 20, Version at 48.
+void atermius_note_nla_token(const BYTE* data, size_t length);
+void atermius_note_nla_token(const BYTE* data, size_t length) {
+  static const BYTE signature[12] = {'N', 'T', 'L', 'M', 'S', 'S', 'P', 0, 2, 0, 0, 0};
+  if (!data) return;
+  for (size_t i = 0; i + 56 <= length; i++) {
+    const BYTE* m = data + i;
+    if (memcmp(m, signature, sizeof(signature)) != 0) continue;
+    const UINT32 flags = (UINT32)m[20] | ((UINT32)m[21] << 8) | ((UINT32)m[22] << 16) |
+                         ((UINT32)m[23] << 24);
+    // NEGOTIATE_VERSION and a target type (SERVER or DOMAIN), NTLM revision
+    // 15, a real build. FreeRDP-based servers (GNOME Remote Desktop and
+    // others) state a fixed Windows version but never set a target type.
+    if ((flags & 0x02000000u) && (flags & 0x00030000u) && m[55] == 0x0F && m[48] >= 5 &&
+        (m[50] | m[51]) != 0)
+      nla_server_os = ((UINT32)m[48] << 24) | ((UINT32)m[49] << 16) | ((UINT32)m[51] << 8) | m[50];
+    return;
+  }
+}
 API int aterm_rdp_connect(void* handle) {
   AtermContext* c = (AtermContext*)handle;
-  (void)atermius_take_ntlm_server_os();
+  nla_server_os = 0;
   const BOOL connected = freerdp_connect(c->context.instance);
-  c->server_os = atermius_take_ntlm_server_os();
+  c->server_os = nla_server_os;
+  nla_server_os = 0;
   return connected ? 1 : 0;
 }
 // The Windows version the server stated during NLA, as major << 24 |

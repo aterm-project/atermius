@@ -53,13 +53,10 @@ atermius_patch(channels/rdpei/client/rdpei_main.c
   "\t\t\tbreak;\n\n\t\tcase EVENTID_SUSPEND_TOUCH:"
   "\t\t\t/* atermius: both ready PDUs succeeded */\n\t\t\tIFCALLRET(rdpei->context->Ready, error, rdpei->context);\n\t\t\tif (error)\n\t\t\t\treturn error;\n\t\t\tbreak;\n\n\t\tcase EVENTID_SUSPEND_TOUCH:")
 
-# 5. Keep the Windows version a server states in the NTLM challenge of NLA
-#    (MS-NLMP 2.2.1.2: NegotiateFlags at 20, Version at 48), so a Host can
-#    show its system. Works with WinPR's NTLM and with native SSPI alike: the
-#    token is read before either consumes it, also inside SPNEGO. A challenge
-#    without a target type is ignored: FreeRDP-based servers (GNOME Remote
-#    Desktop and others) state a fixed Windows version but never set one.
-#    Read once per connect on the connecting thread.
+# 5. Show the engine each NLA token the server sends, before WinPR or native
+#    SSPI consumes it. atermius_rdp.c (atermius_note_nla_token) reads the
+#    Windows version from the NTLM challenge in it, so a Host can show its
+#    system; all of the logic lives there, this is only the call.
 atermius_patch(libfreerdp/core/nla.c
   "WINPR_ATTR_NODISCARD\nstatic int nla_client_recv_nego_token(rdpNla* nla)\n{\n\tcredssp_auth_take_input_buffer(nla->auth, &nla->negoToken);"
-  "/* atermius: system version from the server's NTLM challenge, 0 if none */\nstatic WINPR_TLS UINT32 atermius_ntlm_server_os = 0;\n\nUINT32 atermius_take_ntlm_server_os(void);\nUINT32 atermius_take_ntlm_server_os(void)\n{\n\tconst UINT32 value = atermius_ntlm_server_os;\n\tatermius_ntlm_server_os = 0;\n\treturn value;\n}\n\nstatic void atermius_note_ntlm_challenge(const SecBuffer* token)\n{\n\tstatic const BYTE signature[12] = { 0x4E, 0x54, 0x4C, 0x4D, 0x53, 0x53, 0x50, 0, 2, 0, 0, 0 };\n\tconst BYTE* data = (const BYTE*)token->pvBuffer;\n\tconst size_t length = token->cbBuffer;\n\n\tif (!data)\n\t\treturn;\n\n\tfor (size_t i = 0; i + 56 <= length; i++)\n\t{\n\t\tconst BYTE* m = &data[i];\n\n\t\tif (memcmp(m, signature, sizeof(signature)) != 0)\n\t\t\tcontinue;\n\n\t\tconst UINT32 flags = (UINT32)m[20] | ((UINT32)m[21] << 8) | ((UINT32)m[22] << 16) |\n\t\t                     ((UINT32)m[23] << 24);\n\n\t\t/* NEGOTIATE_VERSION, a target type, NTLM revision 15, a real build */\n\t\tif ((flags & 0x02000000) && (flags & 0x00030000) && (m[55] == 0x0F) && (m[48] >= 5) &&\n\t\t    ((m[50] | m[51]) != 0))\n\t\t\tatermius_ntlm_server_os = ((UINT32)m[48] << 24) | ((UINT32)m[49] << 16) |\n\t\t\t                          ((UINT32)m[51] << 8) | (UINT32)m[50];\n\t\treturn;\n\t}\n}\n\nWINPR_ATTR_NODISCARD\nstatic int nla_client_recv_nego_token(rdpNla* nla)\n{\n\tatermius_note_ntlm_challenge(&nla->negoToken);\n\tcredssp_auth_take_input_buffer(nla->auth, &nla->negoToken);")
+  "/* atermius: defined by the embedding engine (atermius_rdp.c) */\nextern void atermius_note_nla_token(const BYTE* data, size_t length);\n\nWINPR_ATTR_NODISCARD\nstatic int nla_client_recv_nego_token(rdpNla* nla)\n{\n\tatermius_note_nla_token((const BYTE*)nla->negoToken.pvBuffer, nla->negoToken.cbBuffer);\n\tcredssp_auth_take_input_buffer(nla->auth, &nla->negoToken);")
