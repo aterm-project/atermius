@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | S1 | 把「沙箱」拆成两个独立对象：**出口（egress）**决定连接从哪里发出、目标看到哪个 IP；**环境（sandbox）**是一个可以打开终端的服务端容器，带工具和持久主目录。环境总是挂在某个出口上。 | 用户要的「SSH 发起 IP」只需要出口，不需要容器；要的「Windows/Linux 环境」才需要环境。拆开后第一阶段不碰 Docker 就能交付固定出口 IP。 |
 | S2 | **出口是共享的，环境是每用户一个。** 出口按「实例 / 组 / 用户」授予；Linux 环境默认每用户一个容器。组共享、全实例共享的容器作为显式选项放到第三阶段，默认不开。 | 团队要的共享是「大家用同一个被目标防火墙放行的 IP」，这是出口的属性。共享容器等于共享主目录和进程空间，一个成员能读到其他成员在里面留下的一切。 |
-| S3 | 「从出口 X 连接」对 SSH/SFTP/Telnet 仍然是**字节管道**：SSH 协议照旧在浏览器里终止（`dartssh2`），服务端和出口只转发密文 TCP。凭据不进入出口，也不进入容器。 | 现有 Relay 就是这个模型（`server/src/relay.rs` `relay_socket`，`apps/client/lib/ssh/ssh_service.dart:1083`）。换发起位置不需要改变信任边界。 |
+| S3 | 「从出口 X 连接」对 SSH/SFTP/Telnet 仍然是**字节管道**：SSH 在浏览器与目标之间建立（`dartssh2`），Server 和出口转发 SSH 加密字节。Telnet 本身是明文，出口可见其内容。 | 现有 Relay 就是这个模型（`server/src/relay.rs` `relay_socket`，`apps/client/lib/ssh/ssh_service.dart:1083`）。换发起位置不需要改变信任边界。 |
 | S4 | 服务端 API **没有任何接收 Vault 明文或登录秘密并写入沙箱的接口**。打开沙箱终端用浏览器当场生成的一次性 SSH 密钥；用户要在沙箱里用自己的密钥，只能自己放进去（并被明确告知运营者可见）。 | 「服务端永远看不到 Vault 明文」的不变量不为沙箱开例外。沙箱是受信环境，运营者能看到里面的一切，这一点如实写在 UI 上。 |
 | S5 | 容器由独立的 **`sandbox-runner` 服务**创建和管理，只有它能接触 Docker；`server` 容器不挂 Docker socket。 | `server` 面向公网并解析不可信输入；把 Docker socket 给它等于把宿主机 root 给任何攻破它的人（§11）。 |
 | S6 | 目标策略**复用现有 Relay 策略链**（部署 ∩ 实例 ∩ 用户 ∩ 组，`effective_policy_for_user_tx`），出口只能在其上再收窄。容器自己的出网由 runner 在容器网络上用同一份有效策略落成防火墙规则。 | 容器里有 shell，用户可以绕过逐连接的票据检查直接拨号，所以策略必须在网络层再执行一次。 |
@@ -71,7 +71,7 @@
 | 方案 | 物理形态 | 隔离 | 成本 | 出口 IP 控制 | 运维负担 | 结论 |
 | --- | --- | --- | --- | --- | --- | --- |
 | A. 共享 Relay 出口（现状） | `server` 进程直接拨号 | 用户之间无环境可言；连接互不相干 | 零 | 无，恒为服务器 IP | 零 | 保留，作为内置出口 `server` |
-| B. 外部出口节点 / 固定 IP 代理 | 另一台机器上的 SOCKS5 代理，或第三阶段的远端 runner | 同 A（仍是字节管道） | 每个 IP 一台小机器或一个附加 IP | **强**：一个出口一个确定的 IP，可分配给人或组 | 低：管理员自备代理，服务端只存地址和凭据 | **第一阶段交付** |
+| B. 外部出口节点 / 固定 IP 代理 | 管理员登记的 SOCKS5 代理（P1），或主动连回的 Rust 节点（P1b） | 同 A（仍是字节管道） | 每个 IP 一台小机器或一个附加 IP | **强**：一个出口一个确定的 IP，可分配给人或组 | 低：管理员自备代理，服务端只存地址和凭据 | **第一阶段交付** |
 | C. 每用户 Linux 容器 | 每用户一个 Docker 容器加一个主目录卷 | 用户之间由容器边界隔开；与宿主共享内核 | 每个运行中的容器占内存（默认上限 1 GiB），空闲即停 | 取决于所挂出口 | 中：需要 runner、镜像、配额、清理 | **第二阶段交付，推荐默认的环境形态** |
 | D. 每组一个容器 | 一组人共用一个容器 | **组内无隔离**：共享主目录、进程、历史 | 低于 C | 同 C | 中，另加「谁干的」不可分辨 | 第三阶段显式选项，默认关闭 |
 | E. 全实例共享容器 | 全体用户共用一个容器 | 无 | 最低 | 同 C | 低，但一人弄坏全员受影响 | 第三阶段显式选项，仅建议单人或家庭实例 |
@@ -79,18 +79,19 @@
 
 **推荐默认**：
 
-- 新装实例：只有内置出口 `server`，行为与今天完全相同。沙箱功能默认关闭。
-- 管理员打开后：出口按需添加（方案 B）；环境用「每用户 Linux 容器」（方案 C），挂在管理员指定的出口上。
+- 普通 SSH/SFTP 沿用既有 Relay。管理员可单独接入外挂节点并授权给团队，无需启用 Docker。
+- 个人 Linux 工作台是可选项，默认关闭。管理员启用后，用户首次点击「打开沙箱」才分配容器和独立主目录。镜像由 Debian slim 和项目工具包构成。
 
 **分阶段**：
 
 | 阶段 | 内容 | 需要 Docker 权限 |
 | --- | --- | --- |
 | P1 出口 | `sandbox_egresses`（`socks5` 类型）、分配与默认/必须语义、票据带 `egress_id`、管理分区的「出口」与「分配」页、客户端的出口显示与选择。SSH/SFTP/Telnet 先行；RDP/VNC 经出口见 §7.4。 | 否 |
+| P1b 外挂节点主动接入 | Rust 节点代理主动连回 Server。先支持 SSH/SFTP，每个连接单独授权。需要内网接入和节点管理的部署可独立启用，见 §7.5。 | 否 |
 | P2 每用户 Linux 环境 | `sandbox-runner`、模板、容器生命周期、主目录卷、配额、容器网络防火墙、`runner_network` 类型出口、用户侧「打开沙箱」、管理分区的「模板」「运行中」页。 | 仅 runner |
 | P3 扩展 | 组共享与实例共享容器、远端 runner（多节点、多出口 IP）、登记式 Windows 环境、可选的 SSH agent 转发（§8.2）。 | 仅 runner |
 
-每个阶段独立可用、可单独回退：关闭实例开关后所有票据回到出口 `server`。
+关闭工作台只停用沙箱接入。关闭外挂出口时，绑定该出口的票据和会话失效。对设有必须出口的用户，连接保持拒绝，直到管理员恢复出口或修改分配。
 
 ---
 
@@ -113,6 +114,7 @@
 - **出口（egress）**：一个命名的拨号位置。类型：
   - `server`：内置，不可删除，ID 固定为 `server`。
   - `socks5`（P1）：服务端经管理员填写的 SOCKS5 代理拨号，`CONNECT` 里只放已校验的 IP 字面量，不让代理解析域名。
+  - `agent`（P1b）：由管理员登记的外围节点主动连入，节点代表获准会话连接目标。出口绑定节点身份，节点在线地址可以变化。
   - `runner_network`（P2）：runner 宿主机上的一个 Docker 网络，SNAT 到指定的宿主 IP；网络里常驻一个拨号器，容器也接在这个网络上，所以容器内发起的连接与「经此出口的 Relay 连接」源 IP 一致。
 - **模板（template）**：管理员定义的环境规格：镜像（按摘要固定）、所挂出口、出网模式、CPU/内存/进程数/主目录配额、空闲停止时间、共享范围。
 - **沙箱（sandbox）**：模板在某个范围上的一个实例。范围是 `user`（默认）、`group` 或 `instance`。同一模板在同一范围上至多一个沙箱。
@@ -205,6 +207,7 @@
 ### 7.1 出口 IP 如何确定
 
 - `socks5`：目标看到的是代理机的 IP。管理员在出口上填写「显示 IP」，服务端不猜测。
+- `agent`：目标看到节点的出站 IP。节点主动建立的控制连接只用于身份和会话调度；显示 IP 应从目标侧验证。
 - `runner_network`：runner 为每个出口建一个独立的 Docker bridge 网络，关闭容器间互通，并把该网络的出站流量 SNAT 到管理员选定的宿主机 IP（Docker 的 `com.docker.network.host_ipv4` 网络选项，或由 runner 自己写 nftables SNAT 规则；实现时在目标 Docker 版本上验证）。宿主机需要事先配好这些附加 IP。IPv6 出口同理，单独配置。
 - 管理界面的「测试」按钮经该出口向管理员给定的一个目标（必须通过当前策略）发起一次 TCP 连接，报告成功与耗时。它验证连通性，不验证对端看到的 IP；显示 IP 以管理员填写为准，并在界面上这样标注。
 
@@ -240,6 +243,21 @@ server、数据库、对象存储、guacd、runner 的控制端口对容器一�
 ### 7.4 RDP/VNC 经出口
 
 guacd 自己拨号，不支持上游代理。做法：服务端为这一条连接开一个只接受一次连接、只接受来自 guacd 的本地转发端口，把 guacd 的 `hostname`/`port` 指向它，再由服务端经所选出口连到真正的目标。RDP 的 TLS 仍在 guacd 与目标之间，证书指纹校验不受影响。这部分排在 P1 的后半，SSH/SFTP/Telnet 先交付；在它完成前，被设了「必须」出口的用户发起 RDP/VNC 会被拒绝并给出明确原因，而不是悄悄从服务器 IP 出去。
+
+---
+
+### 7.5 外挂服务器主动接入（建议）
+
+**接入哪种服务器。** 如果 Atermius Server 的 Relay 已能访问外部机器的 SSH 服务，管理员或用户按现有方式登记为主机即可。需要从内网主动连回中心，或者需要团队共用该机器的网络出口时，再登记节点。节点位于 NAT 后也能发起出站连接。目标看到的公网地址取决于节点所在网络的 NAT 或 SNAT 配置。
+
+**两种传输。** 少数固定主机可以先试用反向 SSH。节点维持一条 SSH 连接，复用其 channel 访问事先登记的服务。中心的转发端点只供对应 Relay 适配器使用。节点身份、固定服务映射、用户票据和目标白名单均需校验，保留普通 Relay 对环回地址的既有拒绝规则。SSH 自身并不提供 Atermius 的组分配和会话审计。[SSH 连接协议](https://datatracker.ietf.org/doc/html/rfc4254#section-7)
+
+**产品化的推荐路径。** 外挂机安装独立 Rust Agent，以节点证书和 mTLS 主动连接 Server 的 HTTPS 入口。管理员授予该节点出口能力。普通出口节点以非特权用户运行。需要在该机创建 Debian 工作台时，再单独部署与授权 §8.4 的容器 runner。节点入口须支持 HTTP/2 双向流并验证节点证书。部署在反向代理之后时，由可信入口验证证书并向后端传递经过认证的节点身份。控制接口带协议版本，Agent 可以独立升级或重启。
+
+1. Agent 作为 gRPC 客户端打开持久的双向控制流，登记节点、报告心跳和容量。Server 按用户、设备、组和目标复查 Relay 票据后，在该控制流内通知节点受理会话。
+2. Agent 在已建立的 HTTP/2 连接上为这次会话发起独立的双向数据流。Server 只接受该节点持有的一次性会话凭据，校验会话、节点和已核准的目标 IP/端口绑定。Agent 再按本机策略校验实际拨号目标。浏览器继续使用现有 Relay WebSocket 和 SSH 主机指纹校验。每位用户的 SSH 凭据与终端会话各自独立。[gRPC 双向流](https://grpc.io/docs/what-is-grpc/core-concepts/#bidirectional-streaming-rpc)
+3. 每用户和每节点分别限制并发，数据流使用有界缓冲和背压。撤销用户权限时关闭该用户的流，撤销节点身份时关闭该节点全部流。节点重连要重新认证，新会话重新授权。个人工作台留在持有其主目录卷的节点，迁移需要单独转移数据。
+4. 压测在相同链路、加密和限速条件下比较反向 SSH 与 Agent。测量空闲和 SFTP 满载时的终端按键回显 P95、聚合吞吐、每会话内存以及中心服务器带宽。HTTP/2 支持多流，底层 TCP 丢包仍可能拖慢其他流。如果大文件传输明显推高回显延迟，再将批量传输分配到单独的底层连接。共享同一 SSH 传输的 Shell 和 SFTP channel 应作为同一条不透明字节流处理。[HTTP/2 多路复用与流控](https://httpwg.org/specs/rfc9113.html#StreamsLayer)
 
 ---
 
@@ -312,13 +330,14 @@ runner 持有 Docker 权限，等同宿主机 root，因此：
 
 命名、CAS、`name_key`（NFKC 规范化）沿用 `0043_server_managed_relay_groups.sql` 的风格。SQLite 先行；PostgreSQL 模式需要单独的 repository 和 `pg_sync_route_is_supported` 白名单项，在那之前这些路由在 PG 模式下保持关闭。
 
-### 9.1 表（迁移 `0057_online_sandbox.sql`，P1 只建前四项）
+### 9.1 表（迁移 `0057_online_sandbox.sql`，P1 建出口与分配表，P1b 增加节点登记）
 
 ```sql
 -- 实例级开关与上限；无行表示功能关闭、revision 0。
 CREATE TABLE instance_sandbox_settings (
     settings_id INTEGER PRIMARY KEY CHECK (settings_id = 1),
-    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+    external_egresses_enabled INTEGER NOT NULL CHECK (external_egresses_enabled IN (0, 1)),
+    sandboxes_enabled INTEGER NOT NULL CHECK (sandboxes_enabled IN (0, 1)),
     max_running_sandboxes INTEGER NOT NULL CHECK (max_running_sandboxes BETWEEN 0 AND 1000),
     revision INTEGER NOT NULL,
     updated_at TEXT NOT NULL
@@ -329,8 +348,8 @@ CREATE TABLE sandbox_egresses (
     egress_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     name_key TEXT NOT NULL UNIQUE,
-    kind TEXT NOT NULL CHECK (kind IN ('socks5', 'runner_network')),
-    config_json TEXT NOT NULL,          -- socks5: 地址、端口；runner_network: runner_id、宿主 IP
+    kind TEXT NOT NULL CHECK (kind IN ('socks5', 'agent', 'runner_network')),
+    config_json TEXT NOT NULL,          -- socks5: 地址、端口；agent: 登记的 node_id；runner_network: runner_id、宿主 IP
     secret_ciphertext TEXT,             -- socks5 口令，用服务端密钥派生的密钥加密，API 只写不读
     display_ip TEXT NOT NULL,           -- 管理员填写的对外 IP，仅展示
     allow_cidrs TEXT,                   -- 可选收窄，NULL 表示不收窄
@@ -420,13 +439,15 @@ CREATE TABLE sandbox_runners (
 );
 ```
 
+P1b 的节点登记记录包含稳定的节点 ID、实例、证书身份与吊销状态、获准能力和最近心跳。出口引用已登记的节点，用户或组通过既有出口分配获得使用权。节点登记与 P3 的 Docker runner 登记分别授权。
+
 Windows 登记式环境（P3）在 `sandbox_templates` 里用 `kind='windows_host'`，`image_ref` 留空，另加一张 `sandbox_windows_hosts(host_id, template_id, address, port, certificate_sha256, assigned_user_id)`；不存任何登录凭据。
 
 ### 9.2 管理端点（实例管理员，全部 CAS，全部写实例审计）
 
 | 方法与路径 | 作用 |
 | --- | --- |
-| `GET` / `PUT /api/v1/admin/sandbox-settings` | 实例开关、运行上限；返回 runner 是否在线 |
+| `GET` / `PUT /api/v1/admin/sandbox-settings` | 分别设置外挂出口、在线沙箱的实例开关和运行上限，返回节点及 runner 在线状态 |
 | `GET` / `POST /api/v1/admin/sandbox-egresses` | 列出（含内置 `server`）、新建 |
 | `GET` / `PUT` / `DELETE /api/v1/admin/sandbox-egresses/{egress_id}` | 读、改、删；被模板或分配引用时删除返回 `409` 并列出引用者 |
 | `POST /api/v1/admin/sandbox-egresses/{egress_id}/test` | 经该出口向给定目标做一次连通测试（目标须通过管理员本人的有效策略） |
@@ -464,7 +485,7 @@ Windows 登记式环境（P3）在 `sandbox_templates` 里用 `kind='windows_hos
 
 | 页 | 管理员配置什么 | 管理员看到什么 |
 | --- | --- | --- |
-| 概览 | 功能总开关；实例同时运行上限 | runner 是否在线及版本；运行中 / 已停止沙箱数；各出口当前连接数；主目录总用量 |
+| 概览 | 外挂出口开关、独立的在线沙箱开关、实例同时运行上限 | runner 是否在线及版本；运行中 / 已停止沙箱数；各出口当前连接数；主目录总用量 |
 | 出口 | 新建、编辑、停用、删除出口：名称、类型、代理地址与口令或宿主 IP、显示 IP、可选的目标收窄；「测试」 | 每个出口的显示 IP、类型、启用状态、谁在用（分配数、当前连接数）；内置 `server` 固定在首行，只读 |
 | 模板 | 镜像（摘要）、共享范围（每用户 / 每组 / 全实例）、所挂出口、出网模式、CPU / 内存 / 进程数 / 主目录配额、会话数与时长、空闲停止、主目录保留天数 | 每个模板的沙箱数、落后于当前版本的沙箱数 |
 | 分配 | 一张「对象 × 资源」表：对实例、组、用户分别授予出口或模板，并选「可选 / 默认 / 必须」 | 每个用户解析后的结果（默认出口、是否被强制、可用模板）；同层多个默认时的冲突提示 |
@@ -490,13 +511,14 @@ Windows 登记式环境（P3）在 `sandbox_templates` 里用 `kind='windows_hos
 
 ## 11. 部署
 
-### 11.1 P1：不需要新服务
+### 11.1 P1：沿用现有中心服务
 
 出口是 `server` 内部的拨号选择。`deploy/compose.yaml` 不变；新增环境变量：
 
 | 变量 | 默认 | 含义 |
 | --- | --- | --- |
-| `ATERMIUS_SANDBOX_ENABLED` | `false` | 部署级总闸。为 `false` 时管理界面不显示该分区，实例设置无法打开。 |
+| `ATERMIUS_EXTERNAL_EGRESSES_ENABLED` | `false` | 允许管理员启用外挂出口。P1b 使用 Agent 时在指定外部机器安装节点服务。 |
+| `ATERMIUS_SANDBOX_ENABLED` | `false` | 允许管理员启用容器工作台。关闭时仍可使用获准的普通主机和外挂出口。 |
 
 ### 11.2 P2：覆盖文件 `deploy/compose.sandbox.yaml`
 
@@ -561,6 +583,8 @@ volumes:
 8. 伪造的 runner 请求（无密钥、错误密钥）被拒绝；带任意镜像名或额外容器参数的创建请求被拒绝。
 9. 账户停用即停止其沙箱并断开会话；账户删除在宽限期结束时删除主目录。
 10. 日志、审计、错误响应里不出现代理口令、公钥对应的私钥材料或任何会话内容。
+
+外挂节点另验收三种行为。关闭沙箱且未部署 runner 时，两名获准用户能经同一节点建立各自的 SSH/SFTP 会话。撤销其中一名用户的授权后，另一名用户的会话继续。节点掉线时，设有必须出口的连接按原策略失败，节点恢复后新会话可重新授权连接。
 
 ---
 
