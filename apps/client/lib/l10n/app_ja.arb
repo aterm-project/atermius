@@ -5171,5 +5171,6 @@
   "sessionReconnectMinutes": "{count} 分",
   "sessionReconnectNoLimit": "無制限",
   "sessionReconnectChoiceDefault": "{choice}（既定）",
-  "sessionReconnectNote": "このデバイスにのみ保存されます。制限時間に達すると自動再接続を中止しますが、「再接続」から手動で接続できます。変更は再接続中のセッションにも適用されます。"
+  "sessionReconnectNote": "このデバイスにのみ保存されます。制限時間に達すると自動再接続を中止しますが、「再接続」から手動で接続できます。変更は再接続中のセッションにも適用されます。",
+  "passwordVaultKeyNotSyncedYet": "このアカウントの保管庫キーは、まだパスワードサインイン用に同期されていません。このアカウントでサインイン済みのデバイスまたはブラウザーで一度サインインしてから、ここでもう一度サインインしてください。"
 }

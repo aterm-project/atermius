@@ -30855,6 +30855,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Stored on this device only. When the time limit is reached, automatic attempts stop and “Restore connection” stays available. Changes also apply to sessions that are reconnecting now.'**
   String get sessionReconnectNote;
+
+  /// Sign-in error on a new device when the account has no password-wrapped vault key on the server yet.
+  ///
+  /// In en, this message translates to:
+  /// **'This account’s vault key hasn’t been synced for password sign-in yet. Sign in once on a device or browser where this account is already signed in, then sign in here again.'**
+  String get passwordVaultKeyNotSyncedYet;
 }
 
 class _AppLocalizationsDelegate

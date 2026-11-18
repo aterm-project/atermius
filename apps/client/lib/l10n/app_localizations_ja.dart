@@ -18397,4 +18397,8 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get sessionReconnectNote =>
       'このデバイスにのみ保存されます。制限時間に達すると自動再接続を中止しますが、「再接続」から手動で接続できます。変更は再接続中のセッションにも適用されます。';
+
+  @override
+  String get passwordVaultKeyNotSyncedYet =>
+      'このアカウントの保管庫キーは、まだパスワードサインイン用に同期されていません。このアカウントでサインイン済みのデバイスまたはブラウザーで一度サインインしてから、ここでもう一度サインインしてください。';
 }

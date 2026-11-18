@@ -1069,6 +1069,18 @@ class SyncNowResult {
   final Object? error;
 }
 
+/// Password sign-in on a new device found no password-wrapped vault key.
+///
+/// The key only reaches the server from a device that already holds it, so the
+/// person has to sign in once on such a device before this one can open the
+/// vault.
+class PasswordVaultKeyUnavailableException implements Exception {
+  const PasswordVaultKeyUnavailableException();
+
+  @override
+  String toString() => currentL10n.passwordVaultKeyNotSyncedYet;
+}
+
 class AppController extends ChangeNotifier {
   /// Cloud session logs: sanitized lifecycle rows (and opt-in output
   /// transcripts) kept in memory only, bound to server/account/device/Vault.
@@ -4587,9 +4599,10 @@ class AppController extends ChangeNotifier {
       final entry = Map<String, dynamic>.from(raw as Map);
       if (entry['installed'] == true) continue;
       if (entry['envelope'] == null) {
-        throw const FormatException(
-          'Password vault key is missing. Sign in on an existing device to sync it.',
-        );
+        // Accounts created before the password keyring have no wrapped
+        // vault key on the server until a device that already holds the key
+        // signs in with this client and uploads it.
+        throw const PasswordVaultKeyUnavailableException();
       }
       final vaultKey = await crypto.unwrapPasswordVaultKey(
         accountKey: accountKey,
@@ -23980,6 +23993,9 @@ class AppController extends ChangeNotifier {
   SyncRepository _requireRepository() =>
       _repository ?? (throw StateError(currentL10n.unlockTheVaultFirst));
   String friendlyError(Object error) {
+    if (error is PasswordVaultKeyUnavailableException) {
+      return currentL10n.passwordVaultKeyNotSyncedYet;
+    }
     if (error is DatabaseRecoveryRequiredException) {
       return error.toString();
     }
