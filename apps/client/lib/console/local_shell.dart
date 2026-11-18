@@ -118,6 +118,30 @@ class LocalShellCommand {
   final String? workingDirectory;
 }
 
+/// Quotes one argv entry for a Windows command line (CommandLineToArgvW
+/// rules). flutter_pty joins executable and arguments with bare spaces, so an
+/// unquoted `C:\Program Files\PowerShell\7\pwsh.exe` reaches the shell as
+/// argv[0] `C:\Program` plus a stray `Files\...` argument (pwsh exits 64).
+String windowsCommandLineArgument(String value) {
+  if (value.isNotEmpty && !RegExp(r'[\s"]').hasMatch(value)) return value;
+  final out = StringBuffer('"');
+  var backslashes = 0;
+  for (final rune in value.runes) {
+    final char = String.fromCharCode(rune);
+    if (char == r'\') {
+      backslashes++;
+      continue;
+    }
+    // Backslashes are literal unless they precede a quote.
+    out.write(r'\' * (char == '"' ? backslashes * 2 + 1 : backslashes));
+    backslashes = 0;
+    out.write(char);
+  }
+  out.write(r'\' * (backslashes * 2));
+  out.write('"');
+  return out.toString();
+}
+
 /// Host facts used for resolution, injectable for tests.
 class LocalShellHost {
   const LocalShellHost({

@@ -717,11 +717,21 @@ class WorkspaceTabBar extends StatelessWidget {
         // Android fullscreen keeps the strip out of the layout (Home still
         // shows it as the way out). The pane handle can drop it down as a
         // temporary overlay without resizing any terminal or desktop.
-        if ((Theme.of(context).platform == TargetPlatform.android ||
-                Theme.of(context).platform == TargetPlatform.iOS) &&
+        //
+        // Windows (and Linux browsers) do the same with the mouse: the strip
+        // slides down while the pointer rests on the top screen edge. macOS
+        // keeps its strip, since that edge reveals the system menu bar.
+        final platform = Theme.of(context).platform;
+        final hover =
+            platform == TargetPlatform.windows ||
+            platform == TargetPlatform.linux;
+        if ((hover ||
+                platform == TargetPlatform.android ||
+                platform == TargetPlatform.iOS) &&
             FullscreenController.instance.enabled &&
             !tabs.any((tab) => tab.isHome && tab.id == selectedId)) {
           return FullscreenTabsOverlay(
+            hover: hover,
             builder: (overlayContext) =>
                 _bar(overlayContext, chrome, colors, visibleTabs),
           );
@@ -1327,36 +1337,29 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
             width: widget.width,
             child: Row(
               children: [
-                if (tab.isHome && widget.homeMenuActions.isNotEmpty)
+                if (tab.isHome && widget.homeMenuActions.isNotEmpty) ...[
+                  // Two separate targets: the home glyph belongs to the tab
+                  // (selects Home), the menu glyph only opens the menu.
+                  SizedBox(
+                    key: const ValueKey('workspace_home_button'),
+                    width: 30,
+                    child: Icon(
+                      Icons.home_outlined,
+                      size: bar.iconSize,
+                      color: selected ? palette.accentText : palette.muted,
+                    ),
+                  ),
                   WorkspaceOverflowMenu(
                     key: const ValueKey('workspace_host_menu'),
                     tooltip: context.l10n.hostMenuClickToOpen,
                     actions: widget.homeMenuActions,
-                    child: SizedBox(
-                      width: 44,
+                    child: _HomeMenuGlyph(
                       height: bar.tabHeight,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.home_outlined,
-                            size: bar.iconSize,
-                            color: selected
-                                ? palette.accentText
-                                : palette.muted,
-                          ),
-                          Icon(
-                            Icons.expand_more,
-                            size: 14,
-                            color: selected
-                                ? palette.accentText
-                                : palette.muted,
-                          ),
-                        ],
-                      ),
+                      color: selected ? palette.accentText : palette.muted,
                     ),
-                  )
-                else ...[
+                  ),
+                  const SizedBox(width: 6),
+                ] else ...[
                   const SizedBox(width: 10),
                   _TabIcon(
                     tab: tab,
@@ -1419,6 +1422,36 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
       ),
     );
   }
+}
+
+/// The Home tab's menu trigger: its own hover-highlighted button next to the
+/// home glyph, so it reads as a separate control from the tab itself.
+class _HomeMenuGlyph extends StatefulWidget {
+  const _HomeMenuGlyph({required this.height, required this.color});
+  final double height;
+  final Color color;
+  @override
+  State<_HomeMenuGlyph> createState() => _HomeMenuGlyphState();
+}
+
+class _HomeMenuGlyphState extends State<_HomeMenuGlyph> {
+  bool _hovered = false;
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => setState(() => _hovered = true),
+    onExit: (_) => setState(() => _hovered = false),
+    child: Container(
+      width: 26,
+      height: widget.height - 6,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        color: Theme.of(
+          context,
+        ).colorScheme.onSurface.withValues(alpha: _hovered ? .14 : .06),
+      ),
+      child: Icon(Icons.menu_rounded, size: 15, color: widget.color),
+    ),
+  );
 }
 
 /// Touch-platform tab drag. Unlike [LongPressDraggable] it starts as soon as

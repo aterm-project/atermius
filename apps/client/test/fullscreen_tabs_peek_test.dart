@@ -2,6 +2,7 @@ import 'package:aterm_client/platform/fullscreen.dart';
 import 'package:aterm_client/ui/fullscreen_tabs_peek.dart';
 import 'package:aterm_client/ui/session_workspace.dart';
 import 'package:aterm_client/ui/workspace_tab_bar.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -451,6 +452,75 @@ void main() {
     expect(layout.sessionIds, ['a', 'b']);
     expect(find.text('term-a').hitTestable(), findsOneWidget);
     expect(find.text('term-b').hitTestable(), findsOneWidget);
+    await cleanUp(tester);
+  });
+
+  testWidgets('Windows fullscreen hides the tabs; the mouse on the top edge '
+      'slides them down over the split panes and leaving retracts them', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.windows),
+        home: Scaffold(
+          body: _Harness(layout: layout, closed: closed, splits: splits),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(navBar, findsOneWidget);
+    await fullscreen.toggle();
+    await tester.pumpAndSettle();
+    expect(navBar, findsNothing);
+    // Desktop keeps the split: both panes stay on screen.
+    expect(find.text('term-a').hitTestable(), findsOneWidget);
+    expect(find.text('term-b').hitTestable(), findsOneWidget);
+    final sizesBefore = List.of(_Term.sizes['b']!);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(400, 300));
+    addTearDown(mouse.removePointer);
+    await tester.pump();
+
+    // Sweeping across the edge without resting does not reveal the strip.
+    await mouse.moveTo(const Offset(400, 1));
+    await tester.pump(const Duration(milliseconds: 50));
+    await mouse.moveTo(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(peek.visible, isFalse);
+
+    await mouse.moveTo(const Offset(400, 1));
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pumpAndSettle();
+    expect(peek.visible, isTrue);
+    expect(navBar, findsOneWidget);
+    expect(_Term.sizes['b'], sizesBefore);
+
+    // Resting on the strip keeps it far beyond the linger and auto-hide.
+    await mouse.moveTo(tester.getCenter(navBar));
+    await tester.pump(const Duration(seconds: 10));
+    expect(peek.visible, isTrue);
+
+    // A click on a tab works and is not swallowed.
+    await tester.tapAt(
+      tester.getCenter(find.text('gamma')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('term-c').hitTestable(), findsOneWidget);
+    expect(fullscreen.enabled, isTrue);
+
+    await mouse.moveTo(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    expect(peek.visible, isFalse);
+    expect(navBar, findsNothing);
+
+    // With the strip retracted the click reaches the terminal.
+    final taps = _Term.taps['c'] ?? 0;
+    await tester.tapAt(const Offset(400, 300), kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    expect(_Term.taps['c'], taps + 1);
     await cleanUp(tester);
   });
 

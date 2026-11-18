@@ -38,6 +38,21 @@ LocalShellHost _windows({
 );
 
 void main() {
+  test('Windows command-line arguments are quoted only when needed', () {
+    expect(windowsCommandLineArgument('-NoLogo'), '-NoLogo');
+    expect(
+      windowsCommandLineArgument(r'C:\Windows\System32\cmd.exe'),
+      r'C:\Windows\System32\cmd.exe',
+    );
+    // Unquoted, pwsh would see argv[0] `C:\Program` and exit with code 64.
+    expect(
+      windowsCommandLineArgument(r'C:\Program Files\PowerShell\7\pwsh.exe'),
+      r'"C:\Program Files\PowerShell\7\pwsh.exe"',
+    );
+    expect(windowsCommandLineArgument(''), '""');
+    expect(windowsCommandLineArgument(r'a "b" c\'), r'"a \"b\" c\\"');
+  });
+
   group('POSIX resolution', () {
     test('system shell uses validated SHELL with interactive argv', () {
       final command = resolveLocalShell(LocalShellLaunch.systemDefault, _posix());

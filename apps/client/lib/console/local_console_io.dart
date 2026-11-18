@@ -62,8 +62,13 @@ LocalConsole openLocalConsole({
   };
   return _PtyConsole(
     Pty.start(
-      command.executable,
-      arguments: command.arguments,
+      // flutter_pty builds the Windows command line without quoting.
+      Platform.isWindows
+          ? windowsCommandLineArgument(command.executable)
+          : command.executable,
+      arguments: Platform.isWindows
+          ? command.arguments.map(windowsCommandLineArgument).toList()
+          : command.arguments,
       environment: environment,
       workingDirectory: command.workingDirectory,
     ),
