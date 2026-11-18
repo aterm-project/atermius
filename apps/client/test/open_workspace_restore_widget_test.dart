@@ -191,7 +191,7 @@ void main() {
   });
 
   testWidgets('a lock or sign-out keeps the snapshot and unlocking in the '
-      'same page opens nothing twice; closing the last tab empties it', (
+      'same page brings the tabs back once; closing the last tab empties it', (
     tester,
   ) async {
     store.values[_scope] = OpenWorkspaceSnapshot(
@@ -221,20 +221,19 @@ void main() {
       expect(stored()!.panes.single.hostId, _alpha.id);
       expect(store.writes, 0);
 
-      // Unlocked again in the same page.
+      // Unlocked again in the same page: the tabs come back, once.
       await tester.pumpWidget(_shell(fixture.app));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 3100));
+      await fixture.pumpUntilAttempts(tester, 2);
       await tester.pump(const Duration(seconds: 30));
-      expect(sessionTabs(tester), isEmpty);
-      expect(fixture.attempts, hasLength(1));
+      expect(sessionTabs(tester), ['Alpha host']);
+      expect(fixture.attempts, hasLength(2));
       expect(stored()!.panes.single.hostId, _alpha.id);
       expect(store.writes, 0);
 
-      // The user opens a tab and closes it again: now nothing is open.
-      await openHost(tester, _beta);
-      await tester.pump(const Duration(seconds: 2));
-      expect(stored()!.panes.single.hostId, _beta.id);
-      final id = tabOf(tester, 'Beta host').id;
+      // The user closes it: now nothing is open.
+      final id = tabOf(tester, 'Alpha host').id;
       fixture.cancelAttempts();
       unawaited(fixture.app.closeTerminalTab(id));
       await tester.pump();

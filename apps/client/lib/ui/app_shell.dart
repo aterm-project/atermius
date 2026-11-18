@@ -350,6 +350,11 @@ class _AppShellState extends State<AppShell> {
       });
     }
     if (serverHostedClient) {
+      // A fresh shell without tabs (after an unlock or a new sign-in on this
+      // page) gets the stored tabs back, like a reload does.
+      if (!app.terminalTabs.any((tab) => !tab.closed)) {
+        app.openWorkspaceRestoreHandled.clear();
+      }
       final keeper = _openWorkspace = OpenWorkspaceKeeper(
         app: app,
         scope: () => mounted ? _currentFilesScope : null,
