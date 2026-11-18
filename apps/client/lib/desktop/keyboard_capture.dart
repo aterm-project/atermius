@@ -75,6 +75,12 @@ class KeyboardCaptureTarget {
     _send = send;
   }
 
+  /// Sends one key to this view's session (used for touchpad gestures, which
+  /// become shortcuts). Dropped once the view is gone or cannot take input.
+  void send(int keysym, bool down) {
+    if (_registered && _enabled) _send(keysym, down);
+  }
+
   void unregister() {
     if (!_registered) return;
     _registered = false;
@@ -146,6 +152,11 @@ class KeyboardCaptureController extends ChangeNotifier {
   /// focus, whatever [mode] is; terminals and text fields keep it.
   bool _sentLocalIme = true;
   final _targets = <KeyboardCaptureTarget>[];
+
+  /// The remote desktop that has the keyboard focus with the pointer over
+  /// it, whatever [mode] is: where pointer-device input that Flutter does
+  /// not deliver (three- and four-finger touchpad gestures) belongs.
+  final pointerTarget = ValueNotifier<KeyboardCaptureTarget?>(null);
   KeyboardCaptureTarget? _armed;
   FullscreenController? _fullscreen;
 
@@ -302,6 +313,9 @@ class KeyboardCaptureController extends ChangeNotifier {
       unawaited(_invoke('configure', {'armed': armed}));
     }
     _setLocalIme(!_targets.any((target) => target._focused));
+    pointerTarget.value = _targets.reversed
+        .where((t) => t._enabled && t._focused && t._hovered)
+        .firstOrNull;
   }
 
   void _setLocalIme(bool enabled) {
@@ -548,6 +562,7 @@ class KeyboardCaptureController extends ChangeNotifier {
     }
     _targets.clear();
     _armed = null;
+    pointerTarget.value = null;
     _fullscreen?.removeListener(_update);
     _fullscreen = null;
     if (_sentArmed) {

@@ -10,6 +10,7 @@ add_executable(${BINARY_NAME} WIN32
   "flutter_window.cpp"
   "keyboard_capture.cpp"
   "main.cpp"
+  "touchpad_gestures.cpp"
   "utils.cpp"
   "win32_window.cpp"
   "window_geometry.cpp"
@@ -37,6 +38,8 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib" "comctl32.lib" "imm32.lib")
+# HID report parsing of precision touchpads (touchpad_gestures.cpp).
+target_link_libraries(${BINARY_NAME} PRIVATE "hid.lib")
 # Window-level AppUserModel properties (window_identity.cpp).
 target_link_libraries(${BINARY_NAME} PRIVATE "shell32.lib" "propsys.lib" "ole32.lib" "shlwapi.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")

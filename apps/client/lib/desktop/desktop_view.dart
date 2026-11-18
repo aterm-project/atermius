@@ -25,6 +25,7 @@ import 'desktop_resolution.dart';
 import 'desktop_resolution_dialog.dart';
 import 'desktop_session.dart';
 import 'desktop_wheel.dart';
+import 'touchpad_gestures.dart';
 import 'local/local_desktop.dart';
 import '../l10n/l10n.dart';
 import '../ui/app_density.dart';
@@ -233,6 +234,9 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     );
     session.addListener(_captureSessionChanged);
     _captureSessionChanged();
+    // Windows: three- and four-finger touchpad gestures for the desktop
+    // under the pointer (they never reach Flutter).
+    TouchpadGestureController.instance.attach();
     session.onNotice = _showNotice;
     session.onFilesSaved = _filesSaved;
     session.addListener(_certificateChanged);

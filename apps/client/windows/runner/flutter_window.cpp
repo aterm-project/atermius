@@ -37,6 +37,8 @@ bool FlutterWindow::OnCreate() {
   keyboard_capture_ = std::make_unique<KeyboardCapture>(
       flutter_controller_->engine()->messenger(), GetHandle(),
       flutter_controller_->view()->GetNativeWindow());
+  touchpad_gestures_ = std::make_unique<TouchpadGestures>(
+      flutter_controller_->engine()->messenger(), GetHandle());
   chrome_channel_ =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           flutter_controller_->engine()->messenger(), "atermius/window_chrome",
@@ -153,6 +155,7 @@ void FlutterWindow::OnDestroy() {
   ReleaseWindowResources(GetHandle());
   geometry_channel_.reset();
   keyboard_capture_.reset();
+  touchpad_gestures_.reset();
   chrome_channel_.reset();
   Win32Window::OnDestroy();
   if (flutter_controller_) {
@@ -181,6 +184,11 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
   if (message == WM_DPICHANGED) {
     taskbar_identity_.UpdateIcons(hwnd, LOWORD(wparam));
+  }
+  if (touchpad_gestures_ &&
+      (message == WM_INPUT || message == WM_SETTINGCHANGE)) {
+    // Observed only: three- and four-finger touchpad gestures for Dart.
+    touchpad_gestures_->HandleMessage(message, wparam, lparam);
   }
   // Frame layout must be resolved before plugin handlers consume NC messages.
   if (custom_chrome_enabled() &&

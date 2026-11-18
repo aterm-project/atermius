@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "keyboard_capture.h"
+#include "touchpad_gestures.h"
 #include "win32_window.h"
 #include "window_geometry.h"
 #include "window_identity.h"
@@ -40,6 +41,7 @@ private:
       chrome_channel_;
   std::unique_ptr<WindowGeometryChannel> geometry_channel_;
   std::unique_ptr<KeyboardCapture> keyboard_capture_;
+  std::unique_ptr<TouchpadGestures> touchpad_gestures_;
   TaskbarIdentity taskbar_identity_;
 
   bool close_guard_enabled_ = false;
