@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../ssh/ssh_keepalive_policy.dart';
+import '../terminal/paste_safety.dart';
 import 'app_theme.dart';
 
 /// 设备级「长连接保活与链路健康」设置卡片（四语自适应）。
@@ -100,8 +101,9 @@ class SshKeepaliveSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final keepalive = controller ?? SshKeepaliveController.instance;
+    final pasteSafety = PasteSafetyController.instance;
     return ListenableBuilder(
-      listenable: keepalive,
+      listenable: Listenable.merge([keepalive, pasteSafety]),
       builder: (context, _) {
         final policy = keepalive.policy;
         final secondary = TextStyle(
@@ -246,6 +248,21 @@ class SshKeepaliveSetting extends StatelessWidget {
               ),
               value: policy.probeOnResume,
               onChanged: (value) => unawaited(keepalive.setProbeOnResume(value)),
+            ),
+            SwitchListTile(
+              key: const ValueKey('paste_safety_guard_switch'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                _t(
+                  context,
+                  zh: '生产高危与多行粘贴二次确认',
+                  en: 'Confirm risky & multi-line pastes',
+                  ja: '危険・複数行貼り付け前の確認',
+                  ru: 'Подтверждение опасной и многострочной вставки',
+                ),
+              ),
+              value: pasteSafety.enabled,
+              onChanged: pasteSafety.setEnabled,
             ),
             Text(
               _t(

@@ -474,6 +474,18 @@ extension _LocalProfileFlowIos on _LocalProfileFlowState {
                       ? () => activeSession!.viewKey.currentState?.toggleTools()
                       : null,
                   actions: sshActions,
+                  activeHealth:
+                      activeSession != null && activeSession.connected.value
+                      ? sshConnectionHealthOf(activeSession.connection)
+                      : null,
+                  onProbeHealth:
+                      activeSession != null &&
+                          activeSession.connected.value &&
+                          activeSession.connection != null
+                      ? () => unawaited(
+                          probeSshConnectionLiveness(activeSession.connection),
+                        )
+                      : null,
                   transferActive: sshTransferActivity.activeCount > 0,
                   backgroundColor: isFileTab
                       ? null

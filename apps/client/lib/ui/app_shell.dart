@@ -1941,6 +1941,12 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
       builder: (_, _) => WorkspaceStatusBar(
         status: status,
         detail: detail,
+        health: tab?.state == 'connected'
+            ? sshConnectionHealthOf(tab?.connection)
+            : null,
+        onProbeHealth: tab?.state == 'connected' && tab?.connection != null
+            ? () => unawaited(probeSshConnectionLiveness(tab!.connection))
+            : null,
         badge: credentialVisibilityShowsAdminVisible(app)
             ? CredentialVisibilityIndicator(app: app)
             : null,

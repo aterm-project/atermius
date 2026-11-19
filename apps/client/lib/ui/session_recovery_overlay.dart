@@ -40,6 +40,45 @@ class _SessionRecoveryOverlayState extends State<SessionRecoveryOverlay> {
   /// Repaints the countdown once a second, only while one is shown.
   Timer? _ticker;
 
+  static String _t(
+    BuildContext context, {
+    required String zh,
+    required String en,
+    required String ja,
+    required String ru,
+  }) => switch (Localizations.localeOf(context).languageCode) {
+    'zh' => zh,
+    'ja' => ja,
+    'ru' => ru,
+    _ => en,
+  };
+
+  static String? _disconnectReasonLabel(BuildContext context, String? reason) =>
+      switch (reason) {
+        'keepalive_timeout' => _t(
+          context,
+          zh: '心跳保活超时（链路无响应）',
+          en: 'Keepalive timed out (peer unresponsive)',
+          ja: 'キープアライブ応答タイムアウト',
+          ru: 'Тайм-аут keepalive (сервер не отвечает)',
+        ),
+        'transport_error' => _t(
+          context,
+          zh: '底层网络传输中断',
+          en: 'Network transport interrupted',
+          ja: 'ネットワーク転送が中断されました',
+          ru: 'Сбой сетевого транспорта',
+        ),
+        'remote_closed' => _t(
+          context,
+          zh: '远端主机关闭了连接',
+          en: 'Closed by remote host',
+          ja: 'リモートホストにより切断されました',
+          ru: 'Соединение закрыто удалённым хостом',
+        ),
+        _ => null,
+      };
+
   @override
   void initState() {
     super.initState();
@@ -117,10 +156,43 @@ class _SessionRecoveryOverlayState extends State<SessionRecoveryOverlay> {
     final l10n = context.l10n;
     final remaining = model.remaining, next = model.nextAttemptIn;
     final close = widget.onClose;
+    final reasonLabel = _disconnectReasonLabel(
+      context,
+      model.lastDisconnectReason,
+    );
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(l10n.connectionLost, textAlign: TextAlign.center),
+        if (reasonLabel != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            reasonLabel,
+            key: const ValueKey('session_recovery_reason'),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+        if (model.recoveryCount > 0) ...[
+          const SizedBox(height: 2),
+          Text(
+            _t(
+              context,
+              zh: '本次会话已自动恢复 ${model.recoveryCount} 次',
+              en: 'Recovered ${model.recoveryCount}× in this session',
+              ja: 'このセッションで ${model.recoveryCount} 回自動復帰済み',
+              ru: 'Восстановлено ${model.recoveryCount} раз за сессию',
+            ),
+            key: const ValueKey('session_recovery_count'),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
         if (model.expired && !model.busy) ...[
           const SizedBox(height: 4),
           Semantics(

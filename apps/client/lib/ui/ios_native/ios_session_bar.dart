@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../../l10n/l10n.dart';
+import '../../ssh/ssh_connection_health.dart';
 import '../workspace_controls.dart' show WorkspaceAction;
 import '../workspace_tab_bar.dart' show WorkspaceTab;
 import 'ios_glass.dart';
@@ -42,6 +43,8 @@ class IosSessionBar extends StatelessWidget {
     this.backLabel,
     this.onNewConnection,
     this.sessionSubtitles = const {},
+    this.activeHealth,
+    this.onProbeHealth,
   });
 
   final List<WorkspaceTab> sessions;
@@ -71,6 +74,12 @@ class IosSessionBar extends StatelessWidget {
   final VoidCallback? onNewConnection;
   final Map<String, String> sessionSubtitles;
 
+  /// 当前活跃 SSH 会话的链路健康状态（用于实时显示绿/琥珀/红状态点与延迟微标）。
+  final SshConnectionHealth? activeHealth;
+
+  /// 手动立即探活当前连接（展示于 `…` 下拉菜单中）。
+  final VoidCallback? onProbeHealth;
+
   static bool _isDisconnectAction(WorkspaceAction action) =>
       action.id.endsWith('_disconnect') || action.id == 'disconnect';
 
@@ -89,6 +98,13 @@ class IosSessionBar extends StatelessWidget {
           l10n.terminalSidebar,
           Icons.tune_rounded,
           onToggleTools!,
+        ),
+      if (onProbeHealth != null && current != null && current.isConnected)
+        WorkspaceAction(
+          'ios_session_probe_health',
+          isZh ? '立即探活链路' : 'Probe Link Health',
+          Icons.network_check_rounded,
+          onProbeHealth!,
         ),
       for (final action in actions)
         if (!_isDisconnectAction(action)) action,
@@ -236,6 +252,7 @@ class IosSessionBar extends StatelessWidget {
             middle: _SessionTitleSwitcher(
               sessions: live,
               current: current,
+              health: activeHealth,
               onSelect: onSelect,
               onOpenSwitcher: live.isEmpty
                   ? null
@@ -263,12 +280,14 @@ class _SessionTitleSwitcher extends StatefulWidget {
     required this.current,
     required this.onSelect,
     required this.onOpenSwitcher,
+    this.health,
   });
 
   final List<WorkspaceTab> sessions;
   final WorkspaceTab? current;
   final ValueChanged<String> onSelect;
   final VoidCallback? onOpenSwitcher;
+  final SshConnectionHealth? health;
 
   @override
   State<_SessionTitleSwitcher> createState() => _SessionTitleSwitcherState();
@@ -329,36 +348,81 @@ class _SessionTitleSwitcherState extends State<_SessionTitleSwitcher> {
             transform: Matrix4.translationValues(visualDx, 0, 0),
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 40),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IosStatusDot(
-                    size: 6,
-                    color: current.isConnected ? c.online : c.tertiaryLabel,
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      current.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: IosType.headline.copyWith(color: c.label),
+              child: widget.health == null
+                  ? _buildTitleRow(
+                      c: c,
+                      current: current,
+                      canSwipe: canSwipe,
+                      health: null,
+                      maxWidth: constraints.maxWidth,
+                    )
+                  : ListenableBuilder(
+                      listenable: widget.health!,
+                      builder: (_, _) => _buildTitleRow(
+                        c: c,
+                        current: current,
+                        canSwipe: canSwipe,
+                        health: widget.health,
+                        maxWidth: constraints.maxWidth,
+                      ),
                     ),
-                  ),
-                  if (canSwipe) ...[
-                    const SizedBox(width: 4),
-                    IosChevron(
-                      direction: IosChevronDirection.down,
-                      size: 10,
-                      color: c.secondaryLabel,
-                    ),
-                  ],
-                ],
-              ),
             ),
           ),
         );
       },
+    );
+  }
+  Widget _buildTitleRow({
+    required IosColors c,
+    required WorkspaceTab current,
+    required bool canSwipe,
+    required SshConnectionHealth? health,
+    required double maxWidth,
+  }) {
+    final dotColor = !current.isConnected
+        ? c.tertiaryLabel
+        : switch (health?.state) {
+            SshHealthState.degraded => c.warning,
+            SshHealthState.stale => c.destructive,
+            _ => c.online,
+          };
+    final rtt = current.isConnected ? health?.lastRtt : null;
+    final showRtt = rtt != null && maxWidth >= 150;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IosStatusDot(size: 6, color: dotColor),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            current.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: IosType.headline.copyWith(color: c.label),
+          ),
+        ),
+        if (showRtt) ...[
+          const SizedBox(width: 5),
+          Text(
+            SshConnectionHealth.formatRtt(rtt),
+            key: const ValueKey('ios_session_bar_rtt'),
+            maxLines: 1,
+            softWrap: false,
+            style: IosType.caption2.copyWith(
+              color: dotColor,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+        if (canSwipe) ...[
+          const SizedBox(width: 4),
+          IosChevron(
+            direction: IosChevronDirection.down,
+            size: 10,
+            color: c.secondaryLabel,
+          ),
+        ],
+      ],
     );
   }
 }

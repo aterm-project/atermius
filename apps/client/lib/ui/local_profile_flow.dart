@@ -5432,6 +5432,17 @@ _showMessage(
                       detail: session == null
                           ? context.l10n.hostsAndSignInDetailsAre
                           : '${session.host.username.isEmpty ? '' : '${session.host.username}@'}${session.host.address}:${session.host.port} · ${session.isTelnet ? '${context.l10n.telnetProtocolUnencrypted} · ' : ''}${session.connected.value ? context.l10n.connected : session.progress.isLoading ? context.l10n.connecting : context.l10n.disconnected}',
+                      health: session != null && session.connected.value
+                          ? sshConnectionHealthOf(session.connection)
+                          : null,
+                      onProbeHealth:
+                          session != null &&
+                              session.connected.value &&
+                              session.connection != null
+                          ? () => unawaited(
+                              probeSshConnectionLiveness(session.connection),
+                            )
+                          : null,
                       sessionCount: _sessions
                           .where((s) => s.connected.value)
                           .length,

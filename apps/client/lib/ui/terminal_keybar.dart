@@ -14,6 +14,7 @@ import '../storage/terminal_keybar_store.dart';
 import 'terminal_font_zoom.dart';
 import 'apple_hig.dart';
 import 'ios_native/ios_native.dart';
+import 'paste_safety_dialog.dart';
 
 /// Soft Ctrl/Alt/Shift state reported by [TerminalKeybar.onModifiersChanged].
 ///
@@ -490,7 +491,20 @@ class _TerminalKeybarState extends State<TerminalKeybar>
       return;
     }
     final text = clipboard?.text;
-    if (text != null) terminal.paste(text);
+    if (text != null) {
+      final approved = await confirmTerminalPaste(
+        context,
+        text,
+        bracketedPasteActive: terminal.bracketedPasteMode,
+      );
+      if (!mounted ||
+          widget.readOnly ||
+          !identical(terminal, widget.terminal) ||
+          approved == null) {
+        return;
+      }
+      terminal.paste(approved);
+    }
     _focusTerminal();
   }
 
@@ -722,37 +736,57 @@ class _TerminalKeybarState extends State<TerminalKeybar>
       ),
     );
 
-    _KeySpec key(String label, TerminalKey key, [String? tooltip]) => button(
-      label,
-      tooltip ?? label,
-      widget.readOnly ? null : () => _send(key),
-    );
+    _KeySpec key(
+      String label,
+      TerminalKey key, [
+      String? tooltip,
+      bool repeatable = false,
+    ]) {
+      final spec = button(
+        label,
+        tooltip ?? label,
+        widget.readOnly ? null : () => _send(key),
+      );
+      if (!repeatable) return spec;
+      return _KeySpec(
+        spec.width,
+        _RepeatableKeyListener(
+          enabled: !widget.readOnly,
+          onRepeat: () => _send(key),
+          child: spec.child,
+        ),
+      );
+    }
 
     // Arrows are drawn with a heavy stroke: font arrow glyphs are hairlines.
     final arrowSize = scaler.scale(textStyle.fontSize ?? 14) * 1.3;
     _KeySpec arrow(AxisDirection direction, TerminalKey key, String name) =>
         _KeySpec(
           measure('←'),
-          Tooltip(
-            message: name,
-            child: TextButton(
-              key: ValueKey('terminal-keybar-arrow-${direction.name}'),
-              style: buttonStyle,
-              onPressed: widget.readOnly ? null : () => _send(key),
-              child: Semantics(
-                label: name,
-                child: wrapKeycap(
-                  Builder(
-                    builder: (context) => CustomPaint(
-                      size: Size.square(arrowSize),
-                      painter: _ArrowPainter(
-                        direction,
-                        DefaultTextStyle.of(context).style.color ??
-                            theme.colorScheme.primary,
+          _RepeatableKeyListener(
+            enabled: !widget.readOnly,
+            onRepeat: () => _send(key),
+            child: Tooltip(
+              message: name,
+              child: TextButton(
+                key: ValueKey('terminal-keybar-arrow-${direction.name}'),
+                style: buttonStyle,
+                onPressed: widget.readOnly ? null : () => _send(key),
+                child: Semantics(
+                  label: name,
+                  child: wrapKeycap(
+                    Builder(
+                      builder: (context) => CustomPaint(
+                        size: Size.square(arrowSize),
+                        painter: _ArrowPainter(
+                          direction,
+                          DefaultTextStyle.of(context).style.color ??
+                              theme.colorScheme.primary,
+                        ),
                       ),
                     ),
+                    enabled: !widget.readOnly,
                   ),
-                  enabled: !widget.readOnly,
                 ),
               ),
             ),
@@ -986,8 +1020,8 @@ class _TerminalKeybarState extends State<TerminalKeybar>
         key('PgUp', TerminalKey.pageUp),
         key('PgDn', TerminalKey.pageDown),
         key('Ins', TerminalKey.insert),
-        key('Del', TerminalKey.delete),
-        key('⌫', TerminalKey.backspace, 'Backspace'),
+        key('Del', TerminalKey.delete, null, true),
+        key('⌫', TerminalKey.backspace, 'Backspace', true),
         key('Enter', TerminalKey.enter),
         for (var index = 0; index < 12; index++)
           key(
@@ -1102,6 +1136,98 @@ class _TerminalKeybarState extends State<TerminalKeybar>
       softWrap: false,
       style: decoration == null ? null : TextStyle(decoration: decoration),
     ),
+  );
+}
+
+/// 长按连发监听器：面向移动端运维方向键（← ↑ ↓ →）与退格/删除键（⌫ / Del）。
+///
+/// 使用被动 [Listener] 而不抢占手势竞技场：
+/// - 单击行为完全交由内部按钮处理；
+/// - 按住静止超过 380ms 后以 55ms 步进连续触发 [onRepeat]；
+/// - 一旦手指滑出（横向滚动键栏超过 12px）、抬起、取消、禁用或组件销毁立即撤除定时器，绝不卡键。
+class _RepeatableKeyListener extends StatefulWidget {
+  const _RepeatableKeyListener({
+    required this.enabled,
+    required this.onRepeat,
+    required this.child,
+  });
+
+  final bool enabled;
+  final VoidCallback onRepeat;
+  final Widget child;
+
+  @override
+  State<_RepeatableKeyListener> createState() => _RepeatableKeyListenerState();
+}
+
+class _RepeatableKeyListenerState extends State<_RepeatableKeyListener> {
+  static const _initialDelay = Duration(milliseconds: 380);
+  static const _repeatInterval = Duration(milliseconds: 55);
+  static const _cancelSlopSquared = 12.0 * 12.0;
+
+  Timer? _delayTimer;
+  Timer? _repeatTimer;
+  int? _activePointer;
+  Offset? _downPosition;
+
+  void _cancel() {
+    _delayTimer?.cancel();
+    _delayTimer = null;
+    _repeatTimer?.cancel();
+    _repeatTimer = null;
+    _activePointer = null;
+    _downPosition = null;
+  }
+
+  void _start(PointerDownEvent event) {
+    if (!widget.enabled) return;
+    _cancel();
+    _activePointer = event.pointer;
+    _downPosition = event.position;
+    _delayTimer = Timer(_initialDelay, () {
+      _delayTimer = null;
+      if (!mounted || !widget.enabled) return;
+      widget.onRepeat();
+      _repeatTimer = Timer.periodic(_repeatInterval, (_) {
+        if (!mounted || !widget.enabled) {
+          _cancel();
+          return;
+        }
+        widget.onRepeat();
+      });
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _RepeatableKeyListener oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled) _cancel();
+  }
+
+  @override
+  void dispose() {
+    _cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    behavior: HitTestBehavior.translucent,
+    onPointerDown: _start,
+    onPointerMove: (event) {
+      if (event.pointer != _activePointer || _downPosition == null) return;
+      if ((event.position - _downPosition!).distanceSquared >
+          _cancelSlopSquared) {
+        _cancel();
+      }
+    },
+    onPointerUp: (event) {
+      if (event.pointer == _activePointer) _cancel();
+    },
+    onPointerCancel: (event) {
+      if (event.pointer == _activePointer) _cancel();
+    },
+    child: widget.child,
   );
 }
 
