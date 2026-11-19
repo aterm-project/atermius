@@ -30,6 +30,7 @@ class IosSnippetItem {
 class IosWorkspaceData {
   const IosWorkspaceData({
     required this.hosts,
+    this.hostSortScope,
     required this.groups,
     required this.search,
     required this.connect,
@@ -59,6 +60,7 @@ class IosWorkspaceData {
   });
 
   final List<HostRecord> hosts;
+  final String? hostSortScope;
 
   /// 分组（local 由 `LocalGroupRecord.group` 映射）。
   final List<GroupRecord> groups;
@@ -113,7 +115,11 @@ class IosWorkspaceData {
 
 /// 下发 [IosWorkspaceData] 的 InheritedWidget。
 class IosWorkspaceScope extends InheritedWidget {
-  const IosWorkspaceScope({super.key, required this.data, required super.child});
+  const IosWorkspaceScope({
+    super.key,
+    required this.data,
+    required super.child,
+  });
 
   final IosWorkspaceData data;
 
@@ -124,9 +130,8 @@ class IosWorkspaceScope extends InheritedWidget {
     return scope!.data;
   }
 
-  static IosWorkspaceData? maybeOf(BuildContext context) => context
-      .dependOnInheritedWidgetOfExactType<IosWorkspaceScope>()
-      ?.data;
+  static IosWorkspaceData? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<IosWorkspaceScope>()?.data;
 
   @override
   bool updateShouldNotify(IosWorkspaceScope oldWidget) =>

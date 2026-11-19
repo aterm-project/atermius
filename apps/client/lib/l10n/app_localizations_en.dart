@@ -19827,4 +19827,27 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get vncDisplayAndClipboard =>
       'Resolution, local scaling and clipboard';
+
+  @override
+  String get hostSortRecentRequested => 'Recently requested';
+
+  @override
+  String get hostSortNameAscending => 'Name (A–Z)';
+
+  @override
+  String get hostSortNameDescending => 'Name (Z–A)';
+
+  @override
+  String get hostSortAddress => 'Address';
+
+  @override
+  String get hostSortProtocol => 'Protocol';
+
+  @override
+  String get hostSortFavoritesFirst => 'Favorites first';
+
+  @override
+  String hostSortCurrent(String order) {
+    return 'Sort hosts: $order';
+  }
 }

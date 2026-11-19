@@ -100,6 +100,7 @@ extension _LocalProfileFlowIos on _LocalProfileFlowState {
 
     return IosWorkspaceData(
       hosts: _hosts,
+      hostSortScope: localHostSortScope(active.record.profileId),
       groups: [for (final entry in _groups) entry.group],
       liveHostIds: {
         for (final session in _visibleSessions)

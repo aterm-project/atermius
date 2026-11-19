@@ -1,3 +1,4 @@
+import 'domain/host_sort.dart';
 import 'domain/window_combination.dart';
 import 'domain/open_workspace_snapshot.dart';
 import 'console/local_console.dart';
@@ -1777,6 +1778,19 @@ class AppController extends ChangeNotifier {
       _adminMaintenanceRetryRequestId != null;
   bool get canRetryAdminBackupSubmission => _adminBackupRetryRequestId != null;
   String? get currentAccountId => account?.accountId ?? session?.accountId;
+
+  String? get hostSortScope {
+    final accountId = currentAccountId;
+    final vaultId = activeVault?.id;
+    final server = api?.baseUrl ?? serverUrl;
+    if (accountId == null || vaultId == null || server == null) return null;
+    return cloudHostSortScope(server, accountId, vaultId);
+  }
+
+  void noteHostRequested(HostRecord host) {
+    if (workspaceLocked) return;
+    HostSortController.instance.requested(hostSortScope, [host.id]);
+  }
 
   bool isCurrentAdminAccount(String userId) => currentAccountId == userId;
 
@@ -20820,6 +20834,11 @@ class AppController extends ChangeNotifier {
           _apiGeneration == apiGeneration && session?.accountId == accountId &&
           identity?.deviceId == deviceId && activeVault?.id == vaultId &&
           (savedHostId == null || hosts.any((h) => h.id == savedHostId)),
+      onUserRetry: () {
+        if (tab.host case final host? when host.protocol.isTerminal) {
+          noteHostRequested(host);
+        }
+      },
       reconnect: () => reconnectTerminalTab(tab.id),
     );
   }
@@ -20957,6 +20976,7 @@ class AppController extends ChangeNotifier {
   Future<void> retryTerminalConnect(String id) async {
     final tab = _terminalTabs[id];
     if (tab == null || !canRetryTerminalConnect(id)) return;
+    if (tab.host case final host?) noteHostRequested(host);
     try {
       if (tab.consoleShell != null || tab.consoleSerialPort != null) {
         await _openConsoleTab(
@@ -21094,6 +21114,7 @@ class AppController extends ChangeNotifier {
         identity?.deviceId == reviewedDevice;
     final desktop = DesktopSession(
       directConnectionForTesting: desktopConnectionForTesting,
+      onUserReconnect: () => noteHostRequested(host),
       reconnectAllowed: () => current() && tab.recovery?.available == true,
       // "Restore connection" in the view resolves the Host saved now.
       latestHost: (id) => hosts.where((h) => h.id == id).firstOrNull,
@@ -21542,6 +21563,10 @@ class AppController extends ChangeNotifier {
     TerminalTabSession? reuseTab,
     bool userStarted = true,
   }) async {
+    if (reuseTab == null && userStarted &&
+        (expectedVaultId == null || expectedVaultId == activeVault?.id)) {
+      noteHostRequested(host);
+    }
     final reuseGeneration = reuseTab?.connectionGeneration;
     if (host.protocol == HostProtocol.telnet) {
       return _openTelnetTab(

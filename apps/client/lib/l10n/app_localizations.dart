@@ -31353,6 +31353,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Resolution, local scaling and clipboard'**
   String get vncDisplayAndClipboard;
+
+  /// No description provided for @hostSortRecentRequested.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently requested'**
+  String get hostSortRecentRequested;
+
+  /// No description provided for @hostSortNameAscending.
+  ///
+  /// In en, this message translates to:
+  /// **'Name (A–Z)'**
+  String get hostSortNameAscending;
+
+  /// No description provided for @hostSortNameDescending.
+  ///
+  /// In en, this message translates to:
+  /// **'Name (Z–A)'**
+  String get hostSortNameDescending;
+
+  /// No description provided for @hostSortAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Address'**
+  String get hostSortAddress;
+
+  /// No description provided for @hostSortProtocol.
+  ///
+  /// In en, this message translates to:
+  /// **'Protocol'**
+  String get hostSortProtocol;
+
+  /// No description provided for @hostSortFavoritesFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites first'**
+  String get hostSortFavoritesFirst;
+
+  /// No description provided for @hostSortCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort hosts: {order}'**
+  String hostSortCurrent(String order);
 }
 
 class _AppLocalizationsDelegate

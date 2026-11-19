@@ -43,6 +43,7 @@ class DesktopSession extends ChangeNotifier {
     this.saveDisplaySettings,
     this.saveOperatingSystem,
     this.reconnectAllowed,
+    this.onUserReconnect,
     this.latestHost,
     this.localDrives,
     this.localClipboard,
@@ -138,6 +139,9 @@ class DesktopSession extends ChangeNotifier {
   Future<void> Function(HostRecord? latest)? _reconnect;
   String? _reconnectHostId;
   final bool Function()? reconnectAllowed;
+
+  /// Desktop recovery is manual; the owner records the user's request here.
+  final VoidCallback? onUserReconnect;
   bool get canReconnect =>
       !_disposed && _reconnect != null && (reconnectAllowed?.call() ?? true);
 
@@ -149,6 +153,7 @@ class DesktopSession extends ChangeNotifier {
     if (!canReconnect || _reconnecting || state != 'disconnected') return;
     _reconnecting = true;
     try {
+      onUserReconnect?.call();
       await close();
       if (!canReconnect) return;
       _closed = false;

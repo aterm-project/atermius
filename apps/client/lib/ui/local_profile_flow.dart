@@ -1,3 +1,5 @@
+import '../domain/host_sort.dart';
+import 'host_sort_menu.dart';
 import 'terminal_font_zoom.dart';
 import 'app_menu.dart';
 import '../platform/file_window_tracking.dart';
@@ -1717,6 +1719,12 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
       automatic: session.host.protocol.isTerminal,
       keepSshAlive: session.host.protocol == HostProtocol.ssh,
       isCurrent: current,
+      onUserRetry: () {
+        if (session.host.protocol.isTerminal) {
+          HostSortController.instance.requested(
+              localHostSortScope(profile!.record.profileId), [session.host.id]);
+        }
+      },
       reconnect: () async {
         if (!current()) return;
         final generation = session.connectionGeneration;
@@ -1878,6 +1886,10 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
   /// are current in this profile now.
   Future<void> _retryLocalSession(_LocalTerminalSession session) async {
     if (!_canRetryLocalSession(session)) return;
+    if (_activeProfile != null && !session.isConsoleTab) {
+      HostSortController.instance.requested(
+          localHostSortScope(_activeProfile!.record.profileId), [session.host.id]);
+    }
     if (session.isConsoleTab) {
       await _openConsole(
         serialPort: session.consoleSerialPort,
@@ -2060,6 +2072,11 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
     _LocalTerminalSession? reuseSession,
     bool userStarted = true,
   }) async {
+    if (reuseSession == null && userStarted && _activeProfile != null &&
+        !_busy && shouldContinue?.call() != false) {
+      HostSortController.instance.requested(
+          localHostSortScope(_activeProfile!.record.profileId), [host.id]);
+    }
     if (kIsWeb) {
       // A browser LocalVault has no authenticated Relay and cannot open raw
       // TCP; say so instead of silently doing nothing.
@@ -2138,6 +2155,8 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
 
       final desktop = DesktopSession(
         reconnectAllowed: current,
+        onUserReconnect: () => HostSortController.instance.requested(
+            localHostSortScope(profile!.record.profileId), [host.id]),
         // "Restore connection" in the view resolves the Host saved now.
         latestHost: (id) => _hosts.where((h) => h.id == id).firstOrNull,
         saveRdpCertificate: (reviewed, pin) async {
@@ -5777,7 +5796,12 @@ _showMessage(
     );
   }
 
-  Widget _buildHosts(UnlockedLocalProfile profile) {
+  Widget _buildHosts(UnlockedLocalProfile profile) => ListenableBuilder(
+    listenable: HostSortController.instance,
+    builder: (context, _) => _buildSortedHosts(profile),
+  );
+
+  Widget _buildSortedHosts(UnlockedLocalProfile profile) {
     final query = _homeSearch.text.trim().toLowerCase();
     final groupLabels = hostSearchGroupLabels(
       _groups.map((entry) => entry.group),
@@ -5788,29 +5812,42 @@ _showMessage(
     } on FormatException {
       // HostSearchField displays syntax guidance while typing.
     }
-    final hosts = _hosts
-        .where(
-          (host) => command != null
-              ? command.matches(host)
-              : '${host.name} ${host.address} ${host.username} ${host.tags.join(' ')} ${groupLabels[host.groupId] ?? ''}'
-                    .toLowerCase()
-                    .contains(query),
-        )
-        .toList();
+    final hosts = HostSortController.instance.sorted(
+      _hosts
+          .where(
+            (host) => command != null
+                ? command.matches(host)
+                : '${host.name} ${host.address} ${host.username} ${host.tags.join(' ')} ${groupLabels[host.groupId] ?? ''}'
+                      .toLowerCase()
+                      .contains(query),
+          )
+          .toList(),
+      scope: localHostSortScope(profile.record.profileId),
+    );
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-          child: HostSearchField(
-            fieldKey: const ValueKey('local_home_search'),
-            controller: _homeSearch,
-            captureTyping: true,
-            active: _selectedTabId == 'hosts',
-            onChanged: (_) => setState(() {}),
-            onConnect: (request) => unawaited(_quickConnect(request)),
-            onSearchSubmitted: hosts.isEmpty
-                ? null
-                : () => unawaited(_connectLocalHost(hosts.first)),
+          child: LayoutBuilder(
+            builder: (context, constraints) => Row(
+              children: [
+                Expanded(
+                  child: HostSearchField(
+                    fieldKey: const ValueKey('local_home_search'),
+                    controller: _homeSearch,
+                    captureTyping: true,
+                    active: _selectedTabId == 'hosts',
+                    onChanged: (_) => setState(() {}),
+                    onConnect: (request) => unawaited(_quickConnect(request)),
+                    onSearchSubmitted: hosts.isEmpty
+                        ? null
+                        : () => unawaited(_connectLocalHost(hosts.first)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                HostSortMenu(compact: constraints.maxWidth < 600),
+              ],
+            ),
           ),
         ),
         Padding(
@@ -5915,7 +5952,8 @@ _showMessage(
                   builder: (context, constraints) {
                     final metrics = HostCardMetrics.of(context);
                     const padding = EdgeInsets.fromLTRB(20, 8, 20, 24);
-                    final grid = _hostGrid &&
+                    final grid =
+                        _hostGrid &&
                         constraints.maxWidth - padding.horizontal >= 360;
                     return GridView.builder(
                       key: const ValueKey('local_host_list'),

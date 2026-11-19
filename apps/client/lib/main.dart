@@ -1,3 +1,5 @@
+import 'domain/host_sort.dart';
+import 'storage/host_sort_store.dart';
 import 'platform/file_window_tracking.dart';
 import 'platform/server_hosted.dart';
 import 'desktop/desktop_keyboard_mode.dart';
@@ -211,6 +213,7 @@ Future<void> main(List<String> arguments) async {
   // Device-local policy for reconnecting dropped sessions (automatic on/off,
   // retry interval, time limit); read before any session can be opened.
   await SessionReconnectController.instance.load(createSessionReconnectStore());
+  await HostSortController.instance.load(createHostSortStore());
   // Scrollback that no longer fits in memory spills to encrypted temporary
   // files. Remove what earlier processes left behind (undecryptable, their
   // keys only ever lived in memory); files of running processes, including

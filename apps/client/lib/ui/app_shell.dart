@@ -1,3 +1,5 @@
+import '../domain/host_sort.dart';
+import 'host_sort_menu.dart';
 import 'terminal_font_zoom.dart';
 import 'cloud_access/organizations_page.dart' show CloudAccessAccountCard;
 import 'cloud_access/share_host_dialog.dart' show showCloudShareDialog;
@@ -1257,6 +1259,7 @@ _snack(
           String? opened;
           final connecting = app.openTerminalTab(
             host,
+            userStarted: !automatic,
             onTabOpened: (id) => opened = id,
           );
           // Refused before a tab existed (tab limit, no credential, ...).
@@ -3652,7 +3655,12 @@ class _HostsPageState extends State<_HostsPage> {
   AppController get app => widget.app;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: HostSortController.instance,
+    builder: (context, _) => _buildHosts(context),
+  );
+
+  Widget _buildHosts(BuildContext context) {
     final canWrite = app.activeVault?.canWrite == true;
     final jumpHostRouteIssues = app.jumpHostRouteIssues;
     final hostGroupReferenceIssues = app.hostGroupReferenceIssues;
@@ -3665,29 +3673,42 @@ class _HostsPageState extends State<_HostsPage> {
     } on FormatException {
       // HostSearchField displays syntax guidance while typing.
     }
-    final visible = app.hosts
-        .where(
-          (host) => command != null
-              ? command.matches(host)
-              : '${host.name} ${host.address} ${host.username} ${host.tags.join(' ')} ${groupLabels[host.groupId] ?? ''}'
-                    .toLowerCase()
-                    .contains(query),
-        )
-        .toList();
+    final visible = HostSortController.instance.sorted(
+      app.hosts
+          .where(
+            (host) => command != null
+                ? command.matches(host)
+                : '${host.name} ${host.address} ${host.username} ${host.tags.join(' ')} ${groupLabels[host.groupId] ?? ''}'
+                      .toLowerCase()
+                      .contains(query),
+          )
+          .toList(),
+      scope: app.hostSortScope,
+    );
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          HostSearchField(
-            fieldKey: const ValueKey('cloud_home_search'),
-            controller: _homeSearch,
-            captureTyping: true,
-            onChanged: (_) => setState(() {}),
-            onConnect: widget.onQuickConnect,
-            onSearchSubmitted: visible.isEmpty
-                ? null
-                : () => _connect(visible.first),
+          LayoutBuilder(
+            builder: (context, constraints) => Row(
+              children: [
+                Expanded(
+                  child: HostSearchField(
+                    fieldKey: const ValueKey('cloud_home_search'),
+                    controller: _homeSearch,
+                    captureTyping: true,
+                    onChanged: (_) => setState(() {}),
+                    onConnect: widget.onQuickConnect,
+                    onSearchSubmitted: visible.isEmpty
+                        ? null
+                        : () => _connect(visible.first),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                HostSortMenu(compact: constraints.maxWidth < 600),
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           HomeAddSharingRow(
@@ -3696,11 +3717,8 @@ class _HostsPageState extends State<_HostsPage> {
             onQuickImportTermius: hasLocalTermiusInstallation()
                 ? () => _runCloudOneClickTermiusImport(context, app)
                 : null,
-            onAddHost: (protocol) => _showCloudHostEditor(
-              context,
-              app,
-              initialProtocol: protocol,
-            ),
+            onAddHost: (protocol) =>
+                _showCloudHostEditor(context, app, initialProtocol: protocol),
             onLaunchShell: (launch) async {
               try {
                 await app.openLocalShellTab(launch: launch);

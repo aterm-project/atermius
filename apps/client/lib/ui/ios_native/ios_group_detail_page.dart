@@ -1,3 +1,6 @@
+import '../../domain/host_sort.dart';
+import '../host_sort_menu.dart';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/scheduler.dart';
@@ -20,11 +23,7 @@ import 'ios_workspace_scope.dart';
 /// 严禁在构造闭包中捕获分组或主机列表快照；每次构建均通过
 /// [IosWorkspaceScope.of] 按 [groupId] 动态读取最新分组、子分组与组内主机。
 class IosGroupDetailPage extends StatefulWidget {
-  const IosGroupDetailPage({
-    super.key,
-    required this.groupId,
-    this.backLabel,
-  });
+  const IosGroupDetailPage({super.key, required this.groupId, this.backLabel});
 
   final String groupId;
   final String? backLabel;
@@ -44,7 +43,9 @@ class _IosGroupDetailPageState extends State<IosGroupDetailPage> {
   }
 
   bool get _isZh =>
-      Localizations.localeOf(context).languageCode.toLowerCase().startsWith('zh');
+      Localizations.localeOf(context).languageCode
+          .toLowerCase()
+          .startsWith('zh');
 
   String get _subgroupsHeader => _isZh ? '子分组' : 'Subgroups';
 
@@ -61,7 +62,11 @@ class _IosGroupDetailPageState extends State<IosGroupDetailPage> {
           l10n.connectGroup,
           IosIcons.connect,
           () => scope.connectGroup!(group),
-          enabled: !scope.busy && !scope.groupConnecting && totalHosts > 0 && !kIsWeb,
+          enabled:
+              !scope.busy &&
+              !scope.groupConnecting &&
+              totalHosts > 0 &&
+              !kIsWeb,
         ),
       if (scope.editGroup != null)
         WorkspaceAction(
@@ -83,11 +88,32 @@ class _IosGroupDetailPageState extends State<IosGroupDetailPage> {
           destructive: true,
         ),
     ];
-    return [primary, destructive];
+    return [
+      primary,
+      [
+        for (final order in HostSortOrder.values)
+          WorkspaceAction(
+            'ios_group_sort_${order.name}',
+            hostSortLabel(l10n, order),
+            HostSortController.instance.order == order
+                ? IosIcons.check
+                : kIosMenuNoIcon,
+            () {
+              HostSortController.instance.select(order);
+            },
+          ),
+      ],
+      destructive,
+    ];
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: HostSortController.instance,
+    builder: (context, _) => _buildPage(context),
+  );
+
+  Widget _buildPage(BuildContext context) {
     final scope = IosWorkspaceScope.of(context);
     final l10n = context.l10n;
     final group = scope.groupById(widget.groupId);
@@ -116,9 +142,11 @@ class _IosGroupDetailPageState extends State<IosGroupDetailPage> {
             .childGroups(group.id)
             .where((g) => query.isEmpty || g.name.toLowerCase().contains(query))
             .toList()
-          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          ..sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
 
-    final directHosts = sortIosHosts(
+    final directHosts = HostSortController.instance.sorted(
       scope
           .hostsInGroup(group.id)
           .where(
@@ -129,7 +157,7 @@ class _IosGroupDetailPageState extends State<IosGroupDetailPage> {
                     .contains(query),
           )
           .toList(),
-      IosHostSortOrder.name,
+      scope: scope.hostSortScope,
     );
 
     final totalInSubtree = countIosGroupHosts(scope, group.id);

@@ -65,6 +65,9 @@ jobs:
       - run: bash tools/install_flutter_linux.sh
       - run: flutter pub get --enforce-lockfile
         working-directory: apps/client
+      - name: Host sorting and recent requests
+        run: flutter test --concurrency=2 test/host_sort_test.dart test/host_sort_widget_test.dart
+        working-directory: apps/client
       - name: Touchpad HID frame assembly
         run: |
           c++ -std=c++17 -Wall -Wextra -Werror integration/native/touchpad_frame_test.cpp -o /tmp/touchpad-frame-test
