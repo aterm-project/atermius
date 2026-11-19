@@ -74,10 +74,19 @@ async function waitForWorkspaceHome(page, { notice = 'expect', timeoutMs = 45000
       if (notice === 'none') {
         throw new Error('credential visibility notice reappeared on an acknowledged device');
       }
-      await noticeButton(page).first().click();
+      await noticeButton(page).first().click({ timeout: 10000 }).catch(() => {});
+      // The dialog fades out after the click. Wait until it is gone: a
+      // second click aimed at the fading button would wait for a button
+      // that no longer exists until its own timeout.
+      const closeDeadline = Date.now() + 10000;
+      while (Date.now() < closeDeadline && await anyVisible(noticeButton(page))) {
+        await sleep(100);
+      }
+      if (await anyVisible(noticeButton(page))) {
+        throw new Error('credential visibility notice did not close after it was acknowledged');
+      }
       acknowledged = true;
       markerSince = null;
-      await sleep(150);
       continue;
     }
     if (await anyVisible(workspaceMarker(page))) {
