@@ -4508,6 +4508,26 @@ class AppController extends ChangeNotifier {
       _vaultLoadsBlocked = false;
       _resumeLockedReceiveForAuthenticatedSession();
       session = registered;
+      if (instanceInfo.setupRequired && identical(instance, instanceInfo)) {
+        // The first account now exists. The instance answer from before
+        // still said "setup required", so after a sign-out in the same
+        // page the sign-in form hid its invitation link and the
+        // registration form asked for a bootstrap token again.
+        instance = InstanceInfo(
+          instanceId: instanceInfo.instanceId,
+          serverSpaceId: instanceInfo.serverSpaceId,
+          generation: instanceInfo.generation,
+          protocolVersion: instanceInfo.protocolVersion,
+          setupRequired: false,
+          capabilities: instanceInfo.capabilities,
+          restoreRetentionDays: instanceInfo.restoreRetentionDays,
+          limits: instanceInfo.limits,
+          signingPublicKey: instanceInfo.signingPublicKey,
+          signingKeyTransitions: instanceInfo.signingKeyTransitions,
+          credentialVisibilityDefault:
+              instanceInfo.credentialVisibilityDefault,
+        );
+      }
       _sessionAccessExpiresAt = _sessionCredentialsFor(registered)
           .accessExpiresAt;
       _sessionCredentialsAdoptedAt = null;
