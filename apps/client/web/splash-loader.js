@@ -199,37 +199,59 @@
     );
   }
 
-  function trackSodiumScript() {
-    // sodium.js is already on the page as an async script tag; join its
-    // result instead of fetching a second copy.
+  // sodium.js is an async script tag: it can finish before the preload
+  // starts, and a script element has no "already loaded" flag to read
+  // afterwards. Waiting for a load event that had already fired held the
+  // splash for the full preload timeout (about 35 s) in front of a signed-in
+  // user. Listen from the start instead and remember the outcome.
+  var sodiumScript = null;
+  var sodiumResult = null; // true | false once known
+  var sodiumWaiter = null;
+  function noteSodium(ok) {
+    if (sodiumResult !== null) return;
+    sodiumResult = ok;
+    if (sodiumWaiter) sodiumWaiter(ok);
+  }
+  (function watchSodiumScript() {
     var scripts = document.getElementsByTagName("script");
     for (var i = 0; i < scripts.length; i += 1) {
       var src = scripts[i].getAttribute("src") || "";
       if (src.indexOf("sodium.js") !== -1) {
-        var sodium = scripts[i];
-        resourcesTotal += 1;
-        if (sodium.complete || sodium.readyState === "complete") {
-          // Already loaded before the controller attached its listeners.
-          markResourceDone({ path: "sodium.js" }, true);
-          return;
-        }
-        sodium.addEventListener(
-          "load",
-          function () {
-            markResourceDone({ path: "sodium.js" }, true);
-          },
-          { once: true }
-        );
-        sodium.addEventListener(
-          "error",
-          function () {
-            markResourceDone({ path: "sodium.js" }, false);
-          },
-          { once: true }
-        );
-        return;
+        sodiumScript = scripts[i];
+        break;
       }
     }
+    if (!sodiumScript) return;
+    if (window.sodium) {
+      // It ran before this controller did.
+      noteSodium(true);
+      return;
+    }
+    sodiumScript.addEventListener(
+      "load",
+      function () {
+        noteSodium(true);
+      },
+      { once: true }
+    );
+    sodiumScript.addEventListener(
+      "error",
+      function () {
+        noteSodium(false);
+      },
+      { once: true }
+    );
+  })();
+
+  function trackSodiumScript() {
+    // Join the script tag's result instead of fetching a second copy.
+    if (!sodiumScript) return;
+    resourcesTotal += 1;
+    var done = function (ok) {
+      markResourceDone({ path: "sodium.js" }, ok);
+    };
+    if (sodiumResult !== null) done(sodiumResult);
+    else sodiumWaiter = done;
   }
 
   var resourcesResolve = null;
