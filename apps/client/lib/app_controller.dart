@@ -6983,7 +6983,9 @@ class AppController extends ChangeNotifier {
     _openWorkspaceRecords
       ..removeWhere((item) => item.id == id)
       ..add(record.copyWith(revisionId: revision));
-    _automaticSync.scheduleEdit();
+    // Not scheduleEdit(): this is saved the moment a tab opens, and its
+    // upload made the tab's own connection wait for several sync passes.
+    _automaticSync.scheduleBackgroundEdit();
     unawaited(
       refreshPendingCountForVault(vault.id).then((_) {}, onError: (Object _) {}),
     );
