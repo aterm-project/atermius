@@ -646,10 +646,14 @@ void main() {
       try {
         await app.openTerminalTab(_host('host-a', 'Alpha'));
         final alpha = app.activeTerminalTab!;
+        final alphaSize = (alpha.terminal.viewWidth, alpha.terminal.viewHeight);
+        expect(first.resizes, [alphaSize], reason: 'initial PTY grid is sent');
         first.emit('\r\nALPHA-OUTPUT\r\n');
 
         await app.openTerminalTab(_host('host-b', 'Beta'));
         final beta = app.activeTerminalTab!;
+        final betaSize = (beta.terminal.viewWidth, beta.terminal.viewHeight);
+        expect(second.resizes, [betaSize], reason: 'initial PTY grid is sent');
         second.emit('\r\nBETA-OUTPUT\r\n');
         first.emit('\r\nALPHA-LATER\r\n');
         await Future<void>.delayed(Duration.zero);
@@ -675,7 +679,7 @@ void main() {
         beta.terminal.onOutput?.call('beta input');
         beta.terminal.onResize?.call(132, 42, 0, 0);
         expect(first.inputs, ['alpha input']);
-        expect(first.resizes, [(101, 37)]);
+        expect(first.resizes, [alphaSize, (101, 37)]);
         final controllerInputBytes = Uint8List.fromList(
           utf8.encode('controller input\r'),
         );
@@ -686,7 +690,7 @@ void main() {
         expect(first.inputs, ['alpha input', 'controller input\r']);
         expect(controllerInputBytes, everyElement(0));
         expect(second.inputs, ['beta input']);
-        expect(second.resizes, [(132, 42)]);
+        expect(second.resizes, [betaSize, (132, 42)]);
 
         app.activateTerminalTab(alpha.id);
         expect(app.connectedHost?.id, 'host-a');
