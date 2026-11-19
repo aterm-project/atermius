@@ -2906,9 +2906,11 @@ class _SideNavigation extends StatelessWidget {
                     vertical: itemGap,
                   ),
                   child: Tooltip(
-                    message: item.label(context.l10n),
-                    // The wide row already shows the label as text; a
-                    // second copy made every item read "Hosts Hosts".
+                    // The wide row already shows the label as text. A
+                    // tooltip repeating it made every item read "Hosts
+                    // Hosts" and, once shown, covered the item below so a
+                    // click there went nowhere. An empty message shows none.
+                    message: wide ? '' : item.label(context.l10n),
                     excludeFromSemantics: wide,
                     child: InkWell(
                       key: ValueKey('home_nav_${item.page.name}'),
