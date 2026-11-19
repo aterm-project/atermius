@@ -11208,7 +11208,13 @@ class AppController extends ChangeNotifier {
     }
     if (authenticated &&
         stage == ClientStage.workspace &&
-        _accountControlPlaneRefreshIsDue) {
+        _accountControlPlaneRefreshIsDue &&
+        // The refresh waits for a Vault left behind by a switch to finish
+        // its last request. While one is still draining, sync the selected
+        // Vault now and leave the refresh to a later pass: otherwise this
+        // Vault's sync sat on "Syncing" until another Vault's slow request
+        // came back.
+        _retiredRepositoryDrains.isEmpty) {
       // The signed account refresh is part of this explicit sync request.
       // Publish a non-idle state before its first await so observers cannot
       // mistake the still-visible Idle status for completed synchronization.
