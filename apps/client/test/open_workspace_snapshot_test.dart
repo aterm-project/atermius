@@ -471,14 +471,18 @@ void main() {
       await database.close();
     });
 
-    OpenWorkspaceKeeper keeper() => OpenWorkspaceKeeper(
-      app: app,
-      scope: () => scope,
-      capture: () => layout,
-      restore: (value) async => restored.add(value),
-      store: store,
-      now: () => DateTime.fromMillisecondsSinceEpoch(5000),
-    );
+    // These tests are about what is stored and when it is captured; the
+    // wait before the synced copy is written has its own test below.
+    OpenWorkspaceKeeper keeper({Duration vaultDelay = Duration.zero}) =>
+        OpenWorkspaceKeeper(
+          app: app,
+          scope: () => scope,
+          capture: () => layout,
+          restore: (value) async => restored.add(value),
+          store: store,
+          now: () => DateTime.fromMillisecondsSinceEpoch(5000),
+          vaultDelay: vaultDelay,
+        );
 
     /// A keeper whose stored tabs were dealt with already.
     OpenWorkspaceKeeper storing() {
@@ -511,6 +515,42 @@ void main() {
         expect(app.saved.single.layout!.tree['ratio'], .6);
         expect(app.saved.single.savedAtMs, 5000);
         k.dispose();
+      });
+    });
+
+    test('the synced copy waits until the tabs have been quiet; this '
+        'browser\'s copy does not', () {
+      FakeAsync().run((async) {
+        app.openWorkspaceRestoreHandled.add(_scope);
+        final k = keeper(vaultDelay: const Duration(seconds: 15))
+          ..attach([app]);
+        // A tab opens: this browser has it at once, the Vault not yet (its
+        // upload would be in the way of the tab's own connection).
+        layout = _layout();
+        k.changed();
+        async.elapse(const Duration(milliseconds: 1300));
+        expect(store.writes, 1);
+        expect(app.saved, isEmpty);
+
+        // Another change inside the wait replaces what will be written;
+        // one revision goes to the Vault, not two.
+        async.elapse(const Duration(seconds: 10));
+        layout = _layout(ratio: .6);
+        k.changed();
+        async.elapse(const Duration(milliseconds: 1300));
+        expect(store.writes, 2);
+        async.elapse(const Duration(seconds: 14));
+        expect(app.saved, isEmpty);
+        async.elapse(const Duration(seconds: 2));
+        expect(app.saved.single.layout!.tree['ratio'], .6);
+
+        // Leaving the workspace drops a copy that is still waiting.
+        layout = _layout(ratio: .7);
+        k.changed();
+        async.elapse(const Duration(milliseconds: 1300));
+        k.dispose();
+        async.elapse(const Duration(seconds: 30));
+        expect(app.saved, hasLength(1));
       });
     });
 
@@ -649,6 +689,7 @@ void main() {
           capture: () => fail ? throw StateError('console tab') : layout,
           restore: (_) async {},
           store: store,
+          vaultDelay: Duration.zero,
         )..attach([app]);
         layout = _layout();
         k.changed();
