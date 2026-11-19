@@ -108,7 +108,66 @@ async function waitForWorkspaceHome(page, { notice = 'expect', timeoutMs = 45000
   throw new Error('workspace Home page did not appear');
 }
 
+// The admin console is a site of its own below /admin (/admin/users, …), not
+// a page of the workspace. An instance administrator reaches it through the
+// link on the workspace's account card and leaves it with its own
+// "Back to workspace" button; nobody else is offered the link.
+const ADMIN_CONSOLE_ENTRY = 'Open admin console';
+const ADMIN_CONSOLE_EXIT = 'Back to workspace';
+
+function inAdminConsole(page) {
+  const { pathname } = new URL(page.url());
+  return pathname === '/admin' || pathname.startsWith('/admin/');
+}
+
+// Saves a screenshot when ATERMIUS_WEB_SHOT_DIR names a directory; otherwise
+// does nothing. For looking at a run afterwards, never for assertions.
+async function shot(page, name) {
+  const dir = process.env.ATERMIUS_WEB_SHOT_DIR;
+  if (!dir) return;
+  await page.screenshot({ path: `${dir}/${name}.png` }).catch(() => {});
+}
+
+// The account panel of the admin console's Users table is a dialog with a
+// Close button in its heading. (Its title names the dialog route and is not a
+// text node of its own in Flutter Web's semantics tree.)
+function adminAccountPanelClose(page) {
+  return page.getByRole('button', { name: 'Close', exact: true }).last();
+}
+
+// Opens one account of the Users table: its row is a button whose name starts
+// with the account's username. Details and actions are in the panel that
+// slides in over the right edge of the console.
+async function openAdminAccount(page, username) {
+  const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const row = page.getByRole('button', { name: new RegExp(`^${escaped}`) }).first();
+  await row.waitFor({ state: 'visible', timeout: 15000 });
+  await row.click();
+  await page.getByRole('dialog').first().waitFor({ state: 'attached', timeout: 15000 });
+  await adminAccountPanelClose(page).waitFor({ state: 'visible', timeout: 15000 });
+  // Let the panel finish sliding in before anything in it is clicked.
+  await page.waitForTimeout(400);
+  await shot(page, `admin-account-${Date.now()}`);
+}
+
+// Closes the account panel if one is open. While it is open the console
+// behind it cannot be reached.
+async function closeAdminAccount(page) {
+  if (await page.getByRole('dialog').count() === 0) return;
+  const close = adminAccountPanelClose(page);
+  if (!await close.isVisible().catch(() => false)) return;
+  await close.click();
+  await close.waitFor({ state: 'hidden', timeout: 15000 });
+  await page.waitForTimeout(300);
+}
+
 module.exports = {
+  ADMIN_CONSOLE_ENTRY,
+  ADMIN_CONSOLE_EXIT,
+  closeAdminAccount,
+  inAdminConsole,
+  openAdminAccount,
+  shot,
   WORKSPACE_ADD_TOOLTIP,
   expectHostedSignIn,
   waitForWorkspaceHome,

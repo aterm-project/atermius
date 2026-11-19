@@ -386,22 +386,38 @@ void main() {
         expect(find.text('Instance accounts and sessions'), findsOneWidget);
         await _tapAdminAccountsLoad(tester);
         await tester.pumpAndSettle();
+        // The accounts are rows of a table; details and actions belong to
+        // the panel a row opens.
+        expect(find.byKey(const ValueKey('admin_accounts_table')), findsOne);
         expect(find.text('alice@example.test'), findsOneWidget);
-        expect(find.text('Active devices'), findsNWidgets(3));
-        expect(find.text('Active sessions'), findsNWidgets(3));
+        expect(find.text('Active devices'), findsNothing);
+        expect(find.text('Disable account'), findsNothing);
+
+        await _openAccount(tester, _activeId);
+        expect(find.text('Active devices'), findsOneWidget);
+        expect(find.text('Active sessions'), findsOneWidget);
         expect(find.text('Disable account'), findsOneWidget);
         expect(find.text('Revoke all sessions'), findsOneWidget);
         expect(find.text('View sessions'), findsOneWidget);
+        await _closeAccount(tester);
+
+        await _openAccount(tester, _adminId);
         expect(
           find.text(
             'Current signed-in account · administrative actions hidden',
           ),
           findsOneWidget,
         );
+        expect(find.text('Disable account'), findsNothing);
+        await _closeAccount(tester);
+
+        await _openAccount(tester, _deletingId);
         expect(
           find.text('Deleting account · administrative actions unavailable'),
           findsOneWidget,
         );
+        expect(find.text('Disable account'), findsNothing);
+        await _closeAccount(tester);
         expect(harness.api.listOffsets, [0]);
 
         await tester.ensureVisible(find.text('Next'));
@@ -409,8 +425,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(harness.api.listOffsets, [0, 50]);
         expect(find.text('dana@example.test'), findsOneWidget);
+        await _openAccount(tester, _disabledId);
         expect(find.text('Re-enable account'), findsOneWidget);
         expect(find.text('Disable account'), findsNothing);
+        await _closeAccount(tester);
 
         await tester.ensureVisible(find.text('Previous'));
         await tester.tap(find.text('Previous'));
@@ -708,6 +726,7 @@ void main() {
         await _pumpSettings(tester, harness.app);
         await _tapAdminAccountsLoad(tester);
         await tester.pumpAndSettle();
+        await _openAccount(tester, _activeId);
 
         await tester.ensureVisible(find.text('Disable account'));
         await tester.tap(find.text('Disable account'));
@@ -756,7 +775,21 @@ void main() {
         await tester.pumpAndSettle();
         expect(harness.api.sessionRevocations, [_activeId]);
         expect(harness.api.listOffsets, [0, 0, 0]);
-        expect(find.text('0'), findsOneWidget);
+        // The count shows in the account's row and in its open panel.
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('admin_account_$_activeId')),
+            matching: find.text('0'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('admin_account_drawer_$_activeId')),
+            matching: find.text('0'),
+          ),
+          findsOneWidget,
+        );
         expect(find.textContaining('2 sessions revoked'), findsOneWidget);
       } finally {
         await _dispose(tester, harness);
@@ -817,6 +850,7 @@ void main() {
         await _pumpSettings(tester, harness.app);
         await _tapAdminAccountsLoad(tester);
         await tester.pumpAndSettle();
+        await _openAccount(tester, _activeId);
 
         await tester.ensureVisible(find.text('View sessions'));
         await tester.tap(find.text('View sessions'));
@@ -845,7 +879,22 @@ void main() {
           contains('ACCOUNT_DELETING'),
         );
         expect(harness.app.adminAccountActionNotice, isNull);
-        expect(find.text('Deleting'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(
+              const ValueKey('admin_account_detail_status_$_activeId'),
+            ),
+            matching: find.text('Deleting'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('admin_account_status_$_activeId')),
+            matching: find.text('Deleting'),
+          ),
+          findsOneWidget,
+        );
         expect(
           find.text('Deleting account · administrative actions unavailable'),
           findsOneWidget,
@@ -978,6 +1027,7 @@ void main() {
         await _pumpSettings(tester, harness.app);
         await _tapAdminAccountsLoad(tester);
         await tester.pumpAndSettle();
+        await _openAccount(tester, _activeId);
 
         await tester.ensureVisible(find.text('View sessions'));
         await tester.tap(find.text('View sessions'));
@@ -1046,6 +1096,7 @@ void main() {
       await _pumpSettings(tester, harness.app);
       await _tapAdminAccountsLoad(tester);
       await tester.pumpAndSettle();
+      await _openAccount(tester, _activeId);
       await tester.ensureVisible(find.text('View sessions'));
       await tester.tap(find.text('View sessions'));
       await tester.pump();
@@ -1107,6 +1158,22 @@ Future<void> _pumpSettings(WidgetTester tester, AppController app) async {
     expect(tester.takeException(), isNull);
   }
   await tester.pump();
+}
+
+/// Opens an account's panel from its row of the table.
+Future<void> _openAccount(WidgetTester tester, String userId) async {
+  final row = find.byKey(ValueKey('admin_account_$userId'));
+  await tester.ensureVisible(row);
+  await tester.pumpAndSettle();
+  await tester.tap(row);
+  await tester.pumpAndSettle();
+  expect(find.byKey(ValueKey('admin_account_drawer_$userId')), findsOneWidget);
+}
+
+Future<void> _closeAccount(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('admin_account_drawer_close')));
+  await tester.pumpAndSettle();
+  expect(find.byKey(const ValueKey('admin_account_drawer_close')), findsNothing);
 }
 
 Future<void> _tapAdminAccountsLoad(

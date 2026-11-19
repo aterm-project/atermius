@@ -85,6 +85,11 @@ class AccountSettingsPanel extends StatelessWidget {
       onLock: app.lock,
       onSignOut: app.logout,
       describeError: app.friendlyError,
+      // The admin console is a site of its own; an administrator's account
+      // page links to it.
+      onOpenAdminConsole: app.isInstanceAdmin
+          ? () => app.showWorkspacePage(WorkspacePage.admin)
+          : null,
       syncControls: SyncSettingsPanel(app: app),
       cloudAccessControls: cloudAccessControls,
       // credential-visibility: mode, escrow status and admin views.
@@ -100,11 +105,15 @@ class AccountSettingsView extends StatefulWidget {
     required this.onSignOut,
     required this.describeError,
     this.busy = false,
+    this.onOpenAdminConsole,
     this.syncControls,
     this.cloudAccessControls,
     this.credentialVisibilityControls,
     super.key,
   });
+
+  /// Opens the admin console; null for an account that has none to open.
+  final VoidCallback? onOpenAdminConsole;
 
   final AccountSessionSummary summary;
   final Future<void> Function() onLock;
@@ -249,6 +258,20 @@ class _AccountSettingsViewState extends State<AccountSettingsView> {
                               ),
                               icon: Icons.admin_panel_settings_rounded,
                               label: l10n.accountSettingsInstanceAdmin,
+                            ),
+                          ],
+                          if (widget.onOpenAdminConsole case final open?) ...[
+                            const SizedBox(height: 6),
+                            TextButton.icon(
+                              key: const ValueKey(
+                                'account_settings_open_admin_console',
+                              ),
+                              onPressed: open,
+                              icon: const Icon(
+                                Icons.arrow_outward_rounded,
+                                size: 16,
+                              ),
+                              label: Text(l10n.adminSiteOpen),
                             ),
                           ],
                         ],
@@ -402,6 +425,20 @@ class _AccountSettingsViewState extends State<AccountSettingsView> {
                             key: const ValueKey('account_settings_admin_badge'),
                             icon: Icons.admin_panel_settings_outlined,
                             label: l10n.accountSettingsInstanceAdmin,
+                          ),
+                        ],
+                        if (widget.onOpenAdminConsole case final open?) ...[
+                          const SizedBox(height: 6),
+                          TextButton.icon(
+                            key: const ValueKey(
+                              'account_settings_open_admin_console',
+                            ),
+                            onPressed: open,
+                            icon: const Icon(
+                              Icons.arrow_outward_rounded,
+                              size: 16,
+                            ),
+                            label: Text(l10n.adminSiteOpen),
                           ),
                         ],
                       ],

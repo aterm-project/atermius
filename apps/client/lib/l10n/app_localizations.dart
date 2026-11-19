@@ -30892,6 +30892,72 @@ abstract class AppLocalizations {
   /// **'Continue with the new server'**
   String get serverReinstalledConfirm;
 
+  /// No description provided for @adminSiteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Admin console'**
+  String get adminSiteTitle;
+
+  /// No description provided for @adminSiteBackToWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to workspace'**
+  String get adminSiteBackToWorkspace;
+
+  /// No description provided for @adminSiteOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open admin console'**
+  String get adminSiteOpen;
+
+  /// No description provided for @adminUsersColumnUser.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get adminUsersColumnUser;
+
+  /// No description provided for @adminUsersColumnStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get adminUsersColumnStatus;
+
+  /// No description provided for @adminUsersColumnDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices'**
+  String get adminUsersColumnDevices;
+
+  /// No description provided for @adminUsersColumnSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'Sessions'**
+  String get adminUsersColumnSessions;
+
+  /// No description provided for @adminUsersColumnCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Created'**
+  String get adminUsersColumnCreated;
+
+  /// No description provided for @adminUserDetailsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'User details'**
+  String get adminUserDetailsTitle;
+
+  /// No description provided for @adminUsersSelectHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a user to see its details and actions.'**
+  String get adminUsersSelectHint;
+
+  /// No description provided for @adminUserNoLongerListed.
+  ///
+  /// In en, this message translates to:
+  /// **'This account is no longer in the list.'**
+  String get adminUserNoLongerListed;
+
   /// Sidebar entry that opens the instance administration panel; shown to instance administrators only.
   ///
   /// In en, this message translates to:

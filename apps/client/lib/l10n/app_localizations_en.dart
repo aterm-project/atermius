@@ -19550,6 +19550,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get serverReinstalledConfirm => 'Continue with the new server';
 
   @override
+  String get adminSiteTitle => 'Admin console';
+
+  @override
+  String get adminSiteBackToWorkspace => 'Back to workspace';
+
+  @override
+  String get adminSiteOpen => 'Open admin console';
+
+  @override
+  String get adminUsersColumnUser => 'User';
+
+  @override
+  String get adminUsersColumnStatus => 'Status';
+
+  @override
+  String get adminUsersColumnDevices => 'Devices';
+
+  @override
+  String get adminUsersColumnSessions => 'Sessions';
+
+  @override
+  String get adminUsersColumnCreated => 'Created';
+
+  @override
+  String get adminUserDetailsTitle => 'User details';
+
+  @override
+  String get adminUsersSelectHint =>
+      'Select a user to see its details and actions.';
+
+  @override
+  String get adminUserNoLongerListed =>
+      'This account is no longer in the list.';
+
+  @override
   String get adminPanelNav => 'Admin';
 
   @override

@@ -18420,6 +18420,39 @@ class AppLocalizationsJa extends AppLocalizations {
   String get serverReinstalledConfirm => '新しいサーバーで続行';
 
   @override
+  String get adminSiteTitle => '管理コンソール';
+
+  @override
+  String get adminSiteBackToWorkspace => 'ワークスペースに戻る';
+
+  @override
+  String get adminSiteOpen => '管理コンソールを開く';
+
+  @override
+  String get adminUsersColumnUser => 'ユーザー';
+
+  @override
+  String get adminUsersColumnStatus => '状態';
+
+  @override
+  String get adminUsersColumnDevices => 'デバイス';
+
+  @override
+  String get adminUsersColumnSessions => 'セッション';
+
+  @override
+  String get adminUsersColumnCreated => '作成日';
+
+  @override
+  String get adminUserDetailsTitle => 'ユーザーの詳細';
+
+  @override
+  String get adminUsersSelectHint => 'ユーザーを選択すると、詳細と操作が表示されます。';
+
+  @override
+  String get adminUserNoLongerListed => 'このアカウントは一覧にありません。';
+
+  @override
   String get adminPanelNav => '管理';
 
   @override

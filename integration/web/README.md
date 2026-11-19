@@ -12,6 +12,15 @@ no local mode. The first unlock on a device shows a one-time
 credential-visibility notice. Scripts share these entry steps through
 `support/hosted_web.cjs` (`expectHostedSignIn`, `waitForWorkspaceHome`).
 
+The admin console is a site of its own below `/admin` (`/admin/users`,
+`/admin/audit`, …), not a page of the workspace: an instance administrator
+opens it with the `Open admin console` link on the workspace's account card
+and leaves it with `Back to workspace`; while it is open the workspace's
+navigation and tab row are not on the page. Its Users section is a table, and
+an account's details and actions are in the panel its row opens. Scripts share
+these steps through `support/hosted_web.cjs` (`ADMIN_CONSOLE_ENTRY`,
+`inAdminConsole`, `openAdminAccount`, `closeAdminAccount`).
+
 Scripts that follow the current UI and pass on the current bundle:
 `test:password-change`, `test:session-refresh-multitab`, `test:multi-vault-switch`,
 `test:admin-audit`, `test:admin-accounts`, `test:admin-push-health`,

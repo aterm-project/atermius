@@ -13,7 +13,14 @@ const crypto = require('node:crypto');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
-const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
+const {
+  ADMIN_CONSOLE_ENTRY,
+  closeAdminAccount,
+  expectHostedSignIn,
+  inAdminConsole,
+  openAdminAccount,
+  waitForWorkspaceHome,
+} = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -812,31 +819,33 @@ async function configurePage(page, baseUrl) {
   await expectHostedSignIn(page, baseUrl);
 }
 
-// Instance administration lives in the dedicated Admin panel (/admin). Its
-// section list can repeat a workspace sidebar name ("Audit log"), so pick the
-// section button inside the panel: the right-most button with that name.
+// Instance administration is the admin console, a site of its own below
+// /admin with its own section list. A section title can also name a button
+// of the section's page, so pick the section button by its column.
 async function openAdminSection(page, section) {
   // A sidebar tooltip left by the previous hover can cover the next item.
   await page.mouse.move(900, 940);
   // Opening the panel again while it is showing would rebuild it under the
   // section click that follows.
-  if (new URL(page.url()).pathname !== '/admin') {
-    await click(page, 'Admin');
-    await waitFor(() => new URL(page.url()).pathname === '/admin');
+  await closeAdminAccount(page);
+  if (!inAdminConsole(page)) {
+    await click(page, ADMIN_CONSOLE_ENTRY);
+    await waitFor(() => inAdminConsole(page));
   }
   await button(page, 'Instance overview');
   const candidates = page.getByRole('button', { name: section, exact: true });
+  // The section list is the console's left column.
   let chosen;
-  let chosenX = -1;
+  let chosenX = Infinity;
   const count = await candidates.count();
   for (let index = 0; index < count; index += 1) {
     const box = await candidates.nth(index).boundingBox();
-    if (box && box.x > chosenX) {
+    if (box && box.x < chosenX) {
       chosen = candidates.nth(index);
       chosenX = box.x;
     }
   }
-  assertThat(chosen && chosenX > 150, 'Admin panel section was not offered');
+  assertThat(chosen && chosenX < 300, 'Admin console section was not offered');
   await page.mouse.move(900, 940);
   await chosen.click();
   await page.mouse.move(900, 940);
@@ -1031,7 +1040,7 @@ async function main() {
     setStage('navigate allowlisted administrator to the Admin panel');
     await openAdminSection(adminPage, 'Instance overview');
     setStage('verify Admin panel navigation');
-    await waitFor(() => hasVisibleSemanticText(adminPage, 'Administration'), 15000);
+    await waitFor(() => hasVisibleSemanticText(adminPage, 'Admin console'), 15000);
     setStage('inspect administrator card visibility');
     const overviewCardVisible = await appearsWithin(adminPage, 'Instance admin overview');
     const metricsCredentialCardVisible = await appearsWithin(
@@ -1313,7 +1322,7 @@ async function main() {
     // offered; Settings, their former home, must not show them either.
     await button(memberPage, 'Settings');
     const memberHasAdminEntry = await memberPage
-      .getByRole('button', { name: 'Admin', exact: true }).first().isVisible().catch(() => false);
+      .getByRole('button', { name: ADMIN_CONSOLE_ENTRY, exact: true }).first().isVisible().catch(() => false);
     assertThat(!memberHasAdminEntry, 'non-admin profile was offered the Admin panel');
     await click(memberPage, 'Settings');
     await button(memberPage, 'Account and device information');

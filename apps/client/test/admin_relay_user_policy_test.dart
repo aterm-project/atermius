@@ -51,6 +51,7 @@ void main() {
       expect(harness.api.instanceCalls, 0);
       expect(harness.api.userPolicyCalls, isEmpty);
 
+      await _openAccount(tester, _aliceId);
       final relayPolicyButton = find.byKey(
         const ValueKey('admin_account_relay_policy_$_aliceId'),
       );
@@ -148,6 +149,7 @@ void main() {
     );
     try {
       await _pumpSettings(tester, harness.app);
+      await _openAccount(tester, _aliceId);
       final relayPolicyButton = find.byKey(
         const ValueKey('admin_account_relay_policy_$_aliceId'),
       );
@@ -224,6 +226,7 @@ void main() {
     );
     try {
       await _pumpSettings(tester, harness.app);
+      await _openAccount(tester, _aliceId);
       final relayPolicyButton = find.byKey(
         const ValueKey('admin_account_relay_policy_$_aliceId'),
       );
@@ -629,6 +632,16 @@ AdminAccountMetadata _account(String id, String username) =>
       activeDeviceCount: 1,
       activeSessionCount: 1,
     );
+
+/// Opens an account's panel from its row of the table.
+Future<void> _openAccount(WidgetTester tester, String userId) async {
+  final row = find.byKey(ValueKey('admin_account_$userId'));
+  await tester.ensureVisible(row);
+  await tester.pumpAndSettle();
+  await tester.tap(row);
+  await tester.pumpAndSettle();
+  expect(find.byKey(ValueKey('admin_account_drawer_$userId')), findsOneWidget);
+}
 
 Future<void> _pumpSettings(WidgetTester tester, AppController app) async {
   tester.view.physicalSize = const Size(1200, 1000);

@@ -12,7 +12,14 @@ const crypto = require('node:crypto');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
-const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
+const {
+  ADMIN_CONSOLE_ENTRY,
+  closeAdminAccount,
+  expectHostedSignIn,
+  inAdminConsole,
+  openAdminAccount,
+  waitForWorkspaceHome,
+} = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -504,7 +511,7 @@ async function main() {
     // show it either.
     await button(memberPage, 'Settings');
     const memberAdminEntryVisible = await memberPage
-      .getByRole('button', { name: 'Admin', exact: true }).first().isVisible().catch(() => false);
+      .getByRole('button', { name: ADMIN_CONSOLE_ENTRY, exact: true }).first().isVisible().catch(() => false);
     assertThat(!memberAdminEntryVisible, 'non-admin profile was offered the Admin panel');
     await click(memberPage, 'Settings');
     await button(memberPage, 'Account and device information');
@@ -516,8 +523,8 @@ async function main() {
     reportBoolean('non_admin_card_hidden_and_api_denied', true);
 
     setStage('verify admin loading error and retry flow');
-    await click(adminPage, 'Admin');
-    await waitFor(() => new URL(adminPage.url()).pathname === '/admin');
+    await click(adminPage, ADMIN_CONSOLE_ENTRY);
+    await waitFor(() => inAdminConsole(adminPage));
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Push provider health'));
     const loadButton = await button(adminPage, 'Load push health');
     let injectedFailure = false;

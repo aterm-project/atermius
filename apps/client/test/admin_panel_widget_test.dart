@@ -2,12 +2,15 @@ import 'package:aterm_client/api/workspace_agents.dart';
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/l10n/l10n.dart';
+import 'package:aterm_client/platform/server_hosted.dart';
 import 'package:aterm_client/storage/client_database.dart';
 import 'package:aterm_client/storage/secure_store.dart';
 import 'package:aterm_client/ui/admin_panel.dart';
 import 'package:aterm_client/ui/app_shell.dart';
 import 'package:aterm_client/ui/app_theme.dart';
 import 'package:aterm_client/ui/settings_scaffold.dart';
+import 'package:aterm_client/ui/workspace_status_bar.dart';
+import 'package:aterm_client/ui/workspace_tab_bar.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,7 +29,9 @@ const _adminSectionIds = [
 ];
 const _adminId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const _memberId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-const _navEntry = ValueKey('home_nav_admin');
+const _disabledId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const _navEntry = ValueKey('home_nav_admin_console');
+const _exit = ValueKey('admin_site_exit');
 const _panel = ValueKey('admin_panel');
 
 void main() {
@@ -125,12 +130,15 @@ void main() {
     }
   });
 
-  testWidgets('instance admin sees the entry, the panel and every section', (
+  testWidgets('the admin console is a site of its own, not a workspace page', (
     tester,
   ) async {
     final harness = await _Harness.create(isAdmin: true);
     try {
       await _pump(tester, harness.app);
+      // The workspace lists no Admin page; the account card links to the
+      // console instead.
+      expect(find.byKey(const ValueKey('home_nav_admin')), findsNothing);
       expect(find.byKey(_navEntry), findsOneWidget);
       expect(find.byKey(_panel), findsNothing);
 
@@ -148,15 +156,86 @@ void main() {
       for (final id in _adminSectionIds) {
         expect(find.byKey(ValueKey('settings_category_$id')), findsOneWidget);
       }
-      // The panel has its own heading and opens on the instance overview.
-      expect(find.text(currentL10n.adminPanelTitle), findsOneWidget);
+      // The console has its own heading, names its server and the signed-in
+      // account, and opens on the instance overview.
+      expect(find.text(currentL10n.adminSiteTitle), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('admin_site_server'))).data,
+        'admin-panel.example.test',
+      );
       expect(find.text('Instance admin overview'), findsOneWidget);
+      // Nothing of the workspace is beside it: no navigation, no account
+      // card, no status bar.
+      for (final key in [
+        'home_nav_devices',
+        'home_nav_settings',
+        'home_nav_user_card',
+        'home_nav_import_export',
+      ]) {
+        expect(find.byKey(ValueKey(key)), findsNothing, reason: key);
+      }
+      expect(find.byType(WorkspaceStatusBar), findsNothing);
+      // An installed app keeps its tab row: it is the window's title bar.
+      expect(find.byType(WorkspaceTabBar), findsOneWidget);
+
+      // The console's own way back opens the workspace again.
+      await tester.tap(find.byKey(_exit));
+      await tester.pumpAndSettle();
+      expect(harness.app.page, WorkspacePage.hosts);
+      expect(find.byKey(_panel), findsNothing);
+      expect(find.byKey(const ValueKey('home_nav_settings')), findsOneWidget);
+      expect(find.byKey(const ValueKey('home_nav_user_card')), findsOneWidget);
+      expect(find.byType(WorkspaceStatusBar), findsOneWidget);
+      expect(tester.takeException(), isNull);
     } finally {
       await _dispose(tester, harness);
     }
   });
 
-  testWidgets('users section lists accounts with status and edit actions', (
+  testWidgets('in the browser the console owns the whole page', (tester) async {
+    debugServerHostedOverride = true;
+    final harness = await _Harness.create(isAdmin: true);
+    try {
+      await _pump(tester, harness.app);
+      expect(find.byType(WorkspaceTabBar), findsOneWidget);
+      harness.app.showWorkspacePage(WorkspacePage.admin);
+      await tester.pumpAndSettle();
+      expect(find.byKey(_panel), findsOneWidget);
+      expect(find.byType(WorkspaceTabBar), findsNothing);
+      expect(find.byKey(const ValueKey('home_nav_settings')), findsNothing);
+
+      await tester.tap(find.byKey(_exit));
+      await tester.pumpAndSettle();
+      expect(harness.app.page, WorkspacePage.hosts);
+      expect(find.byType(WorkspaceTabBar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await _dispose(tester, harness);
+      debugServerHostedOverride = null;
+    }
+  });
+
+  testWidgets('a narrow console keeps its heading and its way back', (
+    tester,
+  ) async {
+    final harness = await _Harness.create(isAdmin: true);
+    try {
+      harness.app.page = WorkspacePage.admin;
+      await _pump(tester, harness.app);
+      tester.view.physicalSize = const Size(390, 900);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('admin_site_brand')), findsNothing);
+      expect(find.text(currentL10n.adminSiteTitle), findsOneWidget);
+      await tester.tap(find.byKey(_exit));
+      await tester.pumpAndSettle();
+      expect(harness.app.page, WorkspacePage.hosts);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await _dispose(tester, harness);
+    }
+  });
+
+  testWidgets('users are a table; a row opens the account beside it', (
     tester,
   ) async {
     final harness = await _Harness.create(isAdmin: true);
@@ -168,6 +247,35 @@ void main() {
 
       // Opening the section loads the list without a further click.
       expect(harness.api.accountListCalls, 1);
+      final table = find.byKey(const ValueKey('admin_accounts_table'));
+      expect(table, findsOneWidget);
+      final l10n = currentL10n;
+      for (final column in [
+        l10n.adminUsersColumnUser,
+        l10n.adminUsersColumnStatus,
+        l10n.adminUsersColumnDevices,
+        l10n.adminUsersColumnSessions,
+        l10n.adminUsersColumnCreated,
+      ]) {
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('admin_accounts_table_header')),
+            matching: find.text(column),
+          ),
+          findsOneWidget,
+          reason: column,
+        );
+      }
+      // One row per account, each a single line of the table.
+      final rows = [
+        for (final id in [_adminId, _memberId, _disabledId])
+          tester.getRect(find.byKey(ValueKey('admin_account_$id'))),
+      ];
+      expect(rows[0].height, lessThan(60));
+      expect(rows[1].top, greaterThanOrEqualTo(rows[0].bottom));
+      expect(rows[2].top, greaterThanOrEqualTo(rows[1].bottom));
+      expect({for (final row in rows) row.left}, hasLength(1));
+      expect({for (final row in rows) row.width}, hasLength(1));
       expect(find.text('admin@example.test'), findsOneWidget);
       expect(find.text('alice@example.test'), findsOneWidget);
       expect(find.text('dana@example.test'), findsOneWidget);
@@ -180,10 +288,72 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Disabled'), findsOneWidget);
-      expect(find.text('Disable account'), findsOneWidget);
-      expect(find.text('Re-enable account'), findsOneWidget);
-      expect(find.text('Revoke all sessions'), findsNWidgets(2));
+      // The table only lists. Details and actions are not on the page until
+      // an account is opened.
+      expect(find.text('Disable account'), findsNothing);
+      expect(find.text('Re-enable account'), findsNothing);
+      expect(find.text('Revoke all sessions'), findsNothing);
+      expect(find.text(_memberId), findsNothing);
       expect(find.text('Account invitations'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('admin_account_$_memberId')));
+      await tester.pumpAndSettle();
+      final drawer = find.byKey(
+        const ValueKey('admin_account_drawer_$_memberId'),
+      );
+      expect(drawer, findsOneWidget);
+      // It floats over the right edge of the window, full height; the table
+      // is still there behind it.
+      final window = tester.getRect(find.byType(MaterialApp));
+      final panel = tester.getRect(
+        find.ancestor(of: drawer, matching: find.byType(Dialog)),
+      );
+      final surface = tester.getRect(
+        find
+            .descendant(
+              of: find.ancestor(of: drawer, matching: find.byType(Dialog)),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      expect(panel, window);
+      expect(surface.right, window.right);
+      expect(surface.top, window.top);
+      expect(surface.bottom, window.bottom);
+      expect(surface.width, lessThan(window.width / 2));
+      expect(table, findsOneWidget);
+      expect(
+        find.descendant(of: drawer, matching: find.text('alice@example.test')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: drawer, matching: find.text(_memberId)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: drawer, matching: find.text('Disable account')),
+        findsOneWidget,
+      );
+      expect(find.text('Revoke all sessions'), findsOneWidget);
+      expect(find.text('View sessions'), findsOneWidget);
+      expect(find.text('Re-enable account'), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('admin_account_drawer_close')));
+      await tester.pumpAndSettle();
+      expect(drawer, findsNothing);
+      expect(find.text('Disable account'), findsNothing);
+
+      // A disabled account offers to enable it again.
+      await tester.tap(
+        find.byKey(const ValueKey('admin_account_$_disabledId')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Re-enable account'), findsOneWidget);
+      expect(find.text('Disable account'), findsNothing);
+      // Clicking outside the panel closes it too.
+      await tester.tapAt(const Offset(40, 500));
+      await tester.pumpAndSettle();
+      expect(find.text('Re-enable account'), findsNothing);
 
       await tester.enterText(
         find.byKey(const ValueKey('admin_accounts_filter')),
@@ -198,6 +368,97 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text(currentL10n.adminPanelUserFilterNoMatch), findsOne);
+      expect(table, findsNothing);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await _dispose(tester, harness);
+    }
+  });
+
+  testWidgets('the account panel follows the list and closes with the console', (
+    tester,
+  ) async {
+    final harness = await _Harness.create(isAdmin: true);
+    try {
+      harness.app.page = WorkspacePage.admin;
+      await _pump(tester, harness.app);
+      await openSettingsCategory(tester, 'users');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('admin_account_$_memberId')));
+      await tester.pumpAndSettle();
+      final drawer = find.byKey(
+        const ValueKey('admin_account_drawer_$_memberId'),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const ValueKey('admin_account_detail_status_$_memberId'),
+          ),
+          matching: find.text('Active'),
+        ),
+        findsOneWidget,
+      );
+
+      // A reload that changes the account shows in the open panel.
+      harness.api.accounts = [
+        _account(_adminId, 'admin@example.test'),
+        _account(_memberId, 'alice@example.test', status: 'disabled'),
+      ];
+      await harness.app.loadAdminAccounts();
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const ValueKey('admin_account_detail_status_$_memberId'),
+          ),
+          matching: find.text('Disabled'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Re-enable account'), findsOneWidget);
+
+      // An account that left the list is said to be gone, with no actions.
+      harness.api.accounts = [_account(_adminId, 'admin@example.test')];
+      await harness.app.loadAdminAccounts();
+      await tester.pumpAndSettle();
+      expect(drawer, findsOneWidget);
+      expect(find.text(currentL10n.adminUserNoLongerListed), findsOneWidget);
+      expect(find.text('Re-enable account'), findsNothing);
+
+      // Losing administrator access takes the panel away with the console.
+      harness.app
+        ..account = _profile(isAdmin: false)
+        ..setStage(ClientStage.workspace);
+      await tester.pumpAndSettle();
+      expect(drawer, findsNothing);
+      expect(find.byKey(_panel), findsNothing);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await _dispose(tester, harness);
+    }
+  });
+
+  testWidgets('a narrow window lists accounts in two-line rows', (tester) async {
+    final harness = await _Harness.create(isAdmin: true);
+    try {
+      harness.app.page = WorkspacePage.admin;
+      await _pump(tester, harness.app);
+      tester.view.physicalSize = const Size(390, 900);
+      await tester.pumpAndSettle();
+      await openSettingsCategory(tester, 'users');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('admin_accounts_table')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('admin_accounts_table_header')),
+        findsNothing,
+      );
+      final row = find.byKey(const ValueKey('admin_account_$_memberId'));
+      await tester.ensureVisible(row);
+      await tester.pumpAndSettle();
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(find.text('Disable account'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     } finally {
       await _dispose(tester, harness);
     }

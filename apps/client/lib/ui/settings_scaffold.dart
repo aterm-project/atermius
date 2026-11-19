@@ -28,6 +28,7 @@ class SettingsSection {
     required this.icon,
     required this.description,
     required this.builder,
+    this.wide = false,
     this.iosValue,
     this.iosTint,
     this.iosFullPage = false,
@@ -40,6 +41,10 @@ class SettingsSection {
   final IconData icon;
   final String description;
   final WidgetBuilder builder;
+
+  /// Lets the page use the whole width it is given instead of the reading
+  /// width of a form: for a section that is a table rather than a form.
+  final bool wide;
 
   /// iOS Phone 一级设置列表右侧展示的当前状态灰字（可选）。
   final String Function(BuildContext)? iosValue;
@@ -66,10 +71,28 @@ class SettingsScaffold extends StatefulWidget {
     this.title,
     this.categoriesLabel,
     this.sectionRequests,
+    this.onSectionShown,
+    this.navigationHeader,
+    this.navigationFooter,
+    this.narrowHeader,
     super.key,
   });
 
   final List<SettingsSection> sections;
+
+  /// Called with the id of the category on screen, when the page first shows
+  /// one and every time another is selected.
+  final ValueChanged<String>? onSectionShown;
+
+  /// Replaces the heading above the category list (wide layout).
+  final Widget? navigationHeader;
+
+  /// Pinned under the category list (wide layout).
+  final Widget? navigationFooter;
+
+  /// Shown above the category picker (narrow layout), where the category
+  /// column and with it [navigationHeader] and [navigationFooter] are gone.
+  final Widget? narrowHeader;
 
   /// Heading above the category list; defaults to "Settings". Other pages in
   /// the same visual language (the admin panel) pass their own.
@@ -120,6 +143,20 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
 
   late final ValueNotifier<String?> _requests =
       widget.sectionRequests ?? SettingsScaffold.requestedSection;
+
+  /// The category last reported through [SettingsScaffold.onSectionShown].
+  String? _reportedId;
+
+  void _reportShown(String id) {
+    if (_reportedId == id) return;
+    _reportedId = id;
+    final report = widget.onSectionShown;
+    if (report == null) return;
+    // Listeners may rebuild this page: never from inside its own build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _reportedId == id) report(id);
+    });
+  }
 
   @override
   void initState() {
@@ -196,6 +233,7 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
     _visited.add(_selectedId!);
     final selected = sections.indexWhere((s) => s.id == _selectedId);
     final activeSection = sections[selected];
+    _reportShown(activeSection.id);
     final density = AppDensity.of(context);
     final platform = Theme.of(context).platform;
     final touch = isTouchPlatform(platform);
@@ -234,7 +272,9 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                         alignment: Alignment.topLeft,
                         child: ConstrainedBox(
                           constraints: BoxConstraints(
-                            maxWidth: density.dialogXl,
+                            maxWidth: section.wide
+                                ? double.infinity
+                                : density.dialogXl,
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -323,6 +363,7 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
           );
           return Column(
             children: [
+              ?widget.narrowHeader,
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 child: apple
@@ -369,18 +410,19 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        density.space7,
-                        density.space7,
-                        density.space7,
-                        density.space5,
-                      ),
-                      child: Text(
-                        widget.title ?? context.l10n.settings,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
+                    widget.navigationHeader ??
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            density.space7,
+                            density.space7,
+                            density.space7,
+                            density.space5,
+                          ),
+                          child: Text(
+                            widget.title ?? context.l10n.settings,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
                     Expanded(
                       child: ListView(
                         key: const ValueKey('settings_category_navigation'),
@@ -451,6 +493,7 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                         ],
                       ),
                     ),
+                    ?widget.navigationFooter,
                   ],
                 ),
               ),

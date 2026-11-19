@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../api/api_client.dart';
 import '../platform/server_hosted.dart';
+import '../web/page_address.dart';
 import '../api/insecure_server.dart';
 import '../app_controller.dart';
 import '../credential_visibility/sensitive_clipboard.dart';
@@ -80,6 +81,16 @@ class _AuthFlowState extends State<AuthFlow> {
   /// The browser build signs in to the server that serves it: there is no
   /// address to type and no other server to change to.
   bool get _hosted => serverHostedClient;
+
+  /// The browser was opened at the admin console's address and has not
+  /// followed it yet: signing in here leads to the console.
+  bool get _opensAdminConsole {
+    final bar = browserPageAddressBar();
+    return _hosted &&
+        bar != null &&
+        bar.linkPending &&
+        pageForPath(bar.path) == WorkspacePage.admin;
+  }
 
   @override
   void initState() {
@@ -445,6 +456,43 @@ class _AuthFlowState extends State<AuthFlow> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _brandPanel(compact: true, showHero: false),
+                // Opened at /admin: say which site this sign-in leads to.
+                if (_opensAdminConsole) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    key: const ValueKey('sign_in_admin_console'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.palette.lime.withValues(alpha: .10),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: context.palette.lime.withValues(alpha: .28),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.admin_panel_settings_outlined,
+                          size: 15,
+                          color: context.palette.lime,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          context.l10n.adminSiteTitle,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: context.palette.lime,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 Card(
                   child: Padding(

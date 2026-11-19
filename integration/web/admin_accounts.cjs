@@ -14,7 +14,16 @@ const crypto = require('node:crypto');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
-const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
+const {
+  ADMIN_CONSOLE_ENTRY,
+  ADMIN_CONSOLE_EXIT,
+  closeAdminAccount,
+  expectHostedSignIn,
+  inAdminConsole,
+  openAdminAccount,
+  shot,
+  waitForWorkspaceHome,
+} = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -339,34 +348,37 @@ async function configurePage(page, baseUrl) {
   await expectHostedSignIn(page, baseUrl);
 }
 
-// Instance administration lives in the dedicated Admin panel (/admin). Its
-// section list can repeat a workspace sidebar name ("Audit log"), so pick the
-// section button inside the panel: the right-most button with that name.
+// Instance administration is the admin console, a site of its own below
+// /admin with its own section list. A section title can also name a button
+// of the section's page, so pick the section button by its column.
 async function openAdminSection(page, section) {
   // A sidebar tooltip left by the previous hover can cover the next item.
   await page.mouse.move(900, 940);
   // Opening the panel again while it is showing would rebuild it under the
   // section click that follows.
-  if (new URL(page.url()).pathname !== '/admin') {
-    await click(page, 'Admin');
-    await waitFor(() => new URL(page.url()).pathname === '/admin');
+  await closeAdminAccount(page);
+  if (!inAdminConsole(page)) {
+    await click(page, ADMIN_CONSOLE_ENTRY);
+    await waitFor(() => inAdminConsole(page));
   }
   await button(page, 'Instance overview');
   const candidates = page.getByRole('button', { name: section, exact: true });
+  // The section list is the console's left column.
   let chosen;
-  let chosenX = -1;
+  let chosenX = Infinity;
   const count = await candidates.count();
   for (let index = 0; index < count; index += 1) {
     const box = await candidates.nth(index).boundingBox();
-    if (box && box.x > chosenX) {
+    if (box && box.x < chosenX) {
       chosen = candidates.nth(index);
       chosenX = box.x;
     }
   }
-  assertThat(chosen && chosenX > 150, 'Admin panel section was not offered');
+  assertThat(chosen && chosenX < 300, 'Admin console section was not offered');
   await page.mouse.move(900, 940);
   await chosen.click();
   await page.mouse.move(900, 940);
+  await shot(page, `admin-section-${section.replace(/[^a-z]+/gi, '-').toLowerCase()}`);
 }
 
 function cliToken(args, serverEnv, description) {
@@ -1045,7 +1057,7 @@ async function main() {
     // is not offered; Settings, their former home, must not show them either.
     await button(memberPage, 'Settings');
     const memberHasAdminEntry = await memberPage
-      .getByRole('button', { name: 'Admin', exact: true }).first().isVisible().catch(() => false);
+      .getByRole('button', { name: ADMIN_CONSOLE_ENTRY, exact: true }).first().isVisible().catch(() => false);
     assertThat(!memberHasAdminEntry, 'non-admin profile was offered the Admin panel');
     await click(memberPage, 'Settings');
     await button(memberPage, 'Account and device information');
@@ -1072,6 +1084,13 @@ async function main() {
     reportBoolean('account_metadata_shape_private', true);
     await waitFor(() => hasVisibleSemanticText(adminPage, memberUsername));
     reportBoolean('account_metadata_rendered', true);
+    await shot(adminPage, 'admin-users-table');
+    // The table only lists the accounts; an account's sessions and actions
+    // are in the panel its row opens.
+    assertThat(await adminPage.getByRole('button', { name: 'View sessions', exact: true }).count() === 0,
+      'the accounts table offered account controls before an account was opened');
+    await openAdminAccount(adminPage, memberUsername);
+    reportBoolean('account_panel_opened_from_table_row', true);
 
     setStage('load target account sessions');
     const sessionsStart = adminEvents.length;
@@ -1209,6 +1228,7 @@ async function main() {
 
     setStage('disable target account from administrator UI');
     await openAdminSection(adminPage, 'Users');
+    await openAdminAccount(adminPage, memberUsername);
     await click(adminPage, 'Disable account');
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Disable account?'));
     const disableStart = adminEvents.length;
@@ -1265,6 +1285,58 @@ async function main() {
       refreshToken: memberRefreshToken,
     }, 'original pre-revoke');
     reportBoolean('old_tokens_not_revived_after_enable', true);
+
+    setStage('verify the admin console is a site of its own below /admin');
+    const pathOf = () => new URL(adminPage.url()).pathname;
+    const workspaceNavShown = async () =>
+      await adminPage.getByRole('button', { name: 'Settings', exact: true }).count() > 0 ||
+      await adminPage.getByRole('button', { name: ADMIN_CONSOLE_ENTRY, exact: true }).count() > 0;
+    await openAdminSection(adminPage, 'Users');
+    await waitFor(() => pathOf() === '/admin/users');
+    assertThat(!await workspaceNavShown(),
+      'the admin console showed the workspace navigation beside it');
+    assertThat((await adminPage.title()).includes('Admin console'),
+      'the browser tab was not named after the admin console');
+    await openAdminSection(adminPage, 'Audit log');
+    await waitFor(() => pathOf() === '/admin/audit');
+    await openAdminSection(adminPage, 'Instance overview');
+    await waitFor(() => pathOf() === '/admin');
+    // Back and Forward move between the console's sections.
+    await adminPage.goBack();
+    await waitFor(() => pathOf() === '/admin/audit');
+    await adminPage.goBack();
+    await waitFor(async () => pathOf() === '/admin/users' &&
+      await hasVisibleSemanticText(adminPage, 'Instance accounts and sessions'));
+    await adminPage.goForward();
+    await waitFor(() => pathOf() === '/admin/audit');
+    reportBoolean('admin_console_sections_have_addresses_and_history', true);
+
+    // Its own way back opens the workspace, which has the link to it again.
+    await click(adminPage, ADMIN_CONSOLE_EXIT);
+    await waitFor(async () => pathOf() === '/hosts' && await workspaceNavShown());
+    assertThat(!(await adminPage.title()).includes('Admin console'),
+      'the browser tab kept the admin console name in the workspace');
+    await click(adminPage, ADMIN_CONSOLE_ENTRY);
+    await waitFor(() => pathOf() === '/admin');
+    reportBoolean('admin_console_leaves_to_and_returns_from_workspace', true);
+
+    // A link to a section opens the console on it, after the unlock a
+    // reload asks for.
+    await adminPage.goto(`${baseUrl}/admin/users`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await waitFor(() => adminPage.evaluate(() =>
+      Boolean(document.querySelector('flt-semantics-placeholder'))), 30000);
+    await adminPage.locator('flt-semantics-placeholder').evaluate((element) => element.click());
+    await waitFor(() => adminPage.evaluate(() =>
+      document.querySelectorAll('flt-semantics').length > 0), 15000);
+    await fill(adminPage, 'Account password', adminPassword);
+    await shot(adminPage, 'admin-link-locked');
+    await click(adminPage, 'Unlock workspace');
+    await waitFor(async () => pathOf() === '/admin/users' &&
+      await hasVisibleSemanticText(adminPage, 'Instance accounts and sessions'), 60000);
+    assertThat(!await workspaceNavShown(),
+      'a link into the admin console opened the workspace around it');
+    await shot(adminPage, 'admin-link-users');
+    reportBoolean('admin_console_section_link_opens_after_unlock', true);
 
     assertThat(adminPageErrors === 0 && memberPageErrors === 0,
       'Flutter reported a browser runtime error');

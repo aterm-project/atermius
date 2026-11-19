@@ -16282,6 +16282,17 @@
   "@serverReinstalledConfirm": {
     "description": "Button that accepts the new server instance."
   },
+  "adminSiteTitle": "Admin console",
+  "adminSiteBackToWorkspace": "Back to workspace",
+  "adminSiteOpen": "Open admin console",
+  "adminUsersColumnUser": "User",
+  "adminUsersColumnStatus": "Status",
+  "adminUsersColumnDevices": "Devices",
+  "adminUsersColumnSessions": "Sessions",
+  "adminUsersColumnCreated": "Created",
+  "adminUserDetailsTitle": "User details",
+  "adminUsersSelectHint": "Select a user to see its details and actions.",
+  "adminUserNoLongerListed": "This account is no longer in the list.",
   "adminPanelNav": "Admin",
   "@adminPanelNav": {
     "description": "Sidebar entry that opens the instance administration panel; shown to instance administrators only."

@@ -116,6 +116,7 @@ import 'transfer_dialog.dart';
 import '../platform/application_windows.dart';
 import 'new_window.dart';
 import 'insecure_server_widgets.dart';
+import 'ios_native/ios_mode.dart';
 import 'password_field.dart';
 import 'sftp_text_editor_dialog.dart';
 import '../web_update/web_app_update_factory.dart';
@@ -349,7 +350,13 @@ class _AppShellState extends State<AppShell> {
     _syncSessionWorkspace();
     if (browserPageAddressBar() case final bar?) {
       if (bar.linkPending) _linkedPage = pageForPath(bar.path);
-      final binding = _pageAddress = PageAddressBinding(app, bar);
+      final binding = _pageAddress = PageAddressBinding(
+        app,
+        bar,
+        adminSection: AdminPanel.shownSection,
+        adminHome: _adminHomeSection,
+        openAdminSection: _requestAdminSection,
+      );
       // After the frame: following a link notifies listeners.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) binding.attach();
@@ -1980,9 +1987,33 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
     );
   }
 
+  /// The admin console's sections, as offered to the signed-in account.
+  List<AdminPanelSection> get _adminSections =>
+      _adminPanelSections((request) => unawaited(_quickConnect(request)));
+
+  /// Asks the console (showing now, or the next one built) for a section the
+  /// address named. False when it is not one this account is offered.
+  bool _requestAdminSection(String id) {
+    if (!AdminPanel.sectionsFor(
+      app,
+      _adminSections,
+    ).any((section) => section.id == id)) {
+      return false;
+    }
+    AdminPanel.requestSection(id);
+    return true;
+  }
+
+  /// Whether the admin console is on screen instead of the workspace.
+  bool get _adminSiteShown =>
+      app.page == WorkspacePage.admin &&
+      app.canShowWorkspacePage(WorkspacePage.admin);
+
   void _onControllerChanged() {
     McpService.instance.workspaceChanged();
     if (!mounted) return;
+    // The console replaces the workspace, a selected file tab included.
+    if (_adminSiteShown) _selectedFileId = null;
     if (_searchVaultId != app.currentVaultId || app.workspaceLocked) {
       _terminalTools.close();
       _terminalTools.history.clear();
@@ -2010,10 +2041,16 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final wide = constraints.maxWidth >= 1120;
+      // The admin console is a site of its own. It takes the place of the
+      // workspace (navigation, pages, status bar) while it is open. In the
+      // browser it owns the whole page; an installed app keeps its tab row,
+      // which is also the window's title bar and leads back to the sessions.
+      final adminSite = _adminSiteShown;
       final scaffold = Scaffold(
         body: SafeArea(
           child: Column(
             children: [
+              if (!(adminSite && serverHostedClient))
               WorkspaceTabBar(
                 onDisconnect: (id) => unawaited(app.disconnectTerminalTab(id)),
                 groups: _sessionWorkspace.groupedSessionIds,
@@ -2140,6 +2177,13 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                     setState(() => _selectedFileId = null);
                     app.showWorkspacePage(page);
                   }, forwarding: _forwardingPageBuilder != null),
+                  if (app.isInstanceAdmin)
+                    WorkspaceAction(
+                      'cloud_admin_console',
+                      context.l10n.adminSiteOpen,
+                      Icons.admin_panel_settings_outlined,
+                      () => app.showWorkspacePage(WorkspacePage.admin),
+                    ),
                   for (final protocol in HostProtocol.values)
                     WorkspaceAction(
                       'cloud_new_${protocol.name}',
@@ -2290,7 +2334,13 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
                   ),
                 ),
               Expanded(
-                child: Row(
+                child: adminSite
+                    ? AdminPanel(
+                        app: app,
+                        sections: _adminSections,
+                        onExit: () => _selectWorkspaceTab('hosts'),
+                      )
+                    : Row(
                   children: [
                     // Home-only navigation: terminal/file panes get the full
                     // width (no permanent sidebar beside a terminal).
@@ -2366,7 +2416,7 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
                   ],
                 ),
               ),
-              _statusBar(),
+              if (!adminSite) _statusBar(),
             ],
           ),
         ),
@@ -2772,12 +2822,8 @@ class _SideNavigation extends StatelessWidget {
     _NavItem(WorkspacePage.audit, Icons.history_rounded, _NavLabel.audit),
     _NavItem(WorkspacePage.devices, Icons.devices_outlined, _NavLabel.devices),
     _NavItem(WorkspacePage.settings, Icons.settings_outlined, _NavLabel.settings),
-    // Instance administrators only; see [_cloudNavItemAvailable].
-    _NavItem(
-      WorkspacePage.admin,
-      Icons.admin_panel_settings_outlined,
-      _NavLabel.admin,
-    ),
+    // The admin console is not a page of the workspace: it is a site of its
+    // own (`/admin`), reached through the link on the account card below.
   ];
 
   @override
@@ -3107,20 +3153,12 @@ class _SideNavigation extends StatelessWidget {
                           ),
                         ),
                         // The only secondary line is the account's role on
-                        // this instance.
+                        // this instance. For an administrator it is the link
+                        // to the admin console, which is a site of its own
+                        // and not a page of this workspace.
                         if (app.isInstanceAdmin) ...[
                           const SizedBox(height: 3),
-                          Text(
-                            context.l10n.accountSettingsInstanceAdmin,
-                            key: const ValueKey('home_nav_user_role'),
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: context.palette.muted,
-                            ),
-                          ),
+                          _AdminConsoleLink(app: app),
                         ],
                       ],
                     ),
@@ -3139,14 +3177,75 @@ class _SideNavigation extends StatelessWidget {
                 ],
               ),
             )
-          else
+          else ...[
+            if (app.isInstanceAdmin)
+              IconButton(
+                key: const ValueKey('home_nav_admin_console'),
+                tooltip: context.l10n.adminSiteOpen,
+                onPressed: () => app.showWorkspacePage(WorkspacePage.admin),
+                icon: Icon(
+                  Icons.admin_panel_settings_outlined,
+                  color: context.palette.muted,
+                ),
+              ),
             IconButton(
               tooltip: context.l10n.lockWorkspace,
               onPressed: () => app.lock(),
               icon: Icon(Icons.lock_outline, color: context.palette.muted),
             ),
+          ],
           const SizedBox(height: 9),
         ],
+      ),
+    );
+  }
+}
+
+/// The account card's link to the admin console, shown to instance
+/// administrators in place of a plain role remark.
+class _AdminConsoleLink extends StatelessWidget {
+  const _AdminConsoleLink({required this.app});
+
+  final AppController app;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = context.palette.lime;
+    void open() => app.showWorkspacePage(WorkspacePage.admin);
+    return Semantics(
+      button: true,
+      label: context.l10n.adminSiteOpen,
+      onTap: open,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: context.l10n.adminSiteOpen,
+        excludeFromSemantics: true,
+        child: InkWell(
+          key: const ValueKey('home_nav_admin_console'),
+          borderRadius: BorderRadius.circular(5),
+          onTap: open,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  context.l10n.adminSiteTitle,
+                  key: const ValueKey('home_nav_user_role'),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(Icons.arrow_outward_rounded, size: 11, color: color),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -3233,7 +3332,6 @@ enum _NavLabel {
   audit,
   devices,
   settings,
-  admin,
 }
 
 /// Display label for a terminal tab's stable state id. Unknown ids are shown
@@ -3270,7 +3368,6 @@ class _NavItem {
     _NavLabel.audit => l10n.auditLog2,
     _NavLabel.devices => l10n.devices,
     _NavLabel.settings => l10n.settings,
-    _NavLabel.admin => l10n.adminPanelNav,
   };
 }
 
@@ -3325,8 +3422,7 @@ HomeSidebarAction? _cloudTermiusTransferAction(
   ),
 );
 
-/// Whether a destination is offered to the signed-in account at all. The
-/// admin panel is listed only for instance administrators.
+/// Whether a destination is offered to the signed-in account at all.
 bool _cloudNavItemAvailable(
   AppController app,
   _NavItem item, {
@@ -3489,11 +3585,11 @@ class _WorkspacePage extends StatelessWidget {
     );
   }
 
-  /// The page actually rendered. A page the signed-in account may not see
-  /// (the admin panel for a non-administrator, however it was selected) falls
-  /// back to Hosts instead of being built.
+  /// The page actually rendered. The admin console is not one of them: for
+  /// an administrator the shell shows it instead of the workspace, and for
+  /// anyone else, however the page was selected, this falls back to Hosts.
   WorkspacePage get _shownPage =>
-      app.canShowWorkspacePage(app.page) ? app.page : WorkspacePage.hosts;
+      app.page == WorkspacePage.admin ? WorkspacePage.hosts : app.page;
 
   Widget _page() {
     return switch (_shownPage) {
@@ -3551,10 +3647,9 @@ class _WorkspacePage extends StatelessWidget {
         onArchiveExportStarting: onArchiveExportStarting,
         onArchiveExport: onArchiveExport,
       ),
-      WorkspacePage.admin => AdminPanel(
-        app: app,
-        sections: _adminPanelSections(onQuickConnect),
-      ),
+      // Never reached: the shell shows the admin console instead of the
+      // workspace, not as one of its pages.
+      WorkspacePage.admin => const SizedBox.shrink(),
     };
   }
 }
@@ -16707,7 +16802,10 @@ class _SettingsPage extends StatelessWidget {
   }
 }
 
-/// Section registry of the instance administration panel ([AdminPanel]).
+/// The section `/admin` itself stands for: the first of the registry.
+const _adminHomeSection = 'instance';
+
+/// Section registry of the admin console ([AdminPanel]).
 ///
 /// Every instance-wide function is one entry here, shown in this order. To add
 /// another global function later (for example an online sandbox), append an
@@ -16740,6 +16838,7 @@ List<AdminPanelSection> _adminPanelSections(
     icon: Icons.manage_accounts_outlined,
     title: (l10n) => l10n.adminPanelUsersTitle,
     description: (l10n) => l10n.adminPanelUsersDescription,
+    wide: true,
     onFirstShown: (app) {
       if (app.adminAccountsPage == null && !app.adminAccountsLoading) {
         unawaited(app.loadAdminAccounts());
@@ -19463,7 +19562,34 @@ class _AdminAccountsCard extends StatefulWidget {
 class _AdminAccountsCardState extends State<_AdminAccountsCard> {
   final _filter = TextEditingController();
 
+  /// The account whose details are open beside the table, if any.
+  String? _openUserId;
+
   AppController get app => widget.app;
+
+  /// Opens the account's details in a panel floating over the right edge of
+  /// the console. The table stays where it is behind it.
+  Future<void> _openAccount(AdminAccountMetadata account) async {
+    if (_openUserId != null) return;
+    final userId = account.userId;
+    setState(() => _openUserId = userId);
+    await showAppDialog<void>(
+      context: context,
+      motion: AppDialogMotion.sideSheet,
+      builder: (_) => _AdminAccountDrawer(app: app, userId: userId),
+    );
+    // Gone with the console (signed out, locked, no longer an administrator):
+    // the controller has dropped what the panel had loaded already.
+    if (!mounted) return;
+    // What the panel expanded belongs to it: closing it folds them again.
+    if (app.adminAccountSessionsUserId == userId) {
+      unawaited(app.toggleAdminAccountSessions(userId: userId));
+    }
+    if (app.adminAccountRelayPolicyUserId == userId) {
+      unawaited(app.toggleAdminAccountRelayPolicy(userId: userId));
+    }
+    setState(() => _openUserId = null);
+  }
 
   @override
   void dispose() {
@@ -19555,20 +19681,9 @@ class _AdminAccountsCardState extends State<_AdminAccountsCard> {
                 label: Text(context.l10n.retryAccountList),
               ),
             ],
-            if (app.adminAccountActionError case final error?) ...[
-              const SizedBox(height: 12),
-              Semantics(
-                label: context.l10n.adminAccountActionFailed,
-                child: Text(
-                  context.l10n.accountActionFailedError(error),
-                  style: TextStyle(color: context.palette.red),
-                ),
-              ),
-            ],
-            if (app.adminAccountActionNotice case final notice?) ...[
-              const SizedBox(height: 12),
-              Text(notice, style: TextStyle(color: context.palette.lime)),
-            ],
+            // While an account's panel is open the outcome of its actions is
+            // reported there, not behind it.
+            if (_openUserId == null) _AdminAccountActionOutcome(app: app),
             if (app.adminAccountsLoading && page == null) ...[
               const SizedBox(height: 14),
               const LinearProgressIndicator(),
@@ -19616,13 +19731,20 @@ class _AdminAccountsCardState extends State<_AdminAccountsCard> {
                     ),
                   ),
                 ),
-              ..._visible(value.accounts).map(
-                (account) => _AdminAccountTile(
-                  key: ValueKey('admin_account_${account.userId}'),
+              if (_visible(value.accounts).isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _AdminAccountsTable(
                   app: app,
-                  account: account,
+                  accounts: _visible(value.accounts),
+                  openUserId: _openUserId,
+                  onOpen: (account) => unawaited(_openAccount(account)),
                 ),
-              ),
+                const SizedBox(height: 8),
+                Text(
+                  context.l10n.adminUsersSelectHint,
+                  style: TextStyle(color: context.palette.muted, fontSize: 11),
+                ),
+              ],
               if (value.hasPrevious || value.hasNext) ...[
                 const SizedBox(height: 10),
                 Row(
@@ -20988,12 +21110,448 @@ class _AdminAccountInvitationTile extends StatelessWidget {
   }
 }
 
-class _AdminAccountTile extends StatelessWidget {
-  const _AdminAccountTile({
+/// What the last action on an account did: its error, or its notice.
+class _AdminAccountActionOutcome extends StatelessWidget {
+  const _AdminAccountActionOutcome({required this.app});
+
+  final AppController app;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (app.adminAccountActionError case final error?) ...[
+        const SizedBox(height: 12),
+        Semantics(
+          label: context.l10n.adminAccountActionFailed,
+          child: Text(
+            context.l10n.accountActionFailedError(error),
+            style: TextStyle(color: context.palette.red),
+          ),
+        ),
+      ],
+      if (app.adminAccountActionNotice case final notice?) ...[
+        const SizedBox(height: 12),
+        Text(notice, style: TextStyle(color: context.palette.lime)),
+      ],
+    ],
+  );
+}
+
+/// The accounts of the page as a table: one row per account, the columns an
+/// administrator scans for. Everything else about an account, and every
+/// action on it, is in the panel a row opens ([_AdminAccountDrawer]).
+class _AdminAccountsTable extends StatelessWidget {
+  const _AdminAccountsTable({
     required this.app,
+    required this.accounts,
+    required this.openUserId,
+    required this.onOpen,
+  });
+
+  final AppController app;
+  final List<AdminAccountMetadata> accounts;
+  final String? openUserId;
+  final ValueChanged<AdminAccountMetadata> onOpen;
+
+  /// Below this the count and date columns do not fit beside the name: each
+  /// row becomes two lines.
+  static const double _compactBelow = 620;
+
+  static const double _statusWidth = 118;
+  static const double _countWidth = 82;
+  static const double _createdWidth = 132;
+  static const double _chevronWidth = 22;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < _compactBelow;
+        TextStyle head() => TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: palette.muted,
+        );
+        return Container(
+          key: const ValueKey('admin_accounts_table'),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: palette.line),
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!compact)
+                  Container(
+                    key: const ValueKey('admin_accounts_table_header'),
+                    color: palette.surfaceSoft,
+                    padding: const EdgeInsets.fromLTRB(14, 9, 10, 9),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            context.l10n.adminUsersColumnUser,
+                            style: head(),
+                          ),
+                        ),
+                        SizedBox(
+                          width: _statusWidth,
+                          child: Text(
+                            context.l10n.adminUsersColumnStatus,
+                            style: head(),
+                          ),
+                        ),
+                        SizedBox(
+                          width: _countWidth,
+                          child: Text(
+                            context.l10n.adminUsersColumnDevices,
+                            textAlign: TextAlign.end,
+                            style: head(),
+                          ),
+                        ),
+                        SizedBox(
+                          width: _countWidth,
+                          child: Text(
+                            context.l10n.adminUsersColumnSessions,
+                            textAlign: TextAlign.end,
+                            style: head(),
+                          ),
+                        ),
+                        const SizedBox(width: 18),
+                        SizedBox(
+                          width: _createdWidth,
+                          child: Text(
+                            context.l10n.adminUsersColumnCreated,
+                            style: head(),
+                          ),
+                        ),
+                        const SizedBox(width: _chevronWidth),
+                      ],
+                    ),
+                  ),
+                for (final (index, account) in accounts.indexed) ...[
+                  if (index > 0 || !compact)
+                    Divider(height: 1, thickness: 1, color: palette.line),
+                  _AdminAccountRow(
+                    key: ValueKey('admin_account_${account.userId}'),
+                    account: account,
+                    isCurrentAccount: app.isCurrentAdminAccount(account.userId),
+                    open: account.userId == openUserId,
+                    compact: compact,
+                    onTap: () => onOpen(account),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AdminAccountRow extends StatelessWidget {
+  const _AdminAccountRow({
     required this.account,
+    required this.isCurrentAccount,
+    required this.open,
+    required this.compact,
+    required this.onTap,
     super.key,
   });
+
+  final AdminAccountMetadata account;
+  final bool isCurrentAccount;
+  final bool open;
+  final bool compact;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final muted = TextStyle(fontSize: 12, color: palette.muted);
+    final name = Row(
+      children: [
+        Flexible(
+          child: Text(
+            account.username,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ),
+        // The only administrator the account list can identify is the
+        // signed-in one; the server does not report the flag per account.
+        if (isCurrentAccount) ...[
+          const SizedBox(width: 8),
+          KeyedSubtree(
+            key: const ValueKey('admin_account_self_chip'),
+            child: _Pill(label: context.l10n.adminPanelAccountYou),
+          ),
+        ],
+      ],
+    );
+    final status = Align(
+      alignment: Alignment.centerLeft,
+      child: _AdminAccountStatusPill(
+        key: ValueKey('admin_account_status_${account.userId}'),
+        status: account.status,
+      ),
+    );
+    final chevron = Icon(
+      Icons.chevron_right_rounded,
+      size: 18,
+      color: palette.muted,
+    );
+    // One node for the whole row: a button named after the account, as
+    // assistive technology and browser automation expect of a table row that
+    // opens something.
+    return MergeSemantics(
+      child: InkWell(
+      onTap: onTap,
+      child: Container(
+        color: open ? palette.lime.withValues(alpha: .08) : null,
+        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+        child: compact
+            ? Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        name,
+                        const SizedBox(height: 5),
+                        Text(
+                          '${context.l10n.adminUsersColumnDevices} '
+                          '${_adminCount(account.activeDeviceCount)} · '
+                          '${context.l10n.adminUsersColumnSessions} '
+                          '${_adminCount(account.activeSessionCount)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: muted,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  status,
+                  SizedBox(
+                    width: _AdminAccountsTable._chevronWidth,
+                    child: chevron,
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(child: name),
+                  SizedBox(
+                    width: _AdminAccountsTable._statusWidth,
+                    child: status,
+                  ),
+                  SizedBox(
+                    width: _AdminAccountsTable._countWidth,
+                    child: Text(
+                      _adminCount(account.activeDeviceCount),
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  SizedBox(
+                    width: _AdminAccountsTable._countWidth,
+                    child: Text(
+                      _adminCount(account.activeSessionCount),
+                      textAlign: TextAlign.end,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(width: 18),
+                  SizedBox(
+                    width: _AdminAccountsTable._createdWidth,
+                    child: Text(
+                      DateFormat.yMMMd().format(account.createdAt.toLocal()),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: muted,
+                    ),
+                  ),
+                  SizedBox(
+                    width: _AdminAccountsTable._chevronWidth,
+                    child: chevron,
+                  ),
+                ],
+              ),
+      ),
+      ),
+    );
+  }
+}
+
+/// An account's status as a small coloured label.
+class _AdminAccountStatusPill extends StatelessWidget {
+  const _AdminAccountStatusPill({required this.status, super.key});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final color = switch (status) {
+      'active' => palette.lime,
+      'disabled' => palette.red,
+      _ => palette.muted,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: .28)),
+      ),
+      child: Text(
+        _adminAccountStatusLabel(context, status),
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+/// One account's details and actions, in a panel that floats over the right
+/// edge of the console while the accounts table stays behind it.
+///
+/// It reads the account from the loaded page every time the controller
+/// changes, so a status change or a reload shows at once, and it closes
+/// itself when the console it belongs to is no longer on screen.
+class _AdminAccountDrawer extends StatefulWidget {
+  const _AdminAccountDrawer({required this.app, required this.userId});
+
+  final AppController app;
+  final String userId;
+
+  @override
+  State<_AdminAccountDrawer> createState() => _AdminAccountDrawerState();
+}
+
+class _AdminAccountDrawerState extends State<_AdminAccountDrawer> {
+  AppController get app => widget.app;
+  ModalRoute<Object?>? _route;
+
+  bool get _consoleOpen =>
+      app.stage == ClientStage.workspace &&
+      !app.workspaceLocked &&
+      app.isInstanceAdmin &&
+      app.page == WorkspacePage.admin;
+
+  @override
+  void initState() {
+    super.initState();
+    app.addListener(_onAppChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _route = ModalRoute.of(context);
+  }
+
+  @override
+  void dispose() {
+    app.removeListener(_onAppChanged);
+    super.dispose();
+  }
+
+  void _onAppChanged() {
+    if (!mounted) return;
+    if (!_consoleOpen) {
+      final route = _route;
+      if (route != null && route.isActive) {
+        route.navigator?.removeRoute(route);
+      }
+      return;
+    }
+    setState(() {});
+  }
+
+  AdminAccountMetadata? get _account {
+    for (final account
+        in app.adminAccountsPage?.accounts ?? const <AdminAccountMetadata>[]) {
+      if (account.userId == widget.userId) return account;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final account = _account;
+    final density = AppDensity.of(context);
+    final title = Row(
+      children: [
+        Expanded(
+          child: Text(
+            context.l10n.adminUserDetailsTitle,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+        ),
+        IconButton(
+          key: const ValueKey('admin_account_drawer_close'),
+          tooltip: context.l10n.close,
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.close),
+        ),
+      ],
+    );
+    final body = account == null
+        ? Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              context.l10n.adminUserNoLongerListed,
+              style: TextStyle(color: context.palette.muted),
+            ),
+          )
+        : _AdminAccountDetails(app: app, account: account);
+    final content = Column(
+      key: ValueKey('admin_account_drawer_${widget.userId}'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        title,
+        SizedBox(height: density.space4),
+        Expanded(child: SingleChildScrollView(child: body)),
+      ],
+    );
+    // iPhone: the route is a system sheet that brings its own surface.
+    if (isIosPhone(context)) {
+      return SafeArea(
+        child: Padding(padding: density.dialogPadding, child: content),
+      );
+    }
+    return Dialog(
+      insetPadding: EdgeInsets.zero,
+      alignment: Alignment.centerRight,
+      child: SizedBox(
+        width: density.dialogLg,
+        height: double.infinity,
+        child: Padding(padding: density.dialogPadding, child: content),
+      ),
+    );
+  }
+}
+
+/// The content of [_AdminAccountDrawer] for an account that is in the list.
+class _AdminAccountDetails extends StatelessWidget {
+  const _AdminAccountDetails({required this.app, required this.account});
 
   final AppController app;
   final AdminAccountMetadata account;
@@ -21012,187 +21570,185 @@ class _AdminAccountTile extends StatelessWidget {
         app.adminAccountActionBusyId == null &&
         app.adminAccountSessionActionBusyId == null &&
         !app.adminAccountsLoading;
-    return Card(
-      margin: const EdgeInsets.only(top: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
+            Expanded(
+              child: Text(
+                account.username,
+                key: const ValueKey('admin_account_drawer_username'),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            _AdminAccountStatusPill(
+              key: ValueKey('admin_account_detail_status_${account.userId}'),
+              status: account.status,
+            ),
+          ],
+        ),
+        if (isCurrentAccount)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
               children: [
+                Icon(
+                  Icons.admin_panel_settings_outlined,
+                  size: 15,
+                  color: context.palette.lime,
+                ),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    account.username,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    '${context.l10n.adminPanelAccountYou} · '
+                    '${context.l10n.accountSettingsInstanceAdmin}',
+                    style: TextStyle(
+                      color: context.palette.lime,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                Chip(
-                  key: ValueKey('admin_account_status_${account.userId}'),
-                  label: Text(_adminAccountStatusLabel(context, account.status)),
                 ),
               ],
             ),
-            // The only administrator the account list can identify is the
-            // signed-in one; the server does not report the flag per account.
-            if (isCurrentAccount)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  key: const ValueKey('admin_account_self_chip'),
-                  children: [
-                    Icon(
-                      Icons.admin_panel_settings_outlined,
-                      size: 15,
-                      color: context.palette.lime,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        '${context.l10n.adminPanelAccountYou} · '
-                        '${context.l10n.accountSettingsInstanceAdmin}',
-                        style: TextStyle(
-                          color: context.palette.lime,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+          ),
+        _AdminAccountActionOutcome(app: app),
+        const SizedBox(height: 10),
+        _DetailLine(label: context.l10n.userId, value: account.userId),
+        _DetailLine(
+          label: context.l10n.activeDevices,
+          value: _adminCount(account.activeDeviceCount),
+        ),
+        _DetailLine(
+          label: context.l10n.activeSessions,
+          value: _adminCount(account.activeSessionCount),
+        ),
+        _DetailLine(
+          label: context.l10n.createdAt,
+          value: DateFormat.yMMMd().add_jm().format(
+            account.createdAt.toLocal(),
+          ),
+        ),
+        // credential-visibility: mode, escrow status, view credentials.
+        CredentialVisibilityAdminAccountRow(app: app, account: account),
+        if (isCurrentAccount)
+          Text(
+            context.l10n.currentSignedInAccountAdministrativeActions,
+            style: TextStyle(color: context.palette.muted, fontSize: 11),
+          )
+        else if (isDeleting)
+          Text(
+            context.l10n.deletingAccountAdministrativeActionsUnavailable,
+            style: TextStyle(color: context.palette.muted, fontSize: 11),
+          )
+        else ...[
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              OutlinedButton.icon(
+                onPressed: !actionsEnabled
+                    ? null
+                    : () => unawaited(
+                        _confirmAdminAccountStatus(
+                          context,
+                          app,
+                          account,
+                          account.status == 'active'
+                              ? 'disabled'
+                              : 'active',
                         ),
                       ),
-                    ),
-                  ],
+                icon: isBusy
+                    ? const SizedBox(
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        account.status == 'active'
+                            ? Icons.block_outlined
+                            : Icons.check_circle_outline,
+                      ),
+                label: Text(
+                  account.status == 'active'
+                      ? context.l10n.disableAccount
+                      : context.l10n.adminPanelReEnableAccount,
                 ),
               ),
-            _DetailLine(label: context.l10n.userId, value: account.userId),
-            _DetailLine(
-              label: context.l10n.activeDevices,
-              value: _adminCount(account.activeDeviceCount),
-            ),
-            _DetailLine(
-              label: context.l10n.activeSessions,
-              value: _adminCount(account.activeSessionCount),
-            ),
-            _DetailLine(
-              label: context.l10n.createdAt,
-              value: DateFormat.yMMMd().add_jm().format(
-                account.createdAt.toLocal(),
+              TextButton.icon(
+                onPressed: !actionsEnabled
+                    ? null
+                    : () => unawaited(
+                        _confirmAdminAccountSessionRevocation(
+                          context,
+                          app,
+                          account,
+                        ),
+                      ),
+                icon: const Icon(Icons.logout_rounded),
+                label: Text(context.l10n.revokeAllSessions),
               ),
-            ),
-            // credential-visibility: mode, escrow status, view credentials.
-            CredentialVisibilityAdminAccountRow(app: app, account: account),
-            if (isCurrentAccount)
-              Text(
-                context.l10n.currentSignedInAccountAdministrativeActions,
-                style: TextStyle(color: context.palette.muted, fontSize: 11),
-              )
-            else if (isDeleting)
-              Text(
-                context.l10n.deletingAccountAdministrativeActionsUnavailable,
-                style: TextStyle(color: context.palette.muted, fontSize: 11),
-              )
-            else ...[
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: !actionsEnabled
-                        ? null
-                        : () => unawaited(
-                            _confirmAdminAccountStatus(
-                              context,
-                              app,
-                              account,
-                              account.status == 'active'
-                                  ? 'disabled'
-                                  : 'active',
-                            ),
-                          ),
-                    icon: isBusy
-                        ? const SizedBox(
-                            width: 15,
-                            height: 15,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(
-                            account.status == 'active'
-                                ? Icons.block_outlined
-                                : Icons.check_circle_outline,
-                          ),
-                    label: Text(
-                      account.status == 'active'
-                          ? context.l10n.disableAccount
-                          : context.l10n.adminPanelReEnableAccount,
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: !actionsEnabled
-                        ? null
-                        : () => unawaited(
-                            _confirmAdminAccountSessionRevocation(
-                              context,
-                              app,
-                              account,
-                            ),
-                          ),
-                    icon: const Icon(Icons.logout_rounded),
-                    label: Text(context.l10n.revokeAllSessions),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed:
-                        app.adminAccountActionBusyId != null ||
-                            app.adminAccountsLoading
-                        ? null
-                        : () => unawaited(
-                            app.toggleAdminAccountSessions(
-                              userId: account.userId,
-                            ),
-                          ),
-                    icon: Icon(
-                      expanded
-                          ? Icons.expand_less_rounded
-                          : Icons.devices_other_rounded,
-                    ),
-                    label: Text(expanded ? context.l10n.hideSessions : context.l10n.viewSessions),
-                  ),
-                  OutlinedButton.icon(
-                    key: ValueKey(
-                      'admin_account_relay_policy_${account.userId}',
-                    ),
-                    onPressed:
-                        !relayPolicyExpanded &&
-                            (app.adminAccountActionBusyId != null ||
-                                app.adminAccountsLoading)
-                        ? null
-                        : () => unawaited(
-                            app.toggleAdminAccountRelayPolicy(
-                              userId: account.userId,
-                            ),
-                          ),
-                    icon: Icon(
-                      relayPolicyExpanded
-                          ? Icons.expand_less_rounded
-                          : Icons.policy_outlined,
-                    ),
-                    label: Text(
-                      relayPolicyExpanded
-                          ? context.l10n.hideRelayPolicy
-                          : context.l10n.relayPolicy,
-                    ),
-                  ),
-                ],
+              OutlinedButton.icon(
+                onPressed:
+                    app.adminAccountActionBusyId != null ||
+                        app.adminAccountsLoading
+                    ? null
+                    : () => unawaited(
+                        app.toggleAdminAccountSessions(
+                          userId: account.userId,
+                        ),
+                      ),
+                icon: Icon(
+                  expanded
+                      ? Icons.expand_less_rounded
+                      : Icons.devices_other_rounded,
+                ),
+                label: Text(expanded ? context.l10n.hideSessions : context.l10n.viewSessions),
+              ),
+              OutlinedButton.icon(
+                key: ValueKey(
+                  'admin_account_relay_policy_${account.userId}',
+                ),
+                onPressed:
+                    !relayPolicyExpanded &&
+                        (app.adminAccountActionBusyId != null ||
+                            app.adminAccountsLoading)
+                    ? null
+                    : () => unawaited(
+                        app.toggleAdminAccountRelayPolicy(
+                          userId: account.userId,
+                        ),
+                      ),
+                icon: Icon(
+                  relayPolicyExpanded
+                      ? Icons.expand_less_rounded
+                      : Icons.policy_outlined,
+                ),
+                label: Text(
+                  relayPolicyExpanded
+                      ? context.l10n.hideRelayPolicy
+                      : context.l10n.relayPolicy,
+                ),
               ),
             ],
-            if (expanded && !isCurrentAccount && !isDeleting)
-              _AdminAccountSessionsPanel(app: app, account: account),
-            if (relayPolicyExpanded && !isCurrentAccount && !isDeleting)
-              _AdminAccountRelayPolicyPanel(
-                key: ValueKey('account_relay_policy_${account.userId}'),
-                app: app,
-                account: account,
-              ),
-          ],
-        ),
-      ),
+          ),
+        ],
+        if (expanded && !isCurrentAccount && !isDeleting)
+          _AdminAccountSessionsPanel(app: app, account: account),
+        if (relayPolicyExpanded && !isCurrentAccount && !isDeleting)
+          _AdminAccountRelayPolicyPanel(
+            key: ValueKey('account_relay_policy_${account.userId}'),
+            app: app,
+            account: account,
+          ),
+      ],
     );
   }
 }

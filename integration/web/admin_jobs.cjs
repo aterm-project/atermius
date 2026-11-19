@@ -14,7 +14,14 @@ const path = require('node:path');
 const net = require('node:net');
 const crypto = require('node:crypto');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
-const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
+const {
+  ADMIN_CONSOLE_ENTRY,
+  closeAdminAccount,
+  expectHostedSignIn,
+  inAdminConsole,
+  openAdminAccount,
+  waitForWorkspaceHome,
+} = require('./support/hosted_web.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 
@@ -746,15 +753,15 @@ async function visibleButtonBoxes(page, label) {
   return boxes;
 }
 
-// Instance administration lives on its own workspace page (/admin) with its
-// own section list. Some section titles ("Audit log") also name a workspace
-// sidebar entry, so the section button is picked by its column: the one
-// aligned with the "Instance overview" section button.
+// Instance administration is the admin console, a site of its own below
+// /admin with its own section list. The section button is picked by its
+// column: the one aligned with the "Instance overview" section button.
 async function openAdminSection(page, sectionTitle) {
-  if (new URL(page.url()).pathname !== '/admin') {
-    await click(page, 'Admin');
+  await closeAdminAccount(page);
+  if (!inAdminConsole(page)) {
+    await click(page, ADMIN_CONSOLE_ENTRY);
   }
-  await waitFor(async () => new URL(page.url()).pathname === '/admin' &&
+  await waitFor(async () => inAdminConsole(page) &&
     (await visibleButtonBoxes(page, 'Instance overview')).length === 1, 30000);
   const [anchor] = await visibleButtonBoxes(page, 'Instance overview');
   const candidates = (await visibleButtonBoxes(page, sectionTitle))
@@ -762,7 +769,7 @@ async function openAdminSection(page, sectionTitle) {
   assertThat(candidates.length === 1, 'Admin section list did not offer exactly one matching section');
   await candidates[0].locator.click();
   await page.waitForTimeout(200);
-  assertThat(new URL(page.url()).pathname === '/admin', 'Admin section selection left the Admin page');
+  assertThat(inAdminConsole(page), 'Admin section selection left the Admin page');
 }
 
 async function openSettingsPage(page) {
@@ -1133,10 +1140,10 @@ async function main() {
     reportStatus('non_admin_registration', member.status);
 
     setStage('verify non-admin maintenance card gating');
-    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+    assertThat((await visibleButtonBoxes(memberPage, ADMIN_CONSOLE_ENTRY)).length === 0,
       'non-admin workspace offered the Admin page');
     await openSettingsPage(memberPage);
-    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+    assertThat((await visibleButtonBoxes(memberPage, ADMIN_CONSOLE_ENTRY)).length === 0,
       'non-admin workspace offered the Admin page');
     const memberHasJobsCard = await hasVisibleSemanticText(memberPage, 'Instance jobs');
     reportBoolean('non_admin_jobs_card_absent', !memberHasJobsCard);

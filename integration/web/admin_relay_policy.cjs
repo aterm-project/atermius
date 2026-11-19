@@ -15,7 +15,14 @@ const crypto = require('node:crypto');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
-const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
+const {
+  ADMIN_CONSOLE_ENTRY,
+  closeAdminAccount,
+  expectHostedSignIn,
+  inAdminConsole,
+  openAdminAccount,
+  waitForWorkspaceHome,
+} = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -491,15 +498,15 @@ async function visibleButtonBoxes(page, label) {
   return boxes;
 }
 
-// Instance administration lives on its own workspace page (/admin) with its
-// own section list. Some section titles ("Audit log") also name a workspace
-// sidebar entry, so the section button is picked by its column: the one
-// aligned with the "Instance overview" section button.
+// Instance administration is the admin console, a site of its own below
+// /admin with its own section list. The section button is picked by its
+// column: the one aligned with the "Instance overview" section button.
 async function openAdminSection(page, sectionTitle) {
-  if (new URL(page.url()).pathname !== '/admin') {
-    await click(page, 'Admin');
+  await closeAdminAccount(page);
+  if (!inAdminConsole(page)) {
+    await click(page, ADMIN_CONSOLE_ENTRY);
   }
-  await waitFor(async () => new URL(page.url()).pathname === '/admin' &&
+  await waitFor(async () => inAdminConsole(page) &&
     (await visibleButtonBoxes(page, 'Instance overview')).length === 1, 30000);
   const [anchor] = await visibleButtonBoxes(page, 'Instance overview');
   const candidates = (await visibleButtonBoxes(page, sectionTitle))
@@ -507,7 +514,7 @@ async function openAdminSection(page, sectionTitle) {
   assertThat(candidates.length === 1, 'Admin section list did not offer exactly one matching section');
   await candidates[0].locator.click();
   await page.waitForTimeout(200);
-  assertThat(new URL(page.url()).pathname === '/admin', 'Admin section selection left the Admin page');
+  assertThat(inAdminConsole(page), 'Admin section selection left the Admin page');
 }
 
 async function openSettingsPage(page) {
@@ -935,6 +942,11 @@ async function exerciseAccountRelayPolicyUi({
     'target account was not a separate active account in the admin directory');
   assertNoLeaks(accountList);
   await waitFor(() => hasVisibleSemanticText(page, targetUsername));
+  // The table only lists the accounts. An account's controls, its Relay
+  // policy among them, are in the panel its row opens.
+  assertThat(await page.getByRole('button', { name: 'Relay policy', exact: true }).count() === 0,
+    'the accounts table offered account controls before an account was opened');
+  await openAdminAccount(page, targetUsername);
   const targetPolicyButton = page.getByRole('button', {
     name: 'Relay policy', exact: true,
   });
@@ -1712,10 +1724,10 @@ async function main() {
     reportBoolean('two_isolated_profiles_registered', true);
 
     setStage('verify member controls hidden and API denied');
-    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+    assertThat((await visibleButtonBoxes(memberPage, ADMIN_CONSOLE_ENTRY)).length === 0,
       'non-admin workspace offered the Admin page');
     await openSettingsPage(memberPage);
-    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+    assertThat((await visibleButtonBoxes(memberPage, ADMIN_CONSOLE_ENTRY)).length === 0,
       'non-admin workspace offered the Admin page');
     assertThat(!await hasVisibleSemanticText(memberPage, 'SSH relay policy'),
       'non-admin profile rendered Relay policy controls');

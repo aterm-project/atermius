@@ -19612,6 +19612,41 @@ class AppLocalizationsRu extends AppLocalizations {
   String get serverReinstalledConfirm => 'Продолжить с новым сервером';
 
   @override
+  String get adminSiteTitle => 'Консоль администратора';
+
+  @override
+  String get adminSiteBackToWorkspace => 'Вернуться в рабочую область';
+
+  @override
+  String get adminSiteOpen => 'Открыть консоль администратора';
+
+  @override
+  String get adminUsersColumnUser => 'Пользователь';
+
+  @override
+  String get adminUsersColumnStatus => 'Статус';
+
+  @override
+  String get adminUsersColumnDevices => 'Устройства';
+
+  @override
+  String get adminUsersColumnSessions => 'Сеансы';
+
+  @override
+  String get adminUsersColumnCreated => 'Создан';
+
+  @override
+  String get adminUserDetailsTitle => 'Сведения о пользователе';
+
+  @override
+  String get adminUsersSelectHint =>
+      'Выберите пользователя, чтобы увидеть сведения и действия.';
+
+  @override
+  String get adminUserNoLongerListed =>
+      'Этой учётной записи больше нет в списке.';
+
+  @override
   String get adminPanelNav => 'Управление';
 
   @override

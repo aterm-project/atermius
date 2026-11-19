@@ -141,17 +141,30 @@ void main() {
     }
   });
 
-  testWidgets('instance admins get their role as the only secondary line', (
-    tester,
-  ) async {
+  testWidgets('instance admins get the admin console link as the only '
+      'secondary line', (tester) async {
     final h = await _Harness.create(admin: true);
     try {
       await h.pump(tester, const Size(1280, 800), locale: const Locale('zh'));
-      expect(tester.widget<Text>(find.byKey(_role)).data, '实例管理员');
+      expect(tester.widget<Text>(find.byKey(_role)).data, '管理控制台');
       expect(
         find.descendant(of: find.byKey(_card), matching: find.byType(Text)),
         findsNWidgets(2),
       );
+      // The line is the way into the console; the workspace has no Admin
+      // page of its own.
+      expect(_nav('admin'), findsNothing);
+      final card = tester.getRect(find.byKey(_card));
+      final link = tester.getRect(
+        find.byKey(const ValueKey('home_nav_admin_console')),
+      );
+      expect(link.left, greaterThanOrEqualTo(card.left));
+      expect(link.right, lessThanOrEqualTo(card.right));
+      await tester.tap(find.byKey(const ValueKey('home_nav_admin_console')));
+      await tester.pumpAndSettle();
+      expect(h.app.page, WorkspacePage.admin);
+      expect(find.byKey(_card), findsNothing);
+      expect(tester.takeException(), isNull);
     } finally {
       await h.close(tester);
     }
@@ -202,19 +215,16 @@ void main() {
       expect(card.bottom, lessThanOrEqualTo(800));
       expect(importExport.bottom, lessThanOrEqualTo(card.top));
       // The last entries used to sit below the fold.
-      // The admin entry is the last row for an instance administrator.
-      for (final page in ['hosts', 'audit', 'devices', 'settings', 'admin']) {
+      for (final page in ['hosts', 'audit', 'devices', 'settings']) {
         final rect = tester.getRect(_nav(page));
         expect(rect.top, greaterThanOrEqualTo(0), reason: page);
         expect(rect.bottom, lessThanOrEqualTo(importExport.top), reason: page);
       }
-      expect(
-        tester.getRect(_nav('admin')).top,
-        greaterThanOrEqualTo(tester.getRect(_nav('settings')).bottom),
-      );
+      // The admin console is not one of the destinations.
+      expect(_nav('admin'), findsNothing);
       // Rows are compacted, not clipped.
       expect(tester.getSize(_nav('hosts')).height, inInclusiveRange(30, 38));
-      expect(find.text('管理'), findsOneWidget);
+      expect(find.text('管理'), findsNothing);
       expect(find.text('设备'), findsOneWidget);
       expect(find.text('设置'), findsOneWidget);
       // Nothing to scroll, so no permanent scrollbar thumb.

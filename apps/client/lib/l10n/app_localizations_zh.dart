@@ -17507,6 +17507,39 @@ class AppLocalizationsZh extends AppLocalizations {
   String get serverReinstalledConfirm => '连接新服务器';
 
   @override
+  String get adminSiteTitle => '管理控制台';
+
+  @override
+  String get adminSiteBackToWorkspace => '返回工作区';
+
+  @override
+  String get adminSiteOpen => '打开管理控制台';
+
+  @override
+  String get adminUsersColumnUser => '用户';
+
+  @override
+  String get adminUsersColumnStatus => '状态';
+
+  @override
+  String get adminUsersColumnDevices => '设备';
+
+  @override
+  String get adminUsersColumnSessions => '会话';
+
+  @override
+  String get adminUsersColumnCreated => '创建时间';
+
+  @override
+  String get adminUserDetailsTitle => '用户详情';
+
+  @override
+  String get adminUsersSelectHint => '点击用户查看详情和可用操作。';
+
+  @override
+  String get adminUserNoLongerListed => '此账户已不在列表中。';
+
+  @override
   String get adminPanelNav => '管理';
 
   @override
