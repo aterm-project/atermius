@@ -14,6 +14,7 @@ const path = require('node:path');
 const net = require('node:net');
 const crypto = require('node:crypto');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
+const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 
@@ -727,8 +728,47 @@ async function configurePage(page, baseUrl) {
   await page.evaluate(async () => { await window.sodium.ready; });
   await page.locator('flt-semantics-placeholder').evaluate((element) => element.click());
   await waitFor(() => page.evaluate(() => document.querySelectorAll('flt-semantics').length > 0), 15000);
-  await fill(page, 'Server URL', baseUrl);
-  await click(page, 'Connect securely');
+  // The browser build signs in to the server that serves it; there is no
+  // server address step.
+  await expectHostedSignIn(page, baseUrl);
+}
+
+async function visibleButtonBoxes(page, label) {
+  const buttons = page.getByRole('button', { name: label, exact: true });
+  const boxes = [];
+  const count = await buttons.count().catch(() => 0);
+  for (let index = 0; index < count; index += 1) {
+    const candidate = buttons.nth(index);
+    if (!await candidate.isVisible().catch(() => false)) continue;
+    const box = await candidate.boundingBox().catch(() => null);
+    if (box) boxes.push({ locator: candidate, box });
+  }
+  return boxes;
+}
+
+// Instance administration lives on its own workspace page (/admin) with its
+// own section list. Some section titles ("Audit log") also name a workspace
+// sidebar entry, so the section button is picked by its column: the one
+// aligned with the "Instance overview" section button.
+async function openAdminSection(page, sectionTitle) {
+  if (new URL(page.url()).pathname !== '/admin') {
+    await click(page, 'Admin');
+  }
+  await waitFor(async () => new URL(page.url()).pathname === '/admin' &&
+    (await visibleButtonBoxes(page, 'Instance overview')).length === 1, 30000);
+  const [anchor] = await visibleButtonBoxes(page, 'Instance overview');
+  const candidates = (await visibleButtonBoxes(page, sectionTitle))
+    .filter(({ box }) => Math.abs(box.x - anchor.box.x) < 2);
+  assertThat(candidates.length === 1, 'Admin section list did not offer exactly one matching section');
+  await candidates[0].locator.click();
+  await page.waitForTimeout(200);
+  assertThat(new URL(page.url()).pathname === '/admin', 'Admin section selection left the Admin page');
+}
+
+async function openSettingsPage(page) {
+  await click(page, 'Settings');
+  await waitFor(async () => new URL(page.url()).pathname === '/settings' &&
+    (await visibleButtonBoxes(page, 'Account security')).length === 1, 30000);
 }
 
 function apiRoute(request) {
@@ -878,8 +918,15 @@ function validateJob(job) {
 }
 
 function validateJobsPage(payload, expectedTotal, jsonContentType = false) {
-  const pageShapeValid = exactKeys(payload, ['jobs', 'total']) &&
-    Array.isArray(payload.jobs) && Number.isInteger(payload.total) && payload.total >= 0;
+  // AdminJobPage (server/openapi.yaml) also carries the runtime capability
+  // list; this SQLite fixture has no off-site replication target configured,
+  // so replica restore must not be advertised.
+  const pageShapeValid = exactKeys(payload, ['jobs', 'total', 'supported_actions']) &&
+    Array.isArray(payload.jobs) && Number.isInteger(payload.total) && payload.total >= 0 &&
+    JSON.stringify(payload.supported_actions) === JSON.stringify([
+      'maintenance', 'backup', 'restore', 'backup_status', 'backup_replication',
+      'backup_schedule', 'restore_stage_discard',
+    ]);
   const safeKeys = payload && typeof payload === 'object'
     ? Object.keys(payload).filter((key) => ['jobs', 'total', 'error', 'code'].includes(key)).sort().join(',')
     : 'none';
@@ -947,7 +994,7 @@ async function createAdminProfile(page, baseUrl, events) {
   const start = events.length;
   await click(page, 'Create owner account');
   bootstrapToken = undefined;
-  await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+  await waitForWorkspaceHome(page, { notice: 'expect' });
   const registration = await waitForEvent(events,
     (event) => event.route === 'register' && event.sequence >= start);
   const payload = await registration.payloadPromise;
@@ -978,7 +1025,7 @@ async function createMemberProfile(page, baseUrl, events) {
   await fill(page, 'First Vault', 'Non-admin jobs acceptance');
   const start = events.length;
   await click(page, 'Create invited account');
-  await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+  await waitForWorkspaceHome(page, { notice: 'expect' });
   const registration = await waitForEvent(events,
     (event) => event.route === 'register' && event.sequence >= start);
   const payload = await registration.payloadPromise;
@@ -1086,8 +1133,11 @@ async function main() {
     reportStatus('non_admin_registration', member.status);
 
     setStage('verify non-admin maintenance card gating');
-    await click(memberPage, 'Settings');
-    await waitFor(() => hasVisibleSemanticText(memberPage, 'Workspace settings'));
+    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+      'non-admin workspace offered the Admin page');
+    await openSettingsPage(memberPage);
+    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+      'non-admin workspace offered the Admin page');
     const memberHasJobsCard = await hasVisibleSemanticText(memberPage, 'Instance jobs');
     reportBoolean('non_admin_jobs_card_absent', !memberHasJobsCard);
     assertThat(!memberHasJobsCard, 'non-admin profile rendered instance maintenance controls');
@@ -1114,8 +1164,7 @@ async function main() {
 
     setStage('load administrator maintenance panel');
     const initialStart = adminRequestSequence();
-    await click(adminPage, 'Settings');
-    await waitFor(() => hasVisibleSemanticText(adminPage, 'Workspace settings'));
+    await openAdminSection(adminPage, 'Backup, restore and maintenance');
     await scrollUntilVisibleSemanticText(adminPage, 'Instance jobs');
     const backupRequirements = await pageVisibleText(adminPage);
     assertThat(backupRequirements.includes('ATERMIUS_BACKUP_ARCHIVE_DIR') &&
@@ -2282,6 +2331,7 @@ async function main() {
     reportBoolean('audit_resource_identifier_hmac_only', true);
 
     setStage('render real maintenance and backup audit events in Settings');
+    await openAdminSection(adminPage, 'Audit log');
     await scrollUntilVisibleSemanticText(adminPage, 'Instance admin audit');
     const auditRefreshButton = await hasVisibleSemanticText(adminPage, 'Refresh admin audit')
       ? 'Refresh admin audit'
@@ -2296,17 +2346,18 @@ async function main() {
     assertThat(auditCardRefresh.hasBearer && auditCardRefresh.status === 200,
       'Settings audit-card refresh was not authenticated and successful');
     const renderedAuditEvents = validateAuditPage(auditCardPayload);
+    // Audit action labels follow the app language; these profiles use en-US.
     const expectedRenderedActions = [
-      ['admin.maintenance_requested', '管理员已请求维护任务'],
-      ['admin.maintenance_started', '管理员维护任务已开始'],
-      ['admin.maintenance_completed', '管理员维护任务已完成'],
-      ['admin.maintenance_failed', '管理员维护任务失败'],
-      ['admin.maintenance_interrupted', '管理员维护任务已中断'],
-      ['admin.backup_requested', '管理员已请求备份'],
-      ['admin.backup_started', '管理员备份已开始'],
-      ['admin.backup_completed', '管理员备份已完成'],
-      ['admin.backup_failed', '管理员备份失败'],
-      ['admin.backup_interrupted', '管理员备份已中断'],
+      ['admin.maintenance_requested', 'An administrator requested a maintenance job'],
+      ['admin.maintenance_started', 'Admin maintenance job started'],
+      ['admin.maintenance_completed', 'Admin maintenance job completed'],
+      ['admin.maintenance_failed', 'Admin maintenance job failed'],
+      ['admin.maintenance_interrupted', 'Admin maintenance job interrupted'],
+      ['admin.backup_requested', 'An administrator requested a backup'],
+      ['admin.backup_started', 'Admin backup started'],
+      ['admin.backup_completed', 'Admin backup completed'],
+      ['admin.backup_failed', 'Admin backup failed'],
+      ['admin.backup_interrupted', 'Admin backup interrupted'],
     ];
     const lifecycleActions = new Set(expectedRenderedActions.map(([action]) => action));
     const expectedLifecycleEvents = related.filter((event) => lifecycleActions.has(event.action));

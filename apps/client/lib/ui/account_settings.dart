@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
 import '../l10n/l10n.dart';
+import '../platform/server_hosted.dart';
 import 'credential_visibility/credential_visibility_widgets.dart';
 import '../storage/workspace_mode.dart';
 import 'app_motion.dart';
@@ -177,6 +178,7 @@ class _AccountSettingsViewState extends State<AccountSettingsView> {
     required WorkspaceModeScope? scope,
     required bool disabled,
     required bool canSwitchMode,
+    required bool offerLocalMode,
   }) {
     final l10n = context.l10n;
     final colors = IosColors.of(context);
@@ -299,7 +301,7 @@ class _AccountSettingsViewState extends State<AccountSettingsView> {
                     : null,
                 onTap: disabled ? null : () => _run(widget.onLock),
               ),
-              if (scope != null && scope.mode == WorkspaceMode.server) ...[
+              if (scope != null && offerLocalMode) ...[
                 separator(),
                 IosListActionRow(
                   key: const ValueKey('account_settings_switch_local'),
@@ -339,6 +341,12 @@ class _AccountSettingsViewState extends State<AccountSettingsView> {
     final disabled = _acting || widget.busy;
     final canSwitchMode =
         scope != null && scope.mode == WorkspaceMode.server && !scope.busy;
+    // The browser build belongs to its server and has no local mode (see
+    // [serverHostedClient]); the action could only confirm and do nothing.
+    final offerLocalMode =
+        scope != null &&
+        scope.mode == WorkspaceMode.server &&
+        !serverHostedClient;
     if (isIosPhone(context)) {
       return _buildIos(
         context,
@@ -346,6 +354,7 @@ class _AccountSettingsViewState extends State<AccountSettingsView> {
         scope: scope,
         disabled: disabled,
         canSwitchMode: canSwitchMode,
+        offerLocalMode: offerLocalMode,
       );
     }
 
@@ -481,7 +490,7 @@ class _AccountSettingsViewState extends State<AccountSettingsView> {
                     icon: const Icon(Icons.logout),
                     label: Text(l10n.signOut),
                   ),
-                  if (scope != null && scope.mode == WorkspaceMode.server)
+                  if (scope != null && offerLocalMode)
                     TextButton.icon(
                       key: const ValueKey('account_settings_switch_local'),
                       onPressed: disabled || !canSwitchMode

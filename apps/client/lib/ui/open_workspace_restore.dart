@@ -11,6 +11,10 @@ import '../storage/open_workspace_store.dart';
 @visibleForTesting
 OpenWorkspaceStore? debugOpenWorkspaceStore;
 
+/// Replaces [OpenWorkspaceKeeper.vaultDelay] in tests.
+@visibleForTesting
+Duration? debugOpenWorkspaceVaultDelay;
+
 /// Makes the browser client remember its open tabs and bring them back.
 ///
 /// The browser client is only a view: a reload forgets every tab. While the
@@ -32,10 +36,26 @@ class OpenWorkspaceKeeper {
     OpenWorkspaceStore? store,
     DateTime Function()? now,
     this.captureDelay = const Duration(milliseconds: 1200),
+    Duration? vaultDelay,
     this.syncWait = const Duration(seconds: 3),
     this.arrivalWait = const Duration(seconds: 20),
   }) : _store = store ?? debugOpenWorkspaceStore ?? createOpenWorkspaceStore(),
+       vaultDelay =
+           vaultDelay ??
+           debugOpenWorkspaceVaultDelay ??
+           const Duration(seconds: 15),
        _now = now ?? DateTime.now;
+
+  /// How long the tabs must stay as they are before the synced copy is
+  /// written. This browser's own copy is written at once and is what a
+  /// reload uses; the synced copy is for other browsers and can wait.
+  ///
+  /// Writing it at once made opening a terminal slow: the tab changes the
+  /// snapshot, the snapshot is uploaded, the server's hint about the upload
+  /// asks for another sync, and the SSH host key check of that very tab,
+  /// which needs a completed sync of its own, queued behind all of it
+  /// (about 10 s before the first-use prompt, 10 s more to connect).
+  final Duration vaultDelay;
 
   final AppController app;
 
@@ -69,7 +89,7 @@ class OpenWorkspaceKeeper {
   // Storing.
   String? _scope;
   String? _observed;
-  Timer? _storeTimer;
+  Timer? _storeTimer, _vaultTimer;
   int _closuresSeen = 0;
   bool _emptiedByUser = false;
 
@@ -98,6 +118,7 @@ class OpenWorkspaceKeeper {
     // A change that was not stored yet is dropped with the workspace; the
     // snapshot is never rewritten because the workspace goes away.
     _storeTimer?.cancel();
+    _vaultTimer?.cancel();
     _syncWaitTimer?.cancel();
     _arrivalTimer?.cancel();
   }
@@ -188,6 +209,7 @@ class OpenWorkspaceKeeper {
       _scope = current;
       _observed = null;
       _storeTimer?.cancel();
+      _vaultTimer?.cancel();
       _emptiedByUser = false;
       _closuresSeen = app.terminalTabClosures;
     }
@@ -224,6 +246,9 @@ class OpenWorkspaceKeeper {
     if (_disposed || current == null || current != _scope || _restoring) {
       return;
     }
+    // Whatever was waiting to be written is older than this capture.
+    _vaultTimer?.cancel();
+    _vaultTimer = null;
     final OpenWorkspaceSnapshot snapshot;
     try {
       snapshot = OpenWorkspaceSnapshot.capture(capture(), at: _now());
@@ -238,10 +263,20 @@ class OpenWorkspaceKeeper {
     } on Object {
       return;
     }
-    // Not stored (read-only Vault, offline lock, ...): this browser's copy
-    // is enough for a reload, and the next change tries again.
-    unawaited(
-      app.saveOpenWorkspaceSnapshot(snapshot).then((_) {}, onError: (_) {}),
-    );
+    void save() {
+      _vaultTimer = null;
+      if (_disposed || scope() != current || _restoring) return;
+      // Not stored (read-only Vault, offline lock, ...): this browser's copy
+      // is enough for a reload, and the next change tries again.
+      unawaited(
+        app.saveOpenWorkspaceSnapshot(snapshot).then((_) {}, onError: (_) {}),
+      );
+    }
+
+    if (vaultDelay == Duration.zero) {
+      save();
+    } else {
+      _vaultTimer = Timer(vaultDelay, save);
+    }
   }
 }

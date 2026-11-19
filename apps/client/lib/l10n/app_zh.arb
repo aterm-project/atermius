@@ -5254,5 +5254,12 @@
   "clipboardReadUnfocused": "Android 只允许前台应用读取剪贴板，请再次尝试粘贴。",
   "clipboardTextTooLarge": "剪贴板文本超过 {limit}，未粘贴。",
   "vncClipboardLatin1Only": "VNC 剪贴板只支持 Latin-1 文本，无法发送此文本。",
-  "vncDisplayAndClipboard": "分辨率、本地缩放与剪贴板"
+  "vncDisplayAndClipboard": "分辨率、本地缩放与剪贴板",
+  "hostSortRecentRequested": "最近请求",
+  "hostSortNameAscending": "名称升序",
+  "hostSortNameDescending": "名称降序",
+  "hostSortAddress": "地址",
+  "hostSortProtocol": "协议",
+  "hostSortFavoritesFirst": "收藏优先",
+  "hostSortCurrent": "主机排序：{order}"
 }

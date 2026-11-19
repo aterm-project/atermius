@@ -1,3 +1,4 @@
+import 'package:aterm_client/domain/host_sort.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -299,6 +300,9 @@ void main() {
     ssh.hold = true;
 
     await tester.tap(find.byKey(ValueKey('local_host_$alphaId')));
+    expect(HostSortController.instance.lastRequested(
+      localHostSortScope(profileRecord.profileId), alphaId), isNotNull,
+      reason: 'request is recorded before SSH authentication finishes');
     await tester.pump();
     // Open and selected in the frame after the click.
     expect(sessionTabs(tester), ['Alpha host']);

@@ -5254,5 +5254,12 @@
   "clipboardReadUnfocused": "Android разрешает читать буфер обмена только активному приложению. Попробуйте вставить ещё раз.",
   "clipboardTextTooLarge": "Текст в буфере обмена больше {limit}, поэтому он не вставлен.",
   "vncClipboardLatin1Only": "Буфер обмена VNC передаёт только текст в Latin-1, поэтому этот текст отправить нельзя.",
-  "vncDisplayAndClipboard": "Разрешение, локальное масштабирование и буфер обмена"
+  "vncDisplayAndClipboard": "Разрешение, локальное масштабирование и буфер обмена",
+  "hostSortRecentRequested": "Недавно запрошенные",
+  "hostSortNameAscending": "Имя (А–Я)",
+  "hostSortNameDescending": "Имя (Я–А)",
+  "hostSortAddress": "Адрес",
+  "hostSortProtocol": "Протокол",
+  "hostSortFavoritesFirst": "Сначала избранные",
+  "hostSortCurrent": "Сортировка хостов: {order}"
 }

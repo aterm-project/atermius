@@ -1,3 +1,5 @@
+import '../domain/host_sort.dart';
+import 'host_sort_menu.dart';
 import 'terminal_font_zoom.dart';
 import 'cloud_access/organizations_page.dart' show CloudAccessAccountCard;
 import 'cloud_access/share_host_dialog.dart' show showCloudShareDialog;
@@ -1259,6 +1261,7 @@ _snack(
           String? opened;
           final connecting = app.openTerminalTab(
             host,
+            userStarted: !automatic,
             onTabOpened: (id) => opened = id,
           );
           // Refused before a tab existed (tab limit, no credential, ...).
@@ -2837,14 +2840,20 @@ class _SideNavigation extends StatelessWidget {
                 ),
                 if (wide) ...[
                   const SizedBox(width: 10),
+                  // Beside the privacy badge the name has about 70 px, a
+                  // few short of what it needs: it showed as "Atermi…".
+                  // Scale it down that little instead of cutting it.
                   const Expanded(
-                    child: const Text(
-                      'Atermius',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Atermius',
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
@@ -2914,7 +2923,12 @@ class _SideNavigation extends StatelessWidget {
                     vertical: itemGap,
                   ),
                   child: Tooltip(
-                    message: item.label(context.l10n),
+                    // The wide row already shows the label as text. A
+                    // tooltip repeating it made every item read "Hosts
+                    // Hosts" and, once shown, covered the item below so a
+                    // click there went nowhere. An empty message shows none.
+                    message: wide ? '' : item.label(context.l10n),
+                    excludeFromSemantics: wide,
                     child: InkWell(
                       key: ValueKey('home_nav_${item.page.name}'),
                       borderRadius: BorderRadius.circular(11),
@@ -3649,7 +3663,12 @@ class _HostsPageState extends State<_HostsPage> {
   AppController get app => widget.app;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: HostSortController.instance,
+    builder: (context, _) => _buildHosts(context),
+  );
+
+  Widget _buildHosts(BuildContext context) {
     final canWrite = app.activeVault?.canWrite == true;
     final jumpHostRouteIssues = app.jumpHostRouteIssues;
     final hostGroupReferenceIssues = app.hostGroupReferenceIssues;
@@ -3662,29 +3681,42 @@ class _HostsPageState extends State<_HostsPage> {
     } on FormatException {
       // HostSearchField displays syntax guidance while typing.
     }
-    final visible = app.hosts
-        .where(
-          (host) => command != null
-              ? command.matches(host)
-              : '${host.name} ${host.address} ${host.username} ${host.tags.join(' ')} ${groupLabels[host.groupId] ?? ''}'
-                    .toLowerCase()
-                    .contains(query),
-        )
-        .toList();
+    final visible = HostSortController.instance.sorted(
+      app.hosts
+          .where(
+            (host) => command != null
+                ? command.matches(host)
+                : '${host.name} ${host.address} ${host.username} ${host.tags.join(' ')} ${groupLabels[host.groupId] ?? ''}'
+                      .toLowerCase()
+                      .contains(query),
+          )
+          .toList(),
+      scope: app.hostSortScope,
+    );
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          HostSearchField(
-            fieldKey: const ValueKey('cloud_home_search'),
-            controller: _homeSearch,
-            captureTyping: true,
-            onChanged: (_) => setState(() {}),
-            onConnect: widget.onQuickConnect,
-            onSearchSubmitted: visible.isEmpty
-                ? null
-                : () => _connect(visible.first),
+          LayoutBuilder(
+            builder: (context, constraints) => Row(
+              children: [
+                Expanded(
+                  child: HostSearchField(
+                    fieldKey: const ValueKey('cloud_home_search'),
+                    controller: _homeSearch,
+                    captureTyping: true,
+                    onChanged: (_) => setState(() {}),
+                    onConnect: widget.onQuickConnect,
+                    onSearchSubmitted: visible.isEmpty
+                        ? null
+                        : () => _connect(visible.first),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                HostSortMenu(compact: constraints.maxWidth < 600),
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           HomeAddSharingRow(
@@ -3693,11 +3725,8 @@ class _HostsPageState extends State<_HostsPage> {
             onQuickImportTermius: hasLocalTermiusInstallation()
                 ? () => _runCloudOneClickTermiusImport(context, app)
                 : null,
-            onAddHost: (protocol) => _showCloudHostEditor(
-              context,
-              app,
-              initialProtocol: protocol,
-            ),
+            onAddHost: (protocol) =>
+                _showCloudHostEditor(context, app, initialProtocol: protocol),
             onLaunchShell: (launch) async {
               try {
                 await app.openLocalShellTab(launch: launch);
@@ -9236,13 +9265,21 @@ class _TerminalPageState extends State<_TerminalPage> {
     // and for a staged saved layout, whose panes are connected from it.
     final showConnections =
         !kIsWeb || activeTab == null || stagedWorkspace != null;
+    // A phone-width browser window has no room for the list and the welcome
+    // panel side by side: the panel was squeezed into a 90 px sliver. On the
+    // empty page the list is the part the user needs, so it gets the row.
+    final listOnly =
+        kIsWeb &&
+        activeTab == null &&
+        stagedWorkspace == null &&
+        MediaQuery.sizeOf(context).width < 600;
     return Padding(
       padding: const EdgeInsets.fromLTRB(17, 15, 17, 17),
-      child: Row(
+      child: LayoutBuilder(builder: (context, box) => Row(
         children: [
           if (showConnections) ...[
           Container(
-            width: 250,
+            width: listOnly ? box.maxWidth : 250,
             decoration: BoxDecoration(
               color: context.palette.surface,
               border: Border.all(color: context.palette.line),
@@ -9385,9 +9422,9 @@ class _TerminalPageState extends State<_TerminalPage> {
               ],
             ),
           ),
-          const SizedBox(width: 13),
+          if (!listOnly) const SizedBox(width: 13),
           ],
-          Expanded(
+          if (!listOnly) Expanded(
             child: Column(
               children: [
                 const SizedBox(height: 8),
@@ -9724,7 +9761,7 @@ class _TerminalPageState extends State<_TerminalPage> {
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 
@@ -13014,14 +13051,24 @@ class _SyncPage extends StatelessWidget {
         const SizedBox(height: 20),
         LayoutBuilder(
           builder: (context, bounds) {
-            final count = bounds.maxWidth > 850 ? 3 : 2;
+            // Two tiles side by side need about 200 px each; on a phone
+            // width they got 145 px and their text ran over the tile below.
+            final count = bounds.maxWidth > 850
+                ? 3
+                : bounds.maxWidth < 420
+                ? 1
+                : 2;
             return GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: count,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
-              childAspectRatio: count == 3 ? 2.2 : 2.6,
+              childAspectRatio: count == 3
+                  ? 2.2
+                  : count == 1
+                  ? bounds.maxWidth / 62
+                  : 2.6,
               children: [
                 _StatCard(
                   icon: Icons.cloud_done_outlined,
@@ -13075,38 +13122,49 @@ class _SyncPage extends StatelessWidget {
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.privacy_tip_outlined, color: context.palette.teal),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.l10n.anonymousDiagnostics,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        context.l10n.theExportContainsARandomReport,
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.5,
-                          color: context.palette.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
+            child: LayoutBuilder(
+              builder: (context, box) {
+                // Beside the button the text had a 60 px column on a phone
+                // width and wrapped inside words; put the button below it.
+                final stacked = box.maxWidth < 420;
+                final export = OutlinedButton.icon(
                   onPressed: () => _exportAnonymousDiagnostics(context),
                   icon: const Icon(Icons.download_outlined),
                   label: Text(context.l10n.exportDiagnostics),
-                ),
-              ],
+                );
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.privacy_tip_outlined,
+                      color: context.palette.teal,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            context.l10n.anonymousDiagnostics,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            context.l10n.theExportContainsARandomReport,
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.5,
+                              color: context.palette.muted,
+                            ),
+                          ),
+                          if (stacked) ...[const SizedBox(height: 12), export],
+                        ],
+                      ),
+                    ),
+                    if (!stacked) ...[const SizedBox(width: 12), export],
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -26261,6 +26319,8 @@ class _StatCard extends StatelessWidget {
               children: [
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 10, color: context.palette.muted),
                 ),
                 const SizedBox(height: 4),

@@ -4,6 +4,7 @@ import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/crypto/vault_crypto.dart';
 import 'package:aterm_client/l10n/app_localizations.dart';
 import 'package:aterm_client/main.dart';
+import 'package:aterm_client/platform/server_hosted.dart';
 import 'package:aterm_client/storage/client_database.dart';
 import 'package:aterm_client/storage/local_profile_catalog.dart';
 import 'package:aterm_client/storage/secure_store.dart';
@@ -232,6 +233,33 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('account_settings_confirm')));
       await tester.pumpAndSettle();
       expect(switches, 1);
+    });
+
+    testWidgets('the browser build offers no switch to local mode', (
+      tester,
+    ) async {
+      debugServerHostedOverride = true;
+      addTearDown(() => debugServerHostedOverride = null);
+      await tester.pumpWidget(
+        _host(
+          AccountSettingsView(
+            summary: _summary,
+            onLock: () async {},
+            onSignOut: () async {},
+            describeError: (_) => 'failed',
+          ),
+          onSwitch: () async => fail('a hosted client has no local mode'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('account_settings_switch_local')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('account_settings_sign_out')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('security link opens the existing Account security category', (

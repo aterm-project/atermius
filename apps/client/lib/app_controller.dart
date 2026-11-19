@@ -1,3 +1,4 @@
+import 'domain/host_sort.dart';
 import 'domain/window_combination.dart';
 import 'domain/open_workspace_snapshot.dart';
 import 'console/local_console.dart';
@@ -1785,6 +1786,19 @@ class AppController extends ChangeNotifier {
       _adminMaintenanceRetryRequestId != null;
   bool get canRetryAdminBackupSubmission => _adminBackupRetryRequestId != null;
   String? get currentAccountId => account?.accountId ?? session?.accountId;
+
+  String? get hostSortScope {
+    final accountId = currentAccountId;
+    final vaultId = activeVault?.id;
+    final server = api?.baseUrl ?? serverUrl;
+    if (accountId == null || vaultId == null || server == null) return null;
+    return cloudHostSortScope(server, accountId, vaultId);
+  }
+
+  void noteHostRequested(HostRecord host) {
+    if (workspaceLocked) return;
+    HostSortController.instance.requested(hostSortScope, [host.id]);
+  }
 
   bool isCurrentAdminAccount(String userId) => currentAccountId == userId;
 
@@ -4516,6 +4530,26 @@ class AppController extends ChangeNotifier {
       _vaultLoadsBlocked = false;
       _resumeLockedReceiveForAuthenticatedSession();
       session = registered;
+      if (instanceInfo.setupRequired && identical(instance, instanceInfo)) {
+        // The first account now exists. The instance answer from before
+        // still said "setup required", so after a sign-out in the same
+        // page the sign-in form hid its invitation link and the
+        // registration form asked for a bootstrap token again.
+        instance = InstanceInfo(
+          instanceId: instanceInfo.instanceId,
+          serverSpaceId: instanceInfo.serverSpaceId,
+          generation: instanceInfo.generation,
+          protocolVersion: instanceInfo.protocolVersion,
+          setupRequired: false,
+          capabilities: instanceInfo.capabilities,
+          restoreRetentionDays: instanceInfo.restoreRetentionDays,
+          limits: instanceInfo.limits,
+          signingPublicKey: instanceInfo.signingPublicKey,
+          signingKeyTransitions: instanceInfo.signingKeyTransitions,
+          credentialVisibilityDefault:
+              instanceInfo.credentialVisibilityDefault,
+        );
+      }
       _sessionAccessExpiresAt = _sessionCredentialsFor(registered)
           .accessExpiresAt;
       _sessionCredentialsAdoptedAt = null;
@@ -6029,7 +6063,28 @@ class AppController extends ChangeNotifier {
   }
   // <<< credential-visibility
 
+  /// Builds running right now. While one rebuilds the selected Vault's
+  /// repository, [_repository] is null for a moment although nothing is
+  /// locked; SSH host key decisions wait for it (see
+  /// [_knownHostStateTransitionPending]).
+  int _repositoryBuildsActive = 0;
+
   Future<void> _buildRepository({
+    bool waitForPreviousRepositoryDrain = true,
+    int? expectedVaultSelectionGeneration,
+  }) async {
+    _repositoryBuildsActive++;
+    try {
+      await _buildRepositoryNow(
+        waitForPreviousRepositoryDrain: waitForPreviousRepositoryDrain,
+        expectedVaultSelectionGeneration: expectedVaultSelectionGeneration,
+      );
+    } finally {
+      _repositoryBuildsActive--;
+    }
+  }
+
+  Future<void> _buildRepositoryNow({
     bool waitForPreviousRepositoryDrain = true,
     int? expectedVaultSelectionGeneration,
   }) async {
@@ -7758,8 +7813,9 @@ class AppController extends ChangeNotifier {
     // another device while the dialog was open must be seen before this local
     // create is queued. The sole offline exception is this confirmation path,
     // whose dialog explicitly says that SSH will stop until sync verification.
+    final approvalDeadline = Stopwatch()..start();
     try {
-      await _pullVaultBeforeKnownHostDecision(deadline: Stopwatch()..start());
+      await _pullVaultBeforeKnownHostDecision(deadline: approvalDeadline);
     } on SyncReadTransportUnavailableException {
       if (!offlineFirstApprovalWasConfirmed ||
           approvalSource != KnownHostApprovalSource.interactiveConfirmation) {
@@ -7786,6 +7842,10 @@ class AppController extends ChangeNotifier {
       }
       offlineQueue = true;
     }
+    // A signed account refresh may be rebuilding the repository at this very
+    // moment. Wait for it rather than report the Vault as locked; the scope
+    // checks below still reject an account, device or Vault that changed.
+    await _waitForKnownHostStateTransitions(approvalDeadline);
     _ensureKnownHostDecisionCurrent();
     _ensureKnownHostDecisionScopeCurrent(
       accountId: initialAccountId,
@@ -8029,7 +8089,11 @@ class AppController extends ChangeNotifier {
       snapshotRecoveryActive ||
       _snapshotRecoveryFuture != null ||
       _membershipRefreshActive ||
-      _membershipRefreshFuture != null;
+      _membershipRefreshFuture != null ||
+      // The periodic account refresh rebuilds the repository. A host key
+      // decision that looked at that moment found none and failed the
+      // connection with "The current Vault is locked".
+      _repositoryBuildsActive > 0;
 
   Future<bool> _waitForKnownHostStateTransitions(Stopwatch deadline) async {
     var waited = false;
@@ -8043,9 +8107,12 @@ class AppController extends ChangeNotifier {
         await pending.timeout(_remainingKnownHostDecisionTime(deadline));
         continue;
       }
-      if (snapshotRecoveryActive || _membershipRefreshActive) {
+      if (snapshotRecoveryActive ||
+          _membershipRefreshActive ||
+          _repositoryBuildsActive > 0) {
         // An active flag can become visible just before its Future is
-        // published. Poll briefly under the same decision deadline.
+        // published, and a repository build has no Future of its own. Poll
+        // briefly under the same decision deadline.
         waited = true;
         await Future<void>.delayed(const Duration(milliseconds: 5))
             .timeout(_remainingKnownHostDecisionTime(deadline));
@@ -8073,6 +8140,13 @@ class AppController extends ChangeNotifier {
   }
 
   void _ensureKnownHostDecisionCurrent() {
+    if (authenticated &&
+        stage == ClientStage.workspace &&
+        _repository == null &&
+        _repositoryBuildsActive > 0) {
+      // Being rebuilt, not locked: say what is true, and what a retry fixes.
+      throw StateError(currentL10n.theVaultIsRestoringOrChanging);
+    }
     if (!authenticated ||
         stage != ClientStage.workspace ||
         _repository == null) {
@@ -11207,7 +11281,13 @@ class AppController extends ChangeNotifier {
     }
     if (authenticated &&
         stage == ClientStage.workspace &&
-        _accountControlPlaneRefreshIsDue) {
+        _accountControlPlaneRefreshIsDue &&
+        // The refresh waits for a Vault left behind by a switch to finish
+        // its last request. While one is still draining, sync the selected
+        // Vault now and leave the refresh to a later pass: otherwise this
+        // Vault's sync sat on "Syncing" until another Vault's slow request
+        // came back.
+        _retiredRepositoryDrains.isEmpty) {
       // The signed account refresh is part of this explicit sync request.
       // Publish a non-idle state before its first await so observers cannot
       // mistake the still-visible Idle status for completed synchronization.
@@ -20796,6 +20876,11 @@ class AppController extends ChangeNotifier {
           _apiGeneration == apiGeneration && session?.accountId == accountId &&
           identity?.deviceId == deviceId && activeVault?.id == vaultId &&
           (savedHostId == null || hosts.any((h) => h.id == savedHostId)),
+      onUserRetry: () {
+        if (tab.host case final host? when host.protocol.isTerminal) {
+          noteHostRequested(host);
+        }
+      },
       reconnect: () => reconnectTerminalTab(tab.id),
     );
   }
@@ -20934,6 +21019,7 @@ class AppController extends ChangeNotifier {
   Future<void> retryTerminalConnect(String id) async {
     final tab = _terminalTabs[id];
     if (tab == null || !canRetryTerminalConnect(id)) return;
+    if (tab.host case final host?) noteHostRequested(host);
     try {
       if (tab.consoleShell != null || tab.consoleSerialPort != null) {
         await _openConsoleTab(
@@ -21072,6 +21158,7 @@ class AppController extends ChangeNotifier {
         identity?.deviceId == reviewedDevice;
     final desktop = DesktopSession(
       directConnectionForTesting: desktopConnectionForTesting,
+      onUserReconnect: () => noteHostRequested(host),
       reconnectAllowed: () => current() && tab.recovery?.available == true,
       // "Restore connection" in the view resolves the Host saved now.
       latestHost: (id) => hosts.where((h) => h.id == id).firstOrNull,
@@ -21565,6 +21652,10 @@ class AppController extends ChangeNotifier {
     TerminalTabSession? reuseTab,
     bool userStarted = true,
   }) async {
+    if (reuseTab == null && userStarted &&
+        (expectedVaultId == null || expectedVaultId == activeVault?.id)) {
+      noteHostRequested(host);
+    }
     final reuseGeneration = reuseTab?.connectionGeneration;
     if (host.protocol == HostProtocol.telnet) {
       return _openTelnetTab(

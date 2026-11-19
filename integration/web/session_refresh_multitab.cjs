@@ -18,7 +18,11 @@ const net = require('node:net');
 const crypto = require('node:crypto');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
-const { selectServerModeIfChooser } = require('./server_mode.cjs');
+const {
+  expectHostedSignIn,
+  waitForWorkspaceHome,
+  workspaceMarker,
+} = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -84,8 +88,7 @@ async function field(page, label) {
   const locator = page.locator(
     `input[aria-label*=${JSON.stringify(label)}],textarea[aria-label*=${JSON.stringify(label)}]`,
   );
-  await selectServerModeIfChooser(page, locator);
-  const deadline = Date.now() + 15000;
+  const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     const visible = [];
     for (let index = 0; index < await locator.count(); index += 1) {
@@ -119,8 +122,7 @@ async function fill(page, label, value) {
 
 async function button(page, label) {
   const locator = page.getByRole('button', { name: label, exact: true });
-  await selectServerModeIfChooser(page, locator);
-  const deadline = Date.now() + 20000;
+  const deadline = Date.now() + 35000;
   while (Date.now() < deadline) {
     for (let index = 0; index < await locator.count(); index += 1) {
       const candidate = locator.nth(index);
@@ -135,24 +137,24 @@ async function click(page, label) {
   await (await button(page, label)).click();
 }
 
-async function waitWorkspace(page) {
-  await button(page, 'Add host');
+// `notice` states whether this browser profile must still show the one-time
+// credential-visibility notice ('expect') or has already acknowledged it
+// ('none'); the acknowledgement is stored per device in origin storage.
+async function waitWorkspace(page, notice) {
+  await waitForWorkspaceHome(page, { notice });
 }
 
+// The sync status in the status bar is no longer a button; a manual sync is
+// requested with "Sync now" on the "Sync and conflicts" page (/sync).
 async function requestManualSync(page) {
-  const locator = page.getByRole('button', {
-    name: /^(Idle|Pending|Syncing|\d+ pending|Retry queued|Offline|Sync error|Snapshot needed|Key update needed|Read-only)$/,
-  }).first();
+  await click(page, 'Sync and conflicts');
+  const locator = page.getByRole('button', { name: 'Sync now', exact: true }).first();
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     if (await locator.isVisible().catch(() => false) &&
         await locator.isEnabled().catch(() => false)) {
-      const label = await locator.getAttribute('aria-label') ||
-        (await locator.innerText()).trim();
-      if (label !== 'Syncing') {
-        await locator.click();
-        return;
-      }
+      await locator.click();
+      return;
     }
     await page.waitForTimeout(100);
   }
@@ -161,17 +163,20 @@ async function requestManualSync(page) {
 
 async function waitForInputOrWorkspace(page) {
   const login = page.locator('input[aria-label*="Email or username"]');
-  const addHost = page.getByRole('button', { name: 'Add host', exact: true });
+  const home = workspaceMarker(page).first();
+  const unlock = page.getByRole('button', { name: 'Unlock workspace', exact: true });
   const serverUrl = page.locator('input[aria-label*="Server URL"]');
-  await selectServerModeIfChooser(page, login);
-  const deadline = Date.now() + 25000;
+  const deadline = Date.now() + 40000;
   while (Date.now() < deadline) {
+    // The hosted browser build never offers a server address field.
+    assertThat(!(await serverUrl.isVisible().catch(() => false)),
+      'hosted second tab offered a server address field');
     if (await login.isVisible().catch(() => false)) return 'login';
-    if (await addHost.isVisible().catch(() => false)) return 'workspace';
-    if (await serverUrl.isVisible().catch(() => false)) return 'server';
+    if (await home.isVisible().catch(() => false)) return 'workspace';
+    if (await unlock.first().isVisible().catch(() => false)) return 'locked';
     await page.waitForTimeout(100);
   }
-  throw new Error('second tab did not reach server selection, login, or workspace');
+  throw new Error('second tab did not reach the locked workspace, login, or workspace');
 }
 
 async function safeSecondTabControls(page) {
@@ -185,10 +190,14 @@ async function safeSecondTabControls(page) {
     const visibleInput = (label) => [...document.querySelectorAll('input,textarea')]
       .some((element) => visible(element) &&
         (element.getAttribute('aria-label') || '').includes(label));
+    const buttonText = (element) =>
+      `${element.innerText || ''}\n${element.getAttribute('aria-label') || ''}`
+        .replace(/\s+/g, ' ').trim();
     const visibleButton = (label) => [...document.querySelectorAll('flt-semantics[role="button"]')]
-      .some((element) => visible(element) &&
-        `${element.innerText || ''}\n${element.getAttribute('aria-label') || ''}`
-          .replace(/\s+/g, ' ').trim() === label);
+      .some((element) => visible(element) && buttonText(element) === label);
+    const visibleButtonStartingWith = (label) =>
+      [...document.querySelectorAll('flt-semantics[role="button"]')]
+        .some((element) => visible(element) && buttonText(element).startsWith(label));
     return {
       continueVisible: visibleButton('Continue'),
       serverUrlVisible: visibleInput('Server URL'),
@@ -198,7 +207,12 @@ async function safeSecondTabControls(page) {
       ownerEmailVisible: visibleInput('Owner email'),
       signInVisible: visibleButton('Sign in and unlock'),
       createOwnerVisible: visibleButton('Create owner account'),
-      addHostVisible: visibleButton('Add host'),
+      unlockVisible: visibleButton('Unlock workspace'),
+      signOutVisible: visibleButton('Sign out'),
+      accountPasswordVisible: visibleInput('Account password'),
+      credentialNoticeVisible: visibleButton('I understand'),
+      workspaceHomeVisible: visibleButtonStartingWith(
+        'Add a host or open a local Shell or serial Console'),
     };
   }).catch(() => ({
     continueVisible: false,
@@ -209,7 +223,11 @@ async function safeSecondTabControls(page) {
     ownerEmailVisible: false,
     signInVisible: false,
     createOwnerVisible: false,
-    addHostVisible: false,
+    unlockVisible: false,
+    signOutVisible: false,
+    accountPasswordVisible: false,
+    credentialNoticeVisible: false,
+    workspaceHomeVisible: false,
   }));
 }
 
@@ -551,11 +569,11 @@ async function main() {
     assertThat(pageAResponse?.status() === 200,
       'first same-origin application page did not load');
     await enableFlutterSemantics(pages.A);
-    await button(pages.A, 'Connect securely');
+    // The hosted build signs in to the origin that serves it: no address step.
+    assertThat(await expectHostedSignIn(pages.A, baseUrl) === 'Owner email',
+      'first tab did not open on the first-account form');
 
     activeStage = 'Owner registration in first tab';
-    await fill(pages.A, 'Server URL', baseUrl);
-    await click(pages.A, 'Connect securely');
     await field(pages.A, 'Owner email');
     await fill(pages.A, 'Owner email', USERNAME);
     await fill(pages.A, 'Master password · 12+ characters', MASTER_PASSWORD);
@@ -565,8 +583,10 @@ async function main() {
     await fill(pages.A, 'First Vault', 'Refresh acceptance Vault');
     await click(pages.A, 'Create owner account');
     bootstrapToken = undefined;
-    await waitWorkspace(pages.A);
+    // First unlock on this browser profile: the notice must appear once.
+    await waitWorkspace(pages.A, 'expect');
 
+    let secondTabEntry;
     try {
       activeStage = 'second tab load after Owner registration';
       const pageBResponse = await pages.B.goto(baseUrl, { waitUntil: 'domcontentloaded' });
@@ -574,31 +594,20 @@ async function main() {
         'second same-origin application page did not load');
       activeStage = 'second tab Flutter startup';
       await enableFlutterSemantics(pages.B);
-      activeStage = 'second tab settle last-server restoration';
+      activeStage = 'second tab settle stored-session restoration';
       await pages.B.waitForTimeout(400);
 
+      // A new tab of a signed-in profile restores the stored account session
+      // but not the account key, so it opens on the locked workspace screen
+      // ("Unlock workspace" / "Sign out") and is unlocked with the password.
       activeStage = 'second tab detect initial auth state';
-      let stateB = await waitForInputOrWorkspace(pages.B);
-      // A freshly-created page reads the same-origin last-server record during
-      // asynchronous Flutter startup. If its transient server form is visible,
-      // give restoration a bounded interval, then detect the state again before
-      // manually submitting the server URL.
-      for (let attempt = 0; stateB === 'server' && attempt < 3; attempt += 1) {
-        activeStage = `second tab settle server restore ${attempt + 1}`;
-        await pages.B.waitForTimeout(400);
-        activeStage = `second tab redetect auth state ${attempt + 1}`;
-        stateB = await waitForInputOrWorkspace(pages.B);
-      }
-
-      if (stateB === 'server') {
-        activeStage = 'second tab fill server URL';
-        await fill(pages.B, 'Server URL', baseUrl);
-        activeStage = 'second tab connect server';
-        await click(pages.B, 'Connect securely');
-        activeStage = 'second tab detect state after connect';
-        stateB = await waitForInputOrWorkspace(pages.B);
-      }
-      if (stateB === 'login') {
+      secondTabEntry = await waitForInputOrWorkspace(pages.B);
+      if (secondTabEntry === 'locked') {
+        activeStage = 'second tab fill account password on locked workspace';
+        await fill(pages.B, 'Account password', MASTER_PASSWORD);
+        activeStage = 'second tab unlock workspace';
+        await click(pages.B, 'Unlock workspace');
+      } else if (secondTabEntry === 'login') {
         activeStage = 'second tab fill account name';
         await fill(pages.B, 'Email or username', USERNAME);
         activeStage = 'second tab fill master password';
@@ -607,7 +616,9 @@ async function main() {
         await click(pages.B, 'Sign in and unlock');
       }
       activeStage = 'second tab wait for workspace';
-      await waitWorkspace(pages.B);
+      // Same browser profile as the first tab, which already acknowledged the
+      // credential-visibility notice: it must not be shown again here.
+      await waitWorkspace(pages.B, 'none');
     } catch (_) {
       const safeApi = apiEvents.filter((entry) => entry.profile === 'B').slice(-12)
         .map(({ method, path: apiPath, status }) => ({
@@ -717,10 +728,17 @@ async function main() {
     assertThat(activeSession.found && activeSession.deviceId === deviceIdA &&
       !activeSession.revoked && activeSession.deviceStatus === 'active',
     'shared browser ticket did not map to an active Owner device session');
+    // Unlocking the locked workspace in the second tab rotates the shared
+    // session once (the unlock always refreshes before unwrapping the account
+    // key), so that rotation is already in the family history here. Any other
+    // entry path must not have rotated anything yet.
+    const refreshHistoryBeforeExpiry = activeSession.refreshHistoryCount;
+    assertThat(refreshHistoryBeforeExpiry === (secondTabEntry === 'locked' ? 1 : 0),
+      'session family had an unexpected number of rotations before the expiry scenario');
 
     activeStage = 'wait for authenticated notification sockets';
-    await waitWorkspace(pages.A);
-    await waitWorkspace(pages.B);
+    await waitWorkspace(pages.A, 'none');
+    await waitWorkspace(pages.B, 'none');
     const socketStatesBeforeExpiry = {};
     for (const profile of ['A', 'B']) {
       socketStatesBeforeExpiry[profile] = await waitForAsync(async () => {
@@ -940,7 +958,7 @@ async function main() {
     assertThat(finalSessionState.sessionCount === 1 &&
       finalSessionState.activeSessionCount === 1 &&
       finalSessionState.activeDeviceCount === 1 &&
-      finalSessionState.refreshHistoryCount === 1 &&
+      finalSessionState.refreshHistoryCount === refreshHistoryBeforeExpiry + 1 &&
       finalSessionState.accessHashes.length === 1 &&
       finalSessionState.userIds.every((id) => id === activeSession.userId) &&
       finalSessionState.deviceIds.every((id) => id === deviceIdA),
@@ -1059,6 +1077,8 @@ async function main() {
       refreshLockRequestsByTab: ['A', 'B'].map((profile) =>
         refreshLockRequestsAfter401[profile] - refreshLockRequestsBefore[profile]),
       refreshHttpStatus: refreshResponses[0].status,
+      secondTabEntry,
+      refreshHistoryBeforeExpiry,
       refreshHistoryCount: finalSessionState.refreshHistoryCount,
       activeFamilySessions: finalSessionState.activeSessionCount,
       activeDeviceSessions: finalSessionState.activeDeviceCount,

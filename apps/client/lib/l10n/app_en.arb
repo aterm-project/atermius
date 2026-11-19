@@ -16489,5 +16489,19 @@
     }
   },
   "vncClipboardLatin1Only": "The VNC clipboard carries only Latin-1 text, so this text can't be sent.",
-  "vncDisplayAndClipboard": "Resolution, local scaling and clipboard"
+  "vncDisplayAndClipboard": "Resolution, local scaling and clipboard",
+  "hostSortRecentRequested": "Recently requested",
+  "hostSortNameAscending": "Name (A–Z)",
+  "hostSortNameDescending": "Name (Z–A)",
+  "hostSortAddress": "Address",
+  "hostSortProtocol": "Protocol",
+  "hostSortFavoritesFirst": "Favorites first",
+  "hostSortCurrent": "Sort hosts: {order}",
+  "@hostSortCurrent": {
+    "placeholders": {
+      "order": {
+        "type": "String"
+      }
+    }
+  }
 }

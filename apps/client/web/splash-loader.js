@@ -24,11 +24,10 @@
   var PRELOAD_RESOURCES = [
     { path: "assets/AssetManifest.bin.json" },
     { path: "assets/FontManifest.json" },
-    // The bundle layout for pubspec fonts is under "assets/assets/…" today;
-    // the bare variants are optional probes so either layout counts.
+    // Where the build puts each font: pubspec fonts under "assets/assets/…",
+    // the framework's icon font under "assets/fonts/…". Probing the other
+    // layout as well only logged two 404 errors on every page load.
     { path: "assets/assets/fonts/atermius_icons.ttf", optional: true },
-    { path: "assets/fonts/atermius_icons.ttf", optional: true },
-    { path: "assets/assets/fonts/MaterialIcons-Regular.otf", optional: true },
     { path: "assets/fonts/MaterialIcons-Regular.otf", optional: true },
     { path: "sqlite3.wasm" },
     { path: "drift_worker.js" },
@@ -200,37 +199,59 @@
     );
   }
 
-  function trackSodiumScript() {
-    // sodium.js is already on the page as an async script tag; join its
-    // result instead of fetching a second copy.
+  // sodium.js is an async script tag: it can finish before the preload
+  // starts, and a script element has no "already loaded" flag to read
+  // afterwards. Waiting for a load event that had already fired held the
+  // splash for the full preload timeout (about 35 s) in front of a signed-in
+  // user. Listen from the start instead and remember the outcome.
+  var sodiumScript = null;
+  var sodiumResult = null; // true | false once known
+  var sodiumWaiter = null;
+  function noteSodium(ok) {
+    if (sodiumResult !== null) return;
+    sodiumResult = ok;
+    if (sodiumWaiter) sodiumWaiter(ok);
+  }
+  (function watchSodiumScript() {
     var scripts = document.getElementsByTagName("script");
     for (var i = 0; i < scripts.length; i += 1) {
       var src = scripts[i].getAttribute("src") || "";
       if (src.indexOf("sodium.js") !== -1) {
-        var sodium = scripts[i];
-        resourcesTotal += 1;
-        if (sodium.complete || sodium.readyState === "complete") {
-          // Already loaded before the controller attached its listeners.
-          markResourceDone({ path: "sodium.js" }, true);
-          return;
-        }
-        sodium.addEventListener(
-          "load",
-          function () {
-            markResourceDone({ path: "sodium.js" }, true);
-          },
-          { once: true }
-        );
-        sodium.addEventListener(
-          "error",
-          function () {
-            markResourceDone({ path: "sodium.js" }, false);
-          },
-          { once: true }
-        );
-        return;
+        sodiumScript = scripts[i];
+        break;
       }
     }
+    if (!sodiumScript) return;
+    if (window.sodium) {
+      // It ran before this controller did.
+      noteSodium(true);
+      return;
+    }
+    sodiumScript.addEventListener(
+      "load",
+      function () {
+        noteSodium(true);
+      },
+      { once: true }
+    );
+    sodiumScript.addEventListener(
+      "error",
+      function () {
+        noteSodium(false);
+      },
+      { once: true }
+    );
+  })();
+
+  function trackSodiumScript() {
+    // Join the script tag's result instead of fetching a second copy.
+    if (!sodiumScript) return;
+    resourcesTotal += 1;
+    var done = function (ok) {
+      markResourceDone({ path: "sodium.js" }, ok);
+    };
+    if (sodiumResult !== null) done(sodiumResult);
+    else sodiumWaiter = done;
   }
 
   var resourcesResolve = null;
@@ -333,10 +354,62 @@
     }
   }
 
+  // A failed start is retried by reloading, but only twice per tab: a bundle
+  // that stays unreachable (deploy in progress, network down) must not turn
+  // into a reload every 1.5 s. After that the page says so and waits.
+  var RELOAD_KEY = "atermius.startup-reload.v1";
+  var MAX_AUTO_RELOADS = 2;
+
+  function readReloadAttempts() {
+    try {
+      var value = Number(window.sessionStorage.getItem(RELOAD_KEY) || "0");
+      return Number.isInteger(value) && value >= 0 ? value : MAX_AUTO_RELOADS;
+    } catch (_) {
+      return MAX_AUTO_RELOADS; // no storage to count in: do not loop
+    }
+  }
+
+  function clearReloadAttempts() {
+    try {
+      window.sessionStorage.removeItem(RELOAD_KEY);
+    } catch (_) {
+      // Nothing to clear.
+    }
+  }
+
+  function showStartFailure() {
+    if (!wordmarkEl) return;
+    wordmarkEl.textContent =
+      "Atermius could not start. Check the connection, then reload the page.";
+    var reload = document.createElement("button");
+    reload.type = "button";
+    reload.textContent = "Reload page";
+    reload.style.cssText =
+      "display:block;margin:16px auto 0;padding:8px 16px;font:inherit;" +
+      "color:inherit;background:transparent;border:1px solid currentColor;" +
+      "border-radius:8px;cursor:pointer";
+    reload.addEventListener("click", function () {
+      clearReloadAttempts();
+      window.location.reload();
+    });
+    wordmarkEl.appendChild(reload);
+  }
+
   function applyFailure(code) {
-    if (state.released) return;
+    if (state.released || state.failed) return;
     state.failed = code || "startup";
     stopAnimation();
+    var attempts = readReloadAttempts();
+    if (attempts >= MAX_AUTO_RELOADS) {
+      showStartFailure();
+      return;
+    }
+    try {
+      window.sessionStorage.setItem(RELOAD_KEY, String(attempts + 1));
+    } catch (_) {
+      showStartFailure();
+      return;
+    }
     if (wordmarkEl) {
       wordmarkEl.textContent = "Atermius could not start. Reloading…";
     }
@@ -383,6 +456,7 @@
     startBackgroundPreload: startBackgroundPreload,
     onFlutterRunning: function () {
       state.flutterRunning = true;
+      clearReloadAttempts();
     },
     notifyAuthResolved: function (detail) {
       state.authResolved = detail;

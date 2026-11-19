@@ -136,6 +136,11 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
         : null;
 
     final unlockCard = Card(
+      // A Card merges its content into one accessibility node by default.
+      // That turned the password field into a card-sized field announced as
+      // "Workspace locked. Your account stays signed in…", with the status
+      // line lying on top of it.
+      semanticContainer: false,
       margin: apple ? EdgeInsets.zero : const EdgeInsets.all(24),
       elevation: apple ? 0 : null,
       color: apple ? Colors.transparent : null,

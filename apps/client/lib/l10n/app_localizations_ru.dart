@@ -19892,4 +19892,27 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get vncDisplayAndClipboard =>
       'Разрешение, локальное масштабирование и буфер обмена';
+
+  @override
+  String get hostSortRecentRequested => 'Недавно запрошенные';
+
+  @override
+  String get hostSortNameAscending => 'Имя (А–Я)';
+
+  @override
+  String get hostSortNameDescending => 'Имя (Я–А)';
+
+  @override
+  String get hostSortAddress => 'Адрес';
+
+  @override
+  String get hostSortProtocol => 'Протокол';
+
+  @override
+  String get hostSortFavoritesFirst => 'Сначала избранные';
+
+  @override
+  String hostSortCurrent(String order) {
+    return 'Сортировка хостов: $order';
+  }
 }

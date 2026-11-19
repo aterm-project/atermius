@@ -15,6 +15,7 @@ const crypto = require('node:crypto');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
+const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -469,12 +470,50 @@ async function configurePage(page, baseUrl) {
   await page.evaluate(async () => { await window.sodium.ready; });
   setStage('enable Flutter Web semantics');
   await page.locator('flt-semantics-placeholder').evaluate((element) => element.click());
-  setStage('wait for accessible Settings controls');
+  setStage('wait for accessible sign-in controls');
   await waitFor(() => page.evaluate(() => document.querySelectorAll('flt-semantics').length > 0), 15000);
-  setStage('set server address');
-  await fill(page, 'Server URL', baseUrl);
-  setStage('connect client to disposable server');
-  await click(page, 'Connect securely');
+  // The browser build signs in to the server that serves it; there is no
+  // server address step.
+  setStage('wait for hosted sign-in on the disposable server origin');
+  await expectHostedSignIn(page, baseUrl);
+}
+
+async function visibleButtonBoxes(page, label) {
+  const buttons = page.getByRole('button', { name: label, exact: true });
+  const boxes = [];
+  const count = await buttons.count().catch(() => 0);
+  for (let index = 0; index < count; index += 1) {
+    const candidate = buttons.nth(index);
+    if (!await candidate.isVisible().catch(() => false)) continue;
+    const box = await candidate.boundingBox().catch(() => null);
+    if (box) boxes.push({ locator: candidate, box });
+  }
+  return boxes;
+}
+
+// Instance administration lives on its own workspace page (/admin) with its
+// own section list. Some section titles ("Audit log") also name a workspace
+// sidebar entry, so the section button is picked by its column: the one
+// aligned with the "Instance overview" section button.
+async function openAdminSection(page, sectionTitle) {
+  if (new URL(page.url()).pathname !== '/admin') {
+    await click(page, 'Admin');
+  }
+  await waitFor(async () => new URL(page.url()).pathname === '/admin' &&
+    (await visibleButtonBoxes(page, 'Instance overview')).length === 1, 30000);
+  const [anchor] = await visibleButtonBoxes(page, 'Instance overview');
+  const candidates = (await visibleButtonBoxes(page, sectionTitle))
+    .filter(({ box }) => Math.abs(box.x - anchor.box.x) < 2);
+  assertThat(candidates.length === 1, 'Admin section list did not offer exactly one matching section');
+  await candidates[0].locator.click();
+  await page.waitForTimeout(200);
+  assertThat(new URL(page.url()).pathname === '/admin', 'Admin section selection left the Admin page');
+}
+
+async function openSettingsPage(page) {
+  await click(page, 'Settings');
+  await waitFor(async () => new URL(page.url()).pathname === '/settings' &&
+    (await visibleButtonBoxes(page, 'Account security')).length === 1, 30000);
 }
 
 function apiRoute(request) {
@@ -858,20 +897,11 @@ async function exerciseAccountRelayPolicyUi({
   });
 
   setStage('load account directory and confirm account-policy controls are lazy');
-  if (!await hasVisibleSemanticText(page, 'Workspace settings')) {
-    await click(page, 'Settings');
-  }
-  await waitFor(() => hasVisibleSemanticText(page, 'Workspace settings'));
-  setStage('scroll Settings to the administrator account directory');
-  await page.mouse.move(900, 850);
-  for (let step = 0; step < 30; step += 1) {
-    await page.mouse.wheel(0, 1200);
-    await page.waitForTimeout(40);
-  }
-  await page.waitForTimeout(250);
+  // The Admin panel's Users section loads the account directory the first
+  // time it is opened; there is no separate "Load admin accounts" step.
   setStage('load administrator account directory');
   const accountListStart = adminEvents.length;
-  await click(page, 'Load admin accounts');
+  await openAdminSection(page, 'Users');
   const accountListEvent = await waitForEvent(adminEvents,
     (event) => event.route === 'admin-accounts' && event.method === 'GET' &&
       event.sequence >= accountListStart);
@@ -884,11 +914,17 @@ async function exerciseAccountRelayPolicyUi({
   const accountFields = [
     'user_id', 'username', 'status', 'created_at',
     'active_device_count', 'active_session_count',
+    // Documented per-account credential visibility metadata (server commit
+    // af0c8da, AdminAccountSummary in server/openapi.yaml).
+    'credential_visibility', 'escrow_status',
   ];
   assertThat(accountList.accounts.every((account) =>
     exactKeys(account, accountFields) && UUID_PATTERN.test(account.user_id) &&
     typeof account.username === 'string' &&
-    ['active', 'disabled', 'deleting'].includes(account.status)),
+    ['active', 'disabled', 'deleting'].includes(account.status) &&
+    ['private', 'admin_visible'].includes(account.credential_visibility) &&
+    ['not_required', 'no_key', 'pending', 'complete'].includes(account.escrow_status) &&
+    (account.credential_visibility !== 'private' || account.escrow_status === 'not_required')),
   'administrator account list row exposed an unexpected shape');
   const targetRow = accountList.accounts.find((account) =>
     account.user_id === targetUserId);
@@ -1534,7 +1570,7 @@ async function createAdminProfile(page, baseUrl, events) {
   await click(page, 'Create owner account');
   bootstrapToken = undefined;
   setStage('wait for administrator registration');
-  await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+  await waitForWorkspaceHome(page, { notice: 'expect' });
   const registration = await waitForEvent(events,
     (event) => event.route === 'register' && event.sequence >= start);
   const payload = await registration.payloadPromise;
@@ -1567,7 +1603,7 @@ async function createMemberProfile(page, baseUrl, events) {
   const start = events.length;
   setStage('submit member registration');
   await click(page, 'Create invited account');
-  await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+  await waitForWorkspaceHome(page, { notice: 'expect' });
   const registration = await waitForEvent(events,
     (event) => event.route === 'register' && event.sequence >= start);
   const payload = await registration.payloadPromise;
@@ -1676,8 +1712,11 @@ async function main() {
     reportBoolean('two_isolated_profiles_registered', true);
 
     setStage('verify member controls hidden and API denied');
-    await click(memberPage, 'Settings');
-    await waitFor(() => hasVisibleSemanticText(memberPage, 'Workspace settings'));
+    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+      'non-admin workspace offered the Admin page');
+    await openSettingsPage(memberPage);
+    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+      'non-admin workspace offered the Admin page');
     assertThat(!await hasVisibleSemanticText(memberPage, 'SSH relay policy'),
       'non-admin profile rendered Relay policy controls');
     assertThat(!await hasVisibleSemanticText(memberPage, 'Account Relay policy') &&
@@ -1735,7 +1774,7 @@ async function main() {
     reportBoolean('member_controls_hidden_and_api_denied', true);
 
     setStage('load and inspect safe deployment limits in Settings');
-    await click(adminPage, 'Settings');
+    await openAdminSection(adminPage, 'Access and relay policy');
     await waitFor(() => hasVisibleSemanticText(adminPage, 'SSH relay policy'));
     const startRead = adminEvents.length;
     const loadButton = adminPage.getByRole('button', { name: /Load relay policy|Refresh relay policy/ }).first();
@@ -1802,6 +1841,7 @@ async function main() {
     reportBoolean('relay_policy_audit_resource_id_null_and_private_dto', true);
 
     setStage('render real Relay policy audit event in the Settings audit card');
+    await openAdminSection(adminPage, 'Audit log');
     await scrollUntilVisibleSemanticText(adminPage, 'Instance admin audit');
     const auditButton = await hasVisibleSemanticText(adminPage, 'Refresh admin audit')
       ? 'Refresh admin audit'
@@ -1821,7 +1861,8 @@ async function main() {
     });
     assertThat(JSON.stringify(refreshedAuditEvent) === JSON.stringify(apiAuditEvent),
       'Settings refresh did not render the same validated Relay policy audit event');
-    await scrollUntilVisibleSemanticText(adminPage, '管理员已更新 SSH Relay 策略');
+    // Audit action labels follow the app language; these profiles use en-US.
+    await scrollUntilVisibleSemanticText(adminPage, 'An administrator updated the SSH Relay policy');
     const rawAuditActionVisible = await hasVisibleSemanticText(
       adminPage, 'admin.relay_policy_updated');
     reportBoolean('relay_policy_audit_action_localized', true);
@@ -1830,6 +1871,7 @@ async function main() {
       'Settings audit card displayed the raw Relay policy action key');
 
     setStage('reload and verify persisted policy values');
+    await openAdminSection(adminPage, 'Access and relay policy');
     const startReload = adminEvents.length;
     const reloadButton = adminPage.getByRole('button', { name: 'Refresh relay policy', exact: true }).first();
     await selectServerModeIfChooser(adminPage, reloadButton);
@@ -1843,9 +1885,19 @@ async function main() {
       cidrs: [`${lanIp}/32`],
       ports: instancePolicyPorts,
     });
+    // Coming back to this Admin section rebuilds its accessibility nodes, and
+    // an unfocused text field does not expose its value to the DOM; focus each
+    // field before reading it (as the account draft reader below does). The
+    // form shows the persisted ports in its own comma-separated rendering.
+    await cidrsField.click();
+    await adminPage.waitForTimeout(200);
+    const reloadedCidrsText = await cidrsField.inputValue();
+    await portsField.click();
+    await adminPage.waitForTimeout(200);
+    const reloadedPortsText = await portsField.inputValue();
     assertThat(reloaded.updated_at === saved.updated_at &&
-        await cidrsField.inputValue() === `${lanIp}/32` &&
-        await portsField.inputValue() === instancePolicyPorts.join('\n'),
+        reloadedCidrsText === `${lanIp}/32` &&
+        reloadedPortsText === instancePolicyPorts.join(', '),
       'Settings did not reload the persisted Relay policy into its form');
     await exerciseAccountRelayPolicyUi({
       page: adminPage,

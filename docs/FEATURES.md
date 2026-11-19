@@ -83,3 +83,13 @@ Settings → Theme → **Keyword highlighting** (in both the account and the loc
 Source availability is not a native-device acceptance claim. macOS/iOS runners require their own build/signing/device validation; Android does not bundle the native Windows RDP engine. Physical USB, camera, microphone, smart-card, printer and multiple-monitor workflows need compatible systems/hardware and separate acceptance. Atermius installs no USB driver. / 源码存在不等于已完成设备验收；macOS/iOS 需要相应构建、签名与设备验证，Android 不含 Windows 原生 RDP 引擎。USB、摄像头、麦克风、智能卡、打印机及物理多显示器须另行验证，应用不安装 USB 驱动。
 
 Regular browser SSH is an encrypted byte Relay; a desktop/guest gateway can access the remote login/session. See [sharing](SHARING.en.md), [远程桌面](REMOTE-DESKTOP.md), [本机 Shell](LOCAL-SHELL.md), [Telnet](TELNET.md), [导入导出](IMPORT_EXPORT.md) and [MCP](MCP.md).
+
+## Home host sorting / 主页主机排序
+
+Every client (Windows, macOS, Linux, Android, iPhone/iPad and Web) offers Recently requested (the default), Name A–Z, Name Z–A, Address, Protocol and Favorites first. The sort control sits beside the home search; the iPhone native home uses its sort menu and applies the same choice inside folders. Address sorting compares numeric chunks so `192.0.2.3` comes before `192.0.2.20`.
+
+A request is recorded as soon as the user starts connecting, even if credentials are missing or the connection fails. Manual Retry/Restore updates it; automatic retry, browser tab restoration and MCP-started connections do not. Never-requested hosts and tied requests use a stable name/ID order. Search filters continue to apply before sorting.
+
+The choice persists on this device. Recent requests are isolated by local profile or server/account/Vault, kept outside synchronized Host records, and excluded from Android backup. The history is bounded to the latest 1,000 host entries.
+
+所有客户端的主页均提供最近请求（默认）、名称升序、名称降序、地址、协议及收藏优先。发起连接时立即记录请求，不要求连接成功；手动重试或恢复会更新记录，自动重连、浏览器恢复标签及 MCP 自动连接不会更新。排序选择在本机重启后保留，最近请求记录按本地配置或服务器／账户／Vault 隔离，不写入云端主机记录。

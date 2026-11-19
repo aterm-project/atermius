@@ -18,6 +18,7 @@ class SessionRecovery extends ChangeNotifier {
   SessionRecovery({
     required this.reconnect,
     required this.isCurrent,
+    this.onUserRetry,
     this.automatic = false,
     bool keepSshAlive = false,
     @visibleForTesting SshBackgroundKeepalive? sshKeepalive,
@@ -40,6 +41,7 @@ class SessionRecovery extends ChangeNotifier {
   static SshBackgroundKeepalive? _enabledOrNull(SshBackgroundKeepalive value) =>
       value.enabled ? value : null;
 
+  final VoidCallback? onUserRetry;
   final Future<void> Function() reconnect;
   final bool Function() isCurrent;
 
@@ -265,6 +267,7 @@ class SessionRecovery extends ChangeNotifier {
     _timer = null;
     _attemptDue = null;
     if (manual) {
+      onUserRetry?.call();
       // The user wants this session back: if this attempt fails too, the
       // automatic attempts start over with the full time limit.
       _automaticBlocked = false;

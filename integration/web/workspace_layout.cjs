@@ -15,6 +15,9 @@ const crypto = require('node:crypto');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
+const {
+  expectHostedSignIn, waitForWorkspaceHome, workspaceMarker,
+} = require('./support/hosted_web.cjs');
 const { startSshFixture, startTmuxSshFixture } = require('./ssh_fixture.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -34,6 +37,8 @@ const CREDENTIAL_NAME = `layout-credential-${RUN_ID.slice(0, 8)}`;
 const CREDENTIAL_SECRET = `credential-marker-${crypto.randomBytes(24).toString('hex')}`;
 const TMUX_CREDENTIAL_NAME = `layout-tmux-credential-${RUN_ID.slice(0, 8)}`;
 const TMUX_CREDENTIAL_SECRET = `tmux-credential-marker-${crypto.randomBytes(24).toString('hex')}`;
+const LEGACY_MANUAL_DEVICE_ENROLLMENT =
+  process.env.ATERMIUS_WEB_LEGACY_MANUAL_DEVICE_ENROLLMENT === '1';
 const MAX_PANES_ONLY = process.env.WORKSPACE_LAYOUT_MAX_PANES_ONLY === '1';
 const RENAME_SYNC_ONLY = process.env.WORKSPACE_LAYOUT_RENAME_SYNC_ONLY === '1';
 const TMUX_PROCESS_RESTART_ONLY =
@@ -1277,27 +1282,25 @@ async function visibleWorkspacePreviewCardCount(page) {
   return visibleCount;
 }
 
+// The sync state is one status line now (`<Vault> · Idle · N pending`), read
+// by visibleSyncStatus; a settled line reports its pending count, any other
+// state reports none, as the old Idle / "N pending" control did.
 async function visibleSyncPendingSnapshot(page) {
-  return page.evaluate(() => {
-    const visible = (node) => {
-      const rect = node.getBoundingClientRect();
-      const style = getComputedStyle(node);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' &&
-        style.display !== 'none' && Number(style.opacity || 1) > 0;
-    };
-    const labels = [...document.querySelectorAll('flt-semantics[role="button"]')]
-      .filter(visible)
-      .map((node) => (node.getAttribute('aria-label') || node.innerText || '')
-        .replace(/\s+/g, ' ').trim())
-      .filter((label) => /^(?:Idle|Pending|Syncing|Retry queued|Offline|Sync error|Read-only|Sync now|\d+ pending)$/.test(label));
-    const label = labels[0] || null;
-    const numeric = label?.match(/^(\d+) pending$/);
-    return {
-      controlCount: labels.length,
-      label,
-      pendingCount: numeric ? Number(numeric[1]) : label === 'Idle' ? 0 : null,
-    };
-  }).catch(() => ({ controlCount: 0, label: null, pendingCount: null }));
+  // A pass started by a server hint can be in flight at the instant of the
+  // sample; the pending count is read from the line once it has settled.
+  let status = null;
+  const settleDeadline = Date.now() + 10000;
+  while (Date.now() < settleDeadline) {
+    status = await visibleSyncStatus(page).catch(() => null);
+    if (status && status.state !== 'Syncing') break;
+    await page.waitForTimeout(100);
+  }
+  return {
+    controlCount: status ? 1 : 0,
+    label: status ? (status.state === 'Idle' && status.pending > 0
+      ? `${status.pending} pending` : status.state) : null,
+    pendingCount: status && status.state === 'Idle' ? status.pending : null,
+  };
 }
 
 async function encryptedWorkspaceSaveUiSnapshot(page, workspaceName) {
@@ -1939,6 +1942,31 @@ async function locateNestedSidebarConnectAction(page, paneNumber, hostName) {
   return { ...located, candidate, diagnostic, paneNumber, hostName };
 }
 
+// The terminal toolbar keeps Disconnect in the "More" menu of the tab bar.
+async function disconnectActiveTerminal(page) {
+  const direct = page.getByRole('button', { name: 'Disconnect', exact: true });
+  const item = page.getByRole('menuitem', { name: 'Disconnect', exact: true });
+  const more = page.getByRole('button', { name: 'More', exact: true });
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    if (await direct.first().isVisible().catch(() => false)) {
+      await direct.first().click();
+      return;
+    }
+    if (await item.first().isVisible().catch(() => false)) {
+      await item.first().click();
+      return;
+    }
+    if (await more.first().isVisible().catch(() => false)) {
+      await more.first().click().catch(() => {});
+      await page.waitForTimeout(300);
+      continue;
+    }
+    await page.waitForTimeout(150);
+  }
+  throw new Error('visible button unavailable: Disconnect');
+}
+
 async function clickNestedSidebarConnectAction(page, action) {
   // Flutter rebuilds the semantics tree after each leaf connects. Resolve the
   // same pane/Host again immediately before clicking, then verify that the
@@ -2382,7 +2410,7 @@ async function createSplitWorkspace(
   let visiblePreviewCardCountBBeforeSave = null;
   let totalPreviewCardCountBBeforeSave = null;
   if (profileBPage) {
-    await click(profileBPage, 'Workspaces');
+    await openWorkspaceNavigation(profileBPage, 'Workspace layouts');
     visiblePreviewCardCountBBeforeSave = await visibleWorkspacePreviewCardCount(profileBPage);
     totalPreviewCardCountBBeforeSave = await totalWorkspacePreviewCardCount(profileBPage);
   }
@@ -2551,7 +2579,7 @@ async function createSplitWorkspace(
     };
     if (profileBPage) {
       try {
-        await click(profileBPage, 'Workspaces');
+        await openWorkspaceNavigation(profileBPage, 'Workspace layouts');
         profileBRecovery.workspacesNavigationSucceeded = true;
         profileBRecovery.visiblePreviewCardCountBeforePull =
           await visibleWorkspacePreviewCardCount(profileBPage);
@@ -2618,7 +2646,10 @@ async function stageSplitWorkspacePreview(page, splitName, {
   await previews.nth(index).click();
   stage = 'Profile B verify disconnected split preview status';
   if (connectedHosts.length === 0) {
-    await waitForText(page, 'Connect panes explicitly', 15000);
+    // The staged status is part of the Connections panel's accessible
+    // name now, not a text node of its own.
+    await waitForVisibleSemanticText(page, 'Connect panes explicitly',
+      'disconnected split preview status', 15000);
   } else {
     await waitForVisibleSemanticText(page,
       `${connectedHosts.length}/${expectedHosts.length} live`,
@@ -3634,13 +3665,16 @@ async function enableSemantics(page, label = 'Flutter', diagnostics = []) {
   }
 }
 
+// The browser build signs in to the server that serves it: there is no
+// Server URL / Connect securely step any more.
 async function connectSecurely(page, baseUrl) {
-  await fill(page, 'Server URL', baseUrl);
-  await click(page, 'Connect securely');
+  await expectHostedSignIn(page, baseUrl);
 }
 
-async function waitForWorkspace(page) {
-  await visibleButton(page, 'Add host');
+// `notice` is the credential-visibility notice expectation for this device:
+// 'expect' on its first unlock, 'none' once it has acknowledged.
+async function waitForWorkspace(page, notice = 'none') {
+  await waitForWorkspaceHome(page, { notice });
 }
 
 async function restoreWorkspaceAfterReload(page, profile, baseUrl) {
@@ -3863,64 +3897,98 @@ async function restoreWorkspaceAfterReloadCore(page, profile, baseUrl) {
   throw new Error('reloaded Web profile did not return to the workspace');
 }
 
+// The always-visible sync status button is gone: the status is a segment of
+// the status bar ("<Vault> · Idle · 0 pending") and the manual trigger is the
+// "Sync now" button on the "Sync and conflicts" page.
+const WORKSPACE_PAGE_NAV_LABELS = {
+  '/hosts': 'Hosts',
+  '/keychain': 'Keychain',
+  '/workspaces': 'Workspace layouts',
+  '/terminal': 'Terminal',
+  '/devices': 'Devices',
+  '/settings': 'Settings',
+};
+const SYNC_STATUS_SEGMENT = /(?:^|\n| · )(Idle|Pending|Syncing|Retry queued|Offline|Sync error|Snapshot needed|Rebuilding snapshot|Key update needed|Read-only|Sign in needed|Device revoked|Vault deletion pending · read-only) · (\d+) pending(?:\n|$)/;
+
+async function visibleSyncStatus(page) {
+  const labels = await page.evaluate(() =>
+    [...document.querySelectorAll('flt-semantics')]
+      .filter((node) => {
+        const rect = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' &&
+          style.display !== 'none';
+      })
+      // The status line is exposed either as an accessible name or, with a
+      // terminal tab open behind another page, as the node's own text.
+      .map((node) => node.getAttribute('aria-label') ||
+        [...node.childNodes].filter((child) => child.nodeType === 3)
+          .map((child) => child.textContent).join(' ').trim())
+      .filter((label) => label.includes(' pending')));
+  for (const label of labels) {
+    const match = SYNC_STATUS_SEGMENT.exec(label);
+    if (match) return { state: match[1], pending: Number(match[2]) };
+  }
+  return null;
+}
+
+async function openWorkspaceNavigation(page, label) {
+  const target = page.getByRole('button', { name: label, exact: true });
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    // The side navigation is taken away while a terminal page settles in;
+    // a click that loses its target is retried through the Host menu.
+    if (await target.first().isVisible().catch(() => false) &&
+        await target.first().click({ timeout: 2000 }).then(() => true, () => false)) {
+      return;
+    }
+    // With a terminal open the browser build hides the navigation beside
+    // it; the same destinations are in the Host menu of the tab bar.
+    const menuItem = page.getByRole('menuitem', { name: label, exact: true });
+    if (await menuItem.first().isVisible().catch(() => false) &&
+        await menuItem.first().click({ timeout: 2000 }).then(() => true, () => false)) {
+      return;
+    }
+    const hostMenu = page.getByRole('button', {
+      name: 'Host menu · click to open', exact: true,
+    });
+    if (await hostMenu.first().isVisible().catch(() => false)) {
+      await hostMenu.first().click().catch(() => {});
+      await page.waitForTimeout(250);
+      continue;
+    }
+    await page.waitForTimeout(150);
+  }
+  throw new Error(`workspace navigation unavailable: ${label}`);
+}
+
 async function syncNow(page, syncLabel = 'encrypted sync', {
   forcePull = false,
   allowSettledPending = false,
 } = {}) {
   stage = `locate ${syncLabel} sync control`;
-  const statuses = page.getByRole('button', { name: SYNC_BUTTON_LABEL });
-  const deadline = Date.now() + 20000;
-  let status = null;
-  while (!status && Date.now() < deadline) {
-    const count = await statuses.count();
-    for (let index = 0; index < count; index += 1) {
-      const candidate = statuses.nth(index);
-      if (await candidate.isVisible()) {
-        status = candidate;
-        break;
-      }
-    }
-    if (!status) await new Promise((resolve) => setTimeout(resolve, 100));
+  const originPath = new URL(page.url()).pathname;
+  if (originPath !== '/sync') {
+    await openWorkspaceNavigation(page, 'Sync and conflicts');
   }
-  if (!status) {
-    const allowed = new Set([
-      'Idle', 'Pending', 'Syncing', 'Retry queued', 'Offline', 'Sync error',
-      'Snapshot needed', 'Rebuilding snapshot', 'Key update needed', 'Read-only',
-      'Sign in needed', 'Device revoked', 'Vault deletion pending · read-only',
-      'Sync now',
-    ]);
-    const safeLabels = await page.evaluate(() =>
-      [...document.querySelectorAll('flt-semantics[role="button"]')]
-        .map((node) => (node.getAttribute('aria-label') || node.innerText || '').trim())
-        .filter(Boolean),
-    ).catch(() => []);
-    const safeState = safeLabels.find((label) => allowed.has(label) || /^\d+ pending$/.test(label)) || 'unrecognized';
-    stage = `locate ${syncLabel} sync control (${safeState})`;
+  const control = page.getByRole('button', { name: 'Sync now', exact: true });
+  const controlReady = async () =>
+    await control.first().isVisible().catch(() => false) &&
+    await control.first().isEnabled().catch(() => false);
+  // A pass already in flight can have started before a newly written outbox
+  // row existed. Let it settle, then explicitly start another pass. For
+  // forced pulls this also ensures the response waiter is attached before
+  // the request we intend to observe.
+  const readyDeadline = Date.now() + 45000;
+  let ready = false;
+  while (!ready && Date.now() < readyDeadline) {
+    ready = await controlReady();
+    if (!ready) await page.waitForTimeout(100);
+  }
+  if (!ready) {
+    const current = await visibleSyncStatus(page).catch(() => null);
+    stage = `locate ${syncLabel} sync control (${current?.state || 'unrecognized'})`;
     throw new Error(`Sync control unavailable for ${syncLabel}`);
-  }
-  let label = (await status.getAttribute('aria-label') || await status.innerText()).trim();
-  if (label === 'Syncing') {
-    // A pass already in flight can have started before a newly written outbox
-    // row existed. Let it settle, then re-read the status and explicitly start
-    // another pass if it left work Pending. For forced pulls this also ensures
-    // the response waiter is attached before the request we intend to observe.
-    status = null;
-    const settleDeadline = Date.now() + 45000;
-    while (!status && Date.now() < settleDeadline) {
-      const count = await statuses.count();
-      for (let index = 0; index < count; index += 1) {
-        const candidate = statuses.nth(index);
-        if (!await candidate.isVisible().catch(() => false)) continue;
-        const candidateLabel = (await candidate.getAttribute('aria-label') ||
-          await candidate.innerText().catch(() => '')).trim();
-        if (candidateLabel === 'Syncing') continue;
-        status = candidate;
-        label = candidateLabel;
-        break;
-      }
-      if (!status) await page.waitForTimeout(100);
-    }
-    if (!status) throw new Error(`Sync control unavailable after settling ${syncLabel}`);
   }
   const changesResponse = forcePull
     ? page.waitForResponse((response) => {
@@ -3930,9 +3998,7 @@ async function syncNow(page, syncLabel = 'encrypted sync', {
     : null;
   let changesPageSummary = null;
   stage = `trigger ${syncLabel} sync`;
-  if (label !== 'Syncing') {
-    await status.click();
-  }
+  await control.first().click();
   if (changesResponse) {
     const response = await changesResponse;
     assertThat(response.status() === 200,
@@ -3951,48 +4017,22 @@ async function syncNow(page, syncLabel = 'encrypted sync', {
     };
   }
   stage = `wait for ${syncLabel} sync to settle`;
-  const safeVisibleSyncStates = async () => page.evaluate(() => {
-    const known = new Set([
-      'Idle', 'Pending', 'Syncing', 'Retry queued', 'Offline', 'Sync error',
-      'Snapshot needed', 'Rebuilding snapshot', 'Key update needed', 'Read-only',
-      'Sign in needed', 'Device revoked', 'Vault deletion pending · read-only',
-      'Sync now',
-    ]);
-    return [...document.querySelectorAll('flt-semantics[role="button"]')]
-      .filter((node) => {
-        const rect = node.getBoundingClientRect();
-        const style = getComputedStyle(node);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' &&
-          style.display !== 'none';
-      })
-      .map((node) => (node.getAttribute('aria-label') || node.innerText || '').trim())
-      .map((label) => known.has(label) ? label : /^\d+ pending$/.test(label) ? 'Pending' : null)
-      .filter(Boolean);
-  });
   const settleDeadline = Date.now() + 45000;
   let settled = false;
   let safeState = 'unrecognized';
   while (!settled && Date.now() < settleDeadline) {
-    let visibleStates;
+    let current;
     try {
-      visibleStates = await safeVisibleSyncStates();
+      current = await visibleSyncStatus(page);
     } catch (_) {
       stage = `wait for ${syncLabel} sync to settle (${safeState}; page unavailable)`;
       throw new Error(`Sync status unavailable for ${syncLabel}`);
     }
-    safeState = visibleStates[0] || 'unrecognized';
-    const settledStatus = visibleStates.some((state) => state === 'Idle' ||
-      state === 'Read-only' || (allowSettledPending && state === 'Pending'));
-    let controlEnabled = false;
-    const statusCount = await statuses.count();
-    for (let index = 0; index < statusCount; index += 1) {
-      const candidate = statuses.nth(index);
-      if (await candidate.isVisible().catch(() => false) &&
-          await candidate.isEnabled().catch(() => false)) {
-        controlEnabled = true;
-        break;
-      }
-    }
+    safeState = !current ? 'unrecognized'
+      : current.state === 'Idle' && current.pending > 0 ? 'Pending' : current.state;
+    const settledStatus = safeState === 'Idle' || safeState === 'Read-only' ||
+      (allowSettledPending && safeState === 'Pending');
+    const controlEnabled = await controlReady();
     stage = `wait for ${syncLabel} sync to settle (${safeState}; control=${controlEnabled ? 'ready' : 'busy'})`;
     settled = settledStatus && controlEnabled;
     if (!settled) await new Promise((resolve) => setTimeout(resolve, 100));
@@ -4000,6 +4040,23 @@ async function syncNow(page, syncLabel = 'encrypted sync', {
   if (!settled) {
     stage = `wait for ${syncLabel} sync to settle (${safeState})`;
     throw new Error(`Sync did not settle for ${syncLabel}`);
+  }
+  if (originPath !== '/sync') {
+    stage = `return from ${syncLabel} sync to the previous workspace page`;
+    const originLabel = WORKSPACE_PAGE_NAV_LABELS[originPath];
+    assertThat(originLabel, 'sync was triggered from an unrecognized workspace page');
+    await openWorkspaceNavigation(page, originLabel);
+    // The caller continues on the page it was on: wait until that page is
+    // back in the address bar and has finished laying itself out again.
+    const backDeadline = Date.now() + 10000;
+    let previousNodeCount = -1;
+    while (Date.now() < backDeadline) {
+      const nodeCount = new URL(page.url()).pathname === originPath
+        ? await page.locator('flt-semantics').count().catch(() => -1) : -1;
+      if (nodeCount > 0 && nodeCount === previousNodeCount) break;
+      previousNodeCount = nodeCount;
+      await page.waitForTimeout(250);
+    }
   }
   return changesPageSummary;
 }
@@ -4010,8 +4067,7 @@ async function addCredential(page, getPageErrorCount = () => 0, {
   password = CREDENTIAL_SECRET,
 } = {}) {
   stage = 'open credential editor';
-  await click(page, 'Credentials');
-  await waitForText(page, 'SSH credentials');
+  await openWorkspaceNavigation(page, 'Keychain');
   await click(page, 'Add credential');
   stage = 'fill encrypted credential';
   await fill(page, 'Credential name', name);
@@ -4060,10 +4116,12 @@ async function chooseWorkspaceHostCredential(page, hostLabel, {
   credentialName = CREDENTIAL_NAME,
   sshUsername = SSH_USERNAME,
 } = {}) {
-  const fieldName = 'SSH credential override';
-  const expected = `${credentialName} · ${sshUsername}`;
+  // The Host form names the Keychain reference "Sign in with" and labels
+  // each choice "Keychain: <name> (<username>)".
+  const fieldName = 'Sign in with';
+  const expected = `Keychain: ${credentialName} (${sshUsername})`;
   stage = `open SSH credential override for Host ${hostLabel}`;
-  const controls = page.getByRole('button', { name: /SSH credential override/i });
+  const controls = page.getByRole('button', { name: /^Sign in with/i });
   let control;
   for (let index = await controls.count() - 1; index >= 0; index -= 1) {
     const candidate = controls.nth(index);
@@ -4357,12 +4415,13 @@ async function addHost(page, name, address, {
       : name === HOST_TMUX_NAME ? 'tmux'
         : 'split';
   stage = `navigate to Hosts for Host ${hostLabel}`;
-  await click(page, 'Hosts');
-  await waitForText(page, 'Your server fleet');
+  await openWorkspaceNavigation(page, 'Hosts');
+  await workspaceMarker(page).first().waitFor({ state: 'visible', timeout: 20000 });
   stage = `open Host form ${hostLabel}`;
-  await click(page, 'Add host');
+  await workspaceMarker(page).first().click();
+  await page.getByRole('menuitem', { name: 'New SSH host', exact: true }).click();
   stage = `wait for Host form ${hostLabel}`;
-  await waitForText(page, 'Add a host');
+  await field(page, 'Display name');
   stage = `fill Host name ${hostLabel}`;
   await fill(page, 'Display name', name);
   stage = `fill Host address ${hostLabel}`;
@@ -4386,17 +4445,14 @@ async function addHost(page, name, address, {
   await savedHost.waitFor({ state: 'visible', timeout: 15000 });
   if (attachCredential) {
     stage = `verify saved Host credential reference for Host ${hostLabel}`;
-    await savedHost.getByRole('button', { name: 'Edit host', exact: true }).click();
-    await waitForText(page, 'Edit host');
-    const expectedReference = `Host override: ${credentialName} · ${sshUsername}`;
+    await openHostEditorFromCard(savedHost);
+    const expectedReference = `Keychain: ${credentialName} (${sshUsername})`;
     const referenceDeadline = Date.now() + 10000;
     let resolvedReference = false;
     let unavailableReference = false;
     while (!resolvedReference && !unavailableReference && Date.now() < referenceDeadline) {
       resolvedReference = await visibleSemanticTextMatch(page, expectedReference);
-      unavailableReference = await visibleSemanticTextMatch(
-        page, 'Host override is unavailable.',
-      );
+      unavailableReference = await hostEditorSignInSourceUnresolved(page);
       if (!resolvedReference && !unavailableReference) await page.waitForTimeout(100);
     }
     if (!resolvedReference) {
@@ -4408,6 +4464,43 @@ async function addHost(page, name, address, {
     }
     await click(page, 'Cancel');
   }
+}
+
+// Host cards keep their actions in the card's "More" menu; the editor is a
+// dialog whose title is not exposed as text, so its first field marks it.
+async function openHostEditorFromCard(card) {
+  const page = card.page();
+  await card.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Edit', exact: true }).click();
+  await field(page, 'Display name');
+}
+
+async function connectFromHostCard(card) {
+  const page = card.page();
+  await card.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Connect', exact: true }).click();
+}
+
+// The Host editor shows the referenced Keychain item in its "Sign in with"
+// control. A reference the editor cannot resolve falls back to the Host's
+// own sign-in or to an unnamed Keychain item.
+async function hostEditorSignInSourceUnresolved(page) {
+  return page.evaluate(() => {
+    const visible = (node) => {
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' &&
+        style.display !== 'none' && Number(style.opacity || 1) > 0;
+    };
+    const labels = [...document.querySelectorAll('flt-semantics[role="button"]')]
+      .filter(visible)
+      .map((node) => (node.getAttribute('aria-label') || node.innerText || '')
+        .replace(/\s+/g, ' ').trim());
+    return labels.some((label) => label.startsWith('Authentication ') ||
+      label === "Sign in with This host's own sign-in" ||
+      label === 'Sign in with Group default' ||
+      label === 'Sign in with Keychain: Keychain');
+  }).catch(() => false);
 }
 
 async function editHostTarget(page, name, address, port, {
@@ -4423,8 +4516,7 @@ async function editHostTarget(page, name, address, port, {
   const currentLabel = await card.getAttribute('aria-label');
   assertThat(currentLabel?.includes(`${SSH_USERNAME}@${originalAddress}:${originalPort}`),
     `Host ${name} did not resolve to the expected original synced target`);
-  await card.getByRole('button', { name: 'Edit host', exact: true }).click();
-  await waitForText(page, 'Edit host');
+  await openHostEditorFromCard(card);
 
   stage = `update exact isolated SSH target for ${name}`;
   await fill(page, 'Hostname or IP', address);
@@ -4473,18 +4565,15 @@ async function editHostTarget(page, name, address, port, {
     `Host ${name} did not render the exact isolated target address and port after save`);
   if (attachCredential) {
     stage = `verify encrypted credential reference for Host ${name === HOST_C_NAME ? 'C' : 'target'}`;
-    await updatedCard.getByRole('button', { name: 'Edit host', exact: true }).click();
-    await waitForText(page, 'Edit host');
-    const expectedReference = `Host override: ${CREDENTIAL_NAME} · ${SSH_USERNAME}`;
+    await openHostEditorFromCard(updatedCard);
+    const expectedReference = `Keychain: ${CREDENTIAL_NAME} (${SSH_USERNAME})`;
     const referenceDeadline = Date.now() + 10000;
     let resolvedReference = false;
     let unavailableReference = false;
     while (!resolvedReference && !unavailableReference &&
         Date.now() < referenceDeadline) {
       resolvedReference = await visibleSemanticTextMatch(page, expectedReference);
-      unavailableReference = await visibleSemanticTextMatch(
-        page, 'Host override is unavailable.',
-      );
+      unavailableReference = await hostEditorSignInSourceUnresolved(page);
       if (!resolvedReference && !unavailableReference) {
         await page.waitForTimeout(100);
       }
@@ -4505,9 +4594,7 @@ async function openHostTab(page, name) {
   }).first();
   await card.waitFor({ state: 'visible', timeout: 15000 });
   stage = `open disconnected terminal tab for Host ${hostLabel}`;
-  await card.getByRole('button', { name: 'Connect', exact: true }).click();
-  stage = `wait for disconnected terminal surface for Host ${hostLabel}`;
-  await waitForText(page, 'SSH terminal · disconnected', 20000);
+  await connectFromHostCard(card);
   stage = `wait for Host ${hostLabel} terminal tab semantics`;
   const terminalTab = page.getByRole('button', {
     name: new RegExp(`^${escapeRegExp(name)} terminal tab,`),
@@ -5024,7 +5111,7 @@ async function previewNamedWorkspace(page, workspaceName, expectedFirstHost, pro
   });
   stage = `Profile ${profile} close the decrypted Workspace preview`;
   await closePreview.click();
-  await click(page, 'Workspaces');
+  await openWorkspaceNavigation(page, 'Workspace layouts');
   return true;
 }
 
@@ -5042,18 +5129,54 @@ function serverVaultSnapshot(databasePath) {
   return JSON.parse(result.stdout);
 }
 
+// The browser client keeps a snapshot of its open tabs in the Vault (commit
+// a9aac8f): one encrypted `workspace` record per account and Vault whose
+// record ID every client derives from the account and Vault IDs
+// (openWorkspaceRecordId in apps/client/lib/domain/open_workspace_snapshot.dart).
+// It is written a moment after a tab opens, closes or is split, independently
+// of the user action a commit window measures. Commit windows therefore count
+// every other record exactly as before and report the events of that one
+// derived record ID separately in `openTabsSnapshotEvents`.
 function serverCommitDelta(databasePath, vaultId, lower, upper) {
   const result = spawnSync('python3', ['-c', [
-    'import json,sqlite3,sys',
+    'import hashlib,json,sqlite3,sys',
     "db=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True,timeout=5)",
-    "rows=db.execute('SELECT commit_seq,event_type,record_id,revision_id FROM change_events WHERE vault_id=? AND CAST(commit_seq AS INTEGER)>? AND CAST(commit_seq AS INTEGER)<=? ORDER BY commit_seq',(sys.argv[2],int(sys.argv[3]),int(sys.argv[4]))).fetchall()",
-    "print(json.dumps({'eventCount':len(rows),'distinctCommitCount':len(set(row[0] for row in rows)),'events':[{'commitSeq':str(row[0]),'operation':row[1],'recordId':row[2],'revisionId':row[3]} for row in rows]}))",
+    "h=lambda a:hashlib.sha256(('atermius-open-workspace-v1|'+a+'|'+sys.argv[2]).encode()).hexdigest()",
+    "f=lambda x:x[0:8]+'-'+x[8:12]+'-4'+x[13:16]+'-'+'89ab'[int(x[16],16)&3]+x[17:20]+'-'+x[20:32]",
+    "snap=set(f(h(row[0])) for row in db.execute('SELECT user_id FROM vault_members WHERE vault_id=?',(sys.argv[2],)).fetchall())",
+    "allrows=db.execute('SELECT commit_seq,event_type,record_id,revision_id FROM change_events WHERE vault_id=? AND CAST(commit_seq AS INTEGER)>? AND CAST(commit_seq AS INTEGER)<=? ORDER BY commit_seq',(sys.argv[2],int(sys.argv[3]),int(sys.argv[4]))).fetchall()",
+    'rows=[row for row in allrows if row[2] not in snap]',
+    'tabs=[row for row in allrows if row[2] in snap]',
+    "print(json.dumps({'eventCount':len(rows),'distinctCommitCount':len(set(row[0] for row in rows)),'events':[{'commitSeq':str(row[0]),'operation':row[1],'recordId':row[2],'revisionId':row[3]} for row in rows],'openTabsSnapshotEvents':[{'commitSeq':str(row[0]),'operation':row[1],'recordId':row[2]} for row in tabs]}))",
   ].join(';'), databasePath, vaultId, lower, upper], {
     encoding: 'utf8',
     timeout: 8000,
   });
   assertThat(result.status === 0, 'server change-event query failed');
   return JSON.parse(result.stdout);
+}
+
+// JS twin of the derivation used by serverCommitDelta above, for the request
+// capture: the open-tabs snapshot record IDs of the Vault's members.
+const openTabsSnapshotRecordIdCache = new Map();
+function openTabsSnapshotRecordIds(databasePath, vaultId) {
+  const cached = openTabsSnapshotRecordIdCache.get(vaultId);
+  if (cached && cached.size > 0) return cached;
+  const result = spawnSync('python3', ['-c', [
+    'import json,sqlite3,sys',
+    "db=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True,timeout=5)",
+    "print(json.dumps([row[0] for row in db.execute('SELECT user_id FROM vault_members WHERE vault_id=?',(sys.argv[2],)).fetchall()]))",
+  ].join(';'), databasePath, vaultId], { encoding: 'utf8', timeout: 8000 });
+  assertThat(result.status === 0, 'server Vault member query failed');
+  const ids = new Set(JSON.parse(result.stdout).map((accountId) => {
+    const hex = crypto.createHash('sha256')
+      .update(`atermius-open-workspace-v1|${accountId}|${vaultId}`).digest('hex');
+    const variant = '89ab'[parseInt(hex[16], 16) & 3];
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-` +
+      `${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+  }));
+  openTabsSnapshotRecordIdCache.set(vaultId, ids);
+  return ids;
 }
 
 function serverWorkspaceHead(databasePath, vaultId, recordId) {
@@ -5735,6 +5858,20 @@ async function main() {
   const workspaceSplitPushResponses = [];
   const splitPullChangePages = [];
   const workspaceSplitPushRequests = new WeakSet();
+  // A push that carries nothing but the browser's own open-tabs snapshot
+  // record (see serverCommitDelta) is not one of the user actions the split
+  // capture measures; any other push is captured whole, as before.
+  const pushCarriesOnlyOpenTabsSnapshot = (request, url) => {
+    try {
+      const pushVaultId = /\/vaults\/([^/]+)\/sync\/push$/.exec(url.pathname)?.[1];
+      const operations = request.postDataJSON()?.operations;
+      if (!pushVaultId || !Array.isArray(operations) || operations.length === 0) return false;
+      const snapshotIds = openTabsSnapshotRecordIds(databasePath, pushVaultId);
+      return operations.every((item) => snapshotIds.has(item?.header?.record_id));
+    } catch (_) {
+      return false;
+    }
+  };
   const workspaceConflictPushes = [];
   const workspaceConflictPushResponses = [];
   const workspaceConflictUploads = [];
@@ -5879,7 +6016,8 @@ async function main() {
           }
         }
         if (captureWorkspaceSplit && profile === 'A' &&
-            request.method() === 'POST' && url.pathname.endsWith('/sync/push')) {
+            request.method() === 'POST' && url.pathname.endsWith('/sync/push') &&
+            !pushCarriesOnlyOpenTabsSnapshot(request, url)) {
           workspaceSplitPushRequests.add(request);
           try {
             const parsed = request.postDataJSON();
@@ -6250,7 +6388,7 @@ async function main() {
     await fill(pageA, 'First Vault', 'Workspace layout acceptance');
     await click(pageA, 'Create owner account');
     bootstrapToken = undefined;
-    await waitForWorkspace(pageA);
+    await waitForWorkspace(pageA, 'expect');
 
     if (TMUX_PROCESS_RESTART_ONLY) {
       const origin = new URL(baseUrl).origin;
@@ -6393,10 +6531,17 @@ async function main() {
       const knownHostApprovalApiEvents = vaultSyncApiEvents.A.slice(
         knownHostApiBaseline,
       );
-      assertThat(knownHostCommit.eventCount === 1 &&
-        knownHostCommit.distinctCommitCount === 1 &&
-        knownHostCommit.events[0]?.operation === 'create' &&
-        knownHostCommit.events[0]?.recordId === knownHostOperation.recordId &&
+      // The first connection to a Host also stores the system it identified
+      // on that Host record (cb8b457): at most one update of exactly the
+      // tmux Host record may share this window with the KnownHost create.
+      const hostSystemMarkEvents = knownHostCommit.events.filter((event) =>
+        event.operation === 'update' && event.recordId === hostRecordId);
+      const knownHostEvents = knownHostCommit.events.filter((event) =>
+        !hostSystemMarkEvents.includes(event));
+      assertThat(hostSystemMarkEvents.length <= 1 &&
+        knownHostEvents.length === 1 &&
+        knownHostEvents[0]?.operation === 'create' &&
+        knownHostEvents[0]?.recordId === knownHostOperation.recordId &&
         knownHostReceipt.results.filter((item) =>
           item.opId === knownHostOperation.opId &&
           item.revisionId === knownHostOperation.revisionId &&
@@ -6422,7 +6567,9 @@ async function main() {
         item.method === 'GET' && item.status === 200),
       'Profile A forced pull did not receive a successful Vault changes response');
       stage = 'Profile A navigate to Settings for KnownHost projection';
-      await click(pageA, 'Settings');
+      await openWorkspaceNavigation(pageA, 'Settings');
+      // Settings is split into sections; the trust panel is in its own one.
+      await click(pageA, 'SSH host trust');
       stage = 'Profile A wait for Settings KnownHost trust panel';
       await waitForVisibleSemanticText(pageA, 'SSH host-key trust',
         'Profile A Settings KnownHost trust panel');
@@ -6497,12 +6644,12 @@ async function main() {
         throw new Error('Profile A did not decrypt the committed KnownHost approval as trusted');
       }
       stage = 'Profile A return to Workspaces with verified KnownHost approval';
-      await click(pageA, 'Workspaces');
+      await openWorkspaceNavigation(pageA, 'Workspace layouts');
       await waitForVisibleSemanticText(pageA, 'Saved workspaces',
         'Profile A Workspaces page after KnownHost verification');
 
       stage = 'Profile A navigate to Workspaces before tmux Workspace create';
-      await click(pageA, 'Workspaces');
+      await openWorkspaceNavigation(pageA, 'Workspace layouts');
       stage = 'Profile A wait for Workspaces before tmux Workspace create';
       await waitForVisibleSemanticText(pageA, 'Saved workspaces',
         'Profile A Workspaces page before process-restart create');
@@ -6551,9 +6698,9 @@ async function main() {
       'tmux Workspace create did not produce one opaque version/event/receipt/head');
 
       stage = 'Profile A open Terminal to close the Host preflight tab';
-      await click(pageA, 'Terminal');
+      await openWorkspaceNavigation(pageA, 'Terminal');
       stage = 'Profile A close authenticated Host preflight tab';
-      await click(pageA, 'Disconnect');
+      await disconnectActiveTerminal(pageA);
       stage = 'Profile A wait for preflight SSH and Relay transport to close';
       const preflightDisconnected = await waitForCaptured(() => {
         const ssh = tmuxSshFixture.server.summary();
@@ -6564,8 +6711,14 @@ async function main() {
       assertThat(preflightDisconnected.tcpConnectionsOpen ===
         preflightSshBaseline.tcpConnectionsOpen,
       'preflight SSH transport did not disconnect before Workspace preview');
+      // Disconnect now leaves the disconnected tab in the tab bar; the stage
+      // closes the preflight tab, so remove it with its own Close button.
+      stage = 'Profile A remove the disconnected Host preflight tab';
+      await pageA.getByRole('button', {
+        name: `Close ${HOST_TMUX_NAME}`, exact: true,
+      }).first().click({ timeout: 10000 });
       stage = 'Profile A return to Workspaces for saved tmux preview';
-      await click(pageA, 'Workspaces');
+      await openWorkspaceNavigation(pageA, 'Workspace layouts');
       stage = 'Profile A wait for saved tmux Workspace preview page';
       await waitForVisibleSemanticText(pageA, 'Saved workspaces',
         'Profile A Workspaces page before process-restart preview');
@@ -6837,7 +6990,16 @@ async function main() {
       await syncNow(pageA, 'Profile A tmux KnownHost approval after Workspace Connect');
 
       stage = 'Profile A explicitly Start tmux and sync the encrypted descriptor';
-      const startAction = pageA.getByRole('button', {
+      // The tmux action moved into the pane's own "Pane actions" menu.
+      const openTmuxPaneActions = async () => {
+        await pageA.getByRole('switch', {
+          name: `Pane actions · ${HOST_TMUX_NAME}`,
+        }).first().click({ timeout: 10000 });
+        await pageA.getByRole('menuitem').first()
+          .waitFor({ state: 'visible', timeout: 5000 });
+      };
+      await openTmuxPaneActions();
+      const startAction = pageA.getByRole('menuitem', {
         name: 'Start resumable session', exact: true,
       });
       assertThat(await startAction.count() === 1 && await startAction.isVisible(),
@@ -6867,8 +7029,10 @@ async function main() {
       assertThat(canaryBeforeRestart.commandMarkerVisible &&
         canaryBeforeRestart.outputMarkerVisible,
       'tmux session did not retain the run-scoped command/output canary');
+      await openTmuxPaneActions();
       await waitForVisibleSemanticText(pageA, 'Resume tmux session',
         'Profile A saved tmux descriptor Resume action');
+      await pageA.keyboard.press('Escape');
       await syncNow(pageA, 'Profile A tmux encrypted descriptor update');
       const updateOperation = await waitForWorkspacePush(
         updatePushBaseline,
@@ -7065,7 +7229,7 @@ async function main() {
       'same-profile reauth caused a duplicate push or automatic SSH/Relay/tmux attach');
 
       stage = 'Profile A reopen the saved Workspace preview without auto-connect';
-      await click(pageA, 'Workspaces');
+      await openWorkspaceNavigation(pageA, 'Workspace layouts');
       await waitForVisibleSemanticText(pageA, 'Saved workspaces',
         'Profile A saved Workspace list after process restart');
       const restartPreviewRelayBaseline = {
@@ -7786,76 +7950,89 @@ async function main() {
     }
 
     stage = 'connect profile B after initial server setup';
+    // Profile B opened the hosted page before the owner account existed, so
+    // it still shows the first-account form; load the page again to get the
+    // sign-in form the server now serves.
+    await pageB.reload({ waitUntil: 'domcontentloaded' });
+    await enableSemantics(pageB, 'Profile B', startupDiagnostics.B);
     await connectSecurely(pageB, baseUrl);
     stage = 'open profile B login form';
     await field(pageB, 'Email or username');
-    stage = 'open profile B device enrollment form';
-    await click(pageB, 'Add this device');
-    stage = 'wait for profile B enrollment form';
-    await waitForText(pageB, 'Request this device');
-    stage = 'create profile B enrollment request';
-    await fill(pageB, 'Account email', USERNAME);
-    await fill(pageB, 'Device name', 'Workspace profile B');
-    await click(pageB, 'Generate request');
-    await field(pageB, 'Copy this enrollment JSON');
-    stage = 'copy profile B enrollment request';
-    await click(pageB, 'Copy');
-    const enrollment = await pageB.evaluate(() => navigator.clipboard.readText());
-    assertThat(JSON.parse(enrollment).format === 'atermius-device-enrollment-v1',
-      'profile B enrollment request format was invalid');
-    await click(pageB, 'Close');
-    stage = 'Profile A open Devices for profile B enrollment';
-    await click(pageA, 'Devices');
-    stage = 'Profile A open enrollment approval form';
-    await click(pageA, 'Approve enrollment');
-    stage = 'Profile A verify enrollment approval dialog';
-    await waitForText(pageA, 'Paste the public request from the new browser', 5000);
-    const enrollmentDialogSnapshot = await pageA.evaluate(() => {
-      const visible = (node) => {
-        const rect = node.getBoundingClientRect();
-        const style = getComputedStyle(node);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' &&
-          style.display !== 'none' && Number(style.opacity || 1) > 0;
-      };
-      const labels = [...document.querySelectorAll('flt-semantics')]
-        .filter(visible)
-        .map((node) => `${node.getAttribute('aria-label') || ''} ${node.innerText || ''}`
-          .replace(/\s+/g, ' ').trim())
-        .filter((label) => /enrollment|review keys|approve & seal keys|cancel/i.test(label));
-      const fields = [...document.querySelectorAll('input, textarea')]
-        .filter(visible)
-        .map((node) => node.getAttribute('aria-label') || 'unlabeled input');
-      const dialogs = [...document.querySelectorAll('[role="dialog"]')].filter(visible).length;
-      return { dialogs, enrollmentControls: labels, visibleFieldLabels: fields };
-    }).catch(() => ({ probeAvailable: false }));
-    console.log('WEB-WORKSPACE-ENROLLMENT-DIALOG-CHECKPOINT',
-      JSON.stringify(enrollmentDialogSnapshot));
-    stage = 'Profile A fill enrollment approval request';
-    await paste(pageA, 'Enrollment JSON', enrollment);
-    stage = 'Profile A review enrollment approval keys';
-    await click(pageA, 'Review keys');
-    stage = 'Profile A approve and seal profile B device keys';
-    await click(pageA, 'Approve & seal keys');
-    stage = 'Profile A wait for profile B approval copy action';
-    await visibleButton(pageA, 'Copy');
-    await click(pageA, 'Copy');
-    const approval = await pageA.evaluate(() => navigator.clipboard.readText());
-    assertThat(approval.includes('atermius-device-approval-v1'),
-      'profile A device approval format was invalid');
-    await click(pageA, 'Done');
-    await click(pageA, 'Hosts');
-    await waitForWorkspace(pageA);
-    stage = 'open profile B approval import';
-    await click(pageB, 'Import approval');
-    stage = 'paste profile B approval';
-    await paste(pageB, 'Paste approval JSON', approval);
-    stage = 'import profile B device keys';
-    await click(pageB, 'Import device keys');
+    // Manual device enrollment ("Add this device" -> request JSON -> owner
+    // approval -> "Import approval") was removed from the Web sign-in page
+    // (commit 809bb00): a second browser profile now enrolls by signing in
+    // with the master password. The legacy flow is kept behind
+    // ATERMIUS_WEB_LEGACY_MANUAL_DEVICE_ENROLLMENT=1 so it is not lost
+    // silently; it cannot pass against the current bundle.
+    if (LEGACY_MANUAL_DEVICE_ENROLLMENT) {
+      stage = 'open profile B device enrollment form';
+      await click(pageB, 'Add this device');
+      stage = 'wait for profile B enrollment form';
+      await waitForText(pageB, 'Request this device');
+      stage = 'create profile B enrollment request';
+      await fill(pageB, 'Account email', USERNAME);
+      await fill(pageB, 'Device name', 'Workspace profile B');
+      await click(pageB, 'Generate request');
+      await field(pageB, 'Copy this enrollment JSON');
+      stage = 'copy profile B enrollment request';
+      await click(pageB, 'Copy');
+      const enrollment = await pageB.evaluate(() => navigator.clipboard.readText());
+      assertThat(JSON.parse(enrollment).format === 'atermius-device-enrollment-v1',
+        'profile B enrollment request format was invalid');
+      await click(pageB, 'Close');
+      stage = 'Profile A open Devices for profile B enrollment';
+      await openWorkspaceNavigation(pageA, 'Devices');
+      stage = 'Profile A open enrollment approval form';
+      await click(pageA, 'Approve enrollment');
+      stage = 'Profile A verify enrollment approval dialog';
+      await waitForText(pageA, 'Paste the public request from the new browser', 5000);
+      const enrollmentDialogSnapshot = await pageA.evaluate(() => {
+        const visible = (node) => {
+          const rect = node.getBoundingClientRect();
+          const style = getComputedStyle(node);
+          return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' &&
+            style.display !== 'none' && Number(style.opacity || 1) > 0;
+        };
+        const labels = [...document.querySelectorAll('flt-semantics')]
+          .filter(visible)
+          .map((node) => `${node.getAttribute('aria-label') || ''} ${node.innerText || ''}`
+            .replace(/\s+/g, ' ').trim())
+          .filter((label) => /enrollment|review keys|approve & seal keys|cancel/i.test(label));
+        const fields = [...document.querySelectorAll('input, textarea')]
+          .filter(visible)
+          .map((node) => node.getAttribute('aria-label') || 'unlabeled input');
+        const dialogs = [...document.querySelectorAll('[role="dialog"]')].filter(visible).length;
+        return { dialogs, enrollmentControls: labels, visibleFieldLabels: fields };
+      }).catch(() => ({ probeAvailable: false }));
+      console.log('WEB-WORKSPACE-ENROLLMENT-DIALOG-CHECKPOINT',
+        JSON.stringify(enrollmentDialogSnapshot));
+      stage = 'Profile A fill enrollment approval request';
+      await paste(pageA, 'Enrollment JSON', enrollment);
+      stage = 'Profile A review enrollment approval keys';
+      await click(pageA, 'Review keys');
+      stage = 'Profile A approve and seal profile B device keys';
+      await click(pageA, 'Approve & seal keys');
+      stage = 'Profile A wait for profile B approval copy action';
+      await visibleButton(pageA, 'Copy');
+      await click(pageA, 'Copy');
+      const approval = await pageA.evaluate(() => navigator.clipboard.readText());
+      assertThat(approval.includes('atermius-device-approval-v1'),
+        'profile A device approval format was invalid');
+      await click(pageA, 'Done');
+      await openWorkspaceNavigation(pageA, 'Hosts');
+      await waitForWorkspace(pageA);
+      stage = 'open profile B approval import';
+      await click(pageB, 'Import approval');
+      stage = 'paste profile B approval';
+      await paste(pageB, 'Paste approval JSON', approval);
+      stage = 'import profile B device keys';
+      await click(pageB, 'Import device keys');
+    }
     stage = 'unlock profile B';
     await fill(pageB, 'Email or username', USERNAME);
     await fill(pageB, 'Master password', MASTER_PASSWORD);
     await click(pageB, 'Sign in and unlock');
-    await waitForWorkspace(pageB);
+    await waitForWorkspace(pageB, 'expect');
 
     stage = 'create encrypted credential and Host references';
     await addCredential(pageA, () => pageErrors.length);
@@ -7915,10 +8092,10 @@ async function main() {
       assertThat(hostPullPending.pendingCount === 0,
         'Profile B had pending local work before the Workspace rename flow');
       stage = 'open Workspaces for both profiles before creating the split';
-      await click(pageA, 'Workspaces');
+      await openWorkspaceNavigation(pageA, 'Workspace layouts');
       await waitForVisibleSemanticText(pageA, 'Saved workspaces',
         'Profile A Workspaces page before rename-sync create', 15000);
-      await click(pageB, 'Workspaces');
+      await openWorkspaceNavigation(pageB, 'Workspace layouts');
       await waitForVisibleSemanticText(pageB, 'Saved workspaces',
         'Profile B Workspaces page before rename-sync create', 15000);
 
@@ -8298,7 +8475,7 @@ async function main() {
       'maximum-pane Host reference privacy check did not capture distinct Host IDs');
 
       stage = 'Profile A navigate to Workspaces before maximum-pane creation';
-      await click(pageA, 'Workspaces');
+      await openWorkspaceNavigation(pageA, 'Workspace layouts');
       await waitForVisibleSemanticText(pageA, 'Saved workspaces',
         'Profile A saved Workspaces page before max-pane creation', 15000);
       const splitBaseline = serverVaultSnapshot(databasePath).vaults[0];
@@ -8393,7 +8570,7 @@ async function main() {
       'maximum-pane Workspace encrypted create, event, head, and receipt did not link');
 
       stage = 'Profile B pull the encrypted eight-pane Workspace';
-      await click(pageB, 'Workspaces');
+      await openWorkspaceNavigation(pageB, 'Workspace layouts');
       await waitForVisibleSemanticText(pageB, 'Saved workspaces',
         'Profile B Workspaces page before max-pane pull', 15000);
       const bPendingBeforePull = await visibleSyncPendingSnapshot(pageB);
@@ -8629,13 +8806,13 @@ async function main() {
       return;
     }
     stage = 'return to Hosts after Host B sync';
-    await click(pageA, 'Hosts');
+    await openWorkspaceNavigation(pageA, 'Hosts');
     await openHostTab(pageA, HOST_B_NAME);
     stage = 'return to Hosts before opening the second Host B terminal tab';
-    await click(pageA, 'Hosts');
+    await openWorkspaceNavigation(pageA, 'Hosts');
     await openHostTab(pageA, HOST_B_NAME);
     stage = 'navigate to Workspaces after opening two Host B terminal tabs';
-    await click(pageA, 'Workspaces');
+    await openWorkspaceNavigation(pageA, 'Workspace layouts');
     await syncNow(pageA, 'workspace page baseline sync');
 
     stage = 'read baseline Vault commit count before workspace save';
@@ -8690,7 +8867,7 @@ async function main() {
         if (current) commitDelta = (BigInt(current.commitSeq) - BigInt(baselineCommitSeq)).toString();
       } catch (_) {}
       try {
-        await click(pageA, 'Sync & conflicts');
+        await openWorkspaceNavigation(pageA, 'Sync and conflicts');
         await waitForText(pageA, 'Offline-first, ciphertext-only', 5000);
         syncPageOpened = true;
         unsupportedRecordVisible = await pageA.getByText(
@@ -8733,12 +8910,12 @@ async function main() {
     workspaceRecordId = savedOperations[0].recordId;
 
     stage = 'Profile B pulls the saved Workspace into its independent profile';
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     await syncNow(pageB, 'profile B workspace pull', { forcePull: true });
     await visibleButton(pageB, 'Preview disconnected layout');
 
     stage = 'delete referenced Host B to prepare two missing Workspace panes';
-    await click(pageA, 'Hosts');
+    await openWorkspaceNavigation(pageA, 'Hosts');
     const hostBCardForConflict = pageA.getByRole('group', {
       name: new RegExp(`^Host: ${escapeRegExp(HOST_B_NAME)}; `),
     }).first();
@@ -8752,7 +8929,7 @@ async function main() {
     await syncNow(pageA, 'delete shared Host B before Workspace race');
     await syncNow(pageB, 'Profile B pulls both missing Host references', { forcePull: true });
     stage = 'return Profile A to Workspaces after both Host deletions';
-    await click(pageA, 'Workspaces');
+    await openWorkspaceNavigation(pageA, 'Workspace layouts');
 
     stage = 'create and synchronize two replacement Hosts for divergent offline layouts';
     const beforeHostCCreate = serverVaultSnapshot(databasePath).vaults
@@ -8775,8 +8952,8 @@ async function main() {
     await addHost(pageA, HOST_D_NAME, HOST_D_ADDRESS, { attachCredential: false });
     await syncNow(pageA, 'Host D sync for Workspace conflict');
     await syncNow(pageB, 'Profile B pulls replacement Hosts', { forcePull: true });
-    await click(pageA, 'Workspaces');
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageA, 'Workspace layouts');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     stage = 'verify both profiles show two repairable missing Workspace panes';
     const bothProfilesHaveTwoMissingPanes =
       await pageA.getByRole('button', {
@@ -9031,7 +9208,7 @@ async function main() {
     assertThat(profileBReauthenticatedAfterReload,
       'Profile B reload did not require and complete authentication/unlock');
     stage = 'Profile B navigate to Workspaces after Web reload';
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     await syncNow(pageB, 'Profile B post-reload Workspace conflict pull', {
       forcePull: true,
       allowSettledPending: true,
@@ -9093,16 +9270,16 @@ async function main() {
     });
 
     stage = 'pull resolved Workspace copy and original into Profile A';
-    await click(pageA, 'Workspaces');
+    await openWorkspaceNavigation(pageA, 'Workspace layouts');
     await syncNow(pageA, 'Profile A Workspace conflict resolution pull', { forcePull: true });
     await waitForWorkspaceCapture(() => workspaceConflictFeedEvents.find((item) =>
       item.profile === 'A' && item.type === 'resolved' &&
       item.conflictId === conflictId &&
       item.resolvedRevisionId === resolutionResponse.resolvedRevisionId),
     'A conflict-resolved event', pageA);
-    await click(pageA, 'Hosts');
-    await click(pageA, 'Workspaces');
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageA, 'Hosts');
+    await openWorkspaceNavigation(pageA, 'Workspace layouts');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     stage = 'inspect Profile A resolved and copied decrypted Workspace panes';
     const profileASeesBBranchCopy = await previewNamedWorkspace(
       pageA,
@@ -9294,7 +9471,7 @@ async function main() {
     captureWorkspaceConflict = false;
 
     stage = 'create and synchronize isolated split-pane Host';
-    await click(pageA, 'Hosts');
+    await openWorkspaceNavigation(pageA, 'Hosts');
     stage = 'capture pre-Pane-2 Host target-update Vault sequence';
     const beforeHostATargetUpdate = serverVaultSnapshot(databasePath).vaults[0];
     assertThat(beforeHostATargetUpdate,
@@ -9350,7 +9527,7 @@ async function main() {
     assertThat(typeof splitHostRecordId === 'string' && splitHostRecordId.length > 0 &&
       splitHostRecordId !== hostARecordId,
     'split Workspace panes do not reference two distinct synced Host record IDs');
-    await click(pageA, 'Workspaces');
+    await openWorkspaceNavigation(pageA, 'Workspace layouts');
     const splitUiAfterNavigation = await workspaceSplitCreatorSnapshot(pageA);
     console.log(`WEB-WORKSPACE-SPLIT-UI-AFTER-NAV ${JSON.stringify(splitUiAfterNavigation)}`);
     await syncNow(pageB, 'Profile B isolated split Host pull', { forcePull: true });
@@ -9553,7 +9730,7 @@ async function main() {
     'split Workspace encrypted envelope, version, event, head, receipt, and commit links diverged');
 
     stage = 'Profile B force-pulls and decrypts split Workspace';
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     const totalPreviewCardCountBBeforeSplitSync =
       await totalWorkspacePreviewCardCount(pageB);
     const splitPullChangesBefore = splitPullChangePages.length;
@@ -9617,7 +9794,7 @@ async function main() {
 
     stage = 'reload Profile B and force-pull the persisted split Workspace';
     await restoreWorkspaceAfterReload(pageB, 'B', baseUrl);
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     await syncNow(pageB, 'Profile B post-reload split Workspace pull', { forcePull: true });
     const profileBDecryptsSplitAfterReload = await assertSplitWorkspaceCard();
     assertThat(profileBDecryptsSplitAfterReload,
@@ -9739,7 +9916,7 @@ async function main() {
     assertThat(await paneOneTab.count() === 1,
       'Pane 1 terminal tab was not uniquely selectable for disconnect');
     await paneOneTab.click();
-    await click(pageB, 'Disconnect');
+    await disconnectActiveTerminal(pageB);
     stage = 'Profile B wait for Pane 1 Relay and sink closure while Pane 2 stays live';
     let paneOneDisconnectClosedOnlyItsTransport = false;
     try {
@@ -9849,7 +10026,7 @@ async function main() {
     assertThat(await remainingTwoPaneTab.count() === 1,
       'the remaining two-pane terminal tab was not uniquely selectable');
     await remainingTwoPaneTab.click();
-    await click(pageB, 'Disconnect');
+    await disconnectActiveTerminal(pageB);
     await waitForCaptured(() =>
       activeRelayWebSockets.B.size === splitTicketBaseline.activeSocketsB &&
       relayWebSocketCloses.B === splitTicketBaseline.closedSocketsB + 2 &&
@@ -9871,7 +10048,7 @@ async function main() {
     };
 
     stage = 'Profile A retarget nested Workspace Hosts to three isolated OpenSSH targets';
-    await click(pageA, 'Hosts');
+    await openWorkspaceNavigation(pageA, 'Hosts');
     await editHostTarget(pageA, HOST_SPLIT_NAME, splitTargetAddress,
       nestedSshServers[0].port, {
         originalAddress: splitTargetAddress,
@@ -9936,7 +10113,7 @@ async function main() {
     }));
     assertThat(hostCCredentialUpdateReadback,
       'Host C credential and target update did not persist as one encrypted Host update');
-    await click(pageA, 'Workspaces');
+    await openWorkspaceNavigation(pageA, 'Workspace layouts');
 
     const beforeNestedVault = serverVaultSnapshot(databasePath).vaults
       .find((item) => item.vaultId === vaultId);
@@ -10031,7 +10208,7 @@ async function main() {
     const nestedWorkspaceRecordId = nestedOperation.recordId;
 
     stage = 'Profile B pull the nested Workspace and decrypt its recursive layout';
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     const nestedProfileBChangePages = [];
     let nestedCapturedChangePageCount = 0;
     const appendCapturedNestedChangePages = () => {
@@ -10112,7 +10289,7 @@ async function main() {
 
     stage = 'reload Profile B and force-pull the nested Workspace';
     await restoreWorkspaceAfterReload(pageB, 'B', baseUrl);
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     await syncNow(pageB, 'Profile B post-reload nested Workspace pull', { forcePull: true });
     const profileBDecryptsNestedAfterReload = await verifyNestedWorkspaceCard(
       'Profile B after reload and force pull',
@@ -10124,25 +10301,22 @@ async function main() {
         name: new RegExp(`^Host: ${escapeRegExp(hostName)}; `),
       }).first();
       await card.waitFor({ state: 'visible', timeout: 15000 });
-      await card.getByRole('button', { name: 'Edit host', exact: true }).click();
-      await waitForText(pageB, 'Edit host');
+      await openHostEditorFromCard(card);
       const expectedReference =
-        `Host override: ${CREDENTIAL_NAME} · ${SSH_USERNAME}`;
+        `Keychain: ${CREDENTIAL_NAME} (${SSH_USERNAME})`;
       const deadline = Date.now() + 10000;
       let resolved = false;
       let unavailable = false;
       while (!resolved && !unavailable && Date.now() < deadline) {
         resolved = await visibleSemanticTextMatch(pageB, expectedReference);
-        unavailable = await visibleSemanticTextMatch(
-          pageB, 'Host override is unavailable.',
-        );
+        unavailable = await hostEditorSignInSourceUnresolved(pageB);
         if (!resolved && !unavailable) await pageB.waitForTimeout(100);
       }
       await click(pageB, 'Cancel');
       return { resolved, unavailable };
     };
     stage = 'Profile B verify synchronized Host A credential reference after reload';
-    await click(pageB, 'Hosts');
+    await openWorkspaceNavigation(pageB, 'Hosts');
     const profileBHostACredential =
       await verifyProfileBHostCredentialReference(HOST_A_NAME);
     console.log('WEB-WORKSPACE-HOST-A-CREDENTIAL-REPLICA-CHECKPOINT', JSON.stringify({
@@ -10163,7 +10337,7 @@ async function main() {
     assertThat(profileBHostCCredential.resolved &&
       !profileBHostCCredential.unavailable,
     'Profile B did not pull and resolve Host C credential reference after reload');
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     captureWorkspaceSplit = false;
 
     stage = 'Profile B preview the nested Workspace without connecting leaves';
@@ -10820,7 +10994,7 @@ async function main() {
     'Pane 2 SFTP did not create its directory only on the exact SSHD over the existing Relay session');
 
     stage = 'reopen nested Pane 2 Files and verify its remote path is retained';
-    await click(pageB, 'Terminal');
+    await openWorkspaceNavigation(pageB, 'Terminal');
     await click(pageB, `Browse files on ${HOST_C_NAME}`);
     await waitForVisibleSemanticText(pageB,
       'Remote path: /tmp',
@@ -10839,7 +11013,7 @@ async function main() {
       'reopening Pane 2 Files did not retain its path on the same SSH session');
 
     stage = 'open Files from a different connected nested Workspace pane';
-    await click(pageB, 'Terminal');
+    await openWorkspaceNavigation(pageB, 'Terminal');
     await click(pageB, `Browse files on ${HOST_A_NAME}`);
     await waitForVisibleSemanticText(pageB, 'SFTP file browser',
       'nested Pane 3 SFTP page');
@@ -10868,7 +11042,7 @@ async function main() {
     assertThat(nestedWorkspacePaneThreeSftpIsolated === true,
       'opening Pane 3 Files reused Pane 2 SFTP state or changed Relay transports');
     stage = 'return from pane-scoped SFTP to the live nested Workspace terminals';
-    await click(pageB, 'Terminal');
+    await openWorkspaceNavigation(pageB, 'Terminal');
     await waitForVisibleSemanticText(pageB, `Pane 1 · ${HOST_SPLIT_NAME}`,
       'nested Workspace terminal panes after SFTP');
     const nestedWorkspaceSftpEvidence = {
@@ -10901,7 +11075,7 @@ async function main() {
     assertThat(await nestedPaneOneTab.count() === 1,
       'nested Pane 1 terminal tab was not uniquely selectable for disconnect');
     await nestedPaneOneTab.click();
-    await click(pageB, 'Disconnect');
+    await disconnectActiveTerminal(pageB);
     await waitForCaptured(() =>
       activeRelayWebSockets.B.size === nestedTicketBaseline.activeSocketsB + 2 &&
       relayWebSocketCloses.B === nestedTicketBaseline.closedSocketsB + 4 &&
@@ -10956,7 +11130,7 @@ async function main() {
     await nestedPaneTwoTabAfterDisconnect.click();
 
     stage = 'return to the saved nested Workspace preview after local disconnect';
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     await waitForVisibleSemanticText(pageB, 'Saved workspaces',
       'Workspaces page after local pane disconnect', 15000);
     await stageSplitWorkspacePreview(pageB, NESTED_SPLIT_WORKSPACE_NAME, {
@@ -11125,7 +11299,7 @@ async function main() {
     ])];
 
     stage = 'Profile B pull the tmux Credential and Host before Workspace creation';
-    await click(pageB, 'Hosts');
+    await openWorkspaceNavigation(pageB, 'Hosts');
     const tmuxHostSyncApiBaseline = vaultSyncApiEvents.B.length;
     const tmuxHostChangesPageBaseline = tmuxBChangesPageBaseline;
     const tmuxHostPullPages = [];
@@ -11237,20 +11411,17 @@ async function main() {
       throw error;
     }
     stage = 'Profile B open synchronized tmux Host editor';
-    await tmuxHostCardB.getByRole('button', { name: 'Edit host', exact: true }).click();
+    await openHostEditorFromCard(tmuxHostCardB);
     stage = 'Profile B resolve synchronized tmux Credential reference';
-    await waitForText(pageB, 'Edit host');
     const tmuxCredentialReferenceDeadline = Date.now() + 10000;
     let tmuxCredentialReferenceVisible = false;
     let tmuxCredentialUnavailableVisible = false;
     while (!tmuxCredentialReferenceVisible && !tmuxCredentialUnavailableVisible &&
         Date.now() < tmuxCredentialReferenceDeadline) {
       tmuxCredentialReferenceVisible = await visibleSemanticTextMatch(
-        pageB, `Host override: ${TMUX_CREDENTIAL_NAME} · ${TMUX_SSH_USERNAME}`,
+        pageB, `Keychain: ${TMUX_CREDENTIAL_NAME} (${TMUX_SSH_USERNAME})`,
       );
-      tmuxCredentialUnavailableVisible = await visibleSemanticTextMatch(
-        pageB, 'Host override is unavailable.',
-      );
+      tmuxCredentialUnavailableVisible = await hostEditorSignInSourceUnresolved(pageB);
       if (!tmuxCredentialReferenceVisible && !tmuxCredentialUnavailableVisible) {
         await pageB.waitForTimeout(100);
       }
@@ -11423,7 +11594,7 @@ async function main() {
     const tmuxTabBeforeTerminalNavigation =
       await workspaceTerminalTabDiagnosticSnapshot(pageA, HOST_TMUX_NAME);
     stage = 'Profile A explicitly navigate to Terminal before tab isolation';
-    await click(pageA, 'Terminal');
+    await openWorkspaceNavigation(pageA, 'Terminal');
     const tmuxTabAfterTerminalNavigation =
       await workspaceTerminalTabDiagnosticSnapshot(pageA, HOST_TMUX_NAME);
     console.log('WEB-WORKSPACE-TMUX-TERMINAL-NAV-CHECKPOINT', JSON.stringify({
@@ -11451,7 +11622,7 @@ async function main() {
       throw new Error('Terminal navigation changed the tmux Host tab/runtime state');
     }
     await closeOtherTerminalTabs(pageA, HOST_TMUX_NAME);
-    await click(pageA, 'Workspaces');
+    await openWorkspaceNavigation(pageA, 'Workspace layouts');
     await waitForVisibleSemanticText(pageA, 'Saved workspaces',
       'Profile A Workspaces page for tmux save');
     const tmuxWorkspaceVaultBeforeSave = serverVaultSnapshot(databasePath).vaults
@@ -12932,7 +13103,7 @@ async function main() {
       tmux: tmuxSshFixture.tmuxSnapshot(),
     };
     await restoreWorkspaceAfterReload(pageB, 'B', baseUrl);
-    await click(pageB, 'Workspaces');
+    await openWorkspaceNavigation(pageB, 'Workspace layouts');
     const tmuxPullChangeBaseline = splitPullChangePages.length;
     await syncNow(pageB, 'Profile B tmux Workspace descriptor force pull', {
       forcePull: true,
@@ -13111,7 +13282,7 @@ async function main() {
     'explicit Resume created a Relay/SSH transport instead of a second tmux client');
 
     stage = 'Profile B Disconnect its tmux client while preserving A and the session';
-    await click(pageB, 'Disconnect');
+    await disconnectActiveTerminal(pageB);
     const tmuxAfterBDisconnect = await waitForTmuxState(
       tmuxSshFixture,
       (snapshot) => snapshot.sessionCount === 1 && snapshot.clientCount === 1 &&

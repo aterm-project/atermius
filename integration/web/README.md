@@ -4,6 +4,38 @@
 
 Commands and paths below run from a full monorepo checkout, which includes both the API source and the client that builds the compiled frontend. Historical acceptance counts belong to their named version/run; they are not a current full-suite pass. Missing environment/fixture skips require explicit reporting. Use only disposable test accounts and targets.
 
+## Entry flow and script status (2026-11-19)
+
+The browser build signs in to the server that serves it (commit 4305565): no
+workspace-mode chooser, no `Server URL` field, no `Connect securely` step and
+no local mode. The first unlock on a device shows a one-time
+credential-visibility notice. Scripts share these entry steps through
+`support/hosted_web.cjs` (`expectHostedSignIn`, `waitForWorkspaceHome`).
+
+Scripts that follow the current UI and pass on the current bundle:
+`test:password-change`, `test:session-refresh-multitab`, `test:multi-vault-switch`,
+`test:admin-audit`, `test:admin-accounts`, `test:admin-push-health`,
+`test:admin-relay-policy`, `test:admin-relay-groups`, `test:admin-jobs`,
+`test:admin-restore-stage`. The `max-panes` and `rename-sync` modes of
+`test:workspace-layout` pass in most runs but not all.
+
+Partly brought up to date and still failing: `test:profiles` (stops in its
+Credential sync block) and the full and `tmux-process-restart` runs of
+`test:workspace-layout`. Every other script that still starts with `Server URL`
+describes the earlier UI and fails at its entry step.
+
+In `cross_profile_sync.cjs` and `workspace_layout.cjs` the manual enrollment
+block (request, approve, import) only runs with
+`ATERMIUS_WEB_LEGACY_MANUAL_DEVICE_ENROLLMENT=1`: the sign-in page no longer
+offers manual enrollment, so a second profile signs in with the master
+password instead.
+
+`test:local-profile`, `test:local-to-sync-migration` and
+`test:local-quota-recovery` exercise the browser's local mode, which the
+browser build no longer has. They cannot pass on the current bundle and are
+kept only as a record until someone decides whether local mode gets native
+coverage instead.
+
 ## Web profile acceptance
 
 `WEB-IT-01` runs the compiled Flutter Web app in two isolated Chromium browser

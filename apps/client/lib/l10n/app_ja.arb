@@ -5254,5 +5254,12 @@
   "clipboardReadUnfocused": "Android では前面のアプリしかクリップボードを読み取れません。もう一度貼り付けてください。",
   "clipboardTextTooLarge": "クリップボードのテキストが {limit} を超えているため、貼り付けませんでした。",
   "vncClipboardLatin1Only": "VNC のクリップボードは Latin-1 のテキストしか扱えないため、このテキストは送信できません。",
-  "vncDisplayAndClipboard": "解像度、ローカルのスケーリング、クリップボード"
+  "vncDisplayAndClipboard": "解像度、ローカルのスケーリング、クリップボード",
+  "hostSortRecentRequested": "最近接続を要求した順",
+  "hostSortNameAscending": "名前（昇順）",
+  "hostSortNameDescending": "名前（降順）",
+  "hostSortAddress": "アドレス",
+  "hostSortProtocol": "プロトコル",
+  "hostSortFavoritesFirst": "お気に入り優先",
+  "hostSortCurrent": "ホストの並べ替え：{order}"
 }

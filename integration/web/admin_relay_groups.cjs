@@ -13,6 +13,7 @@ const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
+const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -485,12 +486,50 @@ async function configurePage(page, baseUrl, events) {
   await page.evaluate(async () => { await window.sodium.ready; });
   setStage('enable Flutter Web semantics');
   await page.locator('flt-semantics-placeholder').evaluate((element) => element.click());
-  setStage('wait for accessible server configuration controls');
+  setStage('wait for accessible sign-in controls');
   await waitFor(() => page.evaluate(() => document.querySelectorAll('flt-semantics').length > 0), 15000);
-  setStage('set disposable server address');
-  await fill(page, 'Server URL', baseUrl);
-  setStage('connect client to disposable server');
-  await click(page, 'Connect securely');
+  // The browser build signs in to the server that serves it; there is no
+  // server address step.
+  setStage('wait for hosted sign-in on the disposable server origin');
+  await expectHostedSignIn(page, baseUrl);
+}
+
+async function visibleButtonBoxes(page, label) {
+  const buttons = page.getByRole('button', { name: label, exact: true });
+  const boxes = [];
+  const count = await buttons.count().catch(() => 0);
+  for (let index = 0; index < count; index += 1) {
+    const candidate = buttons.nth(index);
+    if (!await candidate.isVisible().catch(() => false)) continue;
+    const box = await candidate.boundingBox().catch(() => null);
+    if (box) boxes.push({ locator: candidate, box });
+  }
+  return boxes;
+}
+
+// Instance administration lives on its own workspace page (/admin) with its
+// own section list. Some section titles ("Audit log") also name a workspace
+// sidebar entry, so the section button is picked by its column: the one
+// aligned with the "Instance overview" section button.
+async function openAdminSection(page, sectionTitle) {
+  if (new URL(page.url()).pathname !== '/admin') {
+    await click(page, 'Admin');
+  }
+  await waitFor(async () => new URL(page.url()).pathname === '/admin' &&
+    (await visibleButtonBoxes(page, 'Instance overview')).length === 1, 30000);
+  const [anchor] = await visibleButtonBoxes(page, 'Instance overview');
+  const candidates = (await visibleButtonBoxes(page, sectionTitle))
+    .filter(({ box }) => Math.abs(box.x - anchor.box.x) < 2);
+  assertThat(candidates.length === 1, 'Admin section list did not offer exactly one matching section');
+  await candidates[0].locator.click();
+  await page.waitForTimeout(200);
+  assertThat(new URL(page.url()).pathname === '/admin', 'Admin section selection left the Admin page');
+}
+
+async function openSettingsPage(page) {
+  await click(page, 'Settings');
+  await waitFor(async () => new URL(page.url()).pathname === '/settings' &&
+    (await visibleButtonBoxes(page, 'Account security')).length === 1, 30000);
 }
 
 function apiRoute(request) {
@@ -623,6 +662,10 @@ function validateGroupList(payload) {
 }
 
 async function chooseDropdownOption(page, fieldLabel, optionLabel) {
+  // The picker is rendered after its account list arrives; wait for it
+  // instead of racing the response.
+  await waitFor(() => hasVisibleSemanticText(page, fieldLabel), 15000);
+  await page.waitForTimeout(250);
   const opened = await page.evaluate((label) => {
     const visible = (element) => {
       const rect = element.getBoundingClientRect();
@@ -717,7 +760,7 @@ async function createAdminProfile(page, baseUrl, events) {
   `administrator registration failed with ${registration.status} ${payload?.code || ''}`.trim());
   try {
     setStage('wait for administrator landing page');
-    await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+    await waitForWorkspaceHome(page, { notice: 'expect' });
   } catch (error) {
     await logPageDiagnostics(page, 'administrator_landing');
     throw error;
@@ -741,7 +784,7 @@ async function createMemberProfile(page, baseUrl, events) {
   await fill(page, 'First Vault', 'Relay groups acceptance member');
   const start = events.length;
   await click(page, 'Create invited account');
-  await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+  await waitForWorkspaceHome(page, { notice: 'expect' });
   const registration = await waitForEvent(events,
     (event) => event.route === 'register' && event.sequence >= start);
   const payload = await registration.payloadPromise;
@@ -755,7 +798,7 @@ async function createMemberProfile(page, baseUrl, events) {
 }
 
 async function openGroups(page, events) {
-  await click(page, 'Settings');
+  await openAdminSection(page, 'Access and relay policy');
   await scrollUntilVisibleSemanticText(page, 'Server-managed access groups');
   const start = events.length;
   const load = page.getByRole('button', { name: /Load server-managed groups|Refresh server-managed groups/ }).first();
@@ -888,8 +931,11 @@ async function main() {
     reportBoolean('two_distinct_browser_profiles_registered', true);
 
     setStage('verify non-admin UI and API gates');
-    await click(memberPage, 'Settings');
-    await scrollUntilVisibleSemanticText(memberPage, 'Workspace settings');
+    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+      'non-admin workspace offered the Admin page');
+    await openSettingsPage(memberPage);
+    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+      'non-admin workspace offered the Admin page');
     assertThat(!await hasVisibleSemanticText(memberPage, 'Server-managed access groups'),
       'non-admin Settings exposed the server-managed group controls');
     const unauthenticated = await directApi(baseUrl, 'GET', GROUPS_PATH);
@@ -1226,6 +1272,7 @@ async function main() {
       !serializedAudit.includes(memberUsername) && !serializedAudit.includes(memberAccountId),
     'group audit events exposed group names or member identity');
 
+    await openAdminSection(adminPage, 'Audit log');
     await scrollUntilVisibleSemanticText(adminPage, 'Instance admin audit');
     const auditRefresh = adminPage.getByRole('button', {
       name: /Load admin audit|Refresh admin audit/,
@@ -1237,13 +1284,14 @@ async function main() {
         event.sequence >= mutationStart);
     assertThat(auditUiEvent.hasBearer && auditUiEvent.status === 200,
       'Settings instance audit refresh was not authorized');
+    // Audit action labels follow the app language; these profiles use en-US.
     for (const label of [
-      '管理员已创建 SSH Relay 访问组',
-      '管理员已重命名 SSH Relay 访问组',
-      '管理员已更改 SSH Relay 访问组成员',
-      '管理员已更改 SSH Relay 访问组策略',
-      '管理员已重置 SSH Relay 访问组策略',
-      '管理员已删除 SSH Relay 访问组',
+      'An administrator created an SSH Relay access group',
+      'An administrator renamed an SSH Relay access group',
+      'An administrator changed SSH Relay access group membership',
+      'An administrator changed the SSH Relay access group policy',
+      'An administrator reset the SSH Relay access group policy',
+      'An administrator deleted an SSH Relay access group',
     ]) {
       await scrollUntilVisibleSemanticText(adminPage, label, 40);
     }

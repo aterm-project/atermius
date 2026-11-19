@@ -17766,4 +17766,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get vncDisplayAndClipboard => '分辨率、本地缩放与剪贴板';
+
+  @override
+  String get hostSortRecentRequested => '最近请求';
+
+  @override
+  String get hostSortNameAscending => '名称升序';
+
+  @override
+  String get hostSortNameDescending => '名称降序';
+
+  @override
+  String get hostSortAddress => '地址';
+
+  @override
+  String get hostSortProtocol => '协议';
+
+  @override
+  String get hostSortFavoritesFirst => '收藏优先';
+
+  @override
+  String hostSortCurrent(String order) {
+    return '主机排序：$order';
+  }
 }

@@ -18687,4 +18687,27 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get vncDisplayAndClipboard => '解像度、ローカルのスケーリング、クリップボード';
+
+  @override
+  String get hostSortRecentRequested => '最近接続を要求した順';
+
+  @override
+  String get hostSortNameAscending => '名前（昇順）';
+
+  @override
+  String get hostSortNameDescending => '名前（降順）';
+
+  @override
+  String get hostSortAddress => 'アドレス';
+
+  @override
+  String get hostSortProtocol => 'プロトコル';
+
+  @override
+  String get hostSortFavoritesFirst => 'お気に入り優先';
+
+  @override
+  String hostSortCurrent(String order) {
+    return 'ホストの並べ替え：$order';
+  }
 }

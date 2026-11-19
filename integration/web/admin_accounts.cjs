@@ -14,6 +14,7 @@ const crypto = require('node:crypto');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
+const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -335,8 +336,37 @@ async function configurePage(page, baseUrl) {
   await page.evaluate(async () => { await window.sodium.ready; });
   await page.locator('flt-semantics-placeholder').evaluate((element) => element.click());
   await waitFor(() => page.evaluate(() => document.querySelectorAll('flt-semantics').length > 0), 15000);
-  await fill(page, 'Server URL', baseUrl);
-  await click(page, 'Connect securely');
+  await expectHostedSignIn(page, baseUrl);
+}
+
+// Instance administration lives in the dedicated Admin panel (/admin). Its
+// section list can repeat a workspace sidebar name ("Audit log"), so pick the
+// section button inside the panel: the right-most button with that name.
+async function openAdminSection(page, section) {
+  // A sidebar tooltip left by the previous hover can cover the next item.
+  await page.mouse.move(900, 940);
+  // Opening the panel again while it is showing would rebuild it under the
+  // section click that follows.
+  if (new URL(page.url()).pathname !== '/admin') {
+    await click(page, 'Admin');
+    await waitFor(() => new URL(page.url()).pathname === '/admin');
+  }
+  await button(page, 'Instance overview');
+  const candidates = page.getByRole('button', { name: section, exact: true });
+  let chosen;
+  let chosenX = -1;
+  const count = await candidates.count();
+  for (let index = 0; index < count; index += 1) {
+    const box = await candidates.nth(index).boundingBox();
+    if (box && box.x > chosenX) {
+      chosen = candidates.nth(index);
+      chosenX = box.x;
+    }
+  }
+  assertThat(chosen && chosenX > 150, 'Admin panel section was not offered');
+  await page.mouse.move(900, 940);
+  await chosen.click();
+  await page.mouse.move(900, 940);
 }
 
 function cliToken(args, serverEnv, description) {
@@ -461,9 +491,15 @@ function validateAccountsPage(payload, targetUserId, expectedUsername, expectedS
   assertNoSecretOrIpFields(payload);
   const expectedAccountKeys = [
     'user_id', 'username', 'status', 'created_at', 'active_device_count', 'active_session_count',
+    // Documented per-account credential visibility (docs/CREDENTIAL-VISIBILITY.md).
+    'credential_visibility', 'escrow_status',
   ];
   for (const account of payload.accounts) {
     assertThat(exactKeys(account, expectedAccountKeys), 'admin account metadata fields changed');
+    assertThat(['private', 'admin_visible'].includes(account.credential_visibility) &&
+        ['not_required', 'no_key', 'pending', 'complete'].includes(account.escrow_status) &&
+        (account.credential_visibility !== 'private' || account.escrow_status === 'not_required'),
+      'admin account credential visibility metadata was invalid');
   }
   const target = payload.accounts.find((account) => account.user_id === targetUserId);
   assertThat(target && target.username === expectedUsername && target.status === expectedStatus,
@@ -490,8 +526,8 @@ function validateInvitationPage(payload, invitationId, expectedUsername, expecte
   assertNoSecretOrIpFields(payload);
   for (const invitation of payload.invitations) {
     assertThat(exactKeys(invitation, [
-      'invitation_id', 'username', 'created_at', 'expires_at', 'status',
-    ]) && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+      'invitation_id', 'username', 'created_at', 'expires_at', 'status', 'credential_visibility',
+    ]) && [null, 'private', 'admin_visible'].includes(invitation.credential_visibility) && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
       .test(invitation.invitation_id) && typeof invitation.username === 'string' &&
       typeof invitation.created_at === 'string' &&
       !Number.isNaN(Date.parse(invitation.created_at)) &&
@@ -511,8 +547,9 @@ function validateInvitationPage(payload, invitationId, expectedUsername, expecte
 function validateIssuedInvitationReceipt(payload, expectedUsername) {
   assertThat(exactKeys(payload, ['invitation']) &&
       exactKeys(payload.invitation, [
-        'invitation_id', 'username', 'created_at', 'expires_at', 'token',
+        'invitation_id', 'username', 'created_at', 'expires_at', 'token', 'credential_visibility',
       ]) &&
+      [null, 'private', 'admin_visible'].includes(payload.invitation.credential_visibility) &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
         .test(payload.invitation.invitation_id) &&
       payload.invitation.username === expectedUsername &&
@@ -719,7 +756,7 @@ async function main() {
     await click(adminPage, 'Create owner account');
     bootstrapToken = undefined;
     setStage('wait for administrator account shell');
-    await (await button(adminPage, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+    await waitForWorkspaceHome(adminPage, { notice: 'expect' });
     setStage('read administrator registration receipt');
     const adminRegister = await waitForPageRoute(adminEvents, 'register', adminRegisterStart);
     const adminRegisterBody = await adminRegister.payloadPromise;
@@ -735,7 +772,7 @@ async function main() {
     reportStatus('admin_registration', adminRegister.status);
 
     setStage('issue one-time account invitation from administrator Settings');
-    await click(adminPage, 'Settings');
+    await openAdminSection(adminPage, 'Users');
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Instance accounts and sessions'));
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Account invitations'));
     const initialInvitationsStart = adminEvents.length;
@@ -895,6 +932,7 @@ async function main() {
       'repeated pending invitation revoke was not idempotent');
     reportBoolean('pending_invitation_revocation_and_idempotent_repeat', true);
 
+    await openAdminSection(adminPage, 'Audit log');
     const invitationAuditStart = adminEvents.length;
     await click(adminPage, 'Load admin audit');
     const invitationAuditUiEvent = await waitForPageRoute(
@@ -907,8 +945,8 @@ async function main() {
       renderedInvitationAudit, adminRegisterBody.account_id, adminDeviceId,
       [{ invitation_id: issuedInvitationId }, { invitation_id: revokedInvitationId }],
       revokedInvitationId);
-    assertThat(await hasVisibleSemanticText(adminPage, '实例管理员邀请已签发') &&
-        await hasVisibleSemanticText(adminPage, '实例管理员邀请已撤销') &&
+    assertThat(await hasVisibleSemanticText(adminPage, 'Instance admin invitation issued') &&
+        await hasVisibleSemanticText(adminPage, 'Instance admin invitation revoked') &&
         !await hasVisibleSemanticText(adminPage, 'instance.account_invitation_revoked'),
       'Settings audit card did not localize account invitation issue and revoke events');
     reportBoolean('account_invitation_audit_api_and_settings_labels_valid', true);
@@ -934,7 +972,7 @@ async function main() {
     await fill(memberPage, 'First Vault', 'Account control target Vault');
     const memberRegisterStart = memberEvents.length;
     await click(memberPage, 'Create invited account');
-    await (await button(memberPage, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+    await waitForWorkspaceHome(memberPage, { notice: 'expect' });
     const memberRegister = await waitForPageRoute(memberEvents, 'register', memberRegisterStart);
     const memberRegisterBody = await memberRegister.payloadPromise;
     assertThat(memberRegister.status >= 200 && memberRegister.status < 300 &&
@@ -952,6 +990,7 @@ async function main() {
     reportStatus('non_admin_registration', memberRegister.status);
 
     setStage('verify invitation was consumed and token is absent from admin list');
+    await openAdminSection(adminPage, 'Users');
     const consumedInvitationsStart = adminEvents.length;
     await click(adminPage, 'Refresh account invitations');
     const consumedInvitationsEvent = await waitForPageRoute(
@@ -1002,8 +1041,14 @@ async function main() {
     reportBoolean('account_invitation_admin_acl_enforced', true);
 
     setStage('verify non-admin Settings gating');
+    // Account controls live in the Admin panel, which a non-admin account
+    // is not offered; Settings, their former home, must not show them either.
+    await button(memberPage, 'Settings');
+    const memberHasAdminEntry = await memberPage
+      .getByRole('button', { name: 'Admin', exact: true }).first().isVisible().catch(() => false);
+    assertThat(!memberHasAdminEntry, 'non-admin profile was offered the Admin panel');
     await click(memberPage, 'Settings');
-    await waitFor(() => hasVisibleSemanticText(memberPage, 'Workspace settings'));
+    await button(memberPage, 'Account and device information');
     const memberHasAccountsCard = await hasVisibleSemanticText(memberPage, 'Instance accounts and sessions');
     reportBoolean('non_admin_accounts_card_absent', !memberHasAccountsCard);
     assertThat(!memberHasAccountsCard, 'non-admin profile rendered instance account controls');
@@ -1012,7 +1057,7 @@ async function main() {
       'non-admin profile rendered instance account invitation controls');
 
     setStage('open administrator Settings account controls');
-    await click(adminPage, 'Settings');
+    await openAdminSection(adminPage, 'Users');
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Instance accounts and sessions'));
     const listStart = adminEvents.length;
     await click(adminPage, 'Refresh admin accounts');
@@ -1141,6 +1186,7 @@ async function main() {
     reportBoolean('bulk_session_audit_exact_dto_actor_device_hmac_order_valid', true);
 
     setStage('render bulk-session audit label in the current Settings UI');
+    await openAdminSection(adminPage, 'Audit log');
     const bulkAuditRefreshStart = adminEvents.length;
     await click(adminPage, 'Refresh admin audit');
     const bulkAuditRefresh = await waitForPageRoute(
@@ -1151,7 +1197,7 @@ async function main() {
     assertThat(bulkAuditRefresh.status === 200 && bulkAuditRefresh.hasBearer &&
         renderedBulkRow && JSON.stringify(renderedBulkRow) === JSON.stringify(bulkAuditRow),
       'Settings refresh did not render the exact validated bulk-session audit DTO');
-    const bulkAuditLabel = '管理员已撤销账户的全部会话';
+    const bulkAuditLabel = "An administrator revoked all of the account's sessions";
     await waitFor(() => hasVisibleSemanticText(adminPage, bulkAuditLabel));
     assertThat(await hasVisibleSemanticText(adminPage, bulkAuditLabel) &&
         !await hasVisibleSemanticText(adminPage, 'admin.account_sessions_revoked'),
@@ -1162,6 +1208,7 @@ async function main() {
     const thirdLogin = await memberLogin(baseUrl);
 
     setStage('disable target account from administrator UI');
+    await openAdminSection(adminPage, 'Users');
     await click(adminPage, 'Disable account');
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Disable account?'));
     const disableStart = adminEvents.length;

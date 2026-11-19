@@ -10,6 +10,12 @@ const path = require('node:path');
 const net = require('node:net');
 const crypto = require('node:crypto');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
+const {
+  WORKSPACE_ADD_TOOLTIP,
+  expectHostedSignIn,
+  waitForWorkspaceHome,
+  workspaceMarker,
+} = require('./support/hosted_web.cjs');
 const { startSshFixture } = require('./ssh_fixture.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
@@ -27,6 +33,8 @@ const CARGO_TARGET_DIR = process.env.CARGO_TARGET_DIR
   : path.join(ROOT, 'server/target');
 const SERVER_BINARY = path.join(CARGO_TARGET_DIR, 'debug/atermius-server');
 const CHROMIUM_EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
+const LEGACY_MANUAL_DEVICE_ENROLLMENT =
+  process.env.ATERMIUS_WEB_LEGACY_MANUAL_DEVICE_ENROLLMENT === '1';
 const RUN_ID = crypto.randomUUID();
 const USERNAME = `web-it-${RUN_ID.slice(0, 8)}@example.test`;
 const MASTER_PASSWORD = `WebE2e${crypto.randomBytes(20).toString('hex')}9`;
@@ -140,10 +148,32 @@ async function waitForText(page, text, timeout = 20000) {
   await page.getByText(text, { exact: false }).first().waitFor({ state: 'visible', timeout });
 }
 
+// The host editor is a side dialog whose title ("Add a host" / "Edit host") is not part of
+// the Flutter semantics tree in the current bundle, so the editor is
+// recognised by its dialog role plus its own form controls.
+async function waitForHostEditor(page, timeout = 20000) {
+  const dialog = page.locator('flt-semantics[role="dialog"]').filter({
+    has: page.getByRole('button', { name: 'Save encrypted host', exact: true }),
+  }).filter({ has: page.locator('input[aria-label*="Display name"]') });
+  await dialog.first().waitFor({ state: 'visible', timeout });
+  return dialog.first();
+}
+
 async function waitForHostEditorDialog(page, timeout = 20000) {
-  const dialog = page.getByRole('alertdialog').filter({ hasText: 'Edit host' });
-  await dialog.waitFor({ state: 'visible', timeout });
-  return dialog;
+  return waitForHostEditor(page, timeout);
+}
+
+// A Host card's actions (Edit, Delete, ...) moved into its "More" menu.
+async function openHostCardMenuItem(card, item) {
+  const page = card.page();
+  await card.getByRole('button', { name: 'More', exact: true }).click();
+  const entry = page.getByRole('menuitem', { name: item, exact: true });
+  await entry.waitFor({ state: 'visible', timeout: 15000 });
+  await entry.click();
+}
+
+async function openHostCardEditor(card) {
+  await openHostCardMenuItem(card, 'Edit');
 }
 
 async function waitForSemanticText(page, text, timeoutMs = 20000) {
@@ -151,7 +181,11 @@ async function waitForSemanticText(page, text, timeoutMs = 20000) {
   while (Date.now() < deadline) {
     const found = await page.evaluate((expected) => {
       if ((document.body.innerText || '').includes(expected)) return true;
-      return [...document.querySelectorAll('flt-semantics')].some((element) =>
+      // Selectable text cards (for example the Settings sections) are exposed
+      // as read-only text fields whose aria-label carries the text.
+      return [...document.querySelectorAll(
+        'flt-semantics, flt-semantics input, flt-semantics textarea',
+      )].some((element) =>
         ((element.innerText || '') + '\n' +
           (element.getAttribute('aria-label') || '')).includes(expected));
     }, text).catch(() => false);
@@ -362,15 +396,31 @@ async function focusedFieldValue(page, label) {
   return locator.inputValue();
 }
 
+// While the pointer rests on a control that has a tooltip, the visible
+// tooltip is attached to that control (aria-owns) and its accessible name
+// becomes "<label> <tooltip>" ("Hosts Hosts"), so an exact-name lookup of the
+// control that was clicked last finds nothing. Parking the pointer on the
+// empty page corner closes the tooltip.
+async function parkPointer(page) {
+  const viewport = page.viewportSize() || { width: 800, height: 600 };
+  await page.mouse.move(viewport.width - 3, Math.round(viewport.height / 2));
+}
+
 async function button(page, label) {
   const matches = page.getByRole('button', { name: label, exact: true });
   await selectServerModeIfChooser(page, matches);
   const deadline = Date.now() + 15000;
+  let parked = false;
+  const startedAt = Date.now();
   while (Date.now() < deadline) {
     const count = await matches.count();
     for (let index = 0; index < count; index += 1) {
       const candidate = matches.nth(index);
       if (await candidate.isVisible()) return candidate;
+    }
+    if (!parked && Date.now() - startedAt > 1000) {
+      parked = true;
+      await parkPointer(page);
     }
     await page.waitForTimeout(100);
   }
@@ -2031,8 +2081,13 @@ async function selectedDropdownOptionVisible(page, fieldLabel, optionLabel) {
             !['button', 'combobox', 'menuitem', 'option', ''].includes(item.role)) {
           return false;
         }
+        // "Workspace" is now also the name of the Settings section that
+        // hosts this field (its section button and its heading are always
+        // on screen), so that name alone no longer signals an open menu.
+        // The menu itself is still detected by its menu/menuitem roles.
         const knownName = [item.ariaLabel, item.text, item.title]
-          .some((name) => knownOptions.some((known) => name === known));
+          .some((name) => knownOptions.some((known) =>
+            known !== 'Workspace' && name === known));
         return knownName;
       });
       const menuSignalCount = roleMenuNodes.length + expandedTrueNodes.length +
@@ -2546,6 +2601,13 @@ async function waitForSelectedDropdownOptionVisible(
     const menuProbe = await probeDefaultSectionMenuClosure(
       page, fieldLabel, optionLabel);
     settled = await selectedDropdownOptionVisible(page, fieldLabel, optionLabel);
+    // A background sync that starts while the probe runs disables the field
+    // for a moment; sample again until it is interactive, as before the probe.
+    const settleDeadline = Date.now() + timeoutMs;
+    while (!fieldReady(settled) && Date.now() < settleDeadline) {
+      await page.waitForTimeout(100);
+      settled = await selectedDropdownOptionVisible(page, fieldLabel, optionLabel);
+    }
     settled.menuProbeOpened = menuProbe.opened;
     settled.menuProbeClosed = menuProbe.closed;
     settled.menuProbeOpenSignalCount = menuProbe.openSignalCount;
@@ -2672,13 +2734,15 @@ async function groupRowEvidence(page, groupName, parentName) {
 }
 
 async function clickSyncConflictsNavigation(page) {
+  // The sidebar item is now labelled "Sync and conflicts".
   const exactLabel = page.getByRole('button', {
-    name: 'Sync & conflicts',
+    name: 'Sync and conflicts',
     exact: true,
   });
   const badgeTolerant = page.getByRole('button', {
-    name: /^Sync & conflicts(?:\s+\d+)?$/,
+    name: /^Sync and conflicts(?:\s+\d+)?$/,
   });
+  await parkPointer(page);
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
     const count = await badgeTolerant.count();
@@ -2963,8 +3027,9 @@ async function safeRevokeButtonEvidence(page) {
 }
 
 async function connect(page, baseUrl) {
-  await fill(page, 'Server URL', baseUrl);
-  await click(page, 'Connect securely');
+  // The hosted browser build signs in to the origin that serves it; there is
+  // no address step. Prove the sign-in page belongs to this server instead.
+  await expectHostedSignIn(page, baseUrl);
 }
 
 async function enableFlutterSemantics(page, profile, evidence) {
@@ -3171,45 +3236,144 @@ async function installFlutterLoaderProbe(context) {
   });
 }
 
-async function waitWorkspace(page) {
-  await button(page, 'Add host');
+// `notice` states whether this device must still show the one-time
+// credential-visibility notice ('expect' on its first unlock) or must not
+// show it again ('none').
+async function waitWorkspace(page, { notice = 'none' } = {}) {
+  await waitForWorkspaceHome(page, { notice });
+}
+
+// Home's "Add" dropdown replaced the old "Add host" button.
+async function openAddHostEditor(page) {
+  await workspaceMarker(page).first().click();
+  const item = page.getByRole('menuitem', { name: 'New SSH host', exact: true });
+  await item.waitFor({ state: 'visible', timeout: 15000 });
+  await item.click();
+  await waitForHostEditor(page);
 }
 
 async function openCredentialsPage(page) {
-  const heading = page.getByText('SSH credentials', { exact: true }).first();
+  // The page heading is now "Keychain", the same text as its sidebar item;
+  // the page's own "Add credential" action identifies it.
+  const heading = page.getByRole('button', { name: 'Add credential', exact: true }).first();
   const deadline = Date.now() + 12000;
   while (Date.now() < deadline) {
     if (await heading.isVisible().catch(() => false)) return;
-    await click(page, 'Credentials');
+    await click(page, 'Keychain');
     await page.waitForTimeout(250);
   }
   throw new Error('Credentials page did not become visible');
+}
+
+// The top-bar sync button is gone. The workspace status line now carries the
+// state ("<Vault> · <state> · <n> pending") and the workspace "Host menu"
+// carries the sync action, labelled exactly as the old button was.
+const SYNC_STATE_WORDS = [
+  'Idle', 'Pending', 'Syncing', 'Retry queued', 'Offline', 'Sync error',
+  'Snapshot needed', 'Key update needed', 'Read-only', 'Sign in needed',
+  'Device revoked',
+];
+const SYNC_ACTION_LABEL =
+  /^(Idle|Pending|Syncing|\d+ pending|Retry queued|Offline|Sync error|Snapshot needed|Key update needed|Read-only|Sign in needed|Device revoked)$/;
+
+// Returns the labels the old sync button would have shown, derived from the
+// visible status line(s): "<n> pending" while idle/pending work is queued,
+// otherwise the state word.
+async function visibleSyncStatusLabels(page) {
+  return page.evaluate((words) => {
+    const labels = new Set();
+    for (const node of document.querySelectorAll('flt-semantics')) {
+      const rect = node.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      const text = `${node.getAttribute('aria-label') || ''}\n${node.innerText || ''}`;
+      for (const rawLine of text.split('\n')) {
+        const match = /(?:^| · )([^·]+) · (\d+) pending$/.exec(rawLine.trim());
+        if (!match) continue;
+        const state = match[1].trim();
+        if (!words.includes(state)) continue;
+        const pending = Number(match[2]);
+        labels.add((state === 'Idle' || state === 'Pending') && pending > 0
+          ? `${pending} pending`
+          : state);
+      }
+    }
+    return [...labels].slice(0, 8);
+  }, SYNC_STATE_WORDS).catch(() => []);
+}
+
+async function waitForSyncStatusLabel(page, pattern, timeout = 15000) {
+  const deadline = Date.now() + timeout;
+  let labels = [];
+  while (Date.now() < deadline) {
+    labels = await visibleSyncStatusLabels(page);
+    const found = labels.find((label) => pattern.test(label));
+    if (found !== undefined) return found;
+    await page.waitForTimeout(100);
+  }
+  const error = new Error(
+    `sync status did not reach ${pattern} (saw ${JSON.stringify(labels)})`);
+  error.name = 'TimeoutError';
+  throw error;
+}
+
+// Opens the Host menu and activates its sync item. Returns false when the
+// menu shows a sync already in progress (the item is then disabled).
+async function clickSyncAction(page, { busyCountsAsRunning = false } = {}) {
+  await parkPointer(page);
+  const menuButton = page.getByRole('button', { name: VAULT_MENU_BUTTON_NAME }).first();
+  const item = page.getByRole('menuitem', { name: SYNC_ACTION_LABEL }).first();
+  const closeMenu = async () => {
+    await page.keyboard.press('Escape');
+    await item.waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {});
+    if (await item.isVisible().catch(() => false)) {
+      // Dismiss through the modal barrier when the menu kept keyboard focus
+      // elsewhere.
+      const viewport = page.viewportSize() || { width: 800, height: 600 };
+      await page.mouse.click(viewport.width - 4, viewport.height - 4);
+      await item.waitFor({ state: 'hidden', timeout: 5000 });
+    }
+    await parkPointer(page);
+  };
+  // The item is disabled for as long as a sync pass holds the gate, and the
+  // status can already read Idle while the pass reloads records. An open menu
+  // does not refresh, so reopen it until the item is offered.
+  const deadline = Date.now() + 30000;
+  for (;;) {
+    await parkPointer(page);
+    await menuButton.waitFor({ state: 'visible', timeout: 15000 });
+    await menuButton.click();
+    await item.waitFor({ state: 'visible', timeout: 15000 });
+    const label = (await item.getAttribute('aria-label') || await item.innerText()).trim();
+    const disabled = await item.getAttribute('aria-disabled') === 'true';
+    if (label === 'Syncing' || (disabled && busyCountsAsRunning)) {
+      await closeMenu();
+      return false;
+    }
+    if (!disabled) break;
+    await closeMenu();
+    if (Date.now() >= deadline) {
+      throw new Error('sync action stayed disabled without a Syncing status');
+    }
+    await page.waitForTimeout(250);
+  }
+  await item.click();
+  return true;
 }
 
 async function syncNow(page, {
   verifyProjection,
   expectedVaultId,
 } = {}) {
-  const syncButton = page.getByRole('button', {
-    name: /^(Idle|Pending|Syncing|\d+ pending|Retry queued|Offline|Sync error|Snapshot needed|Key update needed|Read-only)$/,
-  }).first();
+  let currentLabel;
   try {
-    await syncButton.waitFor({ state: 'visible', timeout: 15000 });
+    currentLabel = await waitForSyncStatusLabel(page, SYNC_ACTION_LABEL, 15000);
   } catch (error) {
-    const status = await page.evaluate(() =>
-      [...document.querySelectorAll('flt-semantics[role="button"]')]
-        .map((element) => element.getAttribute('aria-label') || element.innerText || '')
-        .filter((label) => /^(?:Idle|Pending|Syncing|Retry queued|Offline|Sync error|Snapshot needed|Key update needed|Read-only|\d+ pending)$/.test(label))
-        .slice(0, 8),
-    ).catch(() => []);
     console.log('sync button diagnostic', JSON.stringify({
-      statusLabels: status,
+      statusLabels: await visibleSyncStatusLabels(page),
       page: await safePageDiagnostic(page),
     }));
     throw error;
   }
-  const currentLabel = await syncButton.getAttribute('aria-label') ||
-    (await syncButton.innerText()).trim();
   if (currentLabel !== 'Syncing') {
     const changesRequest = page.waitForRequest((request) => {
       const url = new URL(request.url());
@@ -3218,35 +3382,29 @@ async function syncNow(page, {
           ? url.pathname === `/api/v1/vaults/${expectedVaultId}/changes`
           : /\/api\/v1\/vaults\/[0-9a-f-]+\/changes$/i.test(url.pathname));
     }, { timeout: 15000 });
-    await syncButton.click();
-    try {
-      // A short sync can render no visible Syncing frame. Require a fresh
-      // authoritative changes request instead of accepting the old Idle label.
-      await changesRequest;
-    } catch (error) {
-      console.log('sync start diagnostic', JSON.stringify({
-        previousLabel: currentLabel,
-        page: await safePageDiagnostic(page),
-      }));
-      throw error;
+    changesRequest.catch(() => {});
+    const started = await clickSyncAction(page);
+    if (started) {
+      try {
+        // A short sync can render no visible Syncing frame. Require a fresh
+        // authoritative changes request instead of accepting the old Idle label.
+        await changesRequest;
+      } catch (error) {
+        console.log('sync start diagnostic', JSON.stringify({
+          previousLabel: currentLabel,
+          page: await safePageDiagnostic(page),
+        }));
+        throw error;
+      }
     }
   }
   // Writers settle at Idle and read-only members settle at Read-only; neither
   // state can be inferred from a generic “Synced” label.
   try {
-    await page.getByRole('button', { name: /^(Idle|Read-only)$/ }).first().waitFor({
-      state: 'visible',
-      timeout: 45000,
-    });
+    await waitForSyncStatusLabel(page, /^(Idle|Read-only)$/, 45000);
   } catch (error) {
-    const status = await page.evaluate(() =>
-      [...document.querySelectorAll('flt-semantics[role="button"]')]
-        .map((element) => element.getAttribute('aria-label') || element.innerText || '')
-        .filter((label) => /^(?:Idle|Pending|Syncing|Retry queued|Offline|Sync error|Snapshot needed|Key update needed|Read-only|\d+ pending)$/.test(label))
-        .slice(0, 8),
-    ).catch(() => []);
     console.log('sync completion diagnostic', JSON.stringify({
-      statusLabels: status,
+      statusLabels: await visibleSyncStatusLabels(page),
       page: await safePageDiagnostic(page),
     }));
     throw error;
@@ -3272,20 +3430,15 @@ async function syncUntilVaultPush(
   pushResponsePromise,
   { waitForIdle = true } = {},
 ) {
-  const syncButton = page.getByRole('button', {
-    name: /^(Idle|Pending|Syncing|\d+ pending|Retry queued|Offline|Sync error|Snapshot needed|Key update needed|Read-only)$/,
-  }).first();
-  await syncButton.waitFor({ state: 'visible', timeout: 15000 });
-  const currentLabel = await syncButton.getAttribute('aria-label') ||
-    (await syncButton.innerText()).trim();
+  const currentLabel = await waitForSyncStatusLabel(page, SYNC_ACTION_LABEL, 15000);
   if (currentLabel !== 'Syncing') {
     const changesRequest = page.waitForRequest((request) =>
       request.method() === 'GET' &&
       new URL(request.url()).pathname ===
         `/api/v1/vaults/${vaultId}/changes`,
     { timeout: 15000 });
-    await syncButton.click();
-    await changesRequest;
+    changesRequest.catch(() => {});
+    if (await clickSyncAction(page)) await changesRequest;
   }
   const pushResult = await pushResponsePromise;
   if (pushResult.error) {
@@ -3299,10 +3452,7 @@ async function syncUntilVaultPush(
   }
   if (waitForIdle) {
     try {
-      await page.getByRole('button', { name: /^Idle$/ }).first().waitFor({
-        state: 'visible',
-        timeout: 45000,
-      });
+      await waitForSyncStatusLabel(page, /^Idle$/, 45000);
     } catch (error) {
       error.syncPhase = 'idle-after-push';
       throw error;
@@ -3312,13 +3462,8 @@ async function syncUntilVaultPush(
 }
 
 async function triggerSyncWithoutWaitingForIdle(page) {
-  const syncButton = page.getByRole('button', {
-    name: /^(Idle|Pending|Syncing|\d+ pending|Retry queued|Offline|Sync error|Snapshot needed|Key update needed|Read-only)$/,
-  }).first();
-  await syncButton.waitFor({ state: 'visible', timeout: 15000 });
-  const currentLabel = await syncButton.getAttribute('aria-label') ||
-    (await syncButton.innerText()).trim();
-  if (currentLabel !== 'Syncing') await syncButton.click();
+  const currentLabel = await waitForSyncStatusLabel(page, SYNC_ACTION_LABEL, 15000);
+  if (currentLabel !== 'Syncing') await clickSyncAction(page);
 }
 
 async function syncUntilVaultConflictIsCommitted({
@@ -3611,15 +3756,6 @@ async function waitForHostCardByRecordId(page, recordId, name, endpoint) {
   throw new Error('offline Host card did not project by its stable identifier');
 }
 
-async function visibleSyncStatusLabels(page) {
-  return page.evaluate(() =>
-    [...document.querySelectorAll('flt-semantics[role="button"]')]
-      .map((element) => (element.getAttribute('aria-label') || element.innerText || '').trim())
-      .filter((label) => /^(?:Idle|Pending|Syncing|Retry queued|Offline|Sync error|Snapshot needed|Key update needed|Read-only|\d+ pending)$/.test(label))
-      .slice(0, 8),
-  ).catch(() => []);
-}
-
 async function longOfflineTimeoutDiagnostic({
   page,
   apiEntries,
@@ -3834,21 +3970,20 @@ async function hostRecordVisible(page, name, expectedEndpoint = null) {
   }, { expectedName: name, endpoint: expectedEndpoint }).catch(() => false);
 }
 
+// The "Saved hosts <n>" header was replaced by the sidebar workspace counter
+// ("WORKSPACE" followed by "<n> host(s)").
 async function visibleSavedHostsCount(page) {
   return page.evaluate(() => {
-    const nodes = [...document.querySelectorAll('flt-semantics')];
-    const candidate = nodes.find((node) => {
+    const counts = new Set();
+    for (const node of document.querySelectorAll('flt-semantics')) {
+      const rect = node.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
       const text = `${node.getAttribute('aria-label') || ''}\n${node.innerText || ''}`;
-      return /Saved hosts/i.test(text);
-    });
-    const text = [
-      candidate?.getAttribute('aria-label') || '',
-      candidate?.innerText || '',
-      candidate?.parentElement?.innerText || '',
-    ].join('\n');
-    const match = text.match(/Saved hosts\D{0,32}(\d+)/i) ||
-      text.match(/(\d+)\D{0,32}Saved hosts/i);
-    return match ? Number(match[1]) : null;
+      for (const match of text.matchAll(/(?:^|\n)WORKSPACE\n(\d+) hosts?(?:\n|$)/g)) {
+        counts.add(Number(match[1]));
+      }
+    }
+    return counts.size === 1 ? [...counts][0] : null;
   }).catch(() => null);
 }
 
@@ -4084,13 +4219,14 @@ async function openCredentialMenuAction(page, credentialName, action) {
 }
 
 async function chooseHostCredential(page, credentialName, credentialUsername) {
-  const choice = `${credentialName} · ${credentialUsername}`;
-  await chooseDropdownOption(page, 'SSH credential override', choice);
+  // The Host editor's "SSH credential override" list became "Sign in with",
+  // whose saved-credential options read "Keychain: <name> (<username>)".
+  const choice = `Keychain: ${credentialName} (${credentialUsername})`;
+  await chooseDropdownOption(page, 'Sign in with', choice);
 }
 
 async function addHost(page, { name, address, username, credential = null }) {
-  await click(page, 'Add host');
-  await waitForText(page, 'Add a host');
+  await openAddHostEditor(page);
   await fill(page, 'Display name', name);
   await fill(page, 'Hostname or IP', address);
   await fill(page, 'Port', '22');
@@ -4111,8 +4247,14 @@ async function addHost(page, { name, address, username, credential = null }) {
   }
 }
 
-async function createVaultThroughSettings(page, name) {
+// Settings is split into sections; a control lives in exactly one of them.
+async function openSettingsSection(page, section) {
   await click(page, 'Settings');
+  await click(page, section);
+}
+
+async function createVaultThroughSettings(page, name) {
+  await openSettingsSection(page, 'Vaults and members');
   await waitForSemanticText(page, 'Vaults');
   await click(page, 'Create another Vault');
   await waitForText(page, 'Create Vault');
@@ -4123,9 +4265,39 @@ async function createVaultThroughSettings(page, name) {
   await waitForVisibleSemanticPattern(page, new RegExp(escapeRegExp(name)));
 }
 
+// Sync health replaced its "pending <n> · conflicts <n>" summary line with
+// the "Outbox items" and "Open conflicts" tiles.
+const SYNC_HEALTH_CLEAN =
+  /Outbox items\s+0(?!\d)[\s\S]*Open conflicts\s+0(?!\d)/;
+const VAULT_MENU_BUTTON = 'Host menu · click to open';
+// After the menu is dismissed with Escape its tooltip can stay attached to
+// the button, which then reads "<label> <label>" (see parkPointer).
+const VAULT_MENU_BUTTON_NAME = new RegExp(
+  `^${escapeRegExp(VAULT_MENU_BUTTON)}(?: ${escapeRegExp(VAULT_MENU_BUTTON)})?$`);
+
+// The active Vault is named by the workspace status line
+// ("<Vault name> · <sync state> · <n> pending"), which every page shows.
+async function activeVaultLabels(page) {
+  return page.evaluate(() => {
+    const lines = new Set();
+    for (const node of document.querySelectorAll('flt-semantics')) {
+      const rect = node.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      const text = `${node.getAttribute('aria-label') || ''}\n${node.innerText || ''}`;
+      for (const line of text.split('\n')) {
+        if (/ · .+ · \d+ pending$/.test(line.trim())) lines.add(line.trim());
+      }
+    }
+    return [...lines];
+  });
+}
+
 async function selectVaultByName(page, currentName, targetName) {
   if (currentName === targetName) return;
-  const selector = page.getByRole('button', { name: /^Choose vault(?:\s|$)/ });
+  // The Vault switcher moved from a "Choose vault" chip into the workspace
+  // "Host menu" (items "Vault: <name>").
+  const selector = page.getByRole('button', { name: VAULT_MENU_BUTTON_NAME });
+  await parkPointer(page);
   const deadline = Date.now() + 15000;
   let clicked = false;
   while (Date.now() < deadline) {
@@ -4142,7 +4314,7 @@ async function selectVaultByName(page, currentName, targetName) {
     await page.waitForTimeout(100);
   }
   assertThat(clicked,
-    `Choose vault selector was not visible while switching from ${currentName}`);
+    `Vault switcher menu was not visible while switching from ${currentName}`);
   const menuItems = page.getByRole('menuitem');
   const roleMenuItemCount = await menuItems.count().catch(() => 0);
   const menuItemEvidence = await menuItems.evaluateAll((nodes) => nodes.map((node) => ({
@@ -4219,8 +4391,7 @@ async function selectVaultByName(page, currentName, targetName) {
   const selectionDeadline = Date.now() + 5000;
   let selected = false;
   while (Date.now() < selectionDeadline) {
-    const labels = await selector.evaluateAll((nodes) => nodes.map((node) =>
-      `${node.getAttribute('aria-label') || ''} ${node.innerText || ''}`));
+    const labels = await activeVaultLabels(page);
     if (labels.some((label) => label.includes(targetName))) {
       selected = true;
       break;
@@ -4231,8 +4402,7 @@ async function selectVaultByName(page, currentName, targetName) {
 }
 
 async function ensureVaultSelected(page, targetName, otherVaultName) {
-  const selector = page.getByRole('button', { name: /^Choose vault(?:\s|$)/ });
-  const selectorText = await selector.first().innerText().catch(() => '');
+  const selectorText = (await activeVaultLabels(page)).join('\n');
   if (selectorText.includes(targetName)) return;
   await selectVaultByName(page, otherVaultName, targetName);
 }
@@ -4286,9 +4456,7 @@ async function assertVaultSelectionEvidence(
 
   activeStage = `${stagePrefix}: verify selected Vault UI and API context`;
   const currentVaultLabel = await visibleSemanticTextEvidence(page, 'Current Vault');
-  const vaultSelector = page.getByRole('button', { name: /^Choose vault(?:\s|$)/ });
-  const selectorLabels = await vaultSelector.evaluateAll((nodes) => nodes.map((node) =>
-    `${node.getAttribute('aria-label') || ''} ${node.innerText || ''}`));
+  const selectorLabels = await activeVaultLabels(page);
   const chipMatchesExpected = selectorLabels.some((label) =>
     label.includes(expectedName));
   const semanticUuidCount = await page.locator('flt-semantics').evaluateAll(
@@ -4405,10 +4573,8 @@ async function multiVaultProjectionDiagnostic({
   const [hostAEvidence, hostBEvidence, vaultChip, currentSections] = await Promise.all([
     hostCardEvidence(page, hostA, hostAEndpoint),
     hostCardEvidence(page, hostB, hostBEndpoint),
-    page.getByRole('button', { name: /^Choose vault(?:\s|$)/ })
-      .evaluateAll((nodes, expectedName) => nodes.some((node) =>
-        `${node.getAttribute('aria-label') || ''} ${node.innerText || ''}`
-          .includes(expectedName)), 'Multi Vault B').catch(() => false),
+    activeVaultLabels(page).then((labels) => labels.some((label) =>
+      label.includes('Multi Vault B'))).catch(() => false),
     page.evaluate(() => {
       const current = [...document.querySelectorAll('flt-semantics[aria-current]')]
         .filter((node) => {
@@ -4579,7 +4745,7 @@ async function runMultiVaultSwitchAcceptance({
       username: USERNAME,
     });
     activeStage = `multi-Vault: ${profile} verify B sync counters`;
-    await waitForVisibleSemanticPattern(page, /pending 0 · conflicts 0/);
+    await waitForVisibleSemanticPattern(page, SYNC_HEALTH_CLEAN);
     activeStage = `multi-Vault: ${profile} open Settings for B preference`;
     await click(page, 'Settings');
     activeStage = `multi-Vault: ${profile} verify B preference`;
@@ -4655,7 +4821,7 @@ async function runMultiVaultSwitchAcceptance({
       username: USERNAME,
     });
     activeStage = `multi-Vault: ${profile} verify A sync counters`;
-    await waitForVisibleSemanticPattern(page, /pending 0 · conflicts 0/);
+    await waitForVisibleSemanticPattern(page, SYNC_HEALTH_CLEAN);
     activeStage = `multi-Vault: ${profile} open Settings for A preference`;
     await click(page, 'Settings');
     activeStage = `multi-Vault: ${profile} verify A preference`;
@@ -4751,7 +4917,15 @@ async function runMultiVaultSwitchAcceptance({
       (response) => ({ response }),
       (error) => ({ error }),
     );
-    staleSyncPromise = syncNow(ownerPage).then(
+    // Finish driving the Host menu before the switch below uses the same
+    // menu. With a pending record the app may already have a Vault A pass in
+    // flight (its changes request is then the held one and the sync item is
+    // disabled); either way exactly one Vault A changes response is held.
+    await waitForSyncStatusLabel(ownerPage, SYNC_ACTION_LABEL, 15000);
+    await clickSyncAction(ownerPage, { busyCountsAsRunning: true });
+    staleSyncPromise = waitForSyncStatusLabel(
+      ownerPage, /^(Idle|Read-only)$/, 60000,
+    ).then(
       () => ({ error: null }),
       (error) => ({ error }),
     );
@@ -4815,7 +4989,7 @@ async function runMultiVaultSwitchAcceptance({
       databasePath,
       username: USERNAME,
     });
-    await waitForVisibleSemanticPattern(ownerPage, /pending 0 · conflicts 0/);
+    await waitForVisibleSemanticPattern(ownerPage, SYNC_HEALTH_CLEAN);
     await click(ownerPage, 'Settings');
     await waitForSemanticText(ownerPage, 'Vault-synced preferences');
     assertThat((await waitForSelectedDropdownOptionVisible(
@@ -4877,7 +5051,7 @@ async function runMultiVaultSwitchAcceptance({
       databasePath,
       username: USERNAME,
     });
-    await waitForVisibleSemanticPattern(ownerPage, /pending 0 · conflicts 0/);
+    await waitForVisibleSemanticPattern(ownerPage, SYNC_HEALTH_CLEAN);
     await click(ownerPage, 'Settings');
     await waitForSemanticText(ownerPage, 'Vault-synced preferences');
     assertThat((await waitForSelectedDropdownOptionVisible(
@@ -4961,10 +5135,7 @@ async function runMultiVaultSwitchAcceptance({
       return false;
     }
   }), 15000, 'owner API connectivity after restoring network access');
-  const reconnectVaultLabels = await ownerPage.getByRole('button', {
-    name: /^Choose vault(?:\s|$)/,
-  }).evaluateAll((nodes) => nodes.map((node) =>
-    `${node.getAttribute('aria-label') || ''} ${node.innerText || ''}`));
+  const reconnectVaultLabels = await activeVaultLabels(ownerPage);
   const reconnectStillOnB = reconnectVaultLabels.some((label) =>
     label.includes(nameB));
   assertThat(reconnectStillOnB,
@@ -5028,10 +5199,7 @@ async function runMultiVaultSwitchAcceptance({
     .slice(bPendingConflictStart)
     .filter((item) => item.profile === 'A' &&
       item.pageRole === 'owner-main' && item.vaultId === vaultB);
-  const settledVaultLabels = await ownerPage.getByRole('button', {
-    name: /^Choose vault(?:\s|$)/,
-  }).evaluateAll((nodes) => nodes.map((node) =>
-    `${node.getAttribute('aria-label') || ''} ${node.innerText || ''}`));
+  const settledVaultLabels = await activeVaultLabels(ownerPage);
   console.log('multi-Vault queued B settled evidence', JSON.stringify({
     selectedB: settledVaultLabels.some((label) => label.includes(nameB)),
     statusLabels: await visibleSyncStatusLabels(ownerPage).catch(() => []),
@@ -5086,10 +5254,7 @@ async function runMultiVaultSwitchAcceptance({
   } catch (error) {
     console.log('multi-Vault queued A resume evidence', JSON.stringify({
       syncPhase: error.syncPhase || 'selection-or-trigger',
-      selectedVaultLabels: await ownerPage.getByRole('button', {
-        name: /^Choose vault(?:\s|$)/,
-      }).evaluateAll((nodes) => nodes.map((node) =>
-        `${node.getAttribute('aria-label') || ''} ${node.innerText || ''}`)),
+      selectedVaultLabels: await activeVaultLabels(ownerPage),
       statusLabels: await visibleSyncStatusLabels(ownerPage).catch(() => []),
       changes: capture.changesRequests.slice(aResumeChangesStart).map((item) => ({
         profile: item.profile,
@@ -5726,14 +5891,14 @@ async function editHostName(page, oldName, newName, diagnosticContext = {}) {
   }
   activeStage = `${stagePrefix}: open Host editor`;
   try {
-    await card.getByRole('button', { name: 'Edit host', exact: true }).click();
+    await openHostCardEditor(card);
   } catch (error) {
     await diagnostic('open-editor', error);
     throw error;
   }
   activeStage = `${stagePrefix}: wait for Host editor`;
   try {
-    await waitForText(page, 'Edit host');
+    await waitForHostEditor(page);
   } catch (error) {
     await diagnostic('wait-for-editor', error);
     throw error;
@@ -5764,8 +5929,8 @@ async function editHostName(page, oldName, newName, diagnosticContext = {}) {
 async function editHostConnection(page, name, changes, expectedEndpoint) {
   const card = hostCardGroup(page, name);
   await card.waitFor({ state: 'visible', timeout: 15000 });
-  await card.getByRole('button', { name: 'Edit host', exact: true }).click();
-  await waitForText(page, 'Edit host');
+  await openHostCardEditor(card);
+  await waitForHostEditor(page);
   if (changes.address !== undefined) {
     await fill(page, 'Hostname or IP', changes.address);
   }
@@ -7514,52 +7679,45 @@ function changesCursorSequence(cursor) {
   }
 }
 
-async function openSameProfilePeerTab({ page, baseUrl, startupEvidence }) {
-  const response = await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-  assertThat(response && response.status() === 200,
-    'same-profile peer-tab navigation did not return HTTP 200');
-  await enableFlutterSemantics(page, 'A', startupEvidence);
-  await selectServerModeIfChooser(page);
-  const deadline = Date.now() + 20000;
-  let entryReady = false;
-  while (Date.now() < deadline) {
-    if (await page.getByRole('button', {
-      name: 'Add host', exact: true,
-    }).isVisible().catch(() => false) ||
-        await page.locator('input[aria-label*="Email or username"]')
-          .first().isVisible().catch(() => false)) {
-      entryReady = true;
-      break;
-    }
-    const canConnect = await page.getByRole('button', {
-      name: 'Connect securely', exact: true,
-    }).isVisible().catch(() => false) &&
-      await page.locator('input[aria-label*="Server URL"]')
-        .first().isVisible().catch(() => false);
-    if (canConnect) {
-      await page.waitForTimeout(300);
-      if (await page.getByRole('button', {
-        name: 'Add host', exact: true,
-      }).isVisible().catch(() => false) ||
-          await page.locator('input[aria-label*="Email or username"]')
-            .first().isVisible().catch(() => false)) {
-        entryReady = true;
-        break;
-      }
-      await connect(page, baseUrl);
-      entryReady = true;
-      break;
-    }
-    await page.waitForTimeout(100);
-  }
-  assertThat(entryReady, 'same-profile peer tab did not reach workspace or login');
+// A new tab of a signed-in browser profile restores the stored account session
+// but not the account key, so it opens on the locked workspace screen
+// ("Account password" / "Unlock workspace"). The hosted build has no server
+// address step. Returns how the tab entered: 'workspace', 'locked' or 'login'.
+async function enterSameProfileTab(page, failureMessage) {
   const login = page.locator('input[aria-label*="Email or username"]').first();
-  if (await login.isVisible().catch(() => false)) {
+  const unlock = page.getByRole('button', { name: 'Unlock workspace', exact: true }).first();
+  const home = workspaceMarker(page).first();
+  const serverUrl = page.locator('input[aria-label*="Server URL"]').first();
+  const deadline = Date.now() + 30000;
+  let entry = null;
+  while (Date.now() < deadline && entry === null) {
+    assertThat(!(await serverUrl.isVisible().catch(() => false)),
+      'hosted same-profile tab offered a server address field');
+    if (await home.isVisible().catch(() => false)) entry = 'workspace';
+    else if (await unlock.isVisible().catch(() => false)) entry = 'locked';
+    else if (await login.isVisible().catch(() => false)) entry = 'login';
+    else await page.waitForTimeout(100);
+  }
+  assertThat(entry !== null, failureMessage);
+  if (entry === 'locked') {
+    await fill(page, 'Account password', MASTER_PASSWORD);
+    await click(page, 'Unlock workspace');
+  } else if (entry === 'login') {
     await fill(page, 'Email or username', USERNAME);
     await fill(page, 'Master password', MASTER_PASSWORD);
     await click(page, 'Sign in and unlock');
   }
   await waitWorkspace(page);
+  return entry;
+}
+
+async function openSameProfilePeerTab({ page, baseUrl, startupEvidence }) {
+  const response = await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  assertThat(response && response.status() === 200,
+    'same-profile peer-tab navigation did not return HTTP 200');
+  await enableFlutterSemantics(page, 'A', startupEvidence);
+  await enterSameProfileTab(page,
+    'same-profile peer tab did not reach workspace or login');
 }
 
 async function captureHostPush(page, recordId, operation) {
@@ -8525,7 +8683,10 @@ async function main() {
         if (url.pathname.startsWith('/api/')) {
           apiRequestStartedAt.set(request, Date.now());
         }
+        // A browser that signs in with the password on a new device enrolls
+        // through /auth/password-device, which carries the device identity.
         if (url.pathname === '/api/v1/auth/register' ||
+            url.pathname === '/api/v1/auth/password-device' ||
             url.pathname === '/api/v1/auth/login') {
           try {
             const body = request.postDataJSON();
@@ -9520,8 +9681,8 @@ async function main() {
       enableFlutterSemantics(secondPage, 'B', startupEvidence),
     ]);
     await Promise.all([
-      button(ownerPage, 'Connect securely'),
-      button(secondPage, 'Connect securely'),
+      expectHostedSignIn(ownerPage, baseUrl),
+      expectHostedSignIn(secondPage, baseUrl),
     ]);
     console.log('stage: both Flutter pages loaded; sodium and CanvasKit verified');
     const clientCsp = await ownerPage.locator('meta[http-equiv="Content-Security-Policy"]')
@@ -9608,7 +9769,7 @@ async function main() {
     await click(ownerPage, 'Create owner account');
     bootstrapToken = undefined;
     try {
-      await waitWorkspace(ownerPage);
+      await waitWorkspace(ownerPage, { notice: 'expect' });
     } catch (error) {
       const serverLogPath = path.join(tempRoot, 'server.log');
       console.log('owner registration diagnostic', JSON.stringify({
@@ -9646,89 +9807,104 @@ async function main() {
       await createVaultThroughSettings(ownerPage, 'Multi Vault B');
     }
 
+    // Profile B loaded the hosted page before the instance had an owner, so
+    // it still shows the first-account form. The old "Connect securely" step
+    // re-read the instance state at this point; a reload does so now.
+    await secondPage.reload({ waitUntil: 'domcontentloaded' });
+    await enableFlutterSemantics(secondPage, 'B', startupEvidence);
     await connect(secondPage, baseUrl);
     await field(secondPage, 'Email or username');
     console.log('stage: second profile unlock form opened');
-    await click(secondPage, 'Add this device');
-    activeStage = 'device enrollment';
-    await waitForText(secondPage, 'Request this device');
-    await fill(secondPage, 'Account email', USERNAME);
-    await fill(secondPage, 'Device name', 'Web profile B');
-    await click(secondPage, 'Generate request');
-    const enrollmentField = await field(secondPage, 'Copy this enrollment JSON');
-    await click(secondPage, 'Copy');
-    const enrollmentJson = await readClipboard(secondPage);
-    let enrollmentFormat = null;
-    try { enrollmentFormat = JSON.parse(enrollmentJson).format || null; } catch (_) {}
-    assertThat(enrollmentFormat === 'atermius-device-enrollment-v1',
-      'profile B did not generate a valid enrollment request');
-    await click(secondPage, 'Close');
+    // The browser sign-in page no longer offers the manual request/approval
+    // exchange ("Add this device" / "Import approval"; removed for Web by
+    // 809bb00). A new browser profile now enrolls itself when it signs in
+    // with the master password. The original exchange is kept, unchanged,
+    // behind LEGACY_MANUAL_DEVICE_ENROLLMENT so it is not lost silently; it
+    // fails at "Add this device" against the current bundle.
+    if (LEGACY_MANUAL_DEVICE_ENROLLMENT) {
+      await click(secondPage, 'Add this device');
+      activeStage = 'device enrollment';
+      await waitForText(secondPage, 'Request this device');
+      await fill(secondPage, 'Account email', USERNAME);
+      await fill(secondPage, 'Device name', 'Web profile B');
+      await click(secondPage, 'Generate request');
+      const enrollmentField = await field(secondPage, 'Copy this enrollment JSON');
+      await click(secondPage, 'Copy');
+      const enrollmentJson = await readClipboard(secondPage);
+      let enrollmentFormat = null;
+      try { enrollmentFormat = JSON.parse(enrollmentJson).format || null; } catch (_) {}
+      assertThat(enrollmentFormat === 'atermius-device-enrollment-v1',
+        'profile B did not generate a valid enrollment request');
+      await click(secondPage, 'Close');
 
-    await click(ownerPage, 'Devices');
-    await click(ownerPage, 'Approve enrollment');
-    activeStage = 'device approval';
-    await paste(ownerPage, 'Enrollment JSON', enrollmentJson);
-    await click(ownerPage, 'Review keys');
-    const approveButton = await button(ownerPage, 'Approve & seal keys');
-      const approveControl = await approveButton.evaluate((element) => ({
-        tag: element.tagName, role: element.getAttribute('role'),
-        disabled: element.getAttribute('aria-disabled'),
-        visible: element.getBoundingClientRect().width > 0 &&
-          element.getBoundingClientRect().height > 0,
-      }));
-    await ownerPage.evaluate(() => {
-      window.__e2eApproveClickSeen = false;
-      document.addEventListener('click', (event) => {
-        const target = event.target.closest('flt-semantics[role="button"]');
-        if (target?.innerText?.includes('Approve & seal keys')) window.__e2eApproveClickSeen = true;
-      }, true);
-    });
-    await approveButton.click();
-    const approvalCopy = ownerPage.getByRole('button', { name: 'Copy', exact: true }).first();
-    let approvalReady = false;
-    let immediateError = '';
-    const approvalDeadline = Date.now() + 5000;
-    while (Date.now() < approvalDeadline) {
-      await ownerPage.waitForTimeout(200);
-      approvalReady = await approvalCopy.isVisible().catch(() => false);
-      const observedText = await ownerPage.locator('body').innerText().catch(() => '');
-      immediateError = /Bad state:|FormatException:|epoch.*不在本设备/.test(observedText) ? 'ui-error' : immediateError;
-      if (approvalReady || immediateError) break;
-    }
-    if (!approvalReady) {
-      await click(ownerPage, 'Cancel');
-      await ownerPage.waitForTimeout(500);
-      const afterDismiss = await ownerPage.locator('body').innerText().catch(() => '');
-      const localError = /^(Bad state|FormatException|Exception):/m.test(afterDismiss)
-        ? 'ui-error'
-        : immediateError;
-      console.log('device approval diagnostic', {
-        approveControl,
-        clickSeen: await ownerPage.evaluate(() => window.__e2eApproveClickSeen),
-        api: safeApiSummary(apiDiagnostics, 12),
-        uiErrorPresent: Boolean(localError),
-        pageErrorCount: pageErrors.length,
+      await click(ownerPage, 'Devices');
+      await click(ownerPage, 'Approve enrollment');
+      activeStage = 'device approval';
+      await paste(ownerPage, 'Enrollment JSON', enrollmentJson);
+      await click(ownerPage, 'Review keys');
+      const approveButton = await button(ownerPage, 'Approve & seal keys');
+        const approveControl = await approveButton.evaluate((element) => ({
+          tag: element.tagName, role: element.getAttribute('role'),
+          disabled: element.getAttribute('aria-disabled'),
+          visible: element.getBoundingClientRect().width > 0 &&
+            element.getBoundingClientRect().height > 0,
+        }));
+      await ownerPage.evaluate(() => {
+        window.__e2eApproveClickSeen = false;
+        document.addEventListener('click', (event) => {
+          const target = event.target.closest('flt-semantics[role="button"]');
+          if (target?.innerText?.includes('Approve & seal keys')) window.__e2eApproveClickSeen = true;
+        }, true);
       });
-      throw new Error('profile A did not produce the device approval response');
-    }
-    await click(ownerPage, 'Copy');
-    const approvalJson = await readClipboard(ownerPage);
-    assertThat(approvalJson.includes('atermius-device-approval-v1'), 'profile A did not generate a device approval');
-    console.log('stage: profile A Copy clipboard read and approval format validated');
-    await click(ownerPage, 'Done');
-    // Approval leaves the owner on the Devices page; return to Hosts before
-    // starting the two-profile sync checks below.
-    await click(ownerPage, 'Hosts');
-    await waitWorkspace(ownerPage);
+      await approveButton.click();
+      const approvalCopy = ownerPage.getByRole('button', { name: 'Copy', exact: true }).first();
+      let approvalReady = false;
+      let immediateError = '';
+      const approvalDeadline = Date.now() + 5000;
+      while (Date.now() < approvalDeadline) {
+        await ownerPage.waitForTimeout(200);
+        approvalReady = await approvalCopy.isVisible().catch(() => false);
+        const observedText = await ownerPage.locator('body').innerText().catch(() => '');
+        immediateError = /Bad state:|FormatException:|epoch.*不在本设备/.test(observedText) ? 'ui-error' : immediateError;
+        if (approvalReady || immediateError) break;
+      }
+      if (!approvalReady) {
+        await click(ownerPage, 'Cancel');
+        await ownerPage.waitForTimeout(500);
+        const afterDismiss = await ownerPage.locator('body').innerText().catch(() => '');
+        const localError = /^(Bad state|FormatException|Exception):/m.test(afterDismiss)
+          ? 'ui-error'
+          : immediateError;
+        console.log('device approval diagnostic', {
+          approveControl,
+          clickSeen: await ownerPage.evaluate(() => window.__e2eApproveClickSeen),
+          api: safeApiSummary(apiDiagnostics, 12),
+          uiErrorPresent: Boolean(localError),
+          pageErrorCount: pageErrors.length,
+        });
+        throw new Error('profile A did not produce the device approval response');
+      }
+      await click(ownerPage, 'Copy');
+      const approvalJson = await readClipboard(ownerPage);
+      assertThat(approvalJson.includes('atermius-device-approval-v1'), 'profile A did not generate a device approval');
+      console.log('stage: profile A Copy clipboard read and approval format validated');
+      await click(ownerPage, 'Done');
+      // Approval leaves the owner on the Devices page; return to Hosts before
+      // starting the two-profile sync checks below.
+      await click(ownerPage, 'Hosts');
+      await waitWorkspace(ownerPage);
 
-    await click(secondPage, 'Import approval');
-    await paste(secondPage, 'Paste approval JSON', approvalJson);
-    await click(secondPage, 'Import device keys');
+      await click(secondPage, 'Import approval');
+      await paste(secondPage, 'Paste approval JSON', approvalJson);
+      await click(secondPage, 'Import device keys');
+    } else {
+      activeStage = 'device enrollment';
+    }
     await fill(secondPage, 'Email or username', USERNAME);
     await fill(secondPage, 'Master password', MASTER_PASSWORD);
     await click(secondPage, 'Sign in and unlock');
     try {
-      await waitWorkspace(secondPage);
+      await waitWorkspace(secondPage, { notice: 'expect' });
     } catch (error) {
       const serverLogPath = path.join(tempRoot, 'server.log');
       console.log('second-profile login diagnostic', JSON.stringify({
@@ -11350,7 +11526,7 @@ async function main() {
         'adopted Credential branch was not re-signed as a fresh encrypted operation');
 
         conflictStep = 'verify both Credential replicas converged';
-        await click(ownerPage, 'Credentials');
+        await click(ownerPage, 'Keychain');
         const credentialConvergencePageEvidence = async (page) => page.evaluate(() => {
           const navigation = [
             ['Hosts', '主机'], ['Groups', '分组'], ['Credentials', '凭据'],
@@ -11392,7 +11568,7 @@ async function main() {
         }).catch(() => ({ syncHealthHeadingVisible: false, navigationItems: [] }));
         const profileBPageBeforeCredentialNavigation =
           await credentialConvergencePageEvidence(secondPage);
-        await click(secondPage, 'Credentials');
+        await click(secondPage, 'Keychain');
         const convergenceNavigationEvidence = {
           A: await credentialConvergencePageEvidence(ownerPage),
           B: await credentialConvergencePageEvidence(secondPage),
@@ -12239,50 +12415,8 @@ async function main() {
           assertThat(ownerTabResponse && ownerTabResponse.status() === 200,
             'same-profile merge review tab navigation did not return HTTP 200');
           await enableFlutterSemantics(ownerTabPage, 'A', startupEvidence);
-          await selectServerModeIfChooser(ownerTabPage);
-          const ownerTabEntryDeadline = Date.now() + 20000;
-          let ownerTabEntryReady = false;
-          while (Date.now() < ownerTabEntryDeadline) {
-            if (await ownerTabPage.getByRole('button', {
-              name: 'Add host', exact: true,
-            }).isVisible().catch(() => false) ||
-                await ownerTabPage.locator('input[aria-label*="Email or username"]')
-                  .first().isVisible().catch(() => false)) {
-              ownerTabEntryReady = true;
-              break;
-            }
-            const canConnect = await ownerTabPage.getByRole('button', {
-              name: 'Connect securely', exact: true,
-            }).isVisible().catch(() => false) &&
-              await ownerTabPage.locator('input[aria-label*="Server URL"]')
-                .first().isVisible().catch(() => false);
-            if (canConnect) {
-              await ownerTabPage.waitForTimeout(400);
-              if (await ownerTabPage.getByRole('button', {
-                name: 'Add host', exact: true,
-              }).isVisible().catch(() => false) ||
-                  await ownerTabPage.locator('input[aria-label*="Email or username"]')
-                    .first().isVisible().catch(() => false)) {
-                ownerTabEntryReady = true;
-                break;
-              }
-              await connect(ownerTabPage, baseUrl);
-              ownerTabEntryReady = true;
-              break;
-            }
-            await ownerTabPage.waitForTimeout(100);
-          }
-          assertThat(ownerTabEntryReady,
+          await enterSameProfileTab(ownerTabPage,
             'same-profile merge review tab did not reach workspace or login');
-          const ownerTabLogin = ownerTabPage.locator(
-            'input[aria-label*="Email or username"]',
-          ).first();
-          if (await ownerTabLogin.isVisible().catch(() => false)) {
-            await fill(ownerTabPage, 'Email or username', USERNAME);
-            await fill(ownerTabPage, 'Master password', MASTER_PASSWORD);
-            await click(ownerTabPage, 'Sign in and unlock');
-          }
-          await waitWorkspace(ownerTabPage);
           await openCredentialsPage(ownerTabPage);
           await waitForCredentialRecord(ownerTabPage, fieldAName, true);
           const pushCountBeforeHeadAdvance = credentialConflictCapture.pushes.length;
@@ -12545,7 +12679,7 @@ async function main() {
             revisionMatchesMerge: fieldResolvedA.resolvedRevisionId === fieldMerged.revisionId,
             envelopeAbsent: !fieldResolvedA.hasEnvelope,
           }));
-          await click(ownerPage, 'Credentials');
+          await click(ownerPage, 'Keychain');
           console.log('credential field merge record wait', JSON.stringify({
             profile: 'A', recordSlot: 'merged', expectedPresent: true,
           }));
@@ -12559,7 +12693,7 @@ async function main() {
           }).isVisible().catch(() => false);
           console.log('credential field merge B navigation before record checks',
             JSON.stringify({ syncHealthHeadingVisible: bSyncHealthHeading }));
-          await click(secondPage, 'Credentials');
+          await click(secondPage, 'Keychain');
           console.log('credential field merge record wait', JSON.stringify({
             profile: 'B', recordSlot: 'merged', expectedPresent: true,
           }));
@@ -12681,9 +12815,9 @@ async function main() {
             assertThat(secretResolvedA.resolvedRevisionId === secretMerged.revisionId &&
               !secretResolvedA.hasEnvelope,
             'profile A did not observe the matching envelope-free secret resolution event');
-            await click(ownerPage, 'Credentials');
+            await click(ownerPage, 'Keychain');
             await dismissCredentialEditorForConvergence(secondPage, 'B');
-            await click(secondPage, 'Credentials');
+            await click(secondPage, 'Keychain');
             secretMergeStep = 'verify decrypted secret convergence on both profiles';
             console.log('credential secret record wait', JSON.stringify({
               profile: 'A', recordSlot: 'merged', expectedPresent: true,
@@ -13402,8 +13536,8 @@ async function main() {
         await waitForHostRecord(page, hostName, true, `${hostAddress}:22`);
         const hostCard = hostCardGroup(page, hostName);
         groupMutationStep = `open ${profile} Host editor to inspect decrypted Group selection`;
-        await hostCard.getByRole('button', { name: 'Edit host', exact: true }).click();
-        await waitForText(page, 'Edit host');
+        await openHostCardEditor(hostCard);
+        await waitForHostEditor(page);
         const hostEditorOpened = true;
         groupMutationStep = `read ${profile} Host Group selection`;
         const hostFieldEvidence = await dropdownValueEvidence(
@@ -13548,7 +13682,7 @@ async function main() {
           groupMutationStep = 'open direct Bastion Host form on A';
           await click(ownerPage, 'Add host');
           groupMutationStep = 'wait for direct Bastion Host form on A';
-          await waitForText(ownerPage, 'Add a host');
+          await waitForHostEditor(ownerPage);
           groupMutationStep = 'fill direct Bastion Host display name on A';
           await fill(ownerPage, 'Display name', bastionName);
           groupMutationStep = 'fill direct Bastion Host address on A';
@@ -13573,7 +13707,7 @@ async function main() {
           groupMutationStep = 'open Add host form on A';
           await click(ownerPage, 'Add host');
           groupMutationStep = 'wait for Add host form on A';
-          await waitForText(ownerPage, 'Add a host');
+          await waitForHostEditor(ownerPage);
           groupMutationStep = 'fill Host Display name on A';
           await fill(ownerPage, 'Display name', hostName);
           groupMutationStep = 'fill Hostname or IP on A';
@@ -13701,11 +13835,9 @@ async function main() {
           );
           const hostCard = hostCardGroup(secondPage, hostName);
           groupMutationStep = 'open target Host editor on B for route edit';
-          await hostCard.getByRole('button', {
-            name: 'Edit host', exact: true,
-          }).click();
+          await openHostCardEditor(hostCard);
           groupMutationStep = 'wait for target Host editor on B';
-          await waitForText(secondPage, 'Edit host');
+          await waitForHostEditor(secondPage);
           groupMutationStep = 'clear target Jump Host route on B';
           await chooseDropdownOption(
             secondPage,
@@ -14011,7 +14143,7 @@ async function main() {
       const offlineSavedHostsBefore = await visibleSavedHostsCount(secondPage);
       groupMutationStep = 'open Host editor on offline B';
       await click(secondPage, 'Add host');
-      await waitForText(secondPage, 'Add a host');
+      await waitForHostEditor(secondPage);
       groupMutationStep = 'fill dangling Host name on offline B';
       await fill(secondPage, 'Display name', danglingHostName);
       await fill(secondPage, 'Hostname or IP', danglingHostAddress);
@@ -14209,9 +14341,7 @@ async function main() {
           offlineHostRelationshipEvidence.unavailableGroupTagPresent,
       }));
       groupMutationStep = 'open offline Host editor';
-      await offlineHostCard.getByRole('button', {
-        name: 'Edit host', exact: true,
-      }).click();
+      await openHostCardEditor(offlineHostCard);
       groupMutationStep = 'wait for offline Host editor';
       const offlineHostEditorDialog = await waitForHostEditorDialog(secondPage);
       const selectedOfflineGroupText = offlineHostEditorDialog.getByText(
@@ -14462,7 +14592,7 @@ async function main() {
           await hostCard.getByRole('button', {
             name: 'Repair Host Group', exact: true,
           }).click();
-          await waitForText(secondPage, 'Edit host');
+          await waitForHostEditor(secondPage);
           await waitForText(
             secondPage,
             'This saved Group is unavailable. Choose No group to clear it.',
@@ -14505,10 +14635,8 @@ async function main() {
         `${danglingHostAddress}:22`,
       );
       const repairedHostCard = hostCardGroup(ownerPage, danglingHostName);
-      await repairedHostCard.getByRole('button', {
-        name: 'Edit host', exact: true,
-      }).click();
-      await waitForText(ownerPage, 'Edit host');
+      await openHostCardEditor(repairedHostCard);
+      await waitForHostEditor(ownerPage);
       const repairedHostGroupEvidence = await dropdownValueEvidence(
         ownerPage,
         'Group',
@@ -16270,7 +16398,7 @@ async function main() {
       await runVaultPreferenceStage('B creates an encrypted SSH fixture Host', async () => {
         await click(secondPage, 'Hosts');
         await click(secondPage, 'Add host');
-        await waitForText(secondPage, 'Add a host');
+        await waitForHostEditor(secondPage);
         await fill(secondPage, 'Display name', shortcutHostName);
         await fill(secondPage, 'Hostname or IP', shortcutSshAddress);
         await fill(secondPage, 'Port', String(shortcutSshPort));
@@ -16601,7 +16729,7 @@ async function main() {
     snippetSyncCapture.active = true;
 
     activeStage = 'cross-profile Snippet sync: open A Snippets workspace';
-    await click(ownerPage, 'Snippets');
+    await click(ownerPage, 'Quick commands');
     activeStage = 'cross-profile Snippet sync: wait for A Snippets workspace';
     await waitForSemanticText(ownerPage, 'Command snippets');
     activeStage = 'cross-profile Snippet sync: open new Snippet editor on A';
@@ -16694,7 +16822,7 @@ async function main() {
     await syncNow(secondPage, {
       verifyProjection: async () => {
         activeStage = 'cross-profile Snippet sync: open B Snippets workspace';
-        await click(secondPage, 'Snippets');
+        await click(secondPage, 'Quick commands');
         activeStage = 'cross-profile Snippet sync: wait for B Snippets page';
         await waitForSemanticText(secondPage, 'Command snippets');
         activeStage = 'cross-profile Snippet sync: wait for decrypted B Snippet';
@@ -16866,65 +16994,9 @@ async function main() {
       'same-profile owner tab root navigation did not return HTTP 200');
     activeStage = 'same-profile multi-tab: enable owner tab semantics';
     await enableFlutterSemantics(ownerTabPage, 'A', startupEvidence);
-    await selectServerModeIfChooser(ownerTabPage);
-    const ownerTabConnectButton = ownerTabPage.getByRole('button', {
-      name: 'Connect securely', exact: true,
-    }).first();
-    const ownerTabLoginField = ownerTabPage.locator(
-      'input[aria-label*="Email or username"]',
-    ).first();
-    const ownerTabServerField = ownerTabPage.locator(
-      'input[aria-label*="Server URL"]',
-    ).first();
-    const ownerTabAddHost = ownerTabPage.getByRole('button', {
-      name: 'Add host', exact: true,
-    }).first();
-    const ownerTabEntryDeadline = Date.now() + 20000;
-    let ownerTabEntryReady = false;
-    while (Date.now() < ownerTabEntryDeadline) {
-      if (await ownerTabLoginField.isVisible().catch(() => false) ||
-          await ownerTabAddHost.isVisible().catch(() => false)) {
-        ownerTabEntryReady = true;
-        break;
-      }
-      const manualConnectReady =
-        await ownerTabConnectButton.isVisible().catch(() => false) &&
-        await ownerTabServerField.isVisible().catch(() => false);
-      if (manualConnectReady) {
-        // A saved server is restored asynchronously after the secure database
-        // preflight. Give it a chance to transition to login before submitting
-        // the transient first-run server form.
-        await ownerTabPage.waitForTimeout(400);
-        if (await ownerTabLoginField.isVisible().catch(() => false) ||
-            await ownerTabAddHost.isVisible().catch(() => false)) {
-          ownerTabEntryReady = true;
-          break;
-        }
-        activeStage = 'same-profile multi-tab: connect owner tab';
-        await connect(ownerTabPage, baseUrl);
-        ownerTabEntryReady = true;
-        break;
-      }
-      await ownerTabPage.waitForTimeout(100);
-    }
-    assertThat(ownerTabEntryReady,
+    activeStage = 'same-profile multi-tab: unlock or sign in Owner tab';
+    await enterSameProfileTab(ownerTabPage,
       'same-profile owner tab did not reach its server, login, or workspace screen');
-    if (await ownerTabLoginField.isVisible().catch(() => false)) {
-      activeStage = 'same-profile multi-tab: sign in Owner tab';
-      await fill(ownerTabPage, 'Email or username', USERNAME);
-      await fill(ownerTabPage, 'Master password', MASTER_PASSWORD);
-      await click(ownerTabPage, 'Sign in and unlock');
-    } else if (!(await ownerTabPage.getByRole('button', {
-      name: 'Add host', exact: true,
-    }).isVisible().catch(() => false))) {
-      console.log('same-profile tab startup diagnostic', JSON.stringify({
-        page: await safePageDiagnostic(ownerTabPage),
-        api: safeApiSummary(apiDiagnostics, 20),
-      }));
-      throw new Error('same-profile owner tab did not reach login or workspace');
-    }
-    activeStage = 'same-profile multi-tab: wait for owner tab workspace';
-    await waitWorkspace(ownerTabPage);
 
     const ownerRegisteredDeviceId = observedAuthDeviceIds.get(ownerPage);
     const ownerTabLoginDeviceId = observedAuthDeviceIds.get(ownerTabPage);
@@ -17675,10 +17747,8 @@ async function main() {
     await assertVisible(secondPage, hostOne, true);
     activeStage = 'cross-profile Credential sync: verify Host credential reference on profile B';
     const linkedHostCard = hostCardGroup(secondPage, hostOne);
-    await linkedHostCard.getByRole('button', {
-      name: 'Edit host', exact: true,
-    }).click();
-    await waitForText(secondPage, 'Edit host');
+    await openHostCardEditor(linkedHostCard);
+    await waitForHostEditor(secondPage);
     const expectedLinkedCredentialText = `${updatedPasswordCredentialName} · ${passwordCredentialUser}`;
     const expectedCredentialResolution = `Host override: ${expectedLinkedCredentialText}`;
     try {

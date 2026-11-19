@@ -135,6 +135,22 @@ void main() {
     await _expectShowHide(tester, 'locked_workspace_password');
   });
 
+  testWidgets('locked workspace: the password field is a node of its own', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final app = await _controller(tester);
+    await _pump(tester, LockedWorkspaceScreen(controller: app));
+    final l10n = appLocalizationsFor(const Locale('en'));
+    final field = tester.getSemantics(find.byType(EditableText));
+    // Not the whole card read out as one text field.
+    expect(field.label, isNot(contains(l10n.workspaceLocked)));
+    expect(field.label, contains(l10n.accountPassword));
+    final card = tester.getRect(find.byType(Card));
+    expect(field.rect.height, lessThan(card.height / 2));
+    semantics.dispose();
+  });
+
   for (final code in const ['en', 'zh', 'ja', 'ru']) {
     testWidgets('sign-in and unlock fit a 390 px screen in $code', (
       tester,

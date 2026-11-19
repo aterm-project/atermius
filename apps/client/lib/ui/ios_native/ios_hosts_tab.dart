@@ -1,3 +1,6 @@
+import '../../domain/host_sort.dart';
+import '../host_sort_menu.dart';
+
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
@@ -21,9 +24,6 @@ import 'ios_swipe_actions.dart';
 import 'ios_toast.dart';
 import 'ios_tokens.dart';
 import 'ios_workspace_scope.dart';
-
-/// 主机列表排序方式。
-enum IosHostSortOrder { name, recent }
 
 /// 解析分组整数颜色到 iOS 语义色。
 Color resolveIosGroupColor(IosColors c, int rawColor) {
@@ -70,7 +70,8 @@ IconData normalizeIosRoundedIcon(IconData icon) {
   if (icon == Icons.folder_open_outlined || icon == Icons.folder_outlined) {
     return IosIcons.sftp;
   }
-  if (icon == Icons.upload_file_outlined || icon == Icons.file_upload_outlined) {
+  if (icon == Icons.upload_file_outlined ||
+      icon == Icons.file_upload_outlined) {
     return Icons.upload_file_rounded;
   }
   if (icon == Icons.hub_outlined || icon == Icons.swap_horiz) {
@@ -100,27 +101,6 @@ IconData normalizeIosRoundedIcon(IconData icon) {
   return icon;
 }
 
-/// 按所选排序方式排列主机列表。
-List<HostRecord> sortIosHosts(List<HostRecord> source, IosHostSortOrder order) {
-  final sorted = [...source];
-  sorted.sort((a, b) {
-    if (order == IosHostSortOrder.recent) {
-      final aTime = a.lastConnected;
-      final bTime = b.lastConnected;
-      if (aTime != null && bTime != null) {
-        final cmp = bTime.compareTo(aTime);
-        if (cmp != 0) return cmp;
-      } else if (aTime != null) {
-        return -1;
-      } else if (bTime != null) {
-        return 1;
-      }
-    }
-    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-  });
-  return sorted;
-}
-
 /// iPhone 纯血「主机」一级 Tab 页面。
 ///
 /// 严格只通过 [IosWorkspaceScope.of] 读取数据快照与交互回调。
@@ -134,16 +114,16 @@ class IosHostsTab extends StatefulWidget {
 class _IosHostsTabState extends State<IosHostsTab> {
   bool _groupsCollapsed = false;
   bool _sectionByGroup = false;
-  IosHostSortOrder _sortOrder = IosHostSortOrder.name;
+  HostSortOrder get _sortOrder => HostSortController.instance.order;
 
   bool get _isZh =>
-      Localizations.localeOf(context).languageCode.toLowerCase().startsWith('zh');
+      Localizations.localeOf(context).languageCode
+          .toLowerCase()
+          .startsWith('zh');
 
   String get _quickConnectTitle => _isZh ? '快速连接' : 'Quick Connect';
   String get _allHostsTitle => _isZh ? '全部主机' : context.l10n.hosts;
   String get _ungroupedTitle => _isZh ? '未分组' : 'Ungrouped';
-  String get _sortByNameLabel => _isZh ? '按名称' : 'By Name';
-  String get _sortByRecentLabel => _isZh ? '最近连接' : 'Recent';
   String get _groupBySectionLabel => _isZh ? '按分组分区显示' : 'Group by Folder';
 
   List<GroupRecord> _topLevelGroups(IosWorkspaceData scope) {
@@ -156,52 +136,38 @@ class _IosHostsTabState extends State<IosHostsTab> {
     return result;
   }
 
-  List<List<WorkspaceAction>> _buildMoreSections(IosWorkspaceData scope) {
-    final viewSection = <WorkspaceAction>[
+  List<WorkspaceAction> _sortActions(String prefix) => [
+    for (final order in HostSortOrder.values)
+      WorkspaceAction(
+        '$prefix${order.name}',
+        hostSortLabel(context.l10n, order),
+        _sortOrder == order ? IosIcons.check : kIosMenuNoIcon,
+        () {
+          HostSortController.instance.select(order);
+        },
+      ),
+  ];
+
+  List<List<WorkspaceAction>> _buildMoreSections(IosWorkspaceData scope) => [
+    [
       WorkspaceAction(
         'ios_hosts_toggle_group_sections',
         _groupBySectionLabel,
         _sectionByGroup ? IosIcons.check : kIosMenuNoIcon,
         () => setState(() => _sectionByGroup = !_sectionByGroup),
       ),
-      WorkspaceAction(
-        'ios_hosts_sort_name',
-        _sortByNameLabel,
-        _sortOrder == IosHostSortOrder.name ? IosIcons.check : kIosMenuNoIcon,
-        () => setState(() => _sortOrder = IosHostSortOrder.name),
-      ),
-      WorkspaceAction(
-        'ios_hosts_sort_recent',
-        _sortByRecentLabel,
-        _sortOrder == IosHostSortOrder.recent ? IosIcons.check : kIosMenuNoIcon,
-        () => setState(() => _sortOrder = IosHostSortOrder.recent),
-      ),
-    ];
-    return [viewSection, ...scope.moreMenu];
-  }
-
-  List<List<WorkspaceAction>> _buildSortMenu() => [
-    [
-      WorkspaceAction(
-        'ios_sort_name',
-        _sortByNameLabel,
-        _sortOrder == IosHostSortOrder.name ? IosIcons.check : kIosMenuNoIcon,
-        () => setState(() => _sortOrder = IosHostSortOrder.name),
-      ),
-      WorkspaceAction(
-        'ios_sort_recent',
-        _sortByRecentLabel,
-        _sortOrder == IosHostSortOrder.recent ? IosIcons.check : kIosMenuNoIcon,
-        () => setState(() => _sortOrder = IosHostSortOrder.recent),
-      ),
     ],
+    _sortActions('ios_hosts_sort_'),
+    ...scope.moreMenu,
   ];
+
+  List<List<WorkspaceAction>> _buildSortMenu() => [_sortActions('ios_sort_')];
 
   @override
   Widget build(BuildContext context) {
     final scope = IosWorkspaceScope.of(context);
     return ListenableBuilder(
-      listenable: scope.search,
+      listenable: Listenable.merge([scope.search, HostSortController.instance]),
       builder: (context, _) => _buildPage(context, scope),
     );
   }
@@ -223,7 +189,7 @@ class _IosHostsTabState extends State<IosHostsTab> {
       }
     }
 
-    final filteredHosts = sortIosHosts(
+    final filteredHosts = HostSortController.instance.sorted(
       scope.hosts.where((host) {
         if (quickCommand != null) return quickCommand.matches(host);
         if (query.isEmpty) return true;
@@ -232,7 +198,7 @@ class _IosHostsTabState extends State<IosHostsTab> {
                 .toLowerCase();
         return haystack.contains(query);
       }).toList(),
-      _sortOrder,
+      scope: scope.hostSortScope,
     );
 
     final visibleGroups = query.isEmpty
@@ -428,10 +394,7 @@ class _IosHostsTabState extends State<IosHostsTab> {
                     separatorIndent: IosListSection.indentForIcon(),
                     children: [
                       for (final group in visibleGroups)
-                        IosGroupFolderRow(
-                          group: group,
-                          backLabel: l10n.hosts,
-                        ),
+                        IosGroupFolderRow(group: group, backLabel: l10n.hosts),
                     ],
                   )
                 else
@@ -445,11 +408,11 @@ class _IosHostsTabState extends State<IosHostsTab> {
       // 2. 主机列表区（支持合并全部主机 或 按分组切分 Section）
       if (filteredHosts.isNotEmpty) {
         if (_sectionByGroup && query.isEmpty) {
-          slivers.addAll(_buildGroupedHostSections(context, scope, filteredHosts));
+          slivers.addAll(
+            _buildGroupedHostSections(context, scope, filteredHosts),
+          );
         } else {
-          final currentSortLabel = _sortOrder == IosHostSortOrder.recent
-              ? _sortByRecentLabel
-              : _sortByNameLabel;
+          final currentSortLabel = hostSortLabel(context.l10n, _sortOrder);
           slivers.add(
             SliverToBoxAdapter(
               child: IosListSection(
@@ -687,9 +650,9 @@ class IosHostRow extends StatelessWidget {
     }
     final endpoint = formatIosHostEndpoint(host);
     unawaited(Clipboard.setData(ClipboardData(text: endpoint)));
-    final isZh = Localizations.localeOf(
-      context,
-    ).languageCode.toLowerCase().startsWith('zh');
+    final isZh = Localizations.localeOf(context).languageCode
+        .toLowerCase()
+        .startsWith('zh');
     IosToast.show(
       context,
       isZh ? '已复制 $endpoint' : 'Copied $endpoint',
@@ -708,9 +671,9 @@ class IosHostRow extends StatelessWidget {
     void appendCopyAction() {
       if (insertedCopy) return;
       insertedCopy = true;
-      final isZh = Localizations.localeOf(
-        outerContext,
-      ).languageCode.toLowerCase().startsWith('zh');
+      final isZh = Localizations.localeOf(outerContext).languageCode
+          .toLowerCase()
+          .startsWith('zh');
       widgets.add(
         Builder(
           builder: (menuCtx) => CupertinoContextMenuAction(
@@ -934,7 +897,10 @@ class _IosContextPreviewShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = IosColors.of(context);
-    final maxWidth = (MediaQuery.sizeOf(context).width - 40).clamp(240.0, 360.0);
+    final maxWidth = (MediaQuery.sizeOf(context).width - 40).clamp(
+      240.0,
+      360.0,
+    );
     return Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
