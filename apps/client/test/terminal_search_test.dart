@@ -20,6 +20,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
 import 'package:xterm/xterm.dart';
+import 'support/terminal_menu.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -410,7 +411,7 @@ void main() {
       shellMounted = true;
       await tester.pump();
 
-      await _openTerminalAction(tester, 'terminal-search');
+      await openTerminalAction(tester, 'terminal-search');
       await tester.pumpAndSettle();
       final searchField = _terminalSearchField();
       final betaSearchTextField = tester.widget<TextField>(searchField);
@@ -723,13 +724,3 @@ class _RecordingConnection implements SshConnection {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Future<void> _openTerminalAction(WidgetTester tester, String id) async {
-  final menu = find.byKey(const ValueKey('terminal_function_menu'));
-  await tester.ensureVisible(menu);
-  await tester.tap(menu);
-  await tester.pumpAndSettle();
-  final action = find.byKey(ValueKey(id));
-  await tester.ensureVisible(action);
-  await tester.tap(action);
-  await tester.pumpAndSettle();
-}

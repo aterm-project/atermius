@@ -18,6 +18,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
 import 'package:xterm/xterm.dart';
+import 'support/terminal_menu.dart';
 
 const _workspaceId = '66666666-6666-4666-8666-666666666666';
 const _hostA = '77777777-7777-4777-8777-777777777777';
@@ -133,7 +134,7 @@ void main() {
         );
         await tester.pump();
         expect(find.byType(TerminalView), findsOneWidget);
-        await tester.tap(find.byKey(const ValueKey('terminal_function_menu')));
+        await openTerminalMenu(tester);
         await tester.pumpAndSettle();
         expect(
           find.byKey(const ValueKey('terminal-workspace-tmux-session')),
@@ -141,7 +142,7 @@ void main() {
         );
         await tester.tapAt(const Offset(2, 2));
         await tester.pumpAndSettle();
-        await _openTerminalAction(tester, 'terminal-workspace-tmux-session');
+        await openTerminalAction(tester, 'terminal-workspace-tmux-session');
         await tester.pumpAndSettle();
         expect(find.text('Start resumable tmux session?'), findsOneWidget);
         await tester.tap(find.text('Cancel'));
@@ -268,12 +269,7 @@ void main() {
         await tester.pump();
         expect(app.activeTerminalTabId, firstTab.id);
         expect(
-          find.byWidgetPredicate(
-            (widget) =>
-                widget is TextField &&
-                widget.decoration?.hintText ==
-                    'Search this terminal scrollback…',
-          ),
+          find.byKey(const ValueKey('terminal-sidebar-query')),
           findsOneWidget,
         );
 
@@ -290,8 +286,25 @@ void main() {
         );
         await connections[_hostA]!.close();
         await tester.pumpAndSettle();
-        expect(find.text('SSH · disconnected'), findsOneWidget);
-        await tester.tap(find.byKey(const ValueKey('terminal_function_menu')));
+        final firstPane = find.byKey(
+          ValueKey('workspace-live-split-pane-${workspace.panes.first.paneId}'),
+        );
+        expect(
+          find.descendant(
+            of: firstPane,
+            matching: find.byKey(
+              ValueKey(
+                'workspace-live-split-connect-${workspace.id}-${workspace.panes.first.paneId}',
+              ),
+            ),
+          ),
+          findsOneWidget,
+        );
+        // The dropped pane keeps its own menu. The search sidebar opened
+        // above overlays the panes at this test width, so close it first.
+        await tester.tap(find.byKey(const ValueKey('terminal-tools-close')));
+        await tester.pumpAndSettle();
+        await openTerminalMenu(tester, within: firstPane);
         await tester.pumpAndSettle();
         expect(
           find.byKey(const ValueKey('terminal-workspace-tmux-session')),
@@ -414,13 +427,3 @@ class _UnsupportedPortForwardPlatform implements SshPortForwardPlatform {
   ) => throw UnsupportedError('Port forwarding is not used by this test.');
 }
 
-Future<void> _openTerminalAction(WidgetTester tester, String id) async {
-  final menu = find.byKey(const ValueKey('terminal_function_menu'));
-  await tester.ensureVisible(menu);
-  await tester.tap(menu);
-  await tester.pumpAndSettle();
-  final action = find.byKey(ValueKey(id));
-  await tester.ensureVisible(action);
-  await tester.tap(action);
-  await tester.pumpAndSettle();
-}

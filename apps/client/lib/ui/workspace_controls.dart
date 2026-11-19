@@ -55,6 +55,9 @@ class WorkspaceOverflowMenu extends StatelessWidget {
     required this.actions,
     this.tooltip,
     this.onOpened,
+    this.onClosed,
+    this.icon,
+    this.padding = const EdgeInsets.all(8),
     this.child,
     super.key,
   });
@@ -62,6 +65,14 @@ class WorkspaceOverflowMenu extends StatelessWidget {
   final List<WorkspaceAction> actions;
   final String? tooltip;
   final VoidCallback? onOpened;
+
+  /// Called when the menu closes, with or without a choice (before the
+  /// chosen action runs).
+  final VoidCallback? onClosed;
+
+  /// Replaces the three-dot trigger icon.
+  final Widget? icon;
+  final EdgeInsetsGeometry padding;
   final Widget? child;
 
   @override
@@ -84,17 +95,19 @@ class WorkspaceOverflowMenu extends StatelessWidget {
           : null,
       clipBehavior: Clip.antiAlias,
       tooltip: tooltip ?? context.l10n.more,
+      padding: padding,
       onOpened: () {
         AppleHaptics.selection(context);
         onOpened?.call();
       },
+      onCanceled: onClosed,
       icon: customTrigger == null
           ? (apple
                 ? DecoratedBox(
                     decoration: ShapeDecoration(shape: triggerShape),
-                    child: const Icon(Icons.more_horiz),
+                    child: icon ?? const Icon(Icons.more_horiz),
                   )
-                : const Icon(Icons.more_horiz))
+                : icon ?? const Icon(Icons.more_horiz))
           : null,
       child: customTrigger == null
           ? null
@@ -105,6 +118,7 @@ class WorkspaceOverflowMenu extends StatelessWidget {
                   )
                 : customTrigger),
       onSelected: (id) async {
+        onClosed?.call();
         final action = actions.where((action) => action.id == id).firstOrNull;
         if (action == null || !action.enabled) return;
         AppleHaptics.light(context);

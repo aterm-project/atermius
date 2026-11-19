@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
+import 'support/terminal_menu.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -166,7 +167,7 @@ void main() {
         final alphaConnection = connections[alphaHost.id]!;
         expect(betaConnection.inputs, isEmpty);
         expect(alphaConnection.inputs, isEmpty);
-        await _openTerminalAction(tester, 'terminal-command-suggestions');
+        await openTerminalAction(tester, 'terminal-command-suggestions');
         await tester.pumpAndSettle();
         expect(
           find.byKey(const ValueKey('terminal-command-suggestions-dialog')),
@@ -202,7 +203,7 @@ void main() {
 
         final betaInputsBeforeDictionarySelection =
             betaConnection.inputs.length;
-        await _openTerminalAction(tester, 'terminal-command-suggestions');
+        await openTerminalAction(tester, 'terminal-command-suggestions');
         await tester.pumpAndSettle();
         await tester.enterText(queryField, 'unam');
         await tester.pumpAndSettle();
@@ -222,7 +223,7 @@ void main() {
         expect(betaConnection.inputs.last, isNot(contains('\r')));
         expect(alphaConnection.inputs, isEmpty);
 
-        await _openTerminalAction(tester, 'terminal-command-suggestions');
+        await openTerminalAction(tester, 'terminal-command-suggestions');
         await tester.pumpAndSettle();
         await tester.enterText(queryField, 'SNIPPET_ONLY');
         await tester.pumpAndSettle();
@@ -236,7 +237,7 @@ void main() {
         );
         expect(betaConnection.inputs, ['echo BETA_ONLY_11', 'uname']);
 
-        await _openTerminalAction(tester, 'terminal-command-suggestions');
+        await openTerminalAction(tester, 'terminal-command-suggestions');
         await tester.pumpAndSettle();
         await tester.enterText(queryField, 'SNIPPET_ONLY');
         await tester.pumpAndSettle();
@@ -257,7 +258,7 @@ void main() {
           find.bySemanticsLabel('Alpha terminal tab, connected, inactive'),
         );
         await tester.pumpAndSettle();
-        await _openTerminalAction(tester, 'terminal-command-suggestions');
+        await openTerminalAction(tester, 'terminal-command-suggestions');
         await tester.pumpAndSettle();
         await tester.enterText(queryField, 'BETA_ONLY');
         await tester.pumpAndSettle();
@@ -329,13 +330,3 @@ class _UnsupportedPortForwardPlatform extends Fake
   bool get isSupported => false;
 }
 
-Future<void> _openTerminalAction(WidgetTester tester, String id) async {
-  final menu = find.byKey(const ValueKey('terminal_function_menu'));
-  await tester.ensureVisible(menu);
-  await tester.tap(menu);
-  await tester.pumpAndSettle();
-  final action = find.byKey(ValueKey(id));
-  await tester.ensureVisible(action);
-  await tester.tap(action);
-  await tester.pumpAndSettle();
-}

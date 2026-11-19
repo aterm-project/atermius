@@ -573,9 +573,10 @@ class _SessionDividerState extends State<_SessionDivider> {
   }
 }
 
-/// Lets the content of a pane put one control of its own into the actions of
-/// the pane's white handle (a remote desktop puts its session menu there), so
-/// nothing has to float over the content.
+/// Lets the content of a pane put controls of its own into the actions of the
+/// pane's white handle (a remote desktop puts its session menu there, a
+/// terminal its function menu), so nothing has to float over the content.
+/// Each owner contributes one control.
 class SessionPaneActionSlot extends InheritedWidget {
   const SessionPaneActionSlot._(this._pane, {required super.child});
 
@@ -600,6 +601,53 @@ class SessionPaneActionSlot extends InheritedWidget {
 
   @override
   bool updateShouldNotify(SessionPaneActionSlot old) => old._pane != _pane;
+}
+
+/// Puts [action] into the white handle actions of the pane that hosts
+/// [child] for as long as it is mounted (a terminal puts its function menu
+/// there). Outside a pane only [child] is shown.
+///
+/// [action] is called each time the handle actions are built, so it reads
+/// the current state; a menu it returns calls [SessionPaneActionSlot.hold]
+/// when it opens and [SessionPaneActionSlot.release] when it closes, or the
+/// actions would hide (and drop the choice) as the pointer leaves the pane.
+class SessionPaneAction extends StatefulWidget {
+  const SessionPaneAction({
+    super.key,
+    required this.action,
+    required this.child,
+  });
+
+  final Widget Function(BuildContext context, SessionPaneActionSlot slot)
+  action;
+  final Widget child;
+
+  @override
+  State<SessionPaneAction> createState() => _SessionPaneActionState();
+}
+
+class _SessionPaneActionState extends State<SessionPaneAction> {
+  SessionPaneActionSlot? _slot;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final slot = SessionPaneActionSlot.maybeOf(context);
+    if (identical(slot, _slot)) return;
+    _slot?.detach(this);
+    _slot = slot;
+    slot?.attach(this, (context) => widget.action(context, slot));
+  }
+
+  @override
+  void dispose() {
+    _slot?.detach(this);
+    _slot = null;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _SessionPaneDropTarget extends StatefulWidget {
@@ -668,21 +716,19 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
   final _controlsFocus = FocusNode(debugLabel: 'Split pane actions');
   final _controlsBottom = GlobalKey();
 
-  /// A control the pane content shows in the actions (see
-  /// [SessionPaneActionSlot]).
-  Object? _contentOwner;
-  WidgetBuilder? _contentAction;
+  /// Controls the pane content shows in the actions (see
+  /// [SessionPaneActionSlot]), in the order they were first attached: a
+  /// terminal's function menu, then the Android text scale reset of the
+  /// terminal view inside it.
+  final _contentActions = <Object, WidgetBuilder>{};
 
   void _attachAction(Object owner, WidgetBuilder builder) {
-    _contentOwner = owner;
-    _contentAction = builder;
+    _contentActions[owner] = builder;
     _contentActionChanged();
   }
 
   void _detachAction(Object owner) {
-    if (!identical(owner, _contentOwner)) return;
-    _contentOwner = null;
-    _contentAction = null;
+    if (_contentActions.remove(owner) == null) return;
     _contentActionChanged();
   }
 
@@ -704,7 +750,7 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
   }
 
   int get _actionCount =>
-      (_contentAction != null ? 1 : 0) +
+      _contentActions.length +
       (widget.onFullscreen != null ? 1 : 0) +
       (widget.onUnsplit != null ? 1 : 0) +
       (widget.onClose != null ? 1 : 0) +
@@ -715,7 +761,7 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
   /// Actions that stay buttons of their own in a narrow pane; the others
   /// move into one menu.
   int get _pinnedActionCount =>
-      (_contentAction != null ? 1 : 0) + (widget.onFullscreen != null ? 1 : 0);
+      _contentActions.length + (widget.onFullscreen != null ? 1 : 0);
   double get _actionExtent => AppDensity.of(context).isCompact ? 36 : 48;
 
   /// Handle offset below a dropped-down tab strip.
@@ -1193,9 +1239,13 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
     child: Wrap(
       alignment: WrapAlignment.center,
       children: [
-        if (_contentAction case final action?)
+        for (final (index, action) in _contentActions.values.indexed)
           SizedBox(
-            key: ValueKey('pane-content-action-${widget.sessionId}'),
+            key: ValueKey(
+              index == 0
+                  ? 'pane-content-action-${widget.sessionId}'
+                  : 'pane-content-action-${widget.sessionId}-$index',
+            ),
             width: _actionExtent,
             height: _actionExtent,
             child: Builder(builder: action),

@@ -29,7 +29,7 @@ Use the Host card's connect action to open a session. The menu contains edit, sh
 
 For SSH, compare the displayed host-key fingerprint with a trusted source. For RDP, review and save the target certificate fingerprint when prompted; a changed fingerprint needs another decision. A generic TLS failure is not automatically a certificate-trust failure.
 
-Terminal tabs/panes keep their own sessions. Use the pane handle/menu to split, clone, detach or close where the platform supports it. Saved window sets can be reopened from Home; unavailable protocols still require their platform/server prerequisites. The SSH right sidebar provides output search, snippets and input history. A snippet fills input for review before execution. See [terminal tools](TERMINAL-SIDEBAR.md).
+Terminal tabs/panes keep their own sessions. Use the pane handle/menu to split, clone, detach or close where the platform supports it; an SSH, Telnet or console pane also keeps its session menu (port forwarding, command history, search, sharing, files, properties, disconnect) behind the ⋮ button among those handle actions. The browser build announces a newer Web build on the Home tab only. Saved window sets can be reopened from Home; unavailable protocols still require their platform/server prerequisites. The SSH right sidebar provides output search, snippets and input history. A snippet fills input for review before execution. See [terminal tools](TERMINAL-SIDEBAR.md).
 
 Open **SFTP** or **SCP** from the Host/session menu for a file workspace. Confirm the remote path and destination before transfer or replacement. See [features](FEATURES.md) for platform boundaries. Local shells and OS serial Console are desktop features.
 

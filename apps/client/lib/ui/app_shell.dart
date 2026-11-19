@@ -2307,7 +2307,11 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
                     Expanded(
                       child: Column(
                         children: [
-                          if (_webUpdateMonitor != null)
+                          // Home tab only: a session tab keeps its whole
+                          // height for the terminal or remote screen.
+                          if (_webUpdateMonitor != null &&
+                              app.page != WorkspacePage.terminal &&
+                              _selectedFileId == null)
                             _WebAppUpdateBanner(
                               app: app,
                               monitor: _webUpdateMonitor!,
@@ -9190,44 +9194,8 @@ class _TerminalPageState extends State<_TerminalPage> {
     final shareStatus = activeTab == null
         ? null
         : app.terminalShareStatusFor(activeTab.id);
-    final sharingThisTab = app.isTerminalShareHost(activeTab?.id);
-    final collaborationEnabled =
-        kIsWeb &&
-        (app.instance?.capabilities.contains('terminal_collaboration') ??
-            false);
+    final collaborationEnabled = _terminalCollaborationEnabled;
     final stagedWorkspace = app.activeSavedWorkspace;
-    final tmuxWorkspacePane = activeTab == null || stagedWorkspace == null
-        ? null
-        : stagedWorkspace.panes
-              .where(
-                (pane) =>
-                    app
-                        .workspacePaneTerminalTab(
-                          stagedWorkspace.id,
-                          pane.paneId,
-                        )
-                        ?.id ==
-                    activeTab.id,
-              )
-              .firstOrNull;
-    final tmuxDescriptor = tmuxWorkspacePane == null
-        ? null
-        : app.workspacePaneSessionDescriptor(
-            stagedWorkspace!.id,
-            tmuxWorkspacePane.paneId,
-          );
-    final tmuxBusy =
-        tmuxWorkspacePane != null &&
-        app.workspacePaneTmuxBusy(
-          stagedWorkspace!.id,
-          tmuxWorkspacePane.paneId,
-        );
-    final tmuxAttached =
-        tmuxWorkspacePane != null &&
-        app.workspacePaneTmuxAttached(
-          stagedWorkspace!.id,
-          tmuxWorkspacePane.paneId,
-        );
     final stagedSplitTabs = stagedWorkspace?.isSplit == true
         ? [
             for (final pane in stagedWorkspace!.panes)
@@ -9438,186 +9406,6 @@ class _TerminalPageState extends State<_TerminalPage> {
                     child: LayoutBuilder(
                       builder: (context, constraints) => Column(
                         children: [
-                          Container(
-                            height: 43,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(color: context.palette.line),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    !connected
-                                        ? '${activeTab?.console != null ? context.l10n.console : activeTab?.host?.protocol.label ?? 'SSH'} · ${terminalStateLabel(context.l10n, activeTab?.state ?? 'disconnected')}'
-                                        : '${activeTab!.host?.username}@${activeTab.host?.address}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: context.palette.muted,
-                                      fontSize: 11,
-                                      fontFamily: 'monospace',
-                                    ),
-                                  ),
-                                ),
-                                WorkspaceOverflowMenu(
-                                  key: const ValueKey('terminal_function_menu'),
-                                  actions: [
-                                    if (connected && tmuxWorkspacePane != null)
-                                      WorkspaceAction(
-                                        'terminal-workspace-tmux-session',
-                                        tmuxDescriptor == null
-                                            ? context.l10n.startResumableSession
-                                            : context.l10n.resumeTmuxSession2,
-                                        Icons.terminal,
-                                        () => _confirmWorkspaceTmuxAction(
-                                          workspace: stagedWorkspace!,
-                                          pane: tmuxWorkspacePane,
-                                          resume: tmuxDescriptor != null,
-                                        ),
-                                        enabled: !tmuxBusy && !tmuxAttached,
-                                      ),
-                                    if (tmuxWorkspacePane != null &&
-                                        tmuxDescriptor != null)
-                                      WorkspaceAction(
-                                        'terminal-workspace-tmux-clear-reference',
-                                        context.l10n.removeTmuxSessionReference2,
-                                        Icons.link_off,
-                                        () => _confirmClearWorkspaceTmuxReference(
-                                          workspace: stagedWorkspace!,
-                                          pane: tmuxWorkspacePane,
-                                        ),
-                                        enabled: !tmuxBusy && !tmuxAttached,
-                                      ),
-                                    if (connected)
-                                      WorkspaceAction(
-                                        'terminal-port-forwarding',
-                                        context.l10n.sshPortForwarding,
-                                        Icons.hub_outlined,
-                                        () => _openPortForwarding(activeTab!),
-                                      ),
-                                    if (activeTab != null &&
-                                        (connected ||
-                                            app
-                                                .shellIntegrationHistoryFor(
-                                                  activeTab.id,
-                                                )
-                                                .isNotEmpty))
-                                      WorkspaceAction(
-                                        'terminal-shell-integration',
-                                        app.shellIntegrationActiveFor(
-                                                  activeTab.id,
-                                                ) ||
-                                                !connected
-                                            ? context.l10n.viewCommandHistory
-                                            : context.l10n.enableBashCommandHistory,
-                                        Icons.history,
-                                        () => _showShellIntegration(activeTab),
-                                      ),
-                                    if (connected &&
-                                        (kIsWeb ||
-                                            widget
-                                                .enableWebCommandSuggestionsForTesting))
-                                      WorkspaceAction(
-                                        'terminal-command-suggestions',
-                                        context.l10n.commandSuggestions,
-                                        Icons.auto_awesome_outlined,
-                                        () => _showTerminalCommandSuggestions(
-                                          activeTab!,
-                                        ),
-                                      ),
-                                    if (connected)
-                                      WorkspaceAction(
-                                        'terminal-search',
-                                        context.l10n.searchTerminalScrollback,
-                                        Icons.search,
-                                        () => _openTerminalSearch(activeTab!),
-                                      ),
-                                    if (connected &&
-                                        sharingThisTab &&
-                                        shareStatus?.inputControlEnabled == true)
-                                      WorkspaceAction(
-                                        shareStatus?.controllerDeviceId == null
-                                            ? 'terminal-share-controller-grant'
-                                            : 'terminal-share-controller-revoke',
-                                        shareStatus?.controllerDeviceId == null
-                                            ? context.l10n.grantInputControl
-                                            : context.l10n.revokeInputControl,
-                                        Icons.front_hand_outlined,
-                                        () =>
-                                            shareStatus?.controllerDeviceId ==
-                                                null
-                                            ? _grantTerminalShareControl(
-                                                activeTab!,
-                                              )
-                                            : _revokeTerminalShareControl(
-                                                activeTab!,
-                                              ),
-                                        enabled: shareStatus?.phase == 'active',
-                                      ),
-                                    if (connected && sharingThisTab)
-                                      WorkspaceAction(
-                                        'terminal-share-stop',
-                                        context.l10n.stopTerminalSharing,
-                                        Icons.stop_circle_outlined,
-                                        () => app.stopTerminalShareFor(
-                                          activeTab!.id,
-                                        ),
-                                      )
-                                    else if (connected && collaborationEnabled)
-                                      WorkspaceAction(
-                                        'terminal-share-start',
-                                        context.l10n.shareThisTerminal,
-                                        Icons.screen_share_outlined,
-                                        () => _startTerminalShare(activeTab!),
-                                        enabled: shareStatus?.phase != 'starting',
-                                      ),
-                                    if (collaborationEnabled)
-                                      WorkspaceAction(
-                                        'terminal-share-join-open',
-                                        context.l10n.joinASharedTerminal,
-                                        Icons.group_add_outlined,
-                                        _joinTerminalShare,
-                                        enabled:
-                                            app.activeVault?.status == 'active',
-                                      ),
-                                    if (connected)
-                                      WorkspaceAction(
-                                        'terminal-open-files',
-                                        context.l10n.browseFiles2,
-                                        Icons.folder_open_outlined,
-                                        () => app.showWorkspacePage(
-                                          WorkspacePage.sftp,
-                                        ),
-                                      ),
-                                    if (activeTab?.host != null)
-                                      WorkspaceAction(
-                                        'terminal-properties',
-                                        context.l10n.properties,
-                                        Icons.info_outline,
-                                        () => showHostProperties(
-                                          context,
-                                          activeTab!.host!,
-                                          state: activeTab.state,
-                                        ),
-                                      ),
-                                    if (activeTab != null)
-                                      WorkspaceAction(
-                                        'terminal-disconnect',
-                                        context.l10n.disconnect,
-                                        Icons.link_off,
-                                        () => app.disconnectTerminalTab(activeTab.id),
-                                        enabled: activeTab.console != null || activeTab.state == 'connected' ||
-                                            activeTab.state == 'connecting' || activeTab.recovery?.automaticEnabled == true,
-                                        destructive: true,
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
                           if (shareStatus != null)
                             Container(
                               key: const ValueKey('terminal-share-status'),
@@ -9741,6 +9529,11 @@ class _TerminalPageState extends State<_TerminalPage> {
                                 : _TerminalWelcome(
                                     app: app,
                                     errorMessage: activeTab?.errorMessage,
+                                    // Without a session there is no pane
+                                    // handle menu to offer this from.
+                                    onJoinShare: collaborationEnabled
+                                        ? _joinTerminalShare
+                                        : null,
                                   ),
                           ),
                           if (connected && activeTab != null)
@@ -9748,9 +9541,9 @@ class _TerminalPageState extends State<_TerminalPage> {
                               terminal: activeTab.terminal,
                               focusNode: _focusNodeFor(activeTab.id),
                               readOnly: activeTab.state != 'connected',
-                              // Exclude this column's fixed header/share rows.
+                              // Exclude this column's share status row.
                               availablePaneHeight: constraints.maxHeight -
-                                  43 - (shareStatus != null ? 34 : 0),
+                                  (shareStatus != null ? 34 : 0),
                             ),
                         ],
                       ),
@@ -9764,6 +9557,206 @@ class _TerminalPageState extends State<_TerminalPage> {
       )),
     );
   }
+
+  bool get _terminalCollaborationEnabled =>
+      kIsWeb &&
+      (app.instance?.capabilities.contains('terminal_collaboration') ?? false);
+
+  /// The function menu of one terminal session (SSH, Telnet or local
+  /// console). It lives in the white handle of the session's pane (or in the
+  /// header of a saved-layout pane) instead of a header row above the
+  /// terminal, which only repeated the tab's `user@host`.
+  List<WorkspaceAction> _terminalMenuActions(TerminalTabSession tab) {
+    final connected = tab.connection != null;
+    final shareStatus = app.terminalShareStatusFor(tab.id);
+    final sharingThisTab = app.isTerminalShareHost(tab.id);
+    final collaborationEnabled = _terminalCollaborationEnabled;
+    final stagedWorkspace = app.activeSavedWorkspace;
+    final tmuxWorkspacePane = stagedWorkspace?.panes
+        .where(
+          (pane) =>
+              app
+                  .workspacePaneTerminalTab(stagedWorkspace.id, pane.paneId)
+                  ?.id ==
+              tab.id,
+        )
+        .firstOrNull;
+    final tmuxDescriptor = tmuxWorkspacePane == null
+        ? null
+        : app.workspacePaneSessionDescriptor(
+            stagedWorkspace!.id,
+            tmuxWorkspacePane.paneId,
+          );
+    final tmuxBusy =
+        tmuxWorkspacePane != null &&
+        app.workspacePaneTmuxBusy(
+          stagedWorkspace!.id,
+          tmuxWorkspacePane.paneId,
+        );
+    final tmuxAttached =
+        tmuxWorkspacePane != null &&
+        app.workspacePaneTmuxAttached(
+          stagedWorkspace!.id,
+          tmuxWorkspacePane.paneId,
+        );
+    return [
+      if (connected && tmuxWorkspacePane != null)
+        WorkspaceAction(
+          'terminal-workspace-tmux-session',
+          tmuxDescriptor == null
+              ? context.l10n.startResumableSession
+              : context.l10n.resumeTmuxSession2,
+          Icons.terminal,
+          () => _confirmWorkspaceTmuxAction(
+            workspace: stagedWorkspace!,
+            pane: tmuxWorkspacePane,
+            resume: tmuxDescriptor != null,
+          ),
+          enabled: !tmuxBusy && !tmuxAttached,
+        ),
+      if (tmuxWorkspacePane != null && tmuxDescriptor != null)
+        WorkspaceAction(
+          'terminal-workspace-tmux-clear-reference',
+          context.l10n.removeTmuxSessionReference2,
+          Icons.link_off,
+          () => _confirmClearWorkspaceTmuxReference(
+            workspace: stagedWorkspace!,
+            pane: tmuxWorkspacePane,
+          ),
+          enabled: !tmuxBusy && !tmuxAttached,
+        ),
+      if (connected)
+        WorkspaceAction(
+          'terminal-port-forwarding',
+          context.l10n.sshPortForwarding,
+          Icons.hub_outlined,
+          () => _openPortForwarding(tab),
+        ),
+      if (connected || app.shellIntegrationHistoryFor(tab.id).isNotEmpty)
+        WorkspaceAction(
+          'terminal-shell-integration',
+          app.shellIntegrationActiveFor(tab.id) || !connected
+              ? context.l10n.viewCommandHistory
+              : context.l10n.enableBashCommandHistory,
+          Icons.history,
+          () => _showShellIntegration(tab),
+        ),
+      if (connected && (kIsWeb || widget.enableWebCommandSuggestionsForTesting))
+        WorkspaceAction(
+          'terminal-command-suggestions',
+          context.l10n.commandSuggestions,
+          Icons.auto_awesome_outlined,
+          () => _showTerminalCommandSuggestions(tab),
+        ),
+      if (connected)
+        WorkspaceAction(
+          'terminal-search',
+          context.l10n.searchTerminalScrollback,
+          Icons.search,
+          () => _openTerminalSearch(tab),
+        ),
+      if (connected &&
+          sharingThisTab &&
+          shareStatus?.inputControlEnabled == true)
+        WorkspaceAction(
+          shareStatus?.controllerDeviceId == null
+              ? 'terminal-share-controller-grant'
+              : 'terminal-share-controller-revoke',
+          shareStatus?.controllerDeviceId == null
+              ? context.l10n.grantInputControl
+              : context.l10n.revokeInputControl,
+          Icons.front_hand_outlined,
+          () => shareStatus?.controllerDeviceId == null
+              ? _grantTerminalShareControl(tab)
+              : _revokeTerminalShareControl(tab),
+          enabled: shareStatus?.phase == 'active',
+        ),
+      if (connected && sharingThisTab)
+        WorkspaceAction(
+          'terminal-share-stop',
+          context.l10n.stopTerminalSharing,
+          Icons.stop_circle_outlined,
+          () => app.stopTerminalShareFor(tab.id),
+        )
+      else if (connected && collaborationEnabled)
+        WorkspaceAction(
+          'terminal-share-start',
+          context.l10n.shareThisTerminal,
+          Icons.screen_share_outlined,
+          () => _startTerminalShare(tab),
+          enabled: shareStatus?.phase != 'starting',
+        ),
+      if (collaborationEnabled)
+        WorkspaceAction(
+          'terminal-share-join-open',
+          context.l10n.joinASharedTerminal,
+          Icons.group_add_outlined,
+          _joinTerminalShare,
+          enabled: app.activeVault?.status == 'active',
+        ),
+      if (connected)
+        WorkspaceAction(
+          'terminal-open-files',
+          context.l10n.browseFiles2,
+          Icons.folder_open_outlined,
+          () {
+            app.activateTerminalTab(tab.id);
+            app.showWorkspacePage(WorkspacePage.sftp);
+          },
+        ),
+      if (tab.host != null)
+        WorkspaceAction(
+          'terminal-properties',
+          context.l10n.properties,
+          Icons.info_outline,
+          () => showHostProperties(context, tab.host!, state: tab.state),
+        ),
+      WorkspaceAction(
+        'terminal-disconnect',
+        context.l10n.disconnect,
+        Icons.link_off,
+        () => app.disconnectTerminalTab(tab.id),
+        enabled:
+            tab.console != null ||
+            tab.state == 'connected' ||
+            tab.state == 'connecting' ||
+            tab.recovery?.automaticEnabled == true,
+        destructive: true,
+      ),
+    ];
+  }
+
+  /// [tab]'s function menu as a button. In a pane's handle actions
+  /// ([slot]) it keeps the actions on screen while it is open, so the choice
+  /// still has a receiver after the pointer leaves the pane. [compact] sizes
+  /// it for a saved-layout pane header.
+  Widget _terminalMenuButton(
+    String id, {
+    SessionPaneActionSlot? slot,
+    bool compact = false,
+  }) => AnimatedBuilder(
+    animation: app,
+    builder: (context, _) {
+      final tab = app.terminalTabFor(id);
+      if (tab == null || tab.closed) return const SizedBox.shrink();
+      return WorkspaceOverflowMenu(
+        key: const ValueKey('terminal_function_menu'),
+        actions: _terminalMenuActions(tab),
+        // The pane's own overflow (narrow panes) uses the
+        // horizontal dots.
+        icon: slot != null
+            ? Icon(Icons.more_vert, size: appMenuIconSize(context))
+            : compact
+            ? const Icon(Icons.more_horiz, size: 16)
+            : null,
+        padding: slot != null || compact
+            ? EdgeInsets.zero
+            : const EdgeInsets.all(8),
+        onOpened: slot?.hold,
+        onClosed: slot?.release,
+      );
+    },
+  );
 
   Widget _workspaceView() {
     final selected = widget.sessionWorkspace.selectedId;
@@ -9804,7 +9797,7 @@ class _TerminalPageState extends State<_TerminalPage> {
           controller: file.controller,
         );
       }
-      return ExcludeFocus(
+      final pane = ExcludeFocus(
         excluding: widget.sessionWorkspace.selectedId != id,
         child: _withConnectProgress(
           id,
@@ -9815,6 +9808,13 @@ class _TerminalPageState extends State<_TerminalPage> {
             child: _temporarySessionPane(id),
           ),
         ),
+      );
+      // A remote desktop puts its own session menu into the handle.
+      if (app.terminalTabFor(id)?.desktop != null) return pane;
+      return SessionPaneAction(
+        key: ValueKey('terminal-pane-menu-$id'),
+        action: (context, slot) => _terminalMenuButton(id, slot: slot),
+        child: pane,
       );
     },
   );
@@ -10196,6 +10196,14 @@ return DesktopView(
                   },
                   icon: const Icon(Icons.folder_open_outlined, size: 16),
                 ),
+                SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: Listener(
+                    onPointerDown: (_) => app.activateTerminalTab(tab.id),
+                    child: _terminalMenuButton(tab.id, compact: true),
+                  ),
+                ),
               ],
             ),
           ),
@@ -10223,6 +10231,23 @@ return DesktopView(
   Widget _disconnectedLiveSplitPane(WorkspaceRecord workspace, int index) {
     final pane = workspace.panes[index];
     final host = app.hosts.where((item) => item.id == pane.hostId).firstOrNull;
+    // A dropped session keeps its menu here (history, properties, and a
+    // stale tmux reference stays removable while offline).
+    final tab = app.workspacePaneTerminalTab(workspace.id, pane.paneId);
+    final menu = tab == null || _terminalMenuActions(tab).isEmpty
+        ? null
+        : Positioned(
+            top: -4,
+            right: -4,
+            child: SizedBox(
+              width: 30,
+              height: 30,
+              child: Listener(
+                onPointerDown: (_) => app.activateTerminalTab(tab.id),
+                child: _terminalMenuButton(tab.id, compact: true),
+              ),
+            ),
+          );
     return Container(
       key: ValueKey('workspace-live-split-pane-${pane.paneId}'),
       padding: const EdgeInsets.all(8),
@@ -10231,6 +10256,25 @@ return DesktopView(
         border: Border.all(color: context.palette.line),
         borderRadius: BorderRadius.circular(8),
       ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: _disconnectedLiveSplitPaneBody(workspace, pane, host),
+          ),
+          ?menu,
+        ],
+      ),
+    );
+  }
+
+  Widget _disconnectedLiveSplitPaneBody(
+    WorkspaceRecord workspace,
+    WorkspacePane pane,
+    HostRecord? host,
+  ) {
+    final index = workspace.panes.indexOf(pane);
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -12275,9 +12319,14 @@ class _TerminalObserverDialogState extends State<_TerminalObserverDialog> {
 }
 
 class _TerminalWelcome extends StatelessWidget {
-  const _TerminalWelcome({required this.app, this.errorMessage});
+  const _TerminalWelcome({
+    required this.app,
+    this.errorMessage,
+    this.onJoinShare,
+  });
   final AppController app;
   final String? errorMessage;
+  final VoidCallback? onJoinShare;
 
   // Welcome ⇄ connection-failed swap replays a short fade + 4 px lift so the
   // error reads as a new state; the panel holds no session or input.
@@ -12348,6 +12397,17 @@ class _TerminalWelcome extends StatelessWidget {
             icon: const Icon(Icons.dns_outlined),
             label: Text(currentL10n.selectFirstHost),
           ),
+        if (onJoinShare != null) ...[
+          const SizedBox(height: 8),
+          TextButton.icon(
+            key: const ValueKey('terminal-share-join-open'),
+            onPressed: app.activeVault?.status == 'active'
+                ? onJoinShare
+                : null,
+            icon: const Icon(Icons.group_add_outlined),
+            label: Text(currentL10n.joinASharedTerminal),
+          ),
+        ],
       ],
     ),
   );

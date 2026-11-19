@@ -10,12 +10,14 @@ import 'package:aterm_client/storage/client_database.dart';
 import 'package:aterm_client/storage/secure_store.dart';
 import 'package:aterm_client/ui/app_shell.dart';
 import 'package:aterm_client/ui/app_theme.dart';
+import 'package:aterm_client/web_update/web_app_update_monitor.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:sodium/sodium_sumo.dart';
 import 'package:xterm/xterm.dart';
+import 'support/terminal_menu.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -92,6 +94,15 @@ void main() {
     app.hosts.addAll([alphaHost, betaHost]);
     final semantics = tester.ensureSemantics();
     var shellMounted = false;
+    // A newer Web build is waiting: its notice belongs to the Home tab.
+    final updates = WebAppUpdateMonitor(
+      currentBuildId: 'synthetic-build-a',
+      probeBuildId: () async => 'synthetic-build-b',
+      reload: () async {},
+      checkInterval: const Duration(days: 1),
+    );
+    await updates.checkNow();
+    expect(updates.hasUpdate, isTrue);
 
     try {
       await app.openTerminalTab(alphaHost);
@@ -106,7 +117,8 @@ void main() {
           theme: buildAppTheme(),
           home: AnimatedBuilder(
             animation: app,
-            builder: (context, _) => AppShell(controller: app),
+            builder: (context, _) =>
+                AppShell(controller: app, webAppUpdateMonitor: updates),
           ),
         ),
       );
@@ -114,7 +126,13 @@ void main() {
       await tester.pump();
 
       expect(find.byType(TerminalView), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('terminal_function_menu')));
+      final updateBanner = find.byKey(const ValueKey('web_app_update_banner'));
+      expect(updateBanner, findsNothing);
+      // No header row repeating the tab's user@host above the terminal; the
+      // function menu sits in the pane's white handle actions instead.
+      expect(find.text('tester@beta.example.test'), findsNothing);
+      expect(terminalMenu, findsNothing);
+      await openTerminalMenu(tester);
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('terminal-port-forwarding')),
@@ -127,6 +145,9 @@ void main() {
         findsOneWidget,
       );
       expect(find.byTooltip('Close Alpha'), findsOneWidget);
+      app.showWorkspacePage(WorkspacePage.hosts);
+      await tester.pumpAndSettle();
+      expect(updateBanner, findsOneWidget);
       await tester.tap(
         find.bySemanticsLabel('Alpha terminal tab, connected, inactive'),
       );
@@ -136,6 +157,7 @@ void main() {
         find.bySemanticsLabel('Alpha terminal tab, connected, active'),
         findsOneWidget,
       );
+      expect(updateBanner, findsNothing);
       expect(
         tester.widget<TerminalView>(find.byType(TerminalView)).terminal,
         same(alpha.terminal),
@@ -143,7 +165,7 @@ void main() {
       expect(_bufferText(alpha), contains('ALPHA-OUTPUT'));
       expect(_bufferText(beta), contains('BETA-OUTPUT'));
 
-      await _openTerminalAction(tester, 'terminal-port-forwarding');
+      await openTerminalAction(tester, 'terminal-port-forwarding');
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('ssh-port-forwarding-dialog')),
@@ -253,6 +275,7 @@ void main() {
     } finally {
       if (shellMounted) await tester.pumpWidget(const SizedBox.shrink());
       semantics.dispose();
+      updates.dispose();
       app.dispose();
       await database.close();
     }
@@ -317,13 +340,3 @@ class _UnsupportedPortForwardPlatform implements SshPortForwardPlatform {
   ) => throw UnsupportedError('Unsupported in this Web-like test.');
 }
 
-Future<void> _openTerminalAction(WidgetTester tester, String id) async {
-  final menu = find.byKey(const ValueKey('terminal_function_menu'));
-  await tester.ensureVisible(menu);
-  await tester.tap(menu);
-  await tester.pumpAndSettle();
-  final action = find.byKey(ValueKey(id));
-  await tester.ensureVisible(action);
-  await tester.tap(action);
-  await tester.pumpAndSettle();
-}
