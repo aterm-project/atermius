@@ -2114,6 +2114,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
         reuseSession.host = host;
         reuseSession.telnetState = 'connecting';
         reuseSession.telnetError = null;
+        reuseSession._resetOutputCoalescer(flushPending: false);
         final cancellation = TelnetConnectCancellation();
         reuseSession._telnetCancellation = cancellation;
         if (reuseSession.progress.isVisible) {
@@ -8008,18 +8009,38 @@ class _LocalTerminalSession {
       console != null || consoleSerialPort != null || consoleShell != null;
 
   void attachConsole(LocalConsole value) {
+    _resetOutputCoalescer(flushPending: false);
     console = value;
     terminal.onOutput = value.input;
     terminal.onResize = (w, h, _, _) => value.resize(w, h);
+    final coalescer = TerminalOutputCoalescer(
+      onFlush: (batch) {
+        if (_closed || !identical(console, value)) return;
+        terminal.write(batch);
+      },
+    );
+    _outputCoalescer = coalescer;
     _stdout = value.output.listen(
-      terminal.write,
+      (text) {
+        if (_closed || !identical(console, value)) return;
+        coalescer.add(text);
+      },
       onError: (_) {
-        if (!_closed && identical(console, value)) connected.value = false;
+        if (!_closed && identical(console, value)) {
+          _resetOutputCoalescer(flushPending: true);
+          connected.value = false;
+        }
+      },
+      onDone: () {
+        if (!_closed && identical(console, value)) {
+          _resetOutputCoalescer(flushPending: true);
+        }
       },
     );
     unawaited(
       value.exitCode.then((code) {
         if (!_closed && identical(console, value)) {
+          _resetOutputCoalescer(flushPending: true);
           connected.value = false;
           // A serial device keeps running whatever it was running.
           if (consoleSerialPort == null) resetTerminalForNewSession(terminal);
@@ -8080,19 +8101,29 @@ class _LocalTerminalSession {
       };
       terminal.onResize = (width, height, _, _) =>
           session.resize(width, height);
+      _resetOutputCoalescer(flushPending: false);
+      final coalescer = TerminalOutputCoalescer(
+        onFlush: (batch) {
+          if (_closed || !identical(telnet, session)) return;
+          terminal.write(batch);
+          log?.output(batch);
+        },
+      );
+      _outputCoalescer = coalescer;
       _stdout = session.output.listen(
         (text) {
-          if (_closed) return;
-          terminal.write(text);
-          log?.output(text);
+          if (_closed || !identical(telnet, session)) return;
+          coalescer.add(text);
         },
         onError: (Object error) {
-          if (_closed) return;
+          if (_closed || !identical(telnet, session)) return;
+          _resetOutputCoalescer(flushPending: true);
           telnetError = error.toString();
           log?.markClosed(SessionLogEndReason.error, error: error);
         },
         onDone: () {
-          if (_closed) return;
+          if (_closed || !identical(telnet, session)) return;
+          _resetOutputCoalescer(flushPending: true);
           telnetState = 'disconnected';
           connected.value = false;
           resetTerminalForNewSession(terminal);

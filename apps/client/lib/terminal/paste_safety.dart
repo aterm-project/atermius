@@ -65,7 +65,7 @@ final List<({String id, RegExp pattern})> _destructiveRules = [
     pattern: RegExp(
       r'(^|[;&|\s])(sudo\s+)?(?:'
       r'(?:mkfs(?:\.[a-z0-9]+)?|fdisk|parted|wipefs)(?=\s|$|[;&|])'
-      r'|dd\s+(?:[^\r\n;&|]*\bof=|if=)'
+      r'|dd\s+[^\r\n;&|]*\bof='
       r')',
       caseSensitive: false,
       multiLine: true,
@@ -189,7 +189,7 @@ PasteSafetyAnalysis analyzeTerminalPaste(
 
 /// 进程级粘贴安全护栏开关控制器（默认开启，商业生产运维防误触标准配置；支持原子持久化）。
 class PasteSafetyController extends ChangeNotifier {
-  PasteSafetyController({bool enabled = true}) : _enabled = enabled;
+  PasteSafetyController({bool? enabled}) : _enabled = enabled ?? true;
 
   static PasteSafetyController? _instance;
 

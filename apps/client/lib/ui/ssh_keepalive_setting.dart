@@ -14,10 +14,17 @@ import 'app_theme.dart';
 /// - 休眠唤醒 / 前台切回秒级主动探活；
 /// - 商业长连接自动密钥轮换（RFC 4253 §9）。
 class SshKeepaliveSetting extends StatelessWidget {
-  const SshKeepaliveSetting({this.controller, super.key});
+  const SshKeepaliveSetting({
+    this.controller,
+    this.pasteSafetyController,
+    super.key,
+  });
 
   /// 默认绑定进程级单例 [SshKeepaliveController.instance]。
   final SshKeepaliveController? controller;
+
+  /// 默认绑定进程级单例 [PasteSafetyController.instance]。
+  final PasteSafetyController? pasteSafetyController;
 
   static String _t(
     BuildContext context, {
@@ -101,7 +108,7 @@ class SshKeepaliveSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final keepalive = controller ?? SshKeepaliveController.instance;
-    final pasteSafety = PasteSafetyController.instance;
+    final pasteSafety = pasteSafetyController ?? PasteSafetyController.instance;
     return ListenableBuilder(
       listenable: Listenable.merge([keepalive, pasteSafety]),
       builder: (context, _) {

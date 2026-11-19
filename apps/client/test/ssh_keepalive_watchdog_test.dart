@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:aterm_client/l10n/app_localizations.dart';
 import 'package:aterm_client/ssh/ssh_connection_health.dart';
 import 'package:aterm_client/ssh/ssh_keepalive_policy.dart';
 import 'package:aterm_client/ssh/ssh_service.dart';
+import 'package:aterm_client/storage/paste_safety_store.dart';
 import 'package:aterm_client/storage/ssh_keepalive_store.dart';
 import 'package:aterm_client/storage/ssh_keepalive_store_native.dart';
+import 'package:aterm_client/terminal/paste_safety.dart';
 import 'package:aterm_client/terminal/session_reconnect_policy.dart';
 import 'package:aterm_client/terminal/session_recovery.dart';
 import 'package:aterm_client/ui/app_theme.dart';
@@ -622,6 +625,385 @@ void main() {
         expect(store.value, '30,3,0,180');
       });
     }
+
+    testWidgets('支持注入独立 pasteSafetyController，切换持久化与写失败提示与全局单例隔离', (
+      tester,
+    ) async {
+      final keepaliveStore = MemorySshKeepaliveStore();
+      final keepaliveCtrl = SshKeepaliveController();
+      addTearDown(keepaliveCtrl.dispose);
+      await keepaliveCtrl.load(keepaliveStore);
+
+      final pasteStore = MemoryPasteSafetyStore();
+      final pasteCtrl = PasteSafetyController(enabled: true);
+      addTearDown(pasteCtrl.dispose);
+      await pasteCtrl.load(pasteStore);
+
+      final globalBefore = PasteSafetyController.instance.enabled;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: buildAppTheme(brightness: Brightness.dark),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: SshKeepaliveSetting(
+                controller: keepaliveCtrl,
+                pasteSafetyController: pasteCtrl,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('ssh_keepalive_save_failed')),
+        findsNothing,
+      );
+
+      // 切换粘贴安全开关 -> 仅影响注入控制器，不污染全局单例
+      await tester.tap(find.byKey(const ValueKey('paste_safety_guard_switch')));
+      await tester.pumpAndSettle();
+      expect(pasteCtrl.enabled, isFalse);
+      expect(pasteStore.value, '0');
+      expect(PasteSafetyController.instance.enabled, globalBefore);
+
+      // 注入存储写失败 -> 展示保存失败提示
+      pasteStore.failWith = const FileSystemException('disk full');
+      await tester.tap(find.byKey(const ValueKey('paste_safety_guard_switch')));
+      await tester.pumpAndSettle();
+      expect(pasteCtrl.enabled, isTrue);
+      expect(pasteCtrl.writeFailed, isTrue);
+      expect(
+        find.byKey(const ValueKey('ssh_keepalive_save_failed')),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('真实本机回环 TCP (ServerSocket + connectNativeSocket) 集成测试', () {
+    test(
+      'connectNativeSocket 真实建连并在服务端进入静默黑洞后于超时内判定死链、关闭真实 Socket 且无泄漏',
+      () async {
+        final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        var blackhole = false;
+        final acceptedPeers = <Socket>[];
+        final serverPeerClosed = Completer<void>();
+
+        final serverSub = server.listen((peer) {
+          acceptedPeers.add(peer);
+          peer.listen(
+            (chunk) {
+              if (!blackhole) {
+                // 回显等长确认字节模拟正常心跳响应。
+                peer.add(List<int>.filled(chunk.length, 0x41));
+              }
+            },
+            onDone: () {
+              if (!serverPeerClosed.isCompleted) serverPeerClosed.complete();
+            },
+            onError: (_) {
+              if (!serverPeerClosed.isCompleted) serverPeerClosed.complete();
+            },
+          );
+        });
+
+        addTearDown(() async {
+          for (final peer in acceptedPeers) {
+            peer.destroy();
+          }
+          await serverSub.cancel();
+          await server.close();
+        });
+
+        final socket = await SSHSocket.connect(
+          server.address.address,
+          server.port,
+          timeout: const Duration(seconds: 2),
+        );
+
+        final pendingReplies = <Completer<void>>[];
+        final clientSub = socket.stream.listen(
+          (data) {
+            for (var i = 0; i < data.length; i++) {
+              if (pendingReplies.isNotEmpty) {
+                final next = pendingReplies.removeAt(0);
+                if (!next.isCompleted) next.complete();
+              }
+            }
+          },
+          onDone: () {
+            while (pendingReplies.isNotEmpty) {
+              final next = pendingReplies.removeAt(0);
+              if (!next.isCompleted) {
+                next.completeError(SSHSocketError('socket closed'));
+              }
+            }
+          },
+          onError: (Object error) {
+            while (pendingReplies.isNotEmpty) {
+              final next = pendingReplies.removeAt(0);
+              if (!next.isCompleted) next.completeError(error);
+            }
+          },
+        );
+        addTearDown(clientSub.cancel);
+
+        final latencies = <Duration>[];
+        final twoLatencies = Completer<void>();
+        final missed = <int>[];
+        var deadCalls = 0;
+        final deadCompleter = Completer<void>();
+        var pingCalls = 0;
+
+        final watchdog = SSHKeepAlive(
+          interval: const Duration(milliseconds: 50),
+          timeout: const Duration(milliseconds: 40),
+          maxMissed: 2,
+          ping: () {
+            pingCalls++;
+            final reply = Completer<void>();
+            pendingReplies.add(reply);
+            socket.sink.add(utf8.encode('P'));
+            return reply.future;
+          },
+          onLatency: (rtt) {
+            latencies.add(rtt);
+            if (latencies.length >= 2 && !twoLatencies.isCompleted) {
+              twoLatencies.complete();
+            }
+          },
+          onMissed: missed.add,
+          onDead: () {
+            deadCalls++;
+            socket.destroy();
+            if (!deadCompleter.isCompleted) deadCompleter.complete();
+          },
+        );
+        addTearDown(watchdog.stop);
+
+        watchdog.start();
+        // 阶段一：正常回包期间应成功采集真实本机回环 RTT，零丢包。
+        await twoLatencies.future.timeout(const Duration(seconds: 2));
+        expect(missed, isEmpty);
+        expect(deadCalls, 0);
+
+        // 阶段二：服务端切入静默黑洞（保持 TCP 半开但不回包）。
+        blackhole = true;
+        final blackholeStarted = DateTime.now();
+
+        await deadCompleter.future.timeout(const Duration(seconds: 2));
+        await serverPeerClosed.future.timeout(const Duration(seconds: 2));
+        final elapsed = DateTime.now().difference(blackholeStarted);
+
+        expect(
+          elapsed,
+          lessThan(const Duration(seconds: 1)),
+          reason: '看门狗应在配置的保活超时窗口内快速判定死链',
+        );
+        expect(missed, [1, 2]);
+        expect(deadCalls, 1);
+        expect(watchdog.isDead, isTrue);
+        expect(watchdog.isRunning, isFalse);
+
+        // 阶段三：判定死链后不再发起任何 ping，确认无定时器泄漏。
+        final pingsAtDeath = pingCalls;
+        await Future<void>.delayed(const Duration(milliseconds: 160));
+        expect(pingCalls, pingsAtDeath);
+      },
+    );
+
+    test(
+      'SSHClient keepAliveInterval == null 模式下连续 probeKeepAlive 超时达到 keepAliveMaxMissed 触发 onKeepAliveDead 并关闭真实 Socket',
+      () async {
+        final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        final acceptedPeers = <Socket>[];
+        final bannerReceived = Completer<void>();
+        final serverPeerClosed = Completer<void>();
+
+        final serverSub = server.listen((peer) {
+          acceptedPeers.add(peer);
+          peer.listen(
+            (chunk) {
+              if (chunk.isNotEmpty && !bannerReceived.isCompleted) {
+                bannerReceived.complete();
+              }
+              // 静默黑洞：接受连接并吸收客户端报文，永不回包。
+            },
+            onDone: () {
+              if (!serverPeerClosed.isCompleted) serverPeerClosed.complete();
+            },
+            onError: (_) {
+              if (!serverPeerClosed.isCompleted) serverPeerClosed.complete();
+            },
+          );
+        });
+
+        addTearDown(() async {
+          for (final peer in acceptedPeers) {
+            peer.destroy();
+          }
+          await serverSub.cancel();
+          await server.close();
+        });
+
+        final socket = await SSHSocket.connect(
+          server.address.address,
+          server.port,
+          timeout: const Duration(seconds: 2),
+        );
+
+        final missed = <int>[];
+        var deadCalls = 0;
+        final client = SSHClient(
+          socket,
+          username: 'ops',
+          keepAliveInterval: null,
+          keepAliveMaxMissed: 2,
+          onKeepAliveMissed: missed.add,
+          onKeepAliveDead: () => deadCalls++,
+        );
+        addTearDown(() async {
+          if (!client.isClosed) await client.close();
+        });
+
+        Object? doneError;
+        final doneCompleter = Completer<void>();
+        client.done.then(
+          (_) {
+            if (!doneCompleter.isCompleted) doneCompleter.complete();
+          },
+          onError: (Object error, StackTrace _) {
+            doneError = error;
+            if (!doneCompleter.isCompleted) doneCompleter.complete();
+          },
+        );
+
+        // 验证 connectNativeSocket 真实建立了 TCP 通道并成功发送 SSH 版本报文。
+        await bannerReceived.future.timeout(const Duration(seconds: 2));
+
+        // 第一次主动探活（并发两次调用必须去重，仅计 1 次丢包，尚未达阈值不关闭）。
+        final firstResults = await Future.wait([
+          client.probeKeepAlive(timeout: const Duration(milliseconds: 60)),
+          client.probeKeepAlive(timeout: const Duration(milliseconds: 60)),
+        ]);
+        expect(firstResults, [null, null]);
+        expect(missed, [1]);
+        expect(deadCalls, 0);
+        expect(client.isClosed, isFalse);
+
+        // 第二次连续超时达到 keepAliveMaxMissed(2) -> 必须触发 onKeepAliveDead 并关闭底层真实 TCP Socket。
+        final secondResult = await client.probeKeepAlive(
+          timeout: const Duration(milliseconds: 60),
+        );
+        expect(secondResult, isNull);
+        expect(missed, [1, 2]);
+        expect(deadCalls, 1);
+        expect(client.isClosed, isTrue);
+
+        await doneCompleter.future.timeout(const Duration(seconds: 2));
+        expect(doneError, isA<SSHSocketError>());
+        expect(doneError.toString(), contains('2 missed probes'));
+
+        // 服务端真实 TCP Socket 应立即感知断流关闭，无句柄泄漏。
+        await serverPeerClosed.future.timeout(const Duration(seconds: 2));
+
+        // 已关闭后再次探活应直接返回 null，不再重复触发回调。
+        expect(
+          await client.probeKeepAlive(timeout: const Duration(milliseconds: 30)),
+          isNull,
+        );
+        expect(missed, [1, 2]);
+        expect(deadCalls, 1);
+      },
+    );
+
+    test(
+      'SSHClient 周期保活模式下面对真实 TCP 黑洞主动探活连续超时同样触发 onKeepAliveDead 并关闭真实 Socket',
+      () async {
+        final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        final acceptedPeers = <Socket>[];
+        final serverPeerClosed = Completer<void>();
+
+        final serverSub = server.listen((peer) {
+          acceptedPeers.add(peer);
+          peer.listen(
+            (_) {},
+            onDone: () {
+              if (!serverPeerClosed.isCompleted) serverPeerClosed.complete();
+            },
+            onError: (_) {
+              if (!serverPeerClosed.isCompleted) serverPeerClosed.complete();
+            },
+          );
+        });
+
+        addTearDown(() async {
+          for (final peer in acceptedPeers) {
+            peer.destroy();
+          }
+          await serverSub.cancel();
+          await server.close();
+        });
+
+        final socket = await SSHSocket.connect(
+          server.address.address,
+          server.port,
+          timeout: const Duration(seconds: 2),
+        );
+
+        final missed = <int>[];
+        var deadCalls = 0;
+        final client = SSHClient(
+          socket,
+          username: 'ops',
+          keepAliveInterval: const Duration(milliseconds: 80),
+          keepAliveTimeout: const Duration(milliseconds: 50),
+          keepAliveMaxMissed: 2,
+          onKeepAliveMissed: missed.add,
+          onKeepAliveDead: () => deadCalls++,
+        );
+        addTearDown(() async {
+          if (!client.isClosed) await client.close();
+        });
+
+        Object? doneError;
+        final doneCompleter = Completer<void>();
+        client.done.then(
+          (_) {
+            if (!doneCompleter.isCompleted) doneCompleter.complete();
+          },
+          onError: (Object error, StackTrace _) {
+            doneError = error;
+            if (!doneCompleter.isCompleted) doneCompleter.complete();
+          },
+        );
+
+        expect(
+          await client.probeKeepAlive(timeout: const Duration(milliseconds: 50)),
+          isNull,
+        );
+        expect(missed, [1]);
+        expect(deadCalls, 0);
+        expect(client.isClosed, isFalse);
+
+        expect(
+          await client.probeKeepAlive(timeout: const Duration(milliseconds: 50)),
+          isNull,
+        );
+        expect(missed, [1, 2]);
+        expect(deadCalls, 1);
+        expect(client.isClosed, isTrue);
+
+        await doneCompleter.future.timeout(const Duration(seconds: 2));
+        expect(doneError, isA<SSHSocketError>());
+        await serverPeerClosed.future.timeout(const Duration(seconds: 2));
+      },
+    );
   });
 }
 

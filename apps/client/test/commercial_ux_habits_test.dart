@@ -65,6 +65,9 @@ void main() {
         'mkfs.ext4 /dev/nvme0n1': 'disk_format',
         'dd if=/dev/zero of=/dev/sda': 'disk_format',
         'dd bs=4M of=/dev/nvme0n1 if=/dev/zero': 'disk_format',
+        'dd of=/dev/nvme0n1 bs=4M': 'disk_format',
+        'sudo dd bs=4M of=/dev/sdb': 'disk_format',
+        'echo ok; dd of=/dev/sda': 'disk_format',
         'sudo shutdown -h now': 'power_control',
         'sudo systemctl poweroff': 'power_control',
         'systemctl reboot': 'power_control',
@@ -96,12 +99,16 @@ void main() {
         );
       }
 
-      // 回归测试：以 rm 结尾的普通单词（terraform / alarm）与普通参数不得误报为高危命令。
+      // 回归测试：以 rm 结尾的普通单词（terraform / alarm）、普通参数以及无 of= 的只读 dd 不得误报为高危命令。
       for (final benign in const [
         'terraform -fr plan',
         'alarm -fr --check',
         'add if=value',
         'echo platform -rf',
+        'dd if=/dev/urandom bs=16 count=1 | base64',
+        'dd if=/dev/zero bs=1 count=8 | hexdump -C',
+        'dd if=/etc/hosts bs=4k | sha256sum',
+        'dd if=/dev/urandom bs=16 count=1 | tee proof=1',
       ]) {
         expect(
           analyzeTerminalPaste(benign).level,
@@ -109,6 +116,17 @@ void main() {
           reason: '无害命令不应误报: $benign',
         );
       }
+
+      // 验证 PasteSafetyController 构造默认值与显式布尔参数均可正常工作
+      final defaultCtrl = PasteSafetyController();
+      final disabledCtrl = PasteSafetyController(enabled: false);
+      final enabledCtrl = PasteSafetyController(enabled: true);
+      addTearDown(defaultCtrl.dispose);
+      addTearDown(disabledCtrl.dispose);
+      addTearDown(enabledCtrl.dispose);
+      expect(defaultCtrl.enabled, isTrue);
+      expect(disabledCtrl.enabled, isFalse);
+      expect(enabledCtrl.enabled, isTrue);
     });
 
     test('PasteSafetyController 支持原子落盘持久化、重启恢复与写失败状态汇报', () async {

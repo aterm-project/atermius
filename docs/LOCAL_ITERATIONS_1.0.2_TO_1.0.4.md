@@ -9,7 +9,7 @@
 - **OpenSSH 语义保活看门狗（`packages/dartssh2/lib/src/ssh_keepalive.dart` / `ssh_client.dart`）**：
   - 彻底修复 `dartssh2` 原版 `SSHKeepAlive` 在半开 TCP（NAT/CGNAT 超时、企业防火墙静默丢包、Wi-Fi/5G 切换、休眠唤醒）下无限挂起导致“假在线僵尸连接”的缺陷；
   - 引入单次响应超时（`keepAliveTimeout`）、连续失联阈值（`keepAliveMaxMissed`，对齐 `ServerAliveCountMax`）、实时 RTT 采集（`onKeepAliveLatency`）、单次丢包告警（`onKeepAliveMissed`）与僵死自动断流（`onKeepAliveDead` 触发传输层关闭，即时交由 `SessionRecovery` 自动恢复）；
-  - 新增并发去重的主动探活方法 `SSHClient.probeKeepAlive()`：周期探活在途时复用同一在途 `Future` 并按更短超时自动收紧截止时间；`stop()` / `close()` 立即完结在途 `probeNow()` 防止调用方永久挂起；保活关闭模式下主动探活超时仍去重并回调丢包告警。
+  - 新增并发去重的主动探活方法 `SSHClient.probeKeepAlive()`：周期探活在途时复用同一在途 `Future` 并按更短超时自动收紧截止时间；`stop()` / `close()` 立即完结在途 `probeNow()` 防止调用方永久挂起；保活关闭模式下主动探活超时仍去重、回调丢包告警并在连续超时达到 `keepAliveMaxMissed` 时主动关闭僵死传输。
 - **底层低延迟传输（`packages/dartssh2/lib/src/socket/ssh_socket_io.dart`）**：
   - 为原生 SSH TCP 套接字开启 `SocketOption.tcpNoDelay = true`，消除 Nagle + Delayed-ACK 带来的 40~200ms 按键回显卡顿。
 - **多跳保活、周期密钥轮换与前后台秒级探活（`lib/ssh/ssh_service.dart`, `ssh_connection_health.dart`, `ssh_keepalive_policy.dart`, `storage/ssh_keepalive_store*.dart`, `ui/ssh_keepalive_setting.dart`）**：
@@ -51,3 +51,20 @@
   - 新增 `rankHostSearchMatches` 智能排序：名称精确/前缀匹配 > 最近连接时间 > 收藏星标 > 名称序。
 - **移动端快捷键栏长按连发（`lib/ui/terminal_keybar.dart`）**：
   - 为 `← ↑ ↓ →`、`⌫` 与 `Del` 接入被动长按连发（380ms 初始延迟 + 55ms 步进连发，横向拖动 > 12px 或松手立即撤除定时器），协同去重抑制长按松手后的多余点击并禁用长按 Tooltip 气球遮挡，同时接入生产粘贴安全护栏。
+
+---
+
+## 收官加固（`v1.0.4-build5` 二轮走查修复与全链路闭环）
+
+- **关闭周期保活模式下主动探活状态机闭环（`packages/dartssh2/lib/src/ssh_client.dart`）**：
+  - 修复 `keepAliveInterval == null` 时 `_runDirectProbe` 连续超时达到 `keepAliveMaxMissed` 仅触发 `onKeepAliveMissed` 而未关闭僵死底层传输的分裂状态；现在达到阈值后立即调用 `_handleKeepAliveDead()` 关闭僵死连接，交由自动重连恢复。
+- **全终端输出热路径合批全覆盖（`lib/app_controller.dart`, `lib/ui/local_profile_flow.dart`）**：
+  - 除 SSH 外，将 `tmux attach`（`_installTmuxAttach`）、云/本地 Telnet（`_openTelnetTab`、`_LocalTerminalSession._connectTelnet`）与云/本地 LocalConsole（`_openConsoleTab`、`_LocalTerminalSession.attachConsole`）统一接入 `TerminalOutputCoalescer`；
+  - 连接正常断开或进程退出前先调用 `resetOutputCoalescer(flushPending: true)` 保障末行日志不丢且严格排在退出/断线提示之前；主动关闭或重连销毁前立即调用 `resetOutputCoalescer(flushPending: false)` 防止定时器泄漏。
+- **粘贴护栏规则精度、组件可测性与 Lint 清零（`lib/terminal/paste_safety.dart`, `lib/ui/ssh_keepalive_setting.dart`）**：
+  - 将 `disk_format` 中的 `dd` 规则收窄为仅匹配含输出目标 `of=` 的写盘命令（`dd\s+[^\r\n;&|]*\bof=`），放行 `dd if=/dev/urandom bs=16 count=1 | base64` 等无害只读命令同时继续稳定拦截 `dd if=/dev/zero of=/dev/sda`、`dd of=/dev/nvme0n1 ...`；
+  - `SshKeepaliveSetting` 新增可选构造参数 `pasteSafetyController`（与 `controller` 对称），消除测试对全局单例的耦合；
+  - 修复 `PasteSafetyController` 构造函数 `prefer_initializing_formals` 提示，全部新增 Dart 文件与 `packages/dartssh2` 改动文件达到零 info / warning / error。
+- **真实本机回环 TCP `ServerSocket` 集成测试与回归扩充**：
+  - 在 `test/ssh_keepalive_watchdog_test.dart`、`test/commercial_ux_habits_test.dart`、`test/stress/terminal_throughput_stress_test.dart` 新增真实 `ServerSocket.bind(InternetAddress.loopbackIPv4, 0)` + `connectNativeSocket` 静默黑洞集成测试、`keepAliveInterval == null` 主动探活达阈值断流测试、只读 `dd` 放行与写盘 `dd` 拦截回归测试、注入 `pasteSafetyController` 组件测试，以及 `AppController` LocalConsole / Telnet 合批与退出保序集成测试；
+  - 复跑 223 项单测/Widget 测试/商业级压测全绿（14.1 MB 洪流 11,000 包收敛至 276 批，重绘削减 **97.5%**，吞吐 **5.98 MB/s**，双语检索 **111ms**，1,200 行高亮 **5ms** / 命中率 **99.58%**，24 并发压测 **61ms** 且销毁后 RSS 从 316.1 MB 回落至 294.0 MB）。

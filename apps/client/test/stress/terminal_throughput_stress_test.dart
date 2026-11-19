@@ -1,16 +1,27 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/domain/models.dart';
+import 'package:aterm_client/storage/client_database.dart';
+import 'package:aterm_client/storage/secure_store.dart';
+import 'package:aterm_client/telnet/telnet_transport.dart';
 import 'package:aterm_client/terminal/keyword_highlighter.dart';
 import 'package:aterm_client/terminal/mirrored_terminal.dart';
 import 'package:aterm_client/terminal/session_log.dart';
 import 'package:aterm_client/terminal/terminal_output_coalescer.dart';
 import 'package:aterm_client/terminal/terminal_search.dart';
+import 'package:drift/native.dart';
 // ignore: depend_on_referenced_packages
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sodium/sodium_sumo.dart';
 import 'package:xterm/xterm.dart';
+
+import '../support/fake_local_console.dart';
+import '../support/l10n_fixture.dart';
 
 void main() {
   group('零分配热路径等价性与边界保护', () {
@@ -154,6 +165,68 @@ void main() {
         expect(reentrantFlushed, ['tail-before-close']);
         async.elapse(const Duration(seconds: 1));
         expect(reentrantFlushed, ['tail-before-close']);
+      });
+    });
+
+    test('TerminalOutputCoalescer 断线/退出前冲刷严格保序不丢末行，主动销毁立即取消定时器', () {
+      fakeAsync((async) {
+        var now = DateTime.utc(2026, 11, 19, 12, 0, 0);
+        final writes = <String>[];
+        final coalescer = TerminalOutputCoalescer(
+          onFlush: writes.add,
+          burstWindow: const Duration(milliseconds: 8),
+          maxBatchChars: 64 * 1024,
+          microtaskBudgetChars: 16 * 1024,
+          immediatePassThroughMaxChars: 2048,
+          now: () => now,
+        );
+
+        // 先灌入超过 microtaskBudgetChars (16KiB) 的输出使合批器进入 Stage 2 帧级定时节流态。
+        for (var i = 0; i < 20; i++) {
+          coalescer.add('${'A' * 1000}\r\n');
+        }
+        async.flushMicrotasks();
+        // 紧接着推入末行关键日志，此时停留在 8ms 帧定时器缓冲区内尚未刷屏。
+        coalescer.add('CRITICAL_TAIL_LINE_BEFORE_EXIT\r\n');
+        expect(coalescer.pendingChars, greaterThan(0));
+
+        // 模拟连接正常断开 / 进程退出：先 close(flushPending: true) 再写退出提示。
+        coalescer.close(flushPending: true);
+        writes.add('\r\n[Process exited with code 0]\r\n');
+
+        final combined = writes.join();
+        final tailIndex = combined.indexOf('CRITICAL_TAIL_LINE_BEFORE_EXIT');
+        final exitIndex = combined.indexOf('[Process exited with code 0]');
+        expect(tailIndex, greaterThanOrEqualTo(0));
+        expect(exitIndex, greaterThan(tailIndex));
+        expect(coalescer.pendingChars, 0);
+        expect(coalescer.isClosed, isTrue);
+
+        final countAfterClose = writes.length;
+        async.elapse(const Duration(seconds: 1));
+        expect(writes.length, countAfterClose);
+
+        // 模拟主动关闭 / 重连销毁：close(flushPending: false) 立即丢弃缓冲并取消定时器。
+        final droppedWrites = <String>[];
+        final active = TerminalOutputCoalescer(
+          onFlush: droppedWrites.add,
+          burstWindow: const Duration(milliseconds: 8),
+          microtaskBudgetChars: 1024,
+          immediatePassThroughMaxChars: 0,
+          now: () => now,
+        );
+        active.add('X' * 2048);
+        async.flushMicrotasks();
+        active.add('SHOULD_BE_DROPPED_ON_ACTIVE_CLOSE');
+        expect(active.pendingChars, greaterThan(0));
+        active.close(flushPending: false);
+        expect(active.pendingChars, 0);
+        expect(active.isClosed, isTrue);
+        async.elapse(const Duration(seconds: 1));
+        expect(
+          droppedWrites.join(),
+          isNot(contains('SHOULD_BE_DROPPED_ON_ACTIVE_CLOSE')),
+        );
       });
     });
   });
@@ -342,4 +415,151 @@ void main() {
       );
     });
   });
+
+  group('AppController LocalConsole / Telnet 热路径合批与退出保序集成验证', () {
+    useAppLocaleFixture('en');
+    late ClientDatabase database;
+    late AppController app;
+    late FakeConsoleFactory consoles;
+
+    setUp(() async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      database = ClientDatabase.forTesting(NativeDatabase.memory());
+      consoles = FakeConsoleFactory();
+      app = AppController(
+        sodium: await SodiumSumoInit.init(),
+        database: database,
+        secureStore: ClientSecureStore(),
+      )..stage = ClientStage.workspace;
+      app.localConsoleOpenerForTesting = consoles.call;
+    });
+
+    tearDown(() async {
+      await app.disconnectAllTerminalTabs();
+      app.dispose();
+      await database.close();
+    });
+
+    String dumpTerminalText(Terminal terminal) {
+      final out = StringBuffer();
+      for (var i = 0; i < terminal.buffer.lines.length; i++) {
+        out.writeln(terminal.buffer.lines[i].toString());
+      }
+      return out.toString();
+    }
+
+    test('LocalConsole 突发输出接入合批器，进程退出前先冲刷末行再写退出提示，主动关闭无定时器泄漏', () async {
+      final id = await app.openLocalShellTab();
+      final tab = app.terminalTabFor(id)!;
+      final console = consoles.opened.single;
+      expect(tab.outputCoalescer, isNotNull);
+
+      // 灌入超过 Stage-1 预算（16KiB）的洪流，使末行驻留在 Stage-2 帧定时器缓冲中。
+      for (var i = 0; i < 24; i++) {
+        console.emit('${'C' * 1000}\r\n');
+      }
+      console.emit('FINAL_CONSOLE_TAIL_MARKER\r\n');
+      await pumpEventQueue();
+      expect(tab.outputCoalescer, isNotNull);
+      expect(tab.outputCoalescer!.pendingChars, greaterThan(0));
+
+      // 进程在缓冲尚未到 8ms 帧窗口时即退出 -> 必须先冲刷末行再写入退出提示。
+      console.exit(0);
+      await pumpEventQueue();
+      expect(tab.outputCoalescer, isNull);
+      expect(tab.state, 'disconnected');
+
+      final rendered = dumpTerminalText(tab.terminal);
+      final tailPos = rendered.indexOf('FINAL_CONSOLE_TAIL_MARKER');
+      final exitPos = rendered.indexOf('exited');
+      expect(tailPos, greaterThanOrEqualTo(0), reason: '退出前末行日志不得丢失');
+      expect(exitPos, greaterThan(tailPos), reason: '退出提示必须严格排在末行日志之后');
+
+      // 主动关闭处于洪流缓冲中的终端标签 -> 立即释放合批器，不得泄漏定时器。
+      final id2 = await app.openLocalShellTab();
+      final tab2 = app.terminalTabFor(id2)!;
+      final console2 = consoles.opened.last;
+      for (var i = 0; i < 24; i++) {
+        console2.emit('${'D' * 1000}\r\n');
+      }
+      await pumpEventQueue();
+      expect(tab2.outputCoalescer!.pendingChars, greaterThan(0));
+      await app.closeTerminalTab(id2!);
+      expect(tab2.outputCoalescer, isNull);
+    });
+
+    test('Telnet 突发输出接入合批器，远端断流前先冲刷末行再写断线提示，主动断开立即销毁合批器', () async {
+      final channels = <_TestTelnetChannel>[];
+      app.telnetConnectorForTesting = (host, port) async {
+        final channel = _TestTelnetChannel();
+        channels.add(channel);
+        return channel;
+      };
+
+      const host = HostRecord(
+        id: 'telnet-coalescer-host',
+        name: 'Switch-Core-01',
+        address: '198.51.100.23',
+        port: 23,
+        protocol: HostProtocol.telnet,
+      );
+      await app.openTerminalTab(host);
+      final tab = app.activeTerminalTab!;
+      final channel = channels.single;
+      expect(tab.outputCoalescer, isNotNull);
+
+      for (var i = 0; i < 24; i++) {
+        channel.emit('${'T' * 1000}\r\n');
+      }
+      channel.emit('FINAL_TELNET_TAIL_MARKER\r\n');
+      await pumpEventQueue();
+      expect(tab.outputCoalescer, isNotNull);
+      expect(tab.outputCoalescer!.pendingChars, greaterThan(0));
+
+      // 远端关闭流 -> 先冲刷待渲染末行，再写 Telnet 断线提示。
+      await channel.incoming.close();
+      await pumpEventQueue();
+      expect(tab.outputCoalescer, isNull);
+      expect(tab.state, 'disconnected');
+
+      final rendered = dumpTerminalText(tab.terminal);
+      final tailPos = rendered.indexOf('FINAL_TELNET_TAIL_MARKER');
+      final closedPos = rendered.toLowerCase().indexOf('closed');
+      expect(tailPos, greaterThanOrEqualTo(0), reason: 'Telnet 断流前末行不得丢失');
+      expect(closedPos, greaterThan(tailPos), reason: 'Telnet 断线提示必须排在末行之后');
+
+      // 主动断开处于洪流缓冲中的 Telnet 会话 -> 立即取消合批器定时器。
+      await app.openTerminalTab(host);
+      final tab2 = app.activeTerminalTab!;
+      final channel2 = channels.last;
+      for (var i = 0; i < 24; i++) {
+        channel2.emit('${'U' * 1000}\r\n');
+      }
+      await pumpEventQueue();
+      expect(tab2.outputCoalescer!.pendingChars, greaterThan(0));
+      await app.disconnectTerminalTab(tab2.id);
+      expect(tab2.outputCoalescer, isNull);
+    });
+  });
+}
+
+class _TestTelnetChannel implements TelnetByteChannel {
+  final StreamController<Uint8List> incoming = StreamController<Uint8List>();
+  bool closed = false;
+
+  void emit(String text) {
+    incoming.add(Uint8List.fromList(utf8.encode(text)));
+  }
+
+  @override
+  Stream<Uint8List> get stream => incoming.stream;
+
+  @override
+  void add(Uint8List bytes) {}
+
+  @override
+  Future<void> close() async {
+    closed = true;
+    if (!incoming.isClosed) await incoming.close();
+  }
 }

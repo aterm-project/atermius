@@ -10317,6 +10317,23 @@ class AppController extends ChangeNotifier {
       throw StateError(currentL10n.theSshConnectionClosedReconnectThe);
     }
     _tmuxAttachHandles[tab.id] = handle;
+    tab.resetOutputCoalescer(flushPending: false);
+    final coalescer = TerminalOutputCoalescer(
+      onFlush: (batch) {
+        if (!_isTerminalTabOpen(tab) ||
+            !identical(tab.connection, connection) ||
+            !identical(_tmuxAttachHandles[tab.id], handle)) {
+          return;
+        }
+        tab.terminal.write(batch);
+        tab.outputListener?.call(batch);
+        tab.publishOutputToFanout(batch);
+        if (_activeTerminalTabId == tab.id) {
+          _legacyTerminalOutputListener?.call(batch);
+        }
+      },
+    );
+    tab.outputCoalescer = coalescer;
     tab.outputSubscription = utf8.decoder
         .bind(handle.stdout)
         .listen(
@@ -10326,12 +10343,7 @@ class AppController extends ChangeNotifier {
                 !identical(_tmuxAttachHandles[tab.id], handle)) {
               return;
             }
-            tab.terminal.write(text);
-            tab.outputListener?.call(text);
-            tab.publishOutputToFanout(text);
-            if (_activeTerminalTabId == tab.id) {
-              _legacyTerminalOutputListener?.call(text);
-            }
+            coalescer.add(text);
           },
           onError: (Object error) {
             _handleTerminalConnectionEnded(tab, connection, error: error);
@@ -21197,6 +21209,7 @@ class AppController extends ChangeNotifier {
     }
     final tab = reuseTab ?? _addDeviceTab(host);
     final connectionGeneration = ++tab.connectionGeneration;
+    tab.resetOutputCoalescer(flushPending: false);
     tab.host = host;
     tab.state = 'connecting';
     tab.errorMessage = null;
@@ -21278,18 +21291,28 @@ class AppController extends ChangeNotifier {
       tab.log?.markConnected();
       // A reconnect reuses the tab's terminal; start from default modes.
       resetTerminalForNewSession(tab.terminal);
+      tab.resetOutputCoalescer(flushPending: false);
+      final coalescer = TerminalOutputCoalescer(
+        onFlush: (batch) {
+          // Queued output must not publish after the tab closed or the
+          // workspace scope changed.
+          if (!current() || !identical(tab.telnet, telnet)) return;
+          tab.terminal.write(batch);
+          tab.log?.output(batch);
+          tab.outputListener?.call(batch);
+          tab.publishOutputToFanout(batch);
+          if (_activeTerminalTabId == tab.id) {
+            _legacyTerminalOutputListener?.call(batch);
+          }
+        },
+      );
+      tab.outputCoalescer = coalescer;
       tab.outputSubscription = telnet.output.listen(
         (text) {
           // Queued output must not publish after the tab closed or the
           // workspace scope changed.
           if (!current() || !identical(tab.telnet, telnet)) return;
-          tab.terminal.write(text);
-          tab.log?.output(text);
-          tab.outputListener?.call(text);
-          tab.publishOutputToFanout(text);
-          if (_activeTerminalTabId == tab.id) {
-            _legacyTerminalOutputListener?.call(text);
-          }
+          coalescer.add(text);
         },
         onError: (Object error) =>
             _handleTelnetConnectionEnded(tab, telnet, error: error),
@@ -21431,6 +21454,7 @@ class AppController extends ChangeNotifier {
     tab.consoleBaudRate = serialPort == null ? null : baudRate;
     tab.consoleShell = launch;
     final connectionGeneration = ++tab.connectionGeneration;
+    tab.resetOutputCoalescer(flushPending: false);
     final progressAttempt = tab.connectProgress.begin(
       ConnectStage.startingSession,
     );
@@ -21453,15 +21477,34 @@ class AppController extends ChangeNotifier {
       tab.console = console;
       tab.state = 'connected';
       tab.connectProgress.succeed(progressAttempt);
+      tab.resetOutputCoalescer(flushPending: false);
+      final coalescer = TerminalOutputCoalescer(
+        onFlush: (batch) {
+          if (!_isTerminalTabOpen(tab) || !identical(tab.console, console)) {
+            return;
+          }
+          tab.terminal.write(batch);
+        },
+      );
+      tab.outputCoalescer = coalescer;
       tab.outputSubscription = console.output.listen(
         (text) {
-          if (_isTerminalTabOpen(tab)) tab.terminal.write(text);
+          if (!_isTerminalTabOpen(tab) || !identical(tab.console, console)) {
+            return;
+          }
+          coalescer.add(text);
         },
         onError: (_) {
-          if (_isTerminalTabOpen(tab)) {
+          if (_isTerminalTabOpen(tab) && identical(tab.console, console)) {
+            tab.resetOutputCoalescer(flushPending: true);
             tab.state = 'disconnected';
             tab.errorMessage = currentL10n.theConsoleOutputStreamClosed;
             _notifyListenersIfAlive();
+          }
+        },
+        onDone: () {
+          if (_isTerminalTabOpen(tab) && identical(tab.console, console)) {
+            tab.resetOutputCoalescer(flushPending: true);
           }
         },
         cancelOnError: true,
@@ -21471,6 +21514,7 @@ class AppController extends ChangeNotifier {
           if (!_isTerminalTabOpen(tab) || !identical(tab.console, console)) {
             return;
           }
+          tab.resetOutputCoalescer(flushPending: true);
           tab.state = 'disconnected';
           // A serial device keeps running whatever it was running.
           if (serialPort == null) resetTerminalForNewSession(tab.terminal);
@@ -22693,6 +22737,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> _closeTerminalTabResources(TerminalTabSession tab) async {
     // Closed tabs never show or restart an attempt again.
+    tab.resetOutputCoalescer(flushPending: false);
     tab.connectProgress.retire();
     tab.recovery?.dispose();
     tab.recovery = null;

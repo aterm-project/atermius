@@ -960,6 +960,9 @@ class SSHClient {
       if (!isClosed) {
         _directProbeMissed++;
         onKeepAliveMissed?.call(_directProbeMissed);
+        if (!isClosed && _directProbeMissed >= keepAliveMaxMissed) {
+          _handleKeepAliveDead();
+        }
       }
       return null;
     } catch (_) {
