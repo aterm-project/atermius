@@ -21,6 +21,12 @@
       --app-warning: #ffb55e;
     }
     html, body { margin: 0; background: var(--app-background); height: 100%; overflow: hidden; }
+    /* `hidden` still lets the browser scroll the page to reveal something
+       (find-in-page, a screen reader or an extension reaching an
+       accessibility node past the edge), which left the whole app shifted
+       sideways with no way to scroll back. `clip` cannot be scrolled at all.
+       The engine sets `overflow: hidden` inline on <body>, hence !important. */
+    html, body { overflow: clip !important; }
     /* Silent-loading splash: the animated startup state lives here until the
        splash controller (splash-loader.js) releases it. */
     #atermius-splash {
