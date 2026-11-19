@@ -69,6 +69,7 @@ import 'terminal_palette.dart';
 import 'terminal_keyword_highlight_settings.dart';
 import 'terminal_palette_picker.dart';
 import 'session_reconnect_setting.dart';
+import 'ssh_keepalive_setting.dart';
 import 'terminal_scrollback_setting.dart';
 import 'terminal_shortcut_editor.dart';
 import '../domain/sftp_entries.dart';
@@ -16231,6 +16232,7 @@ class _SettingsPage extends StatelessWidget {
               ),
               const SettingsCard(child: TerminalScrollbackSetting()),
               const SettingsCard(child: SessionReconnectSetting()),
+              const SettingsCard(child: SshKeepaliveSetting()),
               SettingsCard(
                 semanticContainer: false,
                 child: TerminalKeywordHighlightSettings(

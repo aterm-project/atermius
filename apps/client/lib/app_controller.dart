@@ -53,6 +53,7 @@ import 'domain/workspace_layout.dart';
 import 'sftp/sftp_file_picker.dart';
 import 'sftp/dart_sftp_text_file_system.dart';
 import 'sftp/sftp_text_editor_service.dart';
+import 'ssh/ssh_keepalive_policy.dart';
 import 'ssh/ssh_service.dart';
 import 'ssh/tmux_service.dart';
 import 'terminal/terminal_collaboration_service.dart';
@@ -11505,6 +11506,27 @@ class AppController extends ChangeNotifier {
   Future<void> onForegroundResumed() async {
     await _automaticSync.foregroundResumed();
     await _restoreMobilePushRegistration();
+    if (SshKeepaliveController.instance.policy.probeOnResume) {
+      unawaited(probeConnectedSshSessions());
+    }
+  }
+
+  /// 对当前所有在线 SSH 标签并行发起即时探活，快速识别休眠/切网后的半开僵尸链路。
+  Future<void> probeConnectedSshSessions({
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    final probes = <Future<void>>[];
+    for (final tab in terminalTabs) {
+      final connection = tab.connection;
+      if (connection == null || tab.state != 'connected') continue;
+      probes.add(
+        probeSshConnectionLiveness(connection, timeout: timeout)
+            .then<void>((_) {})
+            .catchError((Object _) {}),
+      );
+    }
+    if (probes.isEmpty) return;
+    await Future.wait<void>(probes);
   }
 
   Future<void> selectAuditScope(AuditScope value) async {
@@ -21294,7 +21316,10 @@ class AppController extends ChangeNotifier {
     tab.outputSubscription = null;
     tab.telnet = null;
     tab.state = 'disconnected';
-    tab.recovery?.update(connected: false);
+    tab.recovery?.update(
+      connected: false,
+      disconnectReason: error != null ? 'transport_error' : 'remote_closed',
+    );
     tab.log?.markClosed(
       error == null ? SessionLogEndReason.remote : SessionLogEndReason.error,
       error: error,
@@ -22286,7 +22311,13 @@ class AppController extends ChangeNotifier {
     tab.sftp = null;
     tab.sftpOpening = null;
     tab.state = 'disconnected';
-    tab.recovery?.update(connected: false);
+    final disconnectReason =
+        sshConnectionHealthOf(connection)?.keepaliveTimedOut == true
+        ? 'keepalive_timeout'
+        : error != null
+        ? 'transport_error'
+        : 'remote_closed';
+    tab.recovery?.update(connected: false, disconnectReason: disconnectReason);
     tab.log?.markClosed(
       error == null ? SessionLogEndReason.remote : SessionLogEndReason.error,
       error: error,

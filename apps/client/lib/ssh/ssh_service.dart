@@ -11,6 +11,8 @@ import '../platform/ssh_background_keepalive.dart';
 import '../sync/known_host_decision_lock.dart';
 import 'port_forward_runtime.dart';
 import 'openssh_certificate.dart';
+import 'ssh_connection_health.dart';
+import 'ssh_keepalive_policy.dart';
 import 'ssh_transport.dart';
 import '../l10n/l10n.dart';
 
@@ -397,27 +399,6 @@ class SshJumpHop {
   final Future<bool> Function(String type, String fingerprint) verifyHostKey;
 }
 
-SSHClient _createSshClient({
-  required SSHSocket socket,
-  required String username,
-  required List<SSHIdentity> identities,
-  required FutureOr<String?> Function()? onPasswordRequest,
-  required SSHUserInfoRequestHandler? onUserInfoRequest,
-  required FutureOr<bool> Function(String type, Uint8List fingerprint)
-  onVerifyHostKey,
-  required Duration handshakeTimeout,
-  required Duration authTimeout,
-}) => SSHClient(
-  socket,
-  username: username,
-  identities: identities,
-  onPasswordRequest: onPasswordRequest,
-  onUserInfoRequest: onUserInfoRequest,
-  onVerifyHostKey: onVerifyHostKey,
-  handshakeTimeout: handshakeTimeout,
-  authTimeout: authTimeout,
-);
-
 class SshConnection {
   SshConnection({
     required this.client,
@@ -428,6 +409,7 @@ class SshConnection {
     List<SSHSocket> jumpChannels = const <SSHSocket>[],
     List<SSHClient> jumpClients = const <SSHClient>[],
     SSHSocket? initialJumpSocket,
+    SshConnectionHealth? health,
   }) : _jumpChannels = jumpChannels.isNotEmpty
            ? List<SSHSocket>.unmodifiable(jumpChannels)
            : forwardedSocket == null
@@ -438,16 +420,24 @@ class SshConnection {
            : jumpClient == null
            ? const <SSHClient>[]
            : <SSHClient>[jumpClient],
-       _initialJumpSocket = initialJumpSocket ?? jumpSocket;
+       _initialJumpSocket = initialJumpSocket ?? jumpSocket,
+       health = health ?? SshConnectionHealth() {
+    _connectionHealth[this] = this.health;
+  }
 
   final SSHClient client;
   final SSHSession session;
+
+  /// 当前 SSH 连接的实时链路健康遥测（RTT / 在线时长 / 丢包 / 密钥轮换）。
+  final SshConnectionHealth health;
   late final SshPortForwardManager portForwards = SshPortForwardManager(client);
   final List<SSHSocket> _jumpChannels;
   final List<SSHClient> _jumpClients;
   final SSHSocket? _initialJumpSocket;
   _SshConnectAttempt? _connectAttempt;
   SshKeepaliveHold? _keepalive;
+  Timer? _rekeyTimer;
+  bool _rekeying = false;
   bool _execOpenPending = false;
 
   /// Moves the connect attempt's background keepalive hold to this open
@@ -463,11 +453,80 @@ class SshConnection {
     );
     try {
       client.done.then<void>(
-        (_) => hold.release(),
-        onError: (Object _, StackTrace _) => hold.release(),
+        (_) {
+          _stopLongSessionMaintenance();
+          health.markClosed();
+          hold.release();
+        },
+        onError: (Object _, StackTrace _) {
+          _stopLongSessionMaintenance();
+          health.markClosed();
+          hold.release();
+        },
       );
     } catch (_) {
       // Test doubles may not implement `done`; close() still releases.
+    }
+  }
+
+  /// 启动长连接自动密钥轮换任务（RFC 4253 §9），提升数小时/数天商业会话的前向安全性。
+  void startLongSessionMaintenance({Duration? rekeyInterval}) {
+    _stopLongSessionMaintenance();
+    if (rekeyInterval == null || rekeyInterval <= Duration.zero) return;
+    _rekeyTimer = Timer.periodic(rekeyInterval, (_) {
+      if (_rekeying || health.state == SshHealthState.closed) return;
+      _rekeying = true;
+      unawaited(() async {
+        try {
+          if (client.isClosed) {
+            _stopLongSessionMaintenance();
+            return;
+          }
+          await client.rekey().timeout(const Duration(seconds: 30));
+          health.recordRekeySuccess();
+        } catch (_) {
+          // 轮换失败或测试替身未实现 rekey() 时不干扰活跃终端；传输异常由 done 接管。
+        } finally {
+          _rekeying = false;
+        }
+      }());
+    });
+  }
+
+  void _stopLongSessionMaintenance() {
+    _rekeyTimer?.cancel();
+    _rekeyTimer = null;
+    _rekeying = false;
+  }
+
+  /// 立即发起链路活性探测（适用于设备休眠唤醒、网络切换或前后台切回）。
+  ///
+  /// 若目标链路及全部跳板链路均响应，返回 `true` 并刷新 [health]；否则返回 `false`。
+  Future<bool> probeLiveness({
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (health.state == SshHealthState.closed) return false;
+    try {
+      if (client.isClosed) {
+        health.markClosed();
+        return false;
+      }
+      for (final hop in _jumpClients) {
+        if (hop.isClosed) {
+          health.recordKeepaliveDead();
+          unawaited(_closeQuietly(client.close));
+          return false;
+        }
+      }
+      final rtt = await client.probeKeepAlive(timeout: timeout);
+      if (rtt == null) return false;
+      // 当 client 未绑定自动保活或为自定义工厂实例时，确保健康快照也能同步最新 RTT。
+      if (health.lastRtt == null || health.missedProbes > 0) {
+        health.recordProbeSuccess(rtt);
+      }
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -476,10 +535,18 @@ class SshConnection {
   /// 4.1.0, so do not allow another command to accumulate on this transport.
   bool get hasUnresolvedExecOpen => _execOpenPending;
 
-  Stream<String> get output => utf8.decoder.bind(session.stdout);
+  Stream<String> get output => utf8.decoder.bind(
+    session.stdout.map((chunk) {
+      health.recordBytesReceived(chunk.length);
+      return chunk;
+    }),
+  );
 
-  void input(String text) =>
-      session.write(Uint8List.fromList(utf8.encode(text)));
+  void input(String text) {
+    final encoded = Uint8List.fromList(utf8.encode(text));
+    health.recordBytesSent(encoded.length);
+    session.write(encoded);
+  }
 
   void resize(int columns, int rows) => session.resizeTerminal(columns, rows);
 
@@ -790,11 +857,13 @@ class SshConnection {
   }
 
   Future<void> close() async {
+    _stopLongSessionMaintenance();
     final keepalive = _keepalive;
     _keepalive = null;
     try {
       await _closeResources();
     } finally {
+      health.markClosed();
       keepalive?.release();
     }
   }
@@ -829,6 +898,26 @@ class SshConnection {
 final Expando<_SshConnectAttempt> _pendingConnectOwnership =
     Expando<_SshConnectAttempt>('pending SSH connection ownership');
 
+final Expando<SshConnectionHealth> _connectionHealth =
+    Expando<SshConnectionHealth>('SSH connection health');
+
+/// 读取真实 [SshConnection] 的实时健康遥测；对最小测试替身安全返回 `null`。
+SshConnectionHealth? sshConnectionHealthOf(SshConnection? connection) =>
+    connection == null ? null : _connectionHealth[connection];
+
+/// 安全触发 [SshConnection.probeLiveness]；对未实现该方法的测试替身静默降级返回 `false`。
+Future<bool> probeSshConnectionLiveness(
+  SshConnection? connection, {
+  Duration timeout = const Duration(seconds: 5),
+}) async {
+  if (connection == null || _connectionHealth[connection] == null) return false;
+  try {
+    return await connection.probeLiveness(timeout: timeout);
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Stops tab-close cancellation once AppController has attached this
 /// connection to the still-open tab. The connection itself remains
 /// responsible for closing its resources. The top-level adapter also avoids
@@ -859,11 +948,13 @@ class SshService {
     SshClientFactory? sshClientFactory,
     KnownHostDecisionLock? knownHostDecisionLock,
     SshBackgroundKeepalive? backgroundKeepalive,
+    SshKeepaliveController? keepaliveController,
   }) : _useRelay = useRelay ?? kIsWeb,
        _backgroundKeepalive = backgroundKeepalive,
+       _keepaliveController = keepaliveController,
        _relaySocketConnectorOverride = relaySocketConnector,
        _directSocketConnector = directSocketConnector ?? connectDirect,
-       _sshClientFactory = sshClientFactory ?? _createSshClient,
+       _sshClientFactoryOverride = sshClientFactory,
        _knownHostDecisionLock = knownHostDecisionLock;
 
   /// Null for a LocalVault native connection. Relay mode always requires the
@@ -873,9 +964,10 @@ class SshService {
   final bool _useRelay;
   final RelaySocketConnector? _relaySocketConnectorOverride;
   final SshDirectSocketConnector _directSocketConnector;
-  final SshClientFactory _sshClientFactory;
+  final SshClientFactory? _sshClientFactoryOverride;
   final KnownHostDecisionLock? _knownHostDecisionLock;
   final SshBackgroundKeepalive? _backgroundKeepalive;
+  final SshKeepaliveController? _keepaliveController;
 
   Future<SshConnection> connect({
     required HostRecord host,
@@ -953,6 +1045,11 @@ class SshService {
       SshKeepaliveKind.connecting,
       onUserDisconnect: () => unawaited(attempt.cancel()),
     );
+    final keepalivePolicy =
+        (_keepaliveController ?? SshKeepaliveController.instance).policy;
+    final health = SshConnectionHealth(
+      maxMissedThreshold: keepalivePolicy.maxMissed,
+    );
     try {
       final firstSocket = await _connectSocket(
         route.isEmpty ? host : route.first.host,
@@ -972,6 +1069,9 @@ class SshService {
           onUserInfoRequest: onUserInfoRequest,
           attempt: attempt,
           knownHostDecisionScope: knownHostDecisionScope,
+          keepalivePolicy: keepalivePolicy,
+          health: health,
+          isJumpHop: true,
         );
         jumpClients.add(jumpClient);
         final nextHost = index + 1 < route.length
@@ -994,6 +1094,9 @@ class SshService {
         onUserInfoRequest: onUserInfoRequest,
         attempt: attempt,
         knownHostDecisionScope: knownHostDecisionScope,
+        keepalivePolicy: keepalivePolicy,
+        health: health,
+        isJumpHop: false,
       );
       final shellClient = targetClient;
       final session = await attempt.acquire<SSHSession>(
@@ -1021,15 +1124,20 @@ class SshService {
         jumpChannels: jumpChannels,
         jumpClients: jumpClients,
         initialJumpSocket: route.isEmpty ? null : firstSocket,
+        health: health,
       );
       connection._connectAttempt = attempt;
       connection._adoptKeepalive(keepalive);
+      connection.startLongSessionMaintenance(
+        rekeyInterval: keepalivePolicy.rekeyInterval,
+      );
       _pendingConnectOwnership[connection] = attempt;
       // Standalone callers do not have a tab lifecycle to transfer ownership
       // to. AppController supplies a token and transfers after attachment.
       if (cancellation == null) transferSshConnectOwnership(connection);
       return connection;
     } catch (error) {
+      health.markClosed();
       keepalive.release();
       attempt.finishFailedAttempt();
       await attempt.closeAll();
@@ -1046,6 +1154,9 @@ class SshService {
     required SshKeyboardInteractiveHandler? onUserInfoRequest,
     required _SshConnectAttempt attempt,
     required KnownHostDecisionScope? knownHostDecisionScope,
+    required SshKeepalivePolicy keepalivePolicy,
+    required SshConnectionHealth health,
+    required bool isJumpHop,
   }) async {
     Future<SSHClient> connectAndAuthenticate() async {
       attempt.checkCancelled();
@@ -1055,6 +1166,9 @@ class SshService {
         credential: credential,
         verifyHostKey: verifyHostKey,
         onUserInfoRequest: onUserInfoRequest,
+        keepalivePolicy: keepalivePolicy,
+        health: health,
+        isJumpHop: isJumpHop,
       );
       attempt.register(client.close);
       await _authenticate(client, attempt);
@@ -1132,24 +1246,55 @@ class SshService {
     required Future<bool> Function(String type, String fingerprint)
     verifyHostKey,
     required SshKeyboardInteractiveHandler? onUserInfoRequest,
-  }) => _sshClientFactory(
-    socket: socket,
-    username: credential.username.isEmpty ? host.username : credential.username,
-    identities: _parseIdentities(credential),
-    onPasswordRequest: credential.kind == AuthKind.password
-        ? () => credential.secret
-        : null,
-    onUserInfoRequest: onUserInfoRequest == null
+    required SshKeepalivePolicy keepalivePolicy,
+    required SshConnectionHealth health,
+    required bool isJumpHop,
+  }) {
+    final username =
+        credential.username.isEmpty ? host.username : credential.username;
+    final identities = _parseIdentities(credential);
+    final passwordRequest =
+        credential.kind == AuthKind.password ? () => credential.secret : null;
+    final userInfoRequest = onUserInfoRequest == null
         ? null
-        : (request) => onUserInfoRequest(host, request),
-    onVerifyHostKey: (type, fingerprint) =>
-        verifyHostKey(type, utf8.decode(fingerprint, allowMalformed: true)),
-    // The controller ends the transport before any host-key Vault pull or
-    // user prompt, then retries with a one-use verified-key proof. Keep the
-    // wire handshake deadline independent for each route hop.
-    handshakeTimeout: const Duration(seconds: 90),
-    authTimeout: const Duration(seconds: 20),
-  );
+        : (SSHUserInfoRequest request) => onUserInfoRequest(host, request);
+    FutureOr<bool> verify(String type, Uint8List fingerprint) =>
+        verifyHostKey(type, utf8.decode(fingerprint, allowMalformed: true));
+
+    final factoryOverride = _sshClientFactoryOverride;
+    if (factoryOverride != null) {
+      return factoryOverride(
+        socket: socket,
+        username: username,
+        identities: identities,
+        onPasswordRequest: passwordRequest,
+        onUserInfoRequest: userInfoRequest,
+        onVerifyHostKey: verify,
+        // The controller ends the transport before any host-key Vault pull or
+        // user prompt, then retries with a one-use verified-key proof. Keep the
+        // wire handshake deadline independent for each route hop.
+        handshakeTimeout: const Duration(seconds: 90),
+        authTimeout: const Duration(seconds: 20),
+      );
+    }
+
+    return SSHClient(
+      socket,
+      username: username,
+      identities: identities,
+      onPasswordRequest: passwordRequest,
+      onUserInfoRequest: userInfoRequest,
+      onVerifyHostKey: verify,
+      handshakeTimeout: const Duration(seconds: 90),
+      authTimeout: const Duration(seconds: 20),
+      keepAliveInterval: keepalivePolicy.interval,
+      keepAliveTimeout: keepalivePolicy.probeTimeout,
+      keepAliveMaxMissed: keepalivePolicy.maxMissed,
+      onKeepAliveLatency: isJumpHop ? null : health.recordProbeSuccess,
+      onKeepAliveMissed: isJumpHop ? null : health.recordProbeMissed,
+      onKeepAliveDead: health.recordKeepaliveDead,
+    );
+  }
 
   Future<void> _authenticate(
     SSHClient client,

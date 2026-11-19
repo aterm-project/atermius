@@ -10,6 +10,12 @@ Future<SSHSocket> connectNativeSocket(
   Duration? timeout,
 }) async {
   final socket = await Socket.connect(host, port, timeout: timeout);
+  try {
+    // 禁用 Nagle 算法，消除交互式 SSH 终端（vim/tmux/htop）按键回显的 40~200ms 合并延迟。
+    socket.setOption(SocketOption.tcpNoDelay, true);
+  } catch (_) {
+    // 部分受限平台或自定义 socket 实现可能不支持该选项，忽略而不影响建连。
+  }
   return _SSHNativeSocket._(socket);
 }
 

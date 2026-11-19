@@ -229,6 +229,21 @@ class SSHClient {
   /// method. Set this to null to disable automatic keep-alive messages.
   final Duration? keepAliveInterval;
 
+  /// 单次保活探测的响应超时；配置后连续 [keepAliveMaxMissed] 次无响应将主动断开半开僵尸传输。
+  final Duration? keepAliveTimeout;
+
+  /// 允许连续丢失保活响应的次数上限（对齐 OpenSSH `ServerAliveCountMax`，默认 3）。
+  final int keepAliveMaxMissed;
+
+  /// 保活探活成功时的 RTT 延迟采样回调。
+  final void Function(Duration latency)? onKeepAliveLatency;
+
+  /// 保活探活单次超时时的回调，参数为当前连续丢失次数。
+  final void Function(int missedCount)? onKeepAliveMissed;
+
+  /// 保活连续超时触发主动断开僵尸链路时的回调。
+  final void Function()? onKeepAliveDead;
+
   /// Maximum time to wait for the SSH transport handshake to complete.
   final Duration? handshakeTimeout;
 
@@ -298,12 +313,18 @@ class SSHClient {
     this.onX11Forward,
     this.agentHandler,
     this.keepAliveInterval = const Duration(seconds: 10),
+    this.keepAliveTimeout,
+    this.keepAliveMaxMissed = 3,
+    this.onKeepAliveLatency,
+    this.onKeepAliveMissed,
+    this.onKeepAliveDead,
     this.handshakeTimeout,
     this.authTimeout,
     this.disableHostkeyVerification = false,
     this.pipelineChannelRequests = false,
     String ident = 'DartSSH_2.0',
-  }) : ident = _validateIdent(ident) {
+  }) : assert(keepAliveMaxMissed >= 1, 'keepAliveMaxMissed must be at least 1'),
+       ident = _validateIdent(ident) {
     _transport = SSHTransport(
       socket,
       isServer: false,
@@ -399,7 +420,15 @@ class SSHClient {
   final _remoteForwards = <SSHRemoteForward>{};
 
   late final _keepAlive = keepAliveInterval != null
-      ? SSHKeepAlive(ping: ping, interval: keepAliveInterval!)
+      ? SSHKeepAlive(
+          ping: ping,
+          interval: keepAliveInterval!,
+          timeout: keepAliveTimeout,
+          maxMissed: keepAliveMaxMissed,
+          onLatency: onKeepAliveLatency,
+          onMissed: onKeepAliveMissed,
+          onDead: _handleKeepAliveDead,
+        )
       : null;
 
   SSHAuthMethod? _currentAuthMethod;
@@ -889,6 +918,43 @@ class SSHClient {
   Future<void> ping() async {
     await _authenticated.future;
     await _sendGlobalRequest(SSH_Message_Global_Request.keepAlive());
+  }
+
+  /// 立即执行一次带超时保护的 SSH 链路探活（适用于前台切回、网络切换或休眠唤醒）。
+  ///
+  /// 返回本次测得的往返延迟；若链路已关闭或超时未响应则返回 `null`。
+  Future<Duration?> probeKeepAlive({
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (isClosed) return null;
+    final keepAlive = _keepAlive;
+    if (keepAlive != null) {
+      return keepAlive.probeNow(timeout: timeout);
+    }
+    final startedAt = DateTime.now();
+    try {
+      await ping().timeout(timeout);
+      final rtt = DateTime.now().difference(startedAt);
+      final normalized = rtt.isNegative ? Duration.zero : rtt;
+      onKeepAliveLatency?.call(normalized);
+      return normalized;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _handleKeepAliveDead() {
+    printDebug?.call(
+      'SSHClient._handleKeepAliveDead (missed=$keepAliveMaxMissed)',
+    );
+    onKeepAliveDead?.call();
+    if (!isClosed) {
+      _transport.closeWithError(
+        SSHSocketError(
+          'SSH keepalive timed out after $keepAliveMaxMissed missed probes',
+        ),
+      );
+    }
   }
 
   /// Shutdown the entire SSH connection. Sessions and channels will also be

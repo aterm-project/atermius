@@ -21,6 +21,14 @@
   recursive planner stops at its entry limit) or a failed read leaked the
   remote handle. Full iteration, and therefore `listdir`, is unchanged.
 
+- Local change (v1.0.2): `SSHKeepAlive` and `SSHClient` add OpenSSH-aligned
+  liveness watchdog options (`keepAliveTimeout`, `keepAliveMaxMissed`,
+  `onKeepAliveLatency`, `onKeepAliveMissed`, `onKeepAliveDead`, and
+  `probeKeepAlive`) to actively detect half-open zombie TCP connections and
+  trigger transport teardown for automatic session recovery. `connectNativeSocket`
+  also enables `SocketOption.tcpNoDelay` to remove Nagle interactive keystroke
+  latency.
+
 When updating dartssh2, re-apply `renameNoReplace` (or switch to an upstream
 no-replace API if one appears) and keep
 `apps/client/test/remote_file_operations_test.dart` passing. The application

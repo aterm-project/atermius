@@ -69,8 +69,16 @@ class SessionRecovery extends ChangeNotifier {
   Duration? _limit, _attemptDue;
   bool _expired = false, _attempted = false;
   bool _disposed = false, _everConnected = false, _automaticBlocked = false;
+  int _recoveryCount = 0;
+  String? _lastDisconnectReason;
   bool interrupted = false, busy = false;
   bool get available => !_disposed && isCurrent();
+
+  /// 本会话在首次建连后成功恢复连接的累计次数（用于长连接稳定性观测）。
+  int get recoveryCount => _recoveryCount;
+
+  /// 最近一次断线的非敏感原因码（如 `keepalive_timeout` / `remote_closed` / `transport_error`）。
+  String? get lastDisconnectReason => _lastDisconnectReason;
 
   /// Whether the session has been connected at least once. Its terminal then
   /// holds output worth keeping on screen while it is interrupted.
@@ -110,16 +118,27 @@ class SessionRecovery extends ChangeNotifier {
     return left.isNegative ? Duration.zero : left;
   }
 
-  void update({required bool connected, bool connecting = false}) {
+  void update({
+    required bool connected,
+    bool connecting = false,
+    String? disconnectReason,
+  }) {
     if (_disposed) return;
     if (connected) {
+      if (_everConnected && interrupted) {
+        _recoveryCount++;
+      }
       _everConnected = true;
       _automaticBlocked = false;
       interrupted = false;
+      _lastDisconnectReason = null;
       _endPeriod();
       _holdExpired = false;
     } else if (!connecting) {
       interrupted = true;
+      if (disconnectReason != null && disconnectReason.isNotEmpty) {
+        _lastDisconnectReason = disconnectReason;
+      }
       _schedule();
     }
     _syncKeepalive();

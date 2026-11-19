@@ -4,6 +4,7 @@ export 'src/ssh_client.dart';
 export 'src/ssh_errors.dart';
 export 'src/ssh_hostkey.dart';
 export 'src/ssh_identity.dart';
+export 'src/ssh_keepalive.dart';
 export 'src/ssh_key_pair.dart';
 export 'src/ssh_pem.dart';
 export 'src/ssh_session.dart';

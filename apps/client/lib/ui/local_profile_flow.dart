@@ -63,6 +63,7 @@ import '../storage/local_profile_catalog.dart';
 import '../storage/local_profile_service.dart';
 import '../storage/local_vault_database.dart';
 import '../ssh/local_profile_ssh_controller.dart';
+import '../ssh/ssh_keepalive_policy.dart';
 import '../ssh/ssh_service.dart';
 import '../ssh/host_operating_system_probe.dart';
 import '../ssh/host_operating_system_persistence.dart';
@@ -79,6 +80,7 @@ import 'connect_progress_view.dart';
 import '../platform/application_windows.dart';
 import 'session_workspace.dart';
 import 'ssh_forwarding_page.dart';
+import 'ssh_keepalive_setting.dart';
 import 'ssh_live_tools_sheet.dart';
 import 'ssh_port_forwarding_dialog.dart';
 import 'workspace_controls.dart';
@@ -220,7 +222,8 @@ class LocalProfileFlow extends StatefulWidget {
   State<LocalProfileFlow> createState() => _LocalProfileFlowState();
 }
 
-class _LocalProfileFlowState extends State<LocalProfileFlow> {
+class _LocalProfileFlowState extends State<LocalProfileFlow>
+    with WidgetsBindingObserver {
   final _toolsWorkspace = TerminalToolsWorkspace();
   final _homeSearch = TextEditingController();
   late final McpWorkspace _mcpWorkspace;
@@ -396,6 +399,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _unregisterTrackedFileProvider = registerTrackedFileProvider(
       _trackedFileDescriptor,
       scopeEpoch: () => (_activeProfile, _operationGeneration),
@@ -446,7 +450,34 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        SshKeepaliveController.instance.policy.probeOnResume) {
+      unawaited(_probeLocalSshSessions());
+    }
+  }
+
+  /// 前台切回或休眠唤醒时对所有本地在线 SSH 会话并行探活，快速发现半开僵尸链路。
+  Future<void> _probeLocalSshSessions() async {
+    final probes = <Future<void>>[];
+    for (final session in List<_LocalTerminalSession>.of(_sessions)) {
+      final connection = session.connection;
+      if (connection == null || !session.connected.value || session._closed) {
+        continue;
+      }
+      probes.add(
+        probeSshConnectionLiveness(connection)
+            .then<void>((_) {})
+            .catchError((Object _) {}),
+      );
+    }
+    if (probes.isEmpty) return;
+    await Future.wait<void>(probes);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _unregisterTrackedFileProvider?.call();
     TrackedFilesWindows.instance.removeListener(_onTrackedFilesChanged);
     unawaited(TrackedFilesWindows.instance.releaseOwner(_windowOwner));
@@ -2796,9 +2827,16 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
 
   void _onSessionChanged() {
     for (final session in _sessions) {
-      session.recovery?.update(connected: session.connected.value,
-        connecting: session.telnetState == 'connecting' ||
-          session.desktop?.state == 'connecting' || session.desktop?.state == 'certificate');
+      session.recovery?.update(
+        connected: session.connected.value,
+        connecting:
+            session.telnetState == 'connecting' ||
+            session.desktop?.state == 'connecting' ||
+            session.desktop?.state == 'certificate',
+        disconnectReason: session.connected.value
+            ? null
+            : session.lastDisconnectReason,
+      );
     }
     _files.retainConnections({
       for (final session in _sessions)
@@ -6592,6 +6630,7 @@ _showMessage(
             ),
             const SettingsCard(child: TerminalScrollbackSetting()),
             const SettingsCard(child: SessionReconnectSetting()),
+            const SettingsCard(child: SshKeepaliveSetting()),
             SettingsCard(
               semanticContainer: false,
               child: TerminalKeywordHighlightSettings(
@@ -7812,11 +7851,13 @@ class _LocalTerminalSession {
     connection = value;
     log = recorder;
     _reconnectFailure = null;
+    lastDisconnectReason = null;
     _bindSsh(value);
     connected.value = true;
   }
 
   String? _reconnectFailure;
+  String? lastDisconnectReason;
 
   /// Why reconnecting this once-connected tab failed, written to its terminal
   /// (the "Connection lost" overlay stays above it). Automatic retries repeat
@@ -7843,6 +7884,10 @@ class _LocalTerminalSession {
       },
       onError: (Object error) {
         if (_closed || !identical(this.connection, connection)) return;
+        lastDisconnectReason =
+            sshConnectionHealthOf(connection)?.keepaliveTimedOut == true
+            ? 'keepalive_timeout'
+            : 'transport_error';
         connected.value = false;
         resetTerminalForNewSession(terminal);
         terminal.write(currentL10n.sshOutputStreamError);
@@ -7850,6 +7895,10 @@ class _LocalTerminalSession {
       },
       onDone: () {
         if (_closed || !identical(this.connection, connection)) return;
+        lastDisconnectReason =
+            sshConnectionHealthOf(connection)?.keepaliveTimedOut == true
+            ? 'keepalive_timeout'
+            : 'remote_closed';
         connected.value = false;
         // Whatever was running can no longer restore the modes it set.
         resetTerminalForNewSession(terminal);

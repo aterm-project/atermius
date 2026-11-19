@@ -66,6 +66,8 @@ import 'storage/terminal_palette_store.dart';
 import 'terminal/keyword_highlighter.dart';
 import 'ui/terminal_palette.dart';
 import 'storage/session_reconnect_store.dart';
+import 'storage/ssh_keepalive_store.dart';
+import 'ssh/ssh_keepalive_policy.dart';
 import 'storage/terminal_scrollback_store.dart';
 import 'terminal/session_reconnect_policy.dart';
 import 'terminal/terminal_scrollback.dart';
@@ -211,6 +213,8 @@ Future<void> main(List<String> arguments) async {
   // Device-local policy for reconnecting dropped sessions (automatic on/off,
   // retry interval, time limit); read before any session can be opened.
   await SessionReconnectController.instance.load(createSessionReconnectStore());
+  // 设备级 SSH 长连接保活、僵死检测与周期密钥轮换策略；需在任意会话建连前加载。
+  await SshKeepaliveController.instance.load(createSshKeepaliveStore());
   // Scrollback that no longer fits in memory spills to encrypted temporary
   // files. Remove what earlier processes left behind (undecryptable, their
   // keys only ever lived in memory); files of running processes, including
