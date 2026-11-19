@@ -136,6 +136,7 @@ class _HostSearchPalette extends StatefulWidget {
 
 class _HostSearchPaletteState extends State<_HostSearchPalette> {
   final _search = TextEditingController();
+  final _searchFocus = FocusNode(debugLabel: 'host_search_palette_input');
   final _scrollController = ScrollController();
   HostProtocol? _protocol;
   String? _group;
@@ -161,8 +162,13 @@ class _HostSearchPaletteState extends State<_HostSearchPalette> {
   void dispose() {
     widget.changes?.removeListener(_changed);
     _search.dispose();
+    _searchFocus.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _refocusSearch() {
+    if (mounted) _searchFocus.requestFocus();
   }
 
   void _select(HostSearchSelection selection) {
@@ -171,27 +177,50 @@ class _HostSearchPaletteState extends State<_HostSearchPalette> {
 
   void _moveSelection(int delta, int count) {
     if (count <= 0) return;
-    final next = (_selectedIndex + delta) % count;
+    final current = _selectedIndex.clamp(0, count - 1);
+    final next = (current + delta) % count;
     final resolved = next < 0 ? next + count : next;
     setState(() => _selectedIndex = resolved);
-    if (_scrollController.hasClients) {
-      const estimatedItemExtent = 56.0;
-      final target = (resolved * estimatedItemExtent).clamp(
-        0.0,
-        _scrollController.position.maxScrollExtent,
+    _ensureSelectedVisible(resolved);
+  }
+
+  /// 仅当目标项超出当前可视视口时才滚动至可见边界，避免每次按键列表剧烈跳动。
+  void _ensureSelectedVisible(int index) {
+    if (!_scrollController.hasClients) return;
+    const estimatedItemExtent = 56.0;
+    final position = _scrollController.position;
+    final itemTop = index * estimatedItemExtent;
+    final itemBottom = itemTop + estimatedItemExtent;
+    final viewportTop = position.pixels;
+    final viewportBottom = viewportTop + position.viewportDimension;
+    if (itemTop < viewportTop) {
+      _scrollController.jumpTo(itemTop.clamp(0.0, position.maxScrollExtent));
+    } else if (itemBottom > viewportBottom) {
+      _scrollController.jumpTo(
+        (itemBottom - position.viewportDimension).clamp(
+          0.0,
+          position.maxScrollExtent,
+        ),
       );
-      _scrollController.jumpTo(target);
     }
   }
 
   KeyEventResult _handleKeyEvent(
     KeyEvent event,
     List<HostRecord> matches,
+    QuickConnectRequest? command,
   ) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+    // 中文/日文等输入法处于组字选词阶段时，不抢占方向键/回车，并拦截 Esc 冒泡防止 DialogRoute 误关弹窗。
     final key = event.logicalKey;
+    final composing = _search.value.composing;
+    if (composing.isValid && !composing.isCollapsed) {
+      return key == LogicalKeyboardKey.escape
+          ? KeyEventResult.handled
+          : KeyEventResult.ignored;
+    }
     final ctrl = HardwareKeyboard.instance.isControlPressed;
     if (key == LogicalKeyboardKey.escape) {
       Navigator.of(context).pop();
@@ -206,6 +235,26 @@ class _HostSearchPaletteState extends State<_HostSearchPalette> {
         (ctrl && key == LogicalKeyboardKey.keyP)) {
       _moveSelection(-1, matches.length);
       return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      final inSearchField =
+          FocusManager.instance.primaryFocus?.context
+              ?.findAncestorWidgetOfExactType<HostSearchField>() !=
+          null;
+      // 焦点在搜索框内时交由 HostSearchField.onSubmitted 处理；若焦点落于过滤芯片上，
+      // 按回车仍直接连接当前高亮主机，保证键盘流不断裂。
+      if (!inSearchField) {
+        if (command != null) {
+          _select(HostSearchSelection.command(command));
+          return KeyEventResult.handled;
+        }
+        if (matches.isNotEmpty) {
+          final activeIndex = _selectedIndex.clamp(0, matches.length - 1);
+          _select(HostSearchSelection.host(matches[activeIndex].id));
+          return KeyEventResult.handled;
+        }
+      }
     }
     return KeyEventResult.ignored;
   }
@@ -245,7 +294,7 @@ class _HostSearchPaletteState extends State<_HostSearchPalette> {
 
     return Focus(
       canRequestFocus: false,
-      onKeyEvent: (_, event) => _handleKeyEvent(event, matches),
+      onKeyEvent: (_, event) => _handleKeyEvent(event, matches, command),
       child: Dialog(
         key: const ValueKey('host_search_palette'),
         alignment: Alignment.topCenter,
@@ -280,6 +329,7 @@ class _HostSearchPaletteState extends State<_HostSearchPalette> {
                 HostSearchField(
                   fieldKey: widget.fieldKey,
                   controller: _search,
+                  focusNode: _searchFocus,
                   autofocus: true,
                   onChanged: (_) => setState(() => _selectedIndex = 0),
                   onConnect: (request) =>
@@ -299,37 +349,49 @@ class _HostSearchPaletteState extends State<_HostSearchPalette> {
                     ChoiceChip(
                       label: Text(context.l10n.all),
                       selected: _protocol == null,
-                      onSelected: (_) => setState(() {
-                        _protocol = null;
-                        _selectedIndex = 0;
-                      }),
+                      onSelected: (_) {
+                        setState(() {
+                          _protocol = null;
+                          _selectedIndex = 0;
+                        });
+                        _refocusSearch();
+                      },
                     ),
                     for (final protocol in HostProtocol.values)
                       ChoiceChip(
                         label: Text(protocol.name.toUpperCase()),
                         selected: _protocol == protocol,
-                        onSelected: (_) => setState(() {
-                          _protocol = protocol;
-                          _selectedIndex = 0;
-                        }),
+                        onSelected: (_) {
+                          setState(() {
+                            _protocol = protocol;
+                            _selectedIndex = 0;
+                          });
+                          _refocusSearch();
+                        },
                       ),
                     FilterChip(
                       label: Text(context.l10n.favorites),
                       selected: _favorites,
-                      onSelected: (value) => setState(() {
-                        _favorites = value;
-                        _selectedIndex = 0;
-                      }),
+                      onSelected: (value) {
+                        setState(() {
+                          _favorites = value;
+                          _selectedIndex = 0;
+                        });
+                        _refocusSearch();
+                      },
                     ),
                     if (widget.groups.isNotEmpty)
                       PopupMenuButton<String>(
                         popUpAnimationStyle: AppMotion.menuStyle(context),
                         tooltip: context.l10n.filterByGroup,
                         initialValue: _group ?? '',
-                        onSelected: (value) => setState(() {
-                          _group = value.isEmpty ? null : value;
-                          _selectedIndex = 0;
-                        }),
+                        onSelected: (value) {
+                          setState(() {
+                            _group = value.isEmpty ? null : value;
+                            _selectedIndex = 0;
+                          });
+                          _refocusSearch();
+                        },
                         itemBuilder: (_) => [
                           appMenuItem(
                             context,

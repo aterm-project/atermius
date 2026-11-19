@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
+import '../storage/paste_safety_store.dart';
 
 /// 终端粘贴风险等级。
 enum PasteRiskLevel {
@@ -45,7 +49,13 @@ final List<({String id, RegExp pattern})> _destructiveRules = [
   (
     id: 'rm_rf',
     pattern: RegExp(
-      r'(^|[;&|\s])(sudo\s+)?rm\s+-[a-zA-Z]*[rR][a-zA-Z]*f|rm\s+-[a-zA-Z]*f[a-zA-Z]*[rR]|rm\s+--no-preserve-root',
+      r'(^|[;&|\s])(sudo\s+)?rm\s+(?:'
+      r'-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*'
+      r'|-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*'
+      r'|-(?:[a-zA-Z]*[rR][a-zA-Z]*|-recursive)\s+-(?:[a-zA-Z]*f[a-zA-Z]*|-force)'
+      r'|-(?:[a-zA-Z]*f[a-zA-Z]*|-force)\s+-(?:[a-zA-Z]*[rR][a-zA-Z]*|-recursive)'
+      r'|--no-preserve-root'
+      r')(?=\s|$|[;&|])',
       caseSensitive: false,
       multiLine: true,
     ),
@@ -53,7 +63,10 @@ final List<({String id, RegExp pattern})> _destructiveRules = [
   (
     id: 'disk_format',
     pattern: RegExp(
-      r'(^|[;&|\s])(sudo\s+)?(mkfs(\.[a-z0-9]+)?|fdisk|parted|wipefs|dd\s+if=)',
+      r'(^|[;&|\s])(sudo\s+)?(?:'
+      r'(?:mkfs(?:\.[a-z0-9]+)?|fdisk|parted|wipefs)(?=\s|$|[;&|])'
+      r'|dd\s+(?:[^\r\n;&|]*\bof=|if=)'
+      r')',
       caseSensitive: false,
       multiLine: true,
     ),
@@ -61,7 +74,10 @@ final List<({String id, RegExp pattern})> _destructiveRules = [
   (
     id: 'power_control',
     pattern: RegExp(
-      r'(^|[;&|\s])(sudo\s+)?(shutdown|reboot|poweroff|halt|init\s+[06])(\s|$|[;&|])',
+      r'(^|[;&|\s])(sudo\s+)?(?:'
+      r'(?:shutdown|reboot|poweroff|halt|init\s+[06])'
+      r'|systemctl\s+(?:poweroff|reboot|halt)'
+      r')(\s|$|[;&|])',
       caseSensitive: false,
       multiLine: true,
     ),
@@ -69,7 +85,10 @@ final List<({String id, RegExp pattern})> _destructiveRules = [
   (
     id: 'chmod_777',
     pattern: RegExp(
-      r'(^|[;&|\s])(sudo\s+)?chmod\s+(-R|--recursive)\s+777\b',
+      r'(^|[;&|\s])(sudo\s+)?chmod\s+(?:'
+      r'(?:-[a-zA-Z]*R[a-zA-Z]*|--recursive)\s+0?777'
+      r'|0?777\s+(?:-[a-zA-Z]*R[a-zA-Z]*|--recursive)'
+      r')\b',
       caseSensitive: false,
       multiLine: true,
     ),
@@ -99,7 +118,7 @@ final List<({String id, RegExp pattern})> _destructiveRules = [
   (
     id: 'pipe_shell',
     pattern: RegExp(
-      r'\b(curl|wget)\b[^\r\n|]*\|\s*(sudo\s+)?(sh|bash|zsh)\b',
+      r'\b(curl|wget)\b[^\r\n|]*\|\s*(sudo\s+)?(env\s+)?(?:(?:/usr)?/bin/)?(sh|bash|zsh)\b',
       caseSensitive: false,
     ),
   ),
@@ -168,7 +187,7 @@ PasteSafetyAnalysis analyzeTerminalPaste(
   );
 }
 
-/// 进程级粘贴安全护栏开关控制器（默认开启，商业生产运维防误触标准配置）。
+/// 进程级粘贴安全护栏开关控制器（默认开启，商业生产运维防误触标准配置；支持原子持久化）。
 class PasteSafetyController extends ChangeNotifier {
   PasteSafetyController({bool enabled = true}) : _enabled = enabled;
 
@@ -181,12 +200,71 @@ class PasteSafetyController extends ChangeNotifier {
   static set debugInstance(PasteSafetyController? controller) =>
       _instance = controller;
 
+  PasteSafetyStore? _store;
   bool _enabled;
-  bool get enabled => _enabled;
+  int _selectionRevision = 0;
+  bool _writeFailed = false;
+  int _writeRevision = 0;
+  Future<void>? _writeChain;
+  bool _disposed = false;
 
-  void setEnabled(bool value) {
-    if (_enabled == value) return;
-    _enabled = value;
-    notifyListeners();
+  bool get enabled => _enabled;
+  bool get writeFailed => _writeFailed;
+
+  /// 读取本机持久化偏好；若读取失败或文件损坏则保持安全默认值（开启）。
+  Future<void> load(PasteSafetyStore store) async {
+    _store = store;
+    final revision = _selectionRevision;
+    String? stored;
+    try {
+      stored = await store.read().timeout(const Duration(seconds: 2));
+    } on Object {
+      stored = null;
+    }
+    if (_disposed || revision != _selectionRevision) return;
+    final next = switch (stored?.trim()) {
+      '0' => false,
+      '1' => true,
+      _ => true,
+    };
+    if (next != _enabled) {
+      _enabled = next;
+      notifyListeners();
+    }
+  }
+
+  /// 立即更新开关状态并串行落盘持久化。
+  Future<void> setEnabled(bool value) {
+    _selectionRevision++;
+    if (_enabled != value) {
+      _enabled = value;
+      notifyListeners();
+    }
+    final store = _store;
+    if (store == null) return Future<void>.value();
+    final revision = ++_writeRevision;
+    final previous = _writeChain ?? Future<void>.value();
+    final next = previous.then((_) async {
+      if (revision != _writeRevision || _disposed) return;
+      var failed = false;
+      try {
+        await store.write(value ? '1' : '0');
+      } on Object {
+        failed = true;
+      }
+      if (revision != _writeRevision || _disposed) return;
+      if (failed != _writeFailed) {
+        _writeFailed = failed;
+        notifyListeners();
+      }
+    });
+    _writeChain = next;
+    return next;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

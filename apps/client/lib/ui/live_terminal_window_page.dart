@@ -8,6 +8,7 @@ import '../domain/vault_preference.dart';
 import '../terminal/keyword_highlighter.dart';
 import '../terminal/live_terminal_window.dart';
 import 'app_motion.dart';
+import 'paste_safety_dialog.dart';
 import 'terminal_palette.dart';
 import 'terminal_keybar.dart';
 import 'wallpaper.dart';
@@ -204,6 +205,12 @@ class _LiveTerminalWindowPageState extends State<LiveTerminalWindowPage> {
                     child: TerminalView(
                     client.terminal,
                     foregroundDecorator: TerminalKeywordHighlighter.instance,
+                    onBeforePaste: (ctx, text) => confirmTerminalPaste(
+                      ctx,
+                      text,
+                      bracketedPasteActive:
+                          client.terminal.bracketedPasteMode,
+                    ),
                     // Credential-free child window: no Vault preference is
                     // available, so it uses this device's palette overlay or
                     // the default terminal palette.

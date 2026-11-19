@@ -52,6 +52,7 @@ class SshConnectionHealth extends ChangeNotifier {
   int _bytesSent = 0;
   DateTime _lastActivityAt;
   bool _keepaliveTimedOut = false;
+  bool _probing = false;
   bool _disposed = false;
 
   SshHealthState get state => _state;
@@ -66,6 +67,21 @@ class SshConnectionHealth extends ChangeNotifier {
   int get bytesSent => _bytesSent;
   DateTime get lastActivityAt => _lastActivityAt;
   bool get keepaliveTimedOut => _keepaliveTimedOut;
+
+  /// 是否正在执行主动链路探活（用于状态栏与 iOS 顶栏给出即时反馈）。
+  bool get probing => _probing;
+
+  void beginProbe() {
+    if (_disposed || _state == SshHealthState.closed || _probing) return;
+    _probing = true;
+    notifyListeners();
+  }
+
+  void endProbe() {
+    if (_disposed || !_probing) return;
+    _probing = false;
+    notifyListeners();
+  }
 
   /// 当前连接持续在线时长（时钟回拨时自动钳制为非负）。
   Duration get uptime {
@@ -143,6 +159,7 @@ class SshConnectionHealth extends ChangeNotifier {
 
   void markClosed() {
     if (_disposed || _state == SshHealthState.closed) return;
+    _probing = false;
     _state = SshHealthState.closed;
     notifyListeners();
   }

@@ -4,17 +4,29 @@ import 'package:xterm/src/terminal.dart';
 import 'package:xterm/src/ui/controller.dart';
 import 'package:xterm/src/ui/selection_mode.dart';
 
+typedef TerminalPasteInterceptor = Future<String?> Function(
+  BuildContext context,
+  String text,
+);
+
 class TerminalActions extends StatelessWidget {
   const TerminalActions({
     super.key,
     required this.terminal,
     required this.controller,
+    this.readOnly = false,
+    this.onBeforePaste,
     required this.child,
   });
 
   final Terminal terminal;
 
   final TerminalController controller;
+
+  final bool readOnly;
+
+  /// 在执行粘贴写入终端前的可选异步拦截钩子；返回 `null` 表示取消粘贴。
+  final TerminalPasteInterceptor? onBeforePaste;
 
   final Widget child;
 
@@ -24,12 +36,18 @@ class TerminalActions extends StatelessWidget {
       actions: {
         PasteTextIntent: CallbackAction<PasteTextIntent>(
           onInvoke: (intent) async {
+            if (readOnly) return null;
             final data = await Clipboard.getData(Clipboard.kTextPlain);
             final text = data?.text;
-            if (text != null) {
-              terminal.paste(text);
-              controller.clearSelection();
+            if (text == null || !context.mounted) return null;
+            final interceptor = onBeforePaste;
+            final approved =
+                interceptor == null ? text : await interceptor(context, text);
+            if (approved == null || !context.mounted || readOnly) {
+              return null;
             }
+            terminal.paste(approved);
+            controller.clearSelection();
             return null;
           },
         ),

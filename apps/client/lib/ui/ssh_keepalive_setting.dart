@@ -262,7 +262,7 @@ class SshKeepaliveSetting extends StatelessWidget {
                 ),
               ),
               value: pasteSafety.enabled,
-              onChanged: pasteSafety.setEnabled,
+              onChanged: (value) => unawaited(pasteSafety.setEnabled(value)),
             ),
             Text(
               _t(
@@ -275,7 +275,7 @@ class SshKeepaliveSetting extends StatelessWidget {
               key: const ValueKey('ssh_keepalive_note'),
               style: secondary,
             ),
-            if (keepalive.writeFailed)
+            if (keepalive.writeFailed || pasteSafety.writeFailed)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Semantics(

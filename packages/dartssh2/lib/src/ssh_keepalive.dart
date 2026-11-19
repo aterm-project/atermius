@@ -38,7 +38,9 @@ class SSHKeepAlive {
   int _inFlightCount = 0;
   int _missedCount = 0;
   Duration? _lastLatency;
-  Future<Duration?>? _pendingManualProbe;
+  Completer<Duration?>? _activeProbeCompleter;
+  DateTime? _activeProbeDeadline;
+  void Function()? _activeProbeOnTimeout;
 
   SSHKeepAlive({
     required this.ping,
@@ -76,20 +78,33 @@ class SSHKeepAlive {
   }
 
   /// 立即发起一次带超时的探活（常用于休眠唤醒或 iOS/桌面端切回前台）。
-  /// 若当前已有手动探活在途，则复用同一 Future 避免重复发包。
+  ///
+  /// - 若当前已有周期探活或手动探活在途，则复用同一在途 Future 避免重复叠包；
+  /// - 若本次调用的 [timeout] 比在途探活的剩余超时窗口更短，则立即收紧超时定时器，
+  ///   确保前台切回能够在期望窗口内快速识别僵尸链路。
   Future<Duration?> probeNow({Duration? timeout}) {
     if (_dead) return Future<Duration?>.value(null);
-    final existing = _pendingManualProbe;
-    if (existing != null) return existing;
     final effectiveTimeout = timeout ?? this.timeout ?? const Duration(seconds: 5);
-    final future = _runProbe(timeoutOverride: effectiveTimeout, force: true);
-    _pendingManualProbe = future;
-    future.whenComplete(() {
-      if (identical(_pendingManualProbe, future)) {
-        _pendingManualProbe = null;
-      }
-    });
-    return future;
+    final activeCompleter = _activeProbeCompleter;
+    if (_awaitingActiveProbe &&
+        activeCompleter != null &&
+        !activeCompleter.isCompleted) {
+      _tightenActiveProbeTimeout(effectiveTimeout);
+      return activeCompleter.future;
+    }
+    return _runProbe(timeoutOverride: effectiveTimeout, force: true);
+  }
+
+  void _tightenActiveProbeTimeout(Duration timeout) {
+    final onTimeout = _activeProbeOnTimeout;
+    if (onTimeout == null) return;
+    final desiredDeadline = _now().add(timeout);
+    final currentDeadline = _activeProbeDeadline;
+    if (currentDeadline == null || desiredDeadline.isBefore(currentDeadline)) {
+      _activeProbeTimer?.cancel();
+      _activeProbeDeadline = desiredDeadline;
+      _activeProbeTimer = Timer(timeout, onTimeout);
+    }
   }
 
   Future<Duration?> _runProbe({
@@ -99,7 +114,10 @@ class SSHKeepAlive {
     if (_dead) return Future<Duration?>.value(null);
     if (!force && !_running) return Future<Duration?>.value(null);
     // 已有正在等待超时窗口的在途探测，或未配置超时且已有在途请求时，不重复叠包。
-    if (_awaitingActiveProbe) return Future<Duration?>.value(null);
+    if (_awaitingActiveProbe) {
+      final active = _activeProbeCompleter;
+      return active != null ? active.future : Future<Duration?>.value(null);
+    }
     final effectiveTimeout = timeoutOverride ?? timeout;
     if (effectiveTimeout == null && _inFlightCount > 0) {
       return Future<Duration?>.value(null);
@@ -115,29 +133,37 @@ class SSHKeepAlive {
     var settled = false;
     _inFlightCount++;
     _awaitingActiveProbe = true;
+    _activeProbeCompleter = completer;
 
-    Timer? probeTimer;
+    void clearActiveTracking() {
+      if (identical(_activeProbeCompleter, completer)) {
+        _activeProbeCompleter = null;
+        _activeProbeDeadline = null;
+        _activeProbeOnTimeout = null;
+        _activeProbeTimer?.cancel();
+        _activeProbeTimer = null;
+      }
+    }
+
+    void handleTimeout() {
+      if (settled) return;
+      settled = true;
+      _awaitingActiveProbe = false;
+      clearActiveTracking();
+      _recordMissed();
+      if (!completer.isCompleted) completer.complete(null);
+    }
+
+    _activeProbeOnTimeout = handleTimeout;
     if (effectiveTimeout != null) {
-      probeTimer = Timer(effectiveTimeout, () {
-        if (settled) return;
-        settled = true;
-        if (identical(_activeProbeTimer, probeTimer)) {
-          _activeProbeTimer = null;
-        }
-        _awaitingActiveProbe = false;
-        _recordMissed();
-        if (!completer.isCompleted) completer.complete(null);
-      });
-      _activeProbeTimer = probeTimer;
+      _activeProbeDeadline = startedAt.add(effectiveTimeout);
+      _activeProbeTimer = Timer(effectiveTimeout, handleTimeout);
     }
 
     Future<void>.sync(ping).then(
       (_) {
         _inFlightCount = _inFlightCount > 0 ? _inFlightCount - 1 : 0;
-        probeTimer?.cancel();
-        if (identical(_activeProbeTimer, probeTimer)) {
-          _activeProbeTimer = null;
-        }
+        clearActiveTracking();
         if (!settled) {
           settled = true;
           _awaitingActiveProbe = false;
@@ -155,10 +181,7 @@ class SSHKeepAlive {
       },
       onError: (Object error, StackTrace stackTrace) {
         _inFlightCount = _inFlightCount > 0 ? _inFlightCount - 1 : 0;
-        probeTimer?.cancel();
-        if (identical(_activeProbeTimer, probeTimer)) {
-          _activeProbeTimer = null;
-        }
+        clearActiveTracking();
         if (!settled) {
           settled = true;
           _awaitingActiveProbe = false;
@@ -189,5 +212,12 @@ class SSHKeepAlive {
     _timer = null;
     _activeProbeTimer?.cancel();
     _activeProbeTimer = null;
+    _activeProbeDeadline = null;
+    _activeProbeOnTimeout = null;
+    final pending = _activeProbeCompleter;
+    _activeProbeCompleter = null;
+    if (pending != null && !pending.isCompleted) {
+      pending.complete(null);
+    }
   }
 }

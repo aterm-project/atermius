@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
@@ -54,6 +56,7 @@ class TerminalView extends StatefulWidget {
     this.showKeyboardOnTap = true,
     this.simulateScroll = true,
     this.foregroundDecorator,
+    this.onBeforePaste,
   });
 
   /// The underlying terminal that this widget renders.
@@ -158,6 +161,9 @@ class TerminalView extends StatefulWidget {
   /// keyword highlighting. The terminal buffer is not changed. Null (the
   /// default) paints the buffer as is.
   final TerminalForegroundDecorator? foregroundDecorator;
+
+  /// 在通过快捷键或触控菜单向终端粘贴前的可选异步确认拦截器；返回 `null` 取消粘贴。
+  final TerminalPasteInterceptor? onBeforePaste;
 
   @override
   State<TerminalView> createState() => TerminalViewState();
@@ -338,6 +344,8 @@ class TerminalViewState extends State<TerminalView> {
     child = TerminalActions(
       terminal: widget.terminal,
       controller: _controller,
+      readOnly: widget.readOnly,
+      onBeforePaste: widget.onBeforePaste,
       child: child,
     );
 
@@ -441,8 +449,24 @@ class TerminalViewState extends State<TerminalView> {
 
   void _onTouchPaste(String text) {
     if (widget.readOnly) return;
-    widget.terminal.paste(text);
-    _scrollToBottom();
+    final interceptor = widget.onBeforePaste;
+    if (interceptor == null) {
+      widget.terminal.paste(text);
+      _scrollToBottom();
+      return;
+    }
+    final terminal = widget.terminal;
+    unawaited(() async {
+      final approved = await interceptor(context, text);
+      if (!mounted ||
+          widget.readOnly ||
+          !identical(terminal, widget.terminal) ||
+          approved == null) {
+        return;
+      }
+      terminal.paste(approved);
+      _scrollToBottom();
+    }());
   }
 
   bool get hasInputConnection {

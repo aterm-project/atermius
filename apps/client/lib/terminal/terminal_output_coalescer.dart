@@ -77,6 +77,18 @@ class TerminalOutputCoalescer {
     }
   }
 
+  static bool _isHighSurrogate(int codeUnit) =>
+      codeUnit >= 0xD800 && codeUnit <= 0xDBFF;
+
+  void _emitBatch(String batch) {
+    if (batch.isEmpty) return;
+    final now = _now();
+    _refreshWindow(now);
+    _windowFlushedChars += batch.length;
+    _flushedBatches++;
+    onFlush(batch);
+  }
+
   /// 推入一段来自 SSH / Telnet / 本机终端的新输出。
   void add(String data) {
     if (_closed || data.isEmpty) return;
@@ -93,16 +105,27 @@ class TerminalOutputCoalescer {
         _windowFlushedChars == 0;
 
     if (isIdle && data.length <= immediatePassThroughMaxChars) {
-      _windowFlushedChars += data.length;
-      _flushedBatches++;
-      onFlush(data);
+      if (_isHighSurrogate(data.codeUnitAt(data.length - 1))) {
+        // 避免闲时直通把末尾孤立高代理提前切出，留待下一包低代理拼合。
+        if (data.length > 1) {
+          _emitBatch(data.substring(0, data.length - 1));
+          if (_closed) return;
+          _buffer.writeCharCode(data.codeUnitAt(data.length - 1));
+        } else {
+          _coalescedChunks++;
+          _buffer.write(data);
+        }
+        _scheduleFrameTimer();
+        return;
+      }
+      _emitBatch(data);
       return;
     }
 
     _coalescedChunks++;
     _buffer.write(data);
     if (_buffer.length >= maxBatchChars) {
-      _drain(preserveTrailingHighSurrogate: true, respectBatchCap: true);
+      _drainFullBatches();
     } else if (_windowFlushedChars < microtaskBudgetChars &&
         _timer == null) {
       // Stage 1: 同事件轮连续短输出经微任务零延迟聚批。
@@ -119,7 +142,11 @@ class TerminalOutputCoalescer {
   void _onMicrotaskFlush() {
     _microtaskScheduled = false;
     if (_closed || _buffer.isEmpty) return;
-    _drain(preserveTrailingHighSurrogate: true, respectBatchCap: true);
+    _drain(
+      preserveTrailingHighSurrogate: true,
+      respectBatchCap: true,
+      allowEmitLoneSurrogate: false,
+    );
   }
 
   void _scheduleFrameTimer() {
@@ -127,7 +154,12 @@ class TerminalOutputCoalescer {
     _timer = Timer(burstWindow, () {
       _timer = null;
       if (_closed || _buffer.isEmpty) return;
-      _drain(preserveTrailingHighSurrogate: true, respectBatchCap: true);
+      // 完整帧窗口到期后，若缓冲里仍只有孤立高代理则放行，避免坏序列永久滞留。
+      _drain(
+        preserveTrailingHighSurrogate: true,
+        respectBatchCap: true,
+        allowEmitLoneSurrogate: true,
+      );
     });
   }
 
@@ -136,12 +168,41 @@ class TerminalOutputCoalescer {
     _timer?.cancel();
     _timer = null;
     if (_closed || _buffer.isEmpty) return;
-    _drain(preserveTrailingHighSurrogate: false, respectBatchCap: false);
+    _drain(
+      preserveTrailingHighSurrogate: false,
+      respectBatchCap: false,
+      allowEmitLoneSurrogate: true,
+    );
+  }
+
+  /// 当单次或累积推入超出 [maxBatchChars] 时，用线性游标顺序切出全部满批，
+  /// 避免大块洪流下每包只消费 1 批导致缓冲区净增长与 O(N²) 复制。
+  void _drainFullBatches() {
+    if (_closed || _buffer.isEmpty) return;
+    final raw = _buffer.toString();
+    _buffer.clear();
+
+    var offset = 0;
+    while (!_closed && raw.length - offset >= maxBatchChars) {
+      var end = offset + maxBatchChars;
+      if (_isHighSurrogate(raw.codeUnitAt(end - 1)) && end - offset > 1) {
+        end--;
+      }
+      final batch = raw.substring(offset, end);
+      offset = end;
+      _emitBatch(batch);
+    }
+
+    if (!_closed && offset < raw.length) {
+      _buffer.write(raw.substring(offset));
+      _scheduleFrameTimer();
+    }
   }
 
   void _drain({
     required bool preserveTrailingHighSurrogate,
     required bool respectBatchCap,
+    required bool allowEmitLoneSurrogate,
   }) {
     if (_buffer.isEmpty) return;
     final raw = _buffer.toString();
@@ -153,24 +214,25 @@ class TerminalOutputCoalescer {
     }
 
     // 边界切分时若末尾恰好落在一个高代理码元上，留给下一批与低代理拼合。
-    if (preserveTrailingHighSurrogate && splitAt > 1) {
-      final lastUnit = raw.codeUnitAt(splitAt - 1);
-      if (lastUnit >= 0xD800 && lastUnit <= 0xDBFF) {
+    if (preserveTrailingHighSurrogate &&
+        splitAt >= 1 &&
+        _isHighSurrogate(raw.codeUnitAt(splitAt - 1))) {
+      if (splitAt > 1 || !allowEmitLoneSurrogate) {
         splitAt--;
       }
     }
 
-    final batch = splitAt == raw.length ? raw : raw.substring(0, splitAt);
+    final batch = splitAt == 0
+        ? ''
+        : splitAt == raw.length
+        ? raw
+        : raw.substring(0, splitAt);
     if (splitAt < raw.length) {
       _buffer.write(raw.substring(splitAt));
     }
 
     if (batch.isNotEmpty) {
-      final now = _now();
-      _refreshWindow(now);
-      _windowFlushedChars += batch.length;
-      _flushedBatches++;
-      onFlush(batch);
+      _emitBatch(batch);
     }
 
     if (_buffer.isNotEmpty && !_closed) {
@@ -181,13 +243,16 @@ class TerminalOutputCoalescer {
   /// 关闭合批器并释放定时器；默认先将剩余输出全部冲刷以免丢失断线前最后几行日志。
   void close({bool flushPending = true}) {
     if (_closed) return;
+    // 先置关闭态再冲刷，防止 onFlush 回调重入 add()/close() 泄漏新定时器。
+    _closed = true;
     _timer?.cancel();
     _timer = null;
     if (flushPending && _buffer.isNotEmpty) {
-      _drain(preserveTrailingHighSurrogate: false, respectBatchCap: false);
+      final remaining = _buffer.toString();
+      _buffer.clear();
+      _emitBatch(remaining);
     } else {
       _buffer.clear();
     }
-    _closed = true;
   }
 }

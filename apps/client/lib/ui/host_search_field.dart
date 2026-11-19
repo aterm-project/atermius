@@ -77,6 +77,7 @@ class HostSearchField extends StatefulWidget {
     required this.onConnect,
     this.enabled = true,
     this.autofocus = false,
+    this.focusNode,
     this.onSearchSubmitted,
     this.captureTyping = false,
     this.active = true,
@@ -88,6 +89,7 @@ class HostSearchField extends StatefulWidget {
   final ValueChanged<QuickConnectRequest> onConnect;
   final bool enabled;
   final bool autofocus;
+  final FocusNode? focusNode;
   final VoidCallback? onSearchSubmitted;
 
   /// Home page behaviour. The field takes the focus when its page is shown
@@ -111,7 +113,10 @@ class HostSearchField extends StatefulWidget {
 }
 
 class _HostSearchFieldState extends State<HostSearchField> {
-  final FocusNode _focusNode = FocusNode(debugLabel: 'host_search_field');
+  FocusNode? _ownedFocusNode;
+  FocusNode get _focusNode =>
+      widget.focusNode ??
+      (_ownedFocusNode ??= FocusNode(debugLabel: 'host_search_field'));
   ModalRoute<Object?>? _route;
   bool _capturingKeys = false;
   bool _focused = false;
@@ -157,7 +162,7 @@ class _HostSearchFieldState extends State<HostSearchField> {
   void dispose() {
     if (_capturingKeys) HardwareKeyboard.instance.removeHandler(_onKey);
     widget.controller.removeListener(_handleControllerChanged);
-    _focusNode.dispose();
+    _ownedFocusNode?.dispose();
     super.dispose();
   }
 

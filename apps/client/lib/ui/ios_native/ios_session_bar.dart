@@ -102,7 +102,12 @@ class IosSessionBar extends StatelessWidget {
       if (onProbeHealth != null && current != null && current.isConnected)
         WorkspaceAction(
           'ios_session_probe_health',
-          isZh ? '立即探活链路' : 'Probe Link Health',
+          switch (Localizations.localeOf(context).languageCode) {
+            'zh' => '立即探活链路',
+            'ja' => '接続を即時確認',
+            'ru' => 'Проверить канал сейчас',
+            _ => 'Probe Link Health',
+          },
           Icons.network_check_rounded,
           onProbeHealth!,
         ),
@@ -386,8 +391,12 @@ class _SessionTitleSwitcherState extends State<_SessionTitleSwitcher> {
             SshHealthState.stale => c.destructive,
             _ => c.online,
           };
+    final probing = current.isConnected && health?.probing == true;
     final rtt = current.isConnected ? health?.lastRtt : null;
-    final showRtt = rtt != null && maxWidth >= 150;
+    final badgeText = probing
+        ? '…'
+        : (rtt == null ? null : SshConnectionHealth.formatRtt(rtt));
+    final showBadge = badgeText != null && maxWidth >= 150;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -401,10 +410,10 @@ class _SessionTitleSwitcherState extends State<_SessionTitleSwitcher> {
             style: IosType.headline.copyWith(color: c.label),
           ),
         ),
-        if (showRtt) ...[
+        if (showBadge) ...[
           const SizedBox(width: 5),
           Text(
-            SshConnectionHealth.formatRtt(rtt),
+            badgeText,
             key: const ValueKey('ios_session_bar_rtt'),
             maxLines: 1,
             softWrap: false,

@@ -441,6 +441,9 @@ class SSHClient {
 
   Timer? _authTimeoutTimer;
 
+  Future<Duration?>? _pendingDirectProbe;
+  int _directProbeMissed = 0;
+
   /// A [Future] that completes when the client has authenticated, or
   /// completes with an error if the client could not authenticate.
   Future<void> get authenticated => _authenticated.future;
@@ -931,13 +934,34 @@ class SSHClient {
     if (keepAlive != null) {
       return keepAlive.probeNow(timeout: timeout);
     }
+    final existing = _pendingDirectProbe;
+    if (existing != null) return existing;
+    final future = _runDirectProbe(timeout);
+    _pendingDirectProbe = future;
+    future.whenComplete(() {
+      if (identical(_pendingDirectProbe, future)) {
+        _pendingDirectProbe = null;
+      }
+    });
+    return future;
+  }
+
+  Future<Duration?> _runDirectProbe(Duration timeout) async {
     final startedAt = DateTime.now();
     try {
       await ping().timeout(timeout);
+      if (isClosed) return null;
       final rtt = DateTime.now().difference(startedAt);
       final normalized = rtt.isNegative ? Duration.zero : rtt;
+      _directProbeMissed = 0;
       onKeepAliveLatency?.call(normalized);
       return normalized;
+    } on TimeoutException {
+      if (!isClosed) {
+        _directProbeMissed++;
+        onKeepAliveMissed?.call(_directProbeMissed);
+      }
+      return null;
     } catch (_) {
       return null;
     }
@@ -962,6 +986,7 @@ class SSHClient {
   Future<void> close() async {
     _handshakeTimeoutTimer?.cancel();
     _authTimeoutTimer?.cancel();
+    _keepAlive?.stop();
     final error = SSHStateError('SSH client closed');
     _terminatePendingOperations(error);
     _closeChannels(error);

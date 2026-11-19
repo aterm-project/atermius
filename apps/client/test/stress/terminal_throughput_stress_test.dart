@@ -82,6 +82,80 @@ void main() {
         expect(coalescer.isClosed, isTrue);
       });
     });
+
+    test('TerminalOutputCoalescer 闲时单高代理不撕裂、超大块流不堆积、close 重入无泄漏', () {
+      fakeAsync((async) {
+        var now = DateTime.utc(2026, 11, 19, 12, 0, 0);
+        final flushed = <String>[];
+        late TerminalOutputCoalescer coalescer;
+        coalescer = TerminalOutputCoalescer(
+          onFlush: flushed.add,
+          burstWindow: const Duration(milliseconds: 8),
+          maxBatchChars: 1024,
+          immediatePassThroughMaxChars: 256,
+          now: () => now,
+        );
+
+        // 1. 闲时仅收到高代理 0xD83D -> 暂存不直通；紧接低代理 0xDE80 -> 合并为完整 🚀
+        coalescer.add('\uD83D');
+        expect(flushed, isEmpty, reason: '闲时单个高代理不得被提前直通撕裂');
+        coalescer.add('\uDE80ok');
+        async.elapse(const Duration(milliseconds: 8));
+        expect(flushed, ['\u{1F680}ok']);
+
+        // 2. 闲时短包末尾含高代理 -> 前缀直通、高代理等待下一包拼合
+        flushed.clear();
+        now = now.add(const Duration(seconds: 1));
+        coalescer.add('hi\uD83D');
+        expect(flushed, ['hi']);
+        coalescer.add('\uDE80!');
+        async.elapse(const Duration(milliseconds: 8));
+        expect(flushed, ['hi', '\u{1F680}!']);
+
+        // 3. 真正孤立的坏高代理在完整帧窗口到期后释放，不永久卡死
+        flushed.clear();
+        now = now.add(const Duration(seconds: 1));
+        coalescer.add('\uD83D');
+        expect(flushed, isEmpty);
+        now = now.add(const Duration(milliseconds: 8));
+        async.elapse(const Duration(milliseconds: 8));
+        expect(flushed, ['\uD83D']);
+
+        // 4. 连续推入 20 个 2500 字符大块（> maxBatchChars=1024）：缓冲残余严控 < maxBatchChars
+        flushed.clear();
+        final bigChunk = 'B' * 2500;
+        for (var i = 0; i < 20; i++) {
+          coalescer.add(bigChunk);
+          expect(
+            coalescer.pendingChars,
+            lessThan(1024),
+            reason: '超大块连续推入不得导致缓冲区净增长',
+          );
+        }
+        coalescer.close(flushPending: true);
+        expect(flushed.join().length, 2500 * 20);
+
+        // 5. close(flushPending: true) 期间 onFlush 重入 add() 不得泄漏新定时器
+        final reentrantFlushed = <String>[];
+        late TerminalOutputCoalescer reentrant;
+        reentrant = TerminalOutputCoalescer(
+          onFlush: (batch) {
+            reentrantFlushed.add(batch);
+            reentrant.add('should-be-ignored-after-close');
+          },
+          maxBatchChars: 1024,
+          immediatePassThroughMaxChars: 0,
+          now: () => now,
+        );
+        reentrant.add('tail-before-close');
+        reentrant.close(flushPending: true);
+        expect(reentrant.isClosed, isTrue);
+        expect(reentrant.pendingChars, 0);
+        expect(reentrantFlushed, ['tail-before-close']);
+        async.elapse(const Duration(seconds: 1));
+        expect(reentrantFlushed, ['tail-before-close']);
+      });
+    });
   });
 
   group('商业级高吞吐终端压测 (Log Flood + Multi-Session Concurrency)', () {

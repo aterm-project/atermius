@@ -184,10 +184,22 @@ class _StatusBarHealthPillState extends State<_StatusBarHealthPill> {
     super.dispose();
   }
 
+  static String _t(
+    BuildContext context, {
+    required String zh,
+    required String en,
+    required String ja,
+    required String ru,
+  }) => switch (Localizations.maybeLocaleOf(context)?.languageCode) {
+    'zh' => zh,
+    'ja' => ja,
+    'ru' => ru,
+    _ => en,
+  };
+
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final isZh = Localizations.maybeLocaleOf(context)?.languageCode == 'zh';
     return ListenableBuilder(
       listenable: widget.health,
       builder: (context, _) {
@@ -200,11 +212,25 @@ class _StatusBarHealthPillState extends State<_StatusBarHealthPill> {
           SshHealthState.closed => palette.muted,
         };
         final parts = <String>[];
-        if (h.missedProbes > 0) {
+        if (h.probing) {
           parts.add(
-            isZh
-                ? '探活丢包 ${h.missedProbes}/${h.maxMissedThreshold}'
-                : 'Missed ${h.missedProbes}/${h.maxMissedThreshold}',
+            _t(
+              context,
+              zh: '探活中…',
+              en: 'Probing…',
+              ja: '確認中…',
+              ru: 'Проверка…',
+            ),
+          );
+        } else if (h.missedProbes > 0) {
+          parts.add(
+            _t(
+              context,
+              zh: '探活丢包 ${h.missedProbes}/${h.maxMissedThreshold}',
+              en: 'Missed ${h.missedProbes}/${h.maxMissedThreshold}',
+              ja: '応答欠損 ${h.missedProbes}/${h.maxMissedThreshold}',
+              ru: 'Потери ${h.missedProbes}/${h.maxMissedThreshold}',
+            ),
           );
         } else if (h.lastRtt != null) {
           parts.add(SshConnectionHealth.formatRtt(h.lastRtt!));
@@ -257,7 +283,13 @@ class _StatusBarHealthPillState extends State<_StatusBarHealthPill> {
         final onTap = widget.onTap;
         if (onTap == null) return content;
         return Tooltip(
-          message: isZh ? '点击立即探活链路延迟' : 'Click to probe SSH link now',
+          message: _t(
+            context,
+            zh: '点击立即探活链路延迟',
+            en: 'Click to probe SSH link now',
+            ja: 'クリックして SSH 接続を即時確認',
+            ru: 'Нажмите для проверки канала SSH',
+          ),
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(

@@ -68,6 +68,7 @@ import 'host_card_layout.dart';
 import 'terminal_palette.dart';
 import 'terminal_keyword_highlight_settings.dart';
 import 'terminal_palette_picker.dart';
+import 'paste_safety_dialog.dart';
 import 'session_reconnect_setting.dart';
 import 'ssh_keepalive_setting.dart';
 import 'terminal_scrollback_setting.dart';
@@ -9846,6 +9847,11 @@ return DesktopView(
             builder: (context, fontScale) => TerminalView(
               tab.terminal,
               foregroundDecorator: TerminalKeywordHighlighter.instance,
+              onBeforePaste: (ctx, text) => confirmTerminalPaste(
+                ctx,
+                text,
+                bracketedPasteActive: tab.terminal.bracketedPasteMode,
+              ),
               key: _viewKeyFor(id),
               controller: search.controller,
               scrollController: search.scrollController,
@@ -9947,6 +9953,11 @@ return DesktopView(
       builder: (context, fontScale) => TerminalView(
         tab.terminal,
         foregroundDecorator: TerminalKeywordHighlighter.instance,
+        onBeforePaste: (ctx, text) => confirmTerminalPaste(
+          ctx,
+          text,
+          bracketedPasteActive: tab.terminal.bracketedPasteMode,
+        ),
         key: viewKey,
         controller: _searchFor(tab).controller,
         scrollController: _searchFor(tab).scrollController,
@@ -10059,6 +10070,11 @@ return DesktopView(
             builder: (context, fontScale) => TerminalView(
               tab.terminal,
               foregroundDecorator: TerminalKeywordHighlighter.instance,
+              onBeforePaste: (ctx, text) => confirmTerminalPaste(
+                ctx,
+                text,
+                bracketedPasteActive: tab.terminal.bracketedPasteMode,
+              ),
               key: _viewKeyFor(tab.id),
               controller: search.controller,
               scrollController: search.scrollController,
@@ -12163,6 +12179,12 @@ class _TerminalObserverDialogState extends State<_TerminalObserverDialog> {
                         builder: (context, fontScale) => TerminalView(
                           widget.observer.terminal,
                           foregroundDecorator: TerminalKeywordHighlighter.instance,
+                          onBeforePaste: (ctx, text) => confirmTerminalPaste(
+                            ctx,
+                            text,
+                            bracketedPasteActive:
+                                widget.observer.terminal.bracketedPasteMode,
+                          ),
                           key: _terminalViewKey,
                           focusNode: _terminalFocusNode,
                           readOnly: !hasController,

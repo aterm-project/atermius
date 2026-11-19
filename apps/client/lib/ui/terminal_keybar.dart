@@ -704,10 +704,12 @@ class _TerminalKeybarState extends State<TerminalKeybar>
       String tooltip,
       VoidCallback? onPressed, {
       bool selected = false,
+      TooltipTriggerMode? tooltipTriggerMode,
     }) => _KeySpec(
       measure(label),
       Tooltip(
         message: tooltip,
+        triggerMode: tooltipTriggerMode,
         child: TextButton(
           style: iosPhone
               ? buttonStyle
@@ -742,18 +744,25 @@ class _TerminalKeybarState extends State<TerminalKeybar>
       String? tooltip,
       bool repeatable = false,
     ]) {
-      final spec = button(
-        label,
-        tooltip ?? label,
-        widget.readOnly ? null : () => _send(key),
-      );
-      if (!repeatable) return spec;
+      if (!repeatable) {
+        return button(
+          label,
+          tooltip ?? label,
+          widget.readOnly ? null : () => _send(key),
+        );
+      }
       return _KeySpec(
-        spec.width,
+        measure(label),
         _RepeatableKeyListener(
           enabled: !widget.readOnly,
-          onRepeat: () => _send(key),
-          child: spec.child,
+          onTrigger: () => _send(key),
+          builder: (_, onPressed) => button(
+            label,
+            tooltip ?? label,
+            onPressed,
+            // 长按连发键禁止长按弹出 Tooltip 气球遮挡操作区（悬停提示不受影响）。
+            tooltipTriggerMode: TooltipTriggerMode.manual,
+          ).child,
         ),
       );
     }
@@ -765,13 +774,14 @@ class _TerminalKeybarState extends State<TerminalKeybar>
           measure('←'),
           _RepeatableKeyListener(
             enabled: !widget.readOnly,
-            onRepeat: () => _send(key),
-            child: Tooltip(
+            onTrigger: () => _send(key),
+            builder: (_, onPressed) => Tooltip(
               message: name,
+              triggerMode: TooltipTriggerMode.manual,
               child: TextButton(
                 key: ValueKey('terminal-keybar-arrow-${direction.name}'),
                 style: buttonStyle,
-                onPressed: widget.readOnly ? null : () => _send(key),
+                onPressed: onPressed,
                 child: Semantics(
                   label: name,
                   child: wrapKeycap(
@@ -1141,20 +1151,21 @@ class _TerminalKeybarState extends State<TerminalKeybar>
 
 /// 长按连发监听器：面向移动端运维方向键（← ↑ ↓ →）与退格/删除键（⌫ / Del）。
 ///
-/// 使用被动 [Listener] 而不抢占手势竞技场：
-/// - 单击行为完全交由内部按钮处理；
-/// - 按住静止超过 380ms 后以 55ms 步进连续触发 [onRepeat]；
+/// 使用被动 [Listener] 而不抢占手势竞技场，并与内部按钮的 `onPressed` 协同去重：
+/// - 短按（< 380ms）由内部按钮正常触发 1 次；
+/// - 按住静止超过 380ms 后以 55ms 步进连续触发 [onTrigger]，松手时抑制内部按钮的
+///   抬起点击回调，彻底消除长按松手后“多移动一格 / 多删一字符”的卡顿误操作；
 /// - 一旦手指滑出（横向滚动键栏超过 12px）、抬起、取消、禁用或组件销毁立即撤除定时器，绝不卡键。
 class _RepeatableKeyListener extends StatefulWidget {
   const _RepeatableKeyListener({
     required this.enabled,
-    required this.onRepeat,
-    required this.child,
+    required this.onTrigger,
+    required this.builder,
   });
 
   final bool enabled;
-  final VoidCallback onRepeat;
-  final Widget child;
+  final VoidCallback onTrigger;
+  final Widget Function(BuildContext context, VoidCallback? onPressed) builder;
 
   @override
   State<_RepeatableKeyListener> createState() => _RepeatableKeyListenerState();
@@ -1169,14 +1180,28 @@ class _RepeatableKeyListenerState extends State<_RepeatableKeyListener> {
   Timer? _repeatTimer;
   int? _activePointer;
   Offset? _downPosition;
+  bool _didRepeat = false;
+  bool _suppressNextTap = false;
 
-  void _cancel() {
+  void _cancel({bool keepTapSuppression = false}) {
+    final repeated = _didRepeat;
     _delayTimer?.cancel();
     _delayTimer = null;
     _repeatTimer?.cancel();
     _repeatTimer = null;
     _activePointer = null;
     _downPosition = null;
+    _didRepeat = false;
+    if (keepTapSuppression && repeated) {
+      _suppressNextTap = true;
+      // 若手势最终未触发按钮 onPressed（如手指滑出区域外抬起），在当前事件轮结束后自动复位，
+      // 防止吞掉用户的下一次正常单击。
+      scheduleMicrotask(() {
+        if (mounted) _suppressNextTap = false;
+      });
+    } else if (!keepTapSuppression) {
+      _suppressNextTap = false;
+    }
   }
 
   void _start(PointerDownEvent event) {
@@ -1187,15 +1212,25 @@ class _RepeatableKeyListenerState extends State<_RepeatableKeyListener> {
     _delayTimer = Timer(_initialDelay, () {
       _delayTimer = null;
       if (!mounted || !widget.enabled) return;
-      widget.onRepeat();
+      _didRepeat = true;
+      widget.onTrigger();
       _repeatTimer = Timer.periodic(_repeatInterval, (_) {
         if (!mounted || !widget.enabled) {
           _cancel();
           return;
         }
-        widget.onRepeat();
+        widget.onTrigger();
       });
     });
+  }
+
+  void _handlePressed() {
+    if (!widget.enabled) return;
+    if (_suppressNextTap) {
+      _suppressNextTap = false;
+      return;
+    }
+    widget.onTrigger();
   }
 
   @override
@@ -1218,16 +1253,18 @@ class _RepeatableKeyListenerState extends State<_RepeatableKeyListener> {
       if (event.pointer != _activePointer || _downPosition == null) return;
       if ((event.position - _downPosition!).distanceSquared >
           _cancelSlopSquared) {
-        _cancel();
+        _cancel(keepTapSuppression: true);
       }
     },
     onPointerUp: (event) {
-      if (event.pointer == _activePointer) _cancel();
+      if (event.pointer == _activePointer) {
+        _cancel(keepTapSuppression: true);
+      }
     },
     onPointerCancel: (event) {
       if (event.pointer == _activePointer) _cancel();
     },
-    child: widget.child,
+    child: widget.builder(context, widget.enabled ? _handlePressed : null),
   );
 }
 

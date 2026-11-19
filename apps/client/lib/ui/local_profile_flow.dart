@@ -79,6 +79,7 @@ import '../terminal/connect_progress.dart';
 import 'session_recovery_overlay.dart';
 import 'connect_progress_view.dart';
 import '../platform/application_windows.dart';
+import 'paste_safety_dialog.dart';
 import 'session_workspace.dart';
 import 'ssh_forwarding_page.dart';
 import 'ssh_keepalive_setting.dart';
@@ -5238,6 +5239,12 @@ _showMessage(
                               builder: (context, fontScale) => TerminalView(
                                 session.terminal,
                                 foregroundDecorator: TerminalKeywordHighlighter.instance,
+                                onBeforePaste: (ctx, text) => confirmTerminalPaste(
+                                  ctx,
+                                  text,
+                                  bracketedPasteActive:
+                                      session.terminal.bracketedPasteMode,
+                                ),
                                 key: ValueKey('local_telnet_view_${session.id}'),
                                 autofocus: _selectedTabId == id,
                                 readOnly: !session.connected.value,
@@ -5259,6 +5266,12 @@ _showMessage(
                               builder: (context, fontScale) => TerminalView(
                                 session.terminal,
                                 foregroundDecorator: TerminalKeywordHighlighter.instance,
+                                onBeforePaste: (ctx, text) => confirmTerminalPaste(
+                                  ctx,
+                                  text,
+                                  bracketedPasteActive:
+                                      session.terminal.bracketedPasteMode,
+                                ),
                                 autofocus: _selectedTabId == id,
                                 readOnly: !session.connected.value,
                                 backgroundOpacity: wallpaperTerminalBackgroundOpacity(context),
@@ -8674,6 +8687,11 @@ throw StateError(context.l10n.snippetChanged);
                 builder: (context, fontScale) => TerminalView(
                   _terminal,
                   foregroundDecorator: TerminalKeywordHighlighter.instance,
+                  onBeforePaste: (ctx, text) => confirmTerminalPaste(
+                    ctx,
+                    text,
+                    bracketedPasteActive: _terminal.bracketedPasteMode,
+                  ),
                   key: const ValueKey('local_ssh_terminal_view'),
                   readOnly: !widget.session.connected.value,
                   controller: _terminalController,

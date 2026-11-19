@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/l10n/app_localizations.dart';
 import 'package:aterm_client/ssh/ssh_connection_health.dart';
+import 'package:aterm_client/storage/paste_safety_store.dart';
+import 'package:aterm_client/storage/paste_safety_store_native.dart';
 import 'package:aterm_client/terminal/paste_safety.dart';
 import 'package:aterm_client/terminal/session_reconnect_policy.dart';
 import 'package:aterm_client/terminal/session_recovery.dart';
@@ -54,15 +58,25 @@ void main() {
 
       final dangerous = <String, String>{
         'sudo rm -rf /var/lib/data': 'rm_rf',
+        'rm -r -f /srv/cache': 'rm_rf',
+        'rm -f -r /srv/cache': 'rm_rf',
+        'rm --recursive --force /srv/cache': 'rm_rf',
+        'rm -rfv /tmp/release': 'rm_rf',
         'mkfs.ext4 /dev/nvme0n1': 'disk_format',
         'dd if=/dev/zero of=/dev/sda': 'disk_format',
+        'dd bs=4M of=/dev/nvme0n1 if=/dev/zero': 'disk_format',
         'sudo shutdown -h now': 'power_control',
+        'sudo systemctl poweroff': 'power_control',
+        'systemctl reboot': 'power_control',
         'chmod -R 777 /etc': 'chmod_777',
+        'chmod 777 -R /etc': 'chmod_777',
         'iptables -F': 'firewall_flush',
         'DROP DATABASE production;': 'sql_drop',
         'FLUSHALL': 'sql_drop',
         'kubectl delete namespace prod': 'k8s_delete_ns',
         'curl -fsSL https://example.invalid/install.sh | bash': 'pipe_shell',
+        'curl -fsSL https://example.invalid/install.sh | /bin/bash':
+            'pipe_shell',
         ':(){ :|:& };:': 'fork_bomb',
       };
       for (final entry in dangerous.entries) {
@@ -81,6 +95,133 @@ void main() {
           reason: entry.key,
         );
       }
+
+      // 回归测试：以 rm 结尾的普通单词（terraform / alarm）与普通参数不得误报为高危命令。
+      for (final benign in const [
+        'terraform -fr plan',
+        'alarm -fr --check',
+        'add if=value',
+        'echo platform -rf',
+      ]) {
+        expect(
+          analyzeTerminalPaste(benign).level,
+          PasteRiskLevel.safe,
+          reason: '无害命令不应误报: $benign',
+        );
+      }
+    });
+
+    test('PasteSafetyController 支持原子落盘持久化、重启恢复与写失败状态汇报', () async {
+      final dir = await Directory.systemTemp.createTemp('paste-safety-test-');
+      addTearDown(() => dir.delete(recursive: true));
+      final store = FilePasteSafetyStore(directory: () async => dir);
+
+      final first = PasteSafetyController();
+      addTearDown(first.dispose);
+      await first.load(store);
+      expect(first.enabled, isTrue);
+
+      await first.setEnabled(false);
+      expect(first.enabled, isFalse);
+      expect(await store.read(), '0');
+
+      // 模拟重启 App 后重新加载持久化配置
+      final restored = PasteSafetyController();
+      addTearDown(restored.dispose);
+      await restored.load(store);
+      expect(restored.enabled, isFalse);
+
+      // 模拟落盘失败
+      final failingStore = MemoryPasteSafetyStore()
+        ..failWith = const FileSystemException('read-only fs');
+      final failCtrl = PasteSafetyController();
+      addTearDown(failCtrl.dispose);
+      await failCtrl.load(failingStore);
+      await failCtrl.setEnabled(false);
+      expect(failCtrl.enabled, isFalse);
+      expect(failCtrl.writeFailed, isTrue);
+    });
+
+    testWidgets('桌面端 TerminalView 快捷键粘贴 (PasteTextIntent) 同样受安全护栏与只读保护', (
+      tester,
+    ) async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.getData') {
+              return <String, Object?>{'text': 'sudo rm -rf /srv/db'};
+            }
+            return null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+
+      final output = <String>[];
+      final terminal = Terminal()..onOutput = output.add;
+      final focus = FocusNode();
+      addTearDown(focus.dispose);
+
+      await tester.pumpWidget(
+        _localizedApp(
+          TerminalView(
+            terminal,
+            focusNode: focus,
+            autofocus: true,
+            onBeforePaste: (ctx, text) => confirmTerminalPaste(
+              ctx,
+              text,
+              bracketedPasteActive: terminal.bracketedPasteMode,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 触发桌面端粘贴 Intent（等价于 Cmd+V / Ctrl+Shift+V）
+      final terminalContext = tester.element(find.byType(TerminalView));
+      // 向上/向内派发 PasteTextIntent 到 TerminalActions 内部焦点上下文
+      final actionsContext = tester.element(find.byType(Scrollable).first);
+      Actions.invoke(
+        actionsContext,
+        const PasteTextIntent(SelectionChangedCause.keyboard),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('paste_safety_dialog')),
+        findsOneWidget,
+        reason: '桌面端快捷键粘贴高危命令必须弹出安全确认框',
+      );
+      await tester.tap(find.byKey(const ValueKey('paste_safety_cancel')));
+      await tester.pumpAndSettle();
+      expect(output, isEmpty);
+      expect(terminalContext.mounted, isTrue);
+
+      // 只读状态下桌面快捷键粘贴不得写入也不得弹窗
+      await tester.pumpWidget(
+        _localizedApp(
+          TerminalView(
+            terminal,
+            focusNode: focus,
+            readOnly: true,
+            onBeforePaste: (ctx, text) => confirmTerminalPaste(
+              ctx,
+              text,
+              bracketedPasteActive: terminal.bracketedPasteMode,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final roContext = tester.element(find.byType(Scrollable).first);
+      Actions.invoke(
+        roContext,
+        const PasteTextIntent(SelectionChangedCause.keyboard),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('paste_safety_dialog')), findsNothing);
+      expect(output, isEmpty);
     });
 
     testWidgets('弹窗支持取消、去除尾部换行粘贴与原样粘贴，且四语 390px 无溢出', (tester) async {
@@ -254,6 +395,106 @@ void main() {
       expect(find.byKey(const ValueKey('host_search_palette')), findsNothing);
       expect(selection, isNull);
     });
+
+    testWidgets('列表动态缩短不卡死、视口内按键不乱跳、点击过滤芯片后按 Enter 仍直连', (
+      tester,
+    ) async {
+      final changes = ChangeNotifier();
+      addTearDown(changes.dispose);
+      var hosts = List.generate(
+        8,
+        (i) => HostRecord(
+          id: 'h$i',
+          name: 'node-0$i',
+          address: '198.51.100.${i + 1}',
+          protocol: i.isEven ? HostProtocol.ssh : HostProtocol.telnet,
+        ),
+      );
+      HostSearchSelection? selection;
+
+      await tester.pumpWidget(
+        _localizedApp(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                selection = await showHostSearchPalette(
+                  context,
+                  hosts: () => hosts,
+                  groups: const {},
+                  fieldKey: const ValueKey('palette_field_adv'),
+                  isCurrent: () => true,
+                  changes: changes,
+                );
+              },
+              child: const Text('OpenAdv'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('OpenAdv'));
+      await tester.pumpAndSettle();
+
+      // 按一次 ↓ 选中第 1 项（仍在视口内）：列表滚动偏移应保持为 0 不乱跳
+      final scrollable = tester.state<ScrollableState>(
+        find.descendant(
+          of: find.byKey(const ValueKey('host_search_palette')),
+          matching: find.byType(Scrollable),
+        ).first,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(
+        scrollable.position.pixels,
+        0.0,
+        reason: '选中项仍在视口内时列表不得强行跳顶滚动',
+      );
+
+      // 按 6 次 ↓ 到达末尾第 7 项（_selectedIndex = 7）
+      for (var i = 0; i < 6; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+      }
+      // 模拟后台主机列表突然缩短为 3 项，再按一次 ↓ 必须绕回第 0 项（h0）而非卡在 h2
+      hosts = hosts.take(3).toList();
+      changes.notifyListeners();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(selection?.hostId, 'h0');
+
+      // 重新打开，先验证中文输入法组字期间按 Esc 不会意外关闭搜索面板
+      selection = null;
+      await tester.tap(find.text('OpenAdv'));
+      await tester.pumpAndSettle();
+      final textField = tester.widget<TextField>(
+        find.byKey(const ValueKey('palette_field_adv')),
+      );
+      textField.controller!.value = const TextEditingValue(
+        text: 'beijing',
+        selection: TextSelection.collapsed(offset: 7),
+        composing: TextRange(start: 0, end: 7),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('host_search_palette')),
+        findsOneWidget,
+        reason: 'IME 组字选词阶段按 Esc 必须交给输入法，不得关闭搜索面板',
+      );
+      textField.controller!.value = TextEditingValue.empty;
+      await tester.pump();
+
+      // 点击 SSH 过滤芯片后使用回车提交仍直连首台 SSH 主机
+      await tester.tap(find.widgetWithText(ChoiceChip, 'SSH'));
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(selection?.hostId, 'h0');
+    });
   });
 
   group('状态栏 / iOS 顶栏 / 恢复蒙层的实时链路健康指示', () {
@@ -295,6 +536,19 @@ void main() {
       health.recordProbeMissed(1);
       await tester.pump();
       expect(find.text('探活丢包 1/3 · 2h 14m'), findsOneWidget);
+
+      // 手动探活进行中 -> 展示探活中反馈，结束后恢复
+      health.beginProbe();
+      await tester.pump();
+      expect(find.text('探活中… · 2h 14m'), findsOneWidget);
+      health.endProbe();
+      await tester.pump();
+
+      // 320px 极窄分屏下带健康胶囊零溢出
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pump();
       expect(tester.takeException(), isNull);
     });
 
@@ -422,12 +676,25 @@ void main() {
         await gesture.up();
         await tester.pump(const Duration(milliseconds: 300));
         final countAfterRelease = output.where((s) => s == '\x1b[D').length;
-        // 松手后除 TextButton 抬起点击外不应再持续递增
+        expect(
+          countAfterRelease,
+          countWhileHeld,
+          reason: '长按连发松手后必须抑制按钮抬起点击，不得多发 1 次左移',
+        );
         await tester.pump(const Duration(milliseconds: 300));
         expect(
           output.where((s) => s == '\x1b[D').length,
           countAfterRelease,
           reason: '松手后定时器必须立即停止',
+        );
+
+        // 松手后紧接一次普通短按仍必须精准触发 1 次
+        await tester.tap(leftArrow);
+        await tester.pump();
+        expect(
+          output.where((s) => s == '\x1b[D').length,
+          countAfterRelease + 1,
+          reason: '连发去重标记复位后短按必须恢复正常单次触发',
         );
       } finally {
         debugDefaultTargetPlatformOverride = null;

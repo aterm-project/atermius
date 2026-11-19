@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:aterm_client/l10n/app_localizations.dart';
 import 'package:aterm_client/ssh/ssh_connection_health.dart';
 import 'package:aterm_client/ssh/ssh_keepalive_policy.dart';
+import 'package:aterm_client/ssh/ssh_service.dart';
 import 'package:aterm_client/storage/ssh_keepalive_store.dart';
 import 'package:aterm_client/storage/ssh_keepalive_store_native.dart';
 import 'package:aterm_client/terminal/session_reconnect_policy.dart';
@@ -199,6 +200,107 @@ void main() {
         async.flushMicrotasks();
       });
     });
+
+    test('周期探测在途时 probeNow 复用同一 Future 并可收紧超时窗口，不误返 null', () {
+      fakeAsync((async) {
+        var now = DateTime.utc(2026, 11, 19, 12, 0, 0);
+        var pingCalls = 0;
+        final pending = <Completer<void>>[];
+        final missed = <int>[];
+
+        final watchdog = SSHKeepAlive(
+          interval: const Duration(seconds: 15),
+          timeout: const Duration(seconds: 10),
+          maxMissed: 3,
+          now: () => now,
+          ping: () {
+            pingCalls++;
+            final c = Completer<void>();
+            pending.add(c);
+            return c.future;
+          },
+          onMissed: missed.add,
+        );
+
+        watchdog.start();
+        // t=15s 周期探活发出，原超时窗口在 t=25s。
+        now = now.add(const Duration(seconds: 15));
+        async.elapse(const Duration(seconds: 15));
+        expect(pingCalls, 1);
+
+        // t=16s 切回前台调用 probeNow(timeout: 3s)：必须复用在途探测而不额外发包，
+        // 若在 1s 后成功回包则应拿到真实 RTT 而非虚假 null。
+        now = now.add(const Duration(seconds: 1));
+        async.elapse(const Duration(seconds: 1));
+        Duration? manualResult;
+        var manualDone = false;
+        watchdog.probeNow(timeout: const Duration(seconds: 3)).then((v) {
+          manualResult = v;
+          manualDone = true;
+        });
+        expect(pingCalls, 1, reason: '周期探测在途时 probeNow 不得叠包');
+        expect(manualDone, isFalse, reason: '不得同步误返 null');
+
+        now = now.add(const Duration(milliseconds: 500));
+        pending.first.complete();
+        async.flushMicrotasks();
+        expect(manualDone, isTrue);
+        expect(manualResult, const Duration(milliseconds: 1500));
+        expect(missed, isEmpty);
+
+        // 下一轮周期探测 t=30s 发出，t=31s 切回前台要求 2s 超时 -> 应在 t=33s（而非 t=40s）判定超时。
+        now = now.add(const Duration(seconds: 14));
+        async.elapse(const Duration(seconds: 14));
+        expect(pingCalls, 2);
+
+        now = now.add(const Duration(seconds: 1));
+        async.elapse(const Duration(seconds: 1));
+        var tightenedDone = false;
+        Duration? tightenedResult = const Duration(seconds: 99);
+        watchdog.probeNow(timeout: const Duration(seconds: 2)).then((v) {
+          tightenedResult = v;
+          tightenedDone = true;
+        });
+        now = now.add(const Duration(seconds: 2));
+        async.elapse(const Duration(seconds: 2));
+        expect(tightenedDone, isTrue, reason: 'probeNow 较短超时应立即收紧在途探测截止时间');
+        expect(tightenedResult, isNull);
+        expect(missed, [1]);
+
+        watchdog.stop();
+        for (final c in pending) {
+          if (!c.isCompleted) c.completeError(SSHSocketError('closed'));
+        }
+        async.flushMicrotasks();
+      });
+    });
+
+    test('stop() 立即以 null 完结在途 probeNow Future，避免调用方永久挂起', () {
+      fakeAsync((async) {
+        final stuck = Completer<void>();
+        final watchdog = SSHKeepAlive(
+          interval: const Duration(seconds: 60),
+          timeout: const Duration(seconds: 10),
+          maxMissed: 3,
+          ping: () => stuck.future,
+        );
+
+        watchdog.start();
+        var completed = false;
+        Duration? result = const Duration(seconds: 1);
+        watchdog.probeNow(timeout: const Duration(seconds: 5)).then((v) {
+          completed = true;
+          result = v;
+        });
+        expect(completed, isFalse);
+
+        // 底层 ping 永不返回时调用 stop()，probeNow 必须立即释放调用方。
+        watchdog.stop();
+        async.flushMicrotasks();
+        expect(completed, isTrue);
+        expect(result, isNull);
+      });
+    });
   });
 
   group('SshKeepalivePolicy & Store & Controller', () {
@@ -345,8 +447,45 @@ void main() {
       expect(SshConnectionHealth.formatRtt(const Duration(milliseconds: 24)), '24ms');
       expect(SshConnectionHealth.formatRtt(const Duration(milliseconds: 1250)), '1.3s');
 
+      health.beginProbe();
+      expect(health.probing, isTrue);
       health.markClosed();
       expect(health.state, SshHealthState.closed);
+      expect(health.probing, isFalse);
+    });
+
+    test('SshConnection.probeLiveness 连续刷新 RTT、上报超时并在探活结束复位 probing', () async {
+      final probeResults = <Duration?>[
+        const Duration(milliseconds: 20),
+        const Duration(milliseconds: 180),
+        null,
+      ];
+      var call = 0;
+      final client = _FakeProbeClient(
+        onProbe: (_) async => probeResults[call++],
+      );
+      final health = SshConnectionHealth(maxMissedThreshold: 3);
+      addTearDown(health.dispose);
+      final connection = SshConnection(
+        client: client,
+        session: _FakeProbeSession(),
+        health: health,
+      );
+
+      expect(await connection.probeLiveness(), isTrue);
+      expect(health.lastRtt, const Duration(milliseconds: 20));
+      expect(health.probing, isFalse);
+
+      // 第二次手动探活必须刷新 RTT 为 180ms（不得停留在第一次的 20ms）
+      expect(await connection.probeLiveness(), isTrue);
+      expect(health.lastRtt, const Duration(milliseconds: 180));
+      expect(health.probesSucceeded, 2);
+
+      // 第三次超时返回 null -> 即使底层未绑定 onKeepAliveMissed 也应记录丢包进入 degraded
+      expect(await connection.probeLiveness(), isFalse);
+      expect(health.missedProbes, 1);
+      expect(health.state, SshHealthState.degraded);
+      expect(health.probing, isFalse);
     });
 
     test('SessionRecovery 精准记录恢复次数与断线原因码', () {
@@ -484,4 +623,29 @@ void main() {
       });
     }
   });
+}
+
+class _FakeProbeClient implements SSHClient {
+  _FakeProbeClient({required this.onProbe});
+
+  final Future<Duration?> Function(Duration timeout) onProbe;
+
+  @override
+  bool get isClosed => false;
+
+  @override
+  Future<void> get done => Completer<void>().future;
+
+  @override
+  Future<Duration?> probeKeepAlive({
+    Duration timeout = const Duration(seconds: 5),
+  }) => onProbe(timeout);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeProbeSession implements SSHSession {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

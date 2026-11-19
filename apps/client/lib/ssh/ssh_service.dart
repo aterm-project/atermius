@@ -438,7 +438,27 @@ class SshConnection {
   SshKeepaliveHold? _keepalive;
   Timer? _rekeyTimer;
   bool _rekeying = false;
+  bool _doneCleanupBound = false;
   bool _execOpenPending = false;
+
+  void _ensureDoneCleanupBound() {
+    if (_doneCleanupBound) return;
+    _doneCleanupBound = true;
+    try {
+      client.done.then<void>(
+        (_) {
+          _stopLongSessionMaintenance();
+          health.markClosed();
+        },
+        onError: (Object _, StackTrace _) {
+          _stopLongSessionMaintenance();
+          health.markClosed();
+        },
+      );
+    } catch (_) {
+      // Test doubles may not implement `done`; close() still cleans up.
+    }
+  }
 
   /// Moves the connect attempt's background keepalive hold to this open
   /// transport. It is released by [close] or when the SSH client ends, so a
@@ -451,18 +471,11 @@ class SshConnection {
       SshKeepaliveKind.connected,
       onUserDisconnect: () => unawaited(_closeQuietly(client.close)),
     );
+    _ensureDoneCleanupBound();
     try {
       client.done.then<void>(
-        (_) {
-          _stopLongSessionMaintenance();
-          health.markClosed();
-          hold.release();
-        },
-        onError: (Object _, StackTrace _) {
-          _stopLongSessionMaintenance();
-          health.markClosed();
-          hold.release();
-        },
+        (_) => hold.release(),
+        onError: (Object _, StackTrace _) => hold.release(),
       );
     } catch (_) {
       // Test doubles may not implement `done`; close() still releases.
@@ -473,6 +486,7 @@ class SshConnection {
   void startLongSessionMaintenance({Duration? rekeyInterval}) {
     _stopLongSessionMaintenance();
     if (rekeyInterval == null || rekeyInterval <= Duration.zero) return;
+    _ensureDoneCleanupBound();
     _rekeyTimer = Timer.periodic(rekeyInterval, (_) {
       if (_rekeying || health.state == SshHealthState.closed) return;
       _rekeying = true;
@@ -506,6 +520,7 @@ class SshConnection {
     Duration timeout = const Duration(seconds: 5),
   }) async {
     if (health.state == SshHealthState.closed) return false;
+    health.beginProbe();
     try {
       if (client.isClosed) {
         health.markClosed();
@@ -518,15 +533,29 @@ class SshConnection {
           return false;
         }
       }
+      final probesBefore = health.probesSucceeded;
+      final missedBefore = health.totalMissedProbes;
       final rtt = await client.probeKeepAlive(timeout: timeout);
-      if (rtt == null) return false;
-      // 当 client 未绑定自动保活或为自定义工厂实例时，确保健康快照也能同步最新 RTT。
-      if (health.lastRtt == null || health.missedProbes > 0) {
+      if (rtt == null) {
+        if (client.isClosed) {
+          health.markClosed();
+        } else if (health.totalMissedProbes == missedBefore &&
+            health.state != SshHealthState.closed) {
+          // 当底层未绑定 onKeepAliveMissed 回调（例如关闭周期保活或自定义工厂）时，
+          // 仍将本次探活失败同步至健康快照，避免界面持续展示虚假健康状态。
+          health.recordProbeMissed(health.missedProbes + 1);
+        }
+        return false;
+      }
+      // 若底层回调未同步更新（例如自定义工厂实例），补记本次 RTT 以确保每次手动探活均刷新。
+      if (health.probesSucceeded == probesBefore) {
         health.recordProbeSuccess(rtt);
       }
       return true;
     } catch (_) {
       return false;
+    } finally {
+      health.endProbe();
     }
   }
 
