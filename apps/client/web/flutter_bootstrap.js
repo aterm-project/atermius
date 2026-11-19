@@ -139,6 +139,17 @@ async function loadAtermiusFlutter() {
   // only after the legacy service-worker migration had its chance to reload,
   // so the old worker cannot answer these fetches from a stale cache.
   splash?.startBackgroundPreload?.();
+  // The loader adds the app bundle as a script tag and never reports it when
+  // that tag fails to load: the page stayed on "Starting Atermius…" for
+  // good. Script load errors do not bubble, so listen in the capture phase.
+  window.addEventListener('error', (event) => {
+    const target = event.target;
+    if (target instanceof HTMLScriptElement &&
+        /\/main\.dart\.(?:js|mjs)(?:\?|$)/.test(target.src)) {
+      console.error('Atermius app bundle failed to load');
+      splash?.fail?.('bundle-load');
+    }
+  }, true);
   const config = {
     // Bundle CanvasKit and fallback fonts locally under the same-origin CSP.
     canvasKitBaseUrl: 'canvaskit/',

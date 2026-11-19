@@ -354,10 +354,62 @@
     }
   }
 
+  // A failed start is retried by reloading, but only twice per tab: a bundle
+  // that stays unreachable (deploy in progress, network down) must not turn
+  // into a reload every 1.5 s. After that the page says so and waits.
+  var RELOAD_KEY = "atermius.startup-reload.v1";
+  var MAX_AUTO_RELOADS = 2;
+
+  function readReloadAttempts() {
+    try {
+      var value = Number(window.sessionStorage.getItem(RELOAD_KEY) || "0");
+      return Number.isInteger(value) && value >= 0 ? value : MAX_AUTO_RELOADS;
+    } catch (_) {
+      return MAX_AUTO_RELOADS; // no storage to count in: do not loop
+    }
+  }
+
+  function clearReloadAttempts() {
+    try {
+      window.sessionStorage.removeItem(RELOAD_KEY);
+    } catch (_) {
+      // Nothing to clear.
+    }
+  }
+
+  function showStartFailure() {
+    if (!wordmarkEl) return;
+    wordmarkEl.textContent =
+      "Atermius could not start. Check the connection, then reload the page.";
+    var reload = document.createElement("button");
+    reload.type = "button";
+    reload.textContent = "Reload page";
+    reload.style.cssText =
+      "display:block;margin:16px auto 0;padding:8px 16px;font:inherit;" +
+      "color:inherit;background:transparent;border:1px solid currentColor;" +
+      "border-radius:8px;cursor:pointer";
+    reload.addEventListener("click", function () {
+      clearReloadAttempts();
+      window.location.reload();
+    });
+    wordmarkEl.appendChild(reload);
+  }
+
   function applyFailure(code) {
-    if (state.released) return;
+    if (state.released || state.failed) return;
     state.failed = code || "startup";
     stopAnimation();
+    var attempts = readReloadAttempts();
+    if (attempts >= MAX_AUTO_RELOADS) {
+      showStartFailure();
+      return;
+    }
+    try {
+      window.sessionStorage.setItem(RELOAD_KEY, String(attempts + 1));
+    } catch (_) {
+      showStartFailure();
+      return;
+    }
     if (wordmarkEl) {
       wordmarkEl.textContent = "Atermius could not start. Reloading…";
     }
@@ -404,6 +456,7 @@
     startBackgroundPreload: startBackgroundPreload,
     onFlutterRunning: function () {
       state.flutterRunning = true;
+      clearReloadAttempts();
     },
     notifyAuthResolved: function (detail) {
       state.authResolved = detail;
