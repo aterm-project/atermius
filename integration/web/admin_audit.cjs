@@ -13,6 +13,7 @@ const crypto = require('node:crypto');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
+const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -575,6 +576,16 @@ async function rotateScrapeCredentialFromSettings(
       ]);
       return copied || copyFailed;
     }, 10000);
+    // On a retry the failure label of the rejected attempt is still on
+    // screen when the click returns; give the retried copy time to replace
+    // it before taking the snapshot the assertion below judges.
+    await waitFor(async () => {
+      const [copied, copyFailed] = await Promise.all([
+        hasVisibleSemanticText(page, 'Copied'),
+        hasVisibleSemanticText(page, 'Copy failed; select the value manually'),
+      ]);
+      return copied && !copyFailed;
+    }, 10000).catch(() => {});
     const [copiedLabelVisible, copyFailureVisible] = await Promise.all([
       hasVisibleSemanticText(page, 'Copied'),
       hasVisibleSemanticText(page, 'Copy failed; select the value manually'),
@@ -798,8 +809,46 @@ async function configurePage(page, baseUrl) {
   await page.evaluate(async () => { await window.sodium.ready; });
   await page.locator('flt-semantics-placeholder').evaluate((element) => element.click());
   await waitFor(() => page.evaluate(() => document.querySelectorAll('flt-semantics').length > 0), 15000);
-  await fill(page, 'Server URL', baseUrl);
-  await click(page, 'Connect securely');
+  await expectHostedSignIn(page, baseUrl);
+}
+
+// Instance administration lives in the dedicated Admin panel (/admin). Its
+// section list can repeat a workspace sidebar name ("Audit log"), so pick the
+// section button inside the panel: the right-most button with that name.
+async function openAdminSection(page, section) {
+  // A sidebar tooltip left by the previous hover can cover the next item.
+  await page.mouse.move(900, 940);
+  // Opening the panel again while it is showing would rebuild it under the
+  // section click that follows.
+  if (new URL(page.url()).pathname !== '/admin') {
+    await click(page, 'Admin');
+    await waitFor(() => new URL(page.url()).pathname === '/admin');
+  }
+  await button(page, 'Instance overview');
+  const candidates = page.getByRole('button', { name: section, exact: true });
+  let chosen;
+  let chosenX = -1;
+  const count = await candidates.count();
+  for (let index = 0; index < count; index += 1) {
+    const box = await candidates.nth(index).boundingBox();
+    if (box && box.x > chosenX) {
+      chosen = candidates.nth(index);
+      chosenX = box.x;
+    }
+  }
+  assertThat(chosen && chosenX > 150, 'Admin panel section was not offered');
+  await page.mouse.move(900, 940);
+  await chosen.click();
+  await page.mouse.move(900, 940);
+}
+
+async function appearsWithin(page, label, timeoutMs = 10000) {
+  try {
+    await waitFor(() => hasVisibleSemanticText(page, label), timeoutMs);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 async function createAdminAccount(page, baseUrl, apiEvents) {
@@ -824,7 +873,7 @@ async function createAdminAccount(page, baseUrl, apiEvents) {
   await click(page, 'Create owner account');
   bootstrapToken = undefined;
   setStage('wait for allowlisted administrator workspace');
-  await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+  await waitForWorkspaceHome(page, { notice: 'expect' });
   setStage('read allowlisted registration response');
   const register = await waitForEvent(apiEvents,
     (event) => event.route === 'register' && event.sequence >= start);
@@ -975,46 +1024,37 @@ async function main() {
     }
     reportBoolean('admin_audit_pagination_fixture_created', true);
 
-    setStage('navigate allowlisted administrator to Settings');
-    await click(adminPage, 'Settings');
-    setStage('verify Settings page navigation');
-    await adminPage.waitForTimeout(500);
-    const settingsDiagnostics = await adminPage.evaluate(() => {
-      const semantics = [...document.querySelectorAll('flt-semantics')]
-        .map((element) => `${element.innerText || ''}\n${element.getAttribute('aria-label') || ''}`)
-        .join('\n');
-      const visibleText = `${document.body.innerText || ''}\n${semantics}`;
-      return {
-        workspaceSettingsPresent: visibleText.includes('Workspace settings'),
-        auditCardPresent: visibleText.includes('Instance admin audit'),
-        metricsCredentialCardPresent: visibleText.includes('Prometheus scrape credential'),
-        overviewCardPresent: visibleText.includes('Instance admin overview'),
-        vaultCardPresent: visibleText.includes('Instance Vault quotas'),
-        settingsNavPresent: visibleText.includes('Settings'),
-      };
-    });
-    for (const [key, value] of Object.entries(settingsDiagnostics)) {
-      reportBoolean(`settings_dom_${key}`, value);
-    }
-    await waitFor(() => hasVisibleSemanticText(adminPage, 'Workspace settings'), 15000);
+    // The instance-admin cards moved from Settings to the Admin panel, one
+    // section per function: overview and scrape credential under "Instance
+    // overview", quotas under "Vaults and quotas", the audit card under
+    // "Audit log".
+    setStage('navigate allowlisted administrator to the Admin panel');
+    await openAdminSection(adminPage, 'Instance overview');
+    setStage('verify Admin panel navigation');
+    await waitFor(() => hasVisibleSemanticText(adminPage, 'Administration'), 15000);
     setStage('inspect administrator card visibility');
-    const overviewCardVisible = await hasVisibleSemanticText(adminPage, 'Instance admin overview');
-    const vaultCardVisible = await hasVisibleSemanticText(adminPage, 'Instance Vault quotas');
-    const adminAuditCardVisible = await hasVisibleSemanticText(adminPage, 'Instance admin audit');
-    const metricsCredentialCardVisible = await hasVisibleSemanticText(
+    const overviewCardVisible = await appearsWithin(adminPage, 'Instance admin overview');
+    const metricsCredentialCardVisible = await appearsWithin(
       adminPage, 'Prometheus scrape credential');
+    await openAdminSection(adminPage, 'Vaults and quotas');
+    const vaultCardVisible = await appearsWithin(adminPage, 'Instance Vault quotas');
+    await openAdminSection(adminPage, 'Audit log');
+    const adminAuditCardVisible = await appearsWithin(adminPage, 'Instance admin audit');
     reportBoolean('admin_overview_card_visible', overviewCardVisible);
     reportBoolean('admin_vault_card_visible', vaultCardVisible);
     reportBoolean('admin_audit_card_visible', adminAuditCardVisible);
     reportBoolean('admin_metrics_credential_card_visible', metricsCredentialCardVisible);
     assertThat(overviewCardVisible && vaultCardVisible && adminAuditCardVisible &&
         metricsCredentialCardVisible,
-      'allowlisted instance admin cards were not visible in Settings');
+      'allowlisted instance admin cards were not visible in the Admin panel');
+    await openAdminSection(adminPage, 'Instance overview');
+    await waitFor(() => hasVisibleSemanticText(adminPage, 'Prometheus scrape credential'));
     if (AUDIT_PAGINATION_ONLY) {
       reportBoolean('metrics_credential_ui_skipped_for_focused_audit_acceptance', true);
     } else {
       await exerciseScrapeCredentialSettings(adminPage, baseUrl, adminAccessToken, apiEvents);
     }
+    await openAdminSection(adminPage, 'Audit log');
     const loadStart = apiEvents.length;
     setStage('click Load admin audit');
     await click(adminPage, 'Load admin audit');
@@ -1068,9 +1108,9 @@ async function main() {
     assertThat(actorAndResourceValid,
       'admin feed omitted the expected actor/action or exposed an unprotected Vault ID');
     setStage('render localized admin audit action in Settings card');
-    await waitFor(() => hasVisibleSemanticText(adminPage, '管理员已更改 Vault 配额'));
+    await waitFor(() => hasVisibleSemanticText(adminPage, 'An administrator changed the Vault quota'));
     const localizedActionVisible = await hasVisibleSemanticText(
-      adminPage, '管理员已更改 Vault 配额');
+      adminPage, 'An administrator changed the Vault quota');
     const rawActionVisible = await hasVisibleSemanticText(adminPage, 'admin.vault_quota_set');
     reportBoolean('admin_audit_action_localized', localizedActionVisible);
     reportBoolean('admin_audit_action_key_hidden', !rawActionVisible);
@@ -1109,9 +1149,9 @@ async function main() {
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Page 2'));
     if (!AUDIT_PAGINATION_ONLY) {
       const rotateActionLocalized = await hasVisibleSemanticText(
-        adminPage, '管理员已轮换 Prometheus 抓取凭据');
+        adminPage, 'An administrator rotated the Prometheus scrape credential');
       const revokeActionLocalized = await hasVisibleSemanticText(
-        adminPage, '管理员已撤销 Prometheus 抓取凭据');
+        adminPage, 'An administrator revoked the Prometheus scrape credential');
       const rawRotateActionVisible = await hasVisibleSemanticText(
         adminPage, 'admin.metrics_credential_rotated');
       const rawRevokeActionVisible = await hasVisibleSemanticText(
@@ -1159,7 +1199,7 @@ async function main() {
     assertThat(expiredCursorResponse.status === 410 &&
         expiredCursorCode === 'AUDIT_CURSOR_EXPIRED',
       'admin audit did not reject a cursor from the previous server generation');
-    await waitFor(() => hasVisibleSemanticText(adminPage, '管理员审计游标已过期'));
+    await waitFor(() => hasVisibleSemanticText(adminPage, 'The admin audit cursor expired'));
     const reloadFirstPageButton = await button(adminPage, 'Reload first page');
     reportStatus('admin_audit_generation_expired_cursor', expiredCursorResponse.status);
     reportBoolean('admin_audit_generation_error_retry_visible', true);
@@ -1192,7 +1232,7 @@ async function main() {
     await adminPage.waitForTimeout(500);
     setStage('inspect recovered admin audit error and retry controls');
     const expiredCursorErrorVisible = await hasVisibleSemanticText(
-      adminPage, '管理员审计游标已过期');
+      adminPage, 'The admin audit cursor expired');
     const reloadFirstPageVisible = await hasVisibleSemanticText(
       adminPage, 'Reload first page');
     console.log(`assert: admin_audit_recovered_surface=${JSON.stringify({
@@ -1244,7 +1284,7 @@ async function main() {
     assertThat(invitationPage.response.status === 200 && invitationPage.response.hasBearer,
       'admin audit refresh omitted the real account invitation event');
     const invitationLabelVisible = await hasVisibleSemanticText(
-      adminPage, '实例管理员邀请已签发');
+      adminPage, 'Instance admin invitation issued');
     const invitationKeyVisible = await hasVisibleSemanticText(
       adminPage, 'instance.account_invitation_issued');
     reportBoolean('invitation_audit_action_localized', invitationLabelVisible);
@@ -1266,11 +1306,17 @@ async function main() {
     await fill(memberPage, 'Device name', 'Non-admin audit acceptance');
     await fill(memberPage, 'First Vault', 'Non-admin audit acceptance');
     await click(memberPage, 'Create invited account');
-    await (await button(memberPage, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+    await waitForWorkspaceHome(memberPage, { notice: 'expect' });
 
     setStage('verify non-admin Settings omit instance admin audit');
+    // These cards live in the Admin panel, which a non-admin account is not
+    // offered; Settings, their former home, must not show them either.
+    await button(memberPage, 'Settings');
+    const memberHasAdminEntry = await memberPage
+      .getByRole('button', { name: 'Admin', exact: true }).first().isVisible().catch(() => false);
+    assertThat(!memberHasAdminEntry, 'non-admin profile was offered the Admin panel');
     await click(memberPage, 'Settings');
-    await waitFor(() => hasVisibleSemanticText(memberPage, 'Workspace settings'));
+    await button(memberPage, 'Account and device information');
     const memberHasAdminAuditCard = await hasVisibleSemanticText(memberPage, 'Instance admin audit');
     const memberHasMetricsCredentialCard = await hasVisibleSemanticText(
       memberPage, 'Prometheus scrape credential');
@@ -1349,9 +1395,9 @@ async function main() {
     assertThat(accountActionsPage.response.status === 200 && accountActionsPage.response.hasBearer,
       'admin audit refresh omitted an account lifecycle event');
     const localizedAccountActions = [
-      ['admin.account_session_revoked', '管理员已撤销账户会话'],
-      ['admin.account_disabled', '管理员已停用账户'],
-      ['admin.account_enabled', '管理员已启用账户'],
+      ['admin.account_session_revoked', 'An administrator revoked an account session'],
+      ['admin.account_disabled', 'An administrator disabled the account'],
+      ['admin.account_enabled', 'An administrator enabled the account'],
     ];
     for (const [action, label] of localizedAccountActions) {
       const localizedVisible = await scrollToAuditLabel(adminPage, label);

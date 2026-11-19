@@ -4,6 +4,30 @@
 
 Commands and paths below run from a full monorepo checkout, which includes both the API source and the client that builds the compiled frontend. Historical acceptance counts belong to their named version/run; they are not a current full-suite pass. Missing environment/fixture skips require explicit reporting. Use only disposable test accounts and targets.
 
+## Entry flow and script status (2026-11-19)
+
+The browser build signs in to the server that serves it (commit 4305565): no
+workspace-mode chooser, no `Server URL` field, no `Connect securely` step and
+no local mode. The first unlock on a device shows a one-time
+credential-visibility notice. Scripts share these entry steps through
+`support/hosted_web.cjs` (`expectHostedSignIn`, `waitForWorkspaceHome`).
+
+Scripts that follow the current UI and pass on the current bundle:
+`test:password-change`, `test:session-refresh-multitab`, `test:admin-audit`,
+`test:admin-accounts`, `test:admin-push-health`, `test:admin-relay-policy`,
+`test:admin-relay-groups`, `test:admin-jobs`, `test:admin-restore-stage`.
+
+Scripts that still describe an earlier UI, in part or in whole, and fail until
+they are brought up to date: `cross_profile_sync.cjs` (`test:profiles`,
+`test:multi-vault-switch` and its other modes), `workspace_layout.cjs`, and
+every script not listed above that still starts with `Server URL`.
+
+`test:local-profile`, `test:local-to-sync-migration` and
+`test:local-quota-recovery` exercise the browser's local mode, which the
+browser build no longer has. They cannot pass on the current bundle and are
+kept only as a record until someone decides whether local mode gets native
+coverage instead.
+
 ## Web profile acceptance
 
 `WEB-IT-01` runs the compiled Flutter Web app in two isolated Chromium browser

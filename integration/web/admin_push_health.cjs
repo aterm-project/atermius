@@ -1,6 +1,6 @@
 /*
  * WEB-ADMIN-PUSH-HEALTH-01: exercise the admin-only aggregate push snapshot
- * and read-only Settings card in Flutter Web against a disposable instance.
+ * and read-only Admin panel card in Flutter Web against a disposable instance.
  * Output is restricted to fixed stages, HTTP statuses and booleans.
  */
 
@@ -12,6 +12,7 @@ const crypto = require('node:crypto');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
+const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -270,8 +271,7 @@ async function configurePage(page, baseUrl) {
   await page.evaluate(async () => { await window.sodium.ready; });
   await page.locator('flt-semantics-placeholder').evaluate((element) => element.click());
   await waitFor(() => page.evaluate(() => document.querySelectorAll('flt-semantics').length > 0), 15000);
-  await fill(page, 'Server URL', baseUrl);
-  await click(page, 'Connect securely');
+  await expectHostedSignIn(page, baseUrl);
 }
 
 function cliToken(args, serverEnv, description) {
@@ -387,7 +387,7 @@ async function createAdmin(page, baseUrl, events) {
   const start = events.length;
   await click(page, 'Create owner account');
   bootstrapToken = undefined;
-  await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+  await waitForWorkspaceHome(page, { notice: 'expect' });
   const registration = events.find((event, index) =>
     index >= start && event.route === 'register');
   assertThat(registration && registration.status >= 200 && registration.status < 300,
@@ -413,7 +413,7 @@ async function createMember(page, baseUrl, events) {
   await fill(page, 'First Vault', 'Push health acceptance member');
   const start = events.length;
   await click(page, 'Create invited account');
-  await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+  await waitForWorkspaceHome(page, { notice: 'expect' });
   const registration = events.find((event, index) =>
     index >= start && event.route === 'register');
   assertThat(registration && registration.status >= 200 && registration.status < 300,
@@ -499,8 +499,15 @@ async function main() {
     reportBoolean('member_registration_completed', true);
 
     setStage('verify non-admin card and endpoint are denied');
+    // The card lives in the instance administration panel, which a
+    // non-admin account is not offered; Settings, its former home, must not
+    // show it either.
+    await button(memberPage, 'Settings');
+    const memberAdminEntryVisible = await memberPage
+      .getByRole('button', { name: 'Admin', exact: true }).first().isVisible().catch(() => false);
+    assertThat(!memberAdminEntryVisible, 'non-admin profile was offered the Admin panel');
     await click(memberPage, 'Settings');
-    await waitFor(() => hasVisibleSemanticText(memberPage, 'Workspace settings'));
+    await button(memberPage, 'Account and device information');
     const memberCardVisible = await hasVisibleSemanticText(memberPage, 'Push provider health');
     assertThat(!memberCardVisible, 'non-admin profile rendered the push health card');
     const memberRead = await directApi(baseUrl, memberAccessToken);
@@ -509,7 +516,8 @@ async function main() {
     reportBoolean('non_admin_card_hidden_and_api_denied', true);
 
     setStage('verify admin loading error and retry flow');
-    await click(adminPage, 'Settings');
+    await click(adminPage, 'Admin');
+    await waitFor(() => new URL(adminPage.url()).pathname === '/admin');
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Push provider health'));
     const loadButton = await button(adminPage, 'Load push health');
     let injectedFailure = false;
@@ -526,7 +534,7 @@ async function main() {
       }
     });
     await loadButton.click();
-    await waitFor(() => hasVisibleSemanticText(adminPage, '无法加载推送服务状态'));
+    await waitFor(() => hasVisibleSemanticText(adminPage, "Couldn't load push service status"));
     reportBoolean('admin_error_state_rendered', true);
     await adminPage.unroute(`**${PUSH_HEALTH_PATH}`);
     setStage('retry actual push health endpoint');

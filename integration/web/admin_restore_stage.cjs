@@ -15,6 +15,7 @@ const crypto = require('node:crypto');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
+const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 const WEB_ROOT = path.join(ROOT, 'apps/client/build/web');
@@ -343,8 +344,61 @@ async function configurePage(page, baseUrl) {
   await page.evaluate(async () => { await window.sodium.ready; });
   await page.locator('flt-semantics-placeholder').evaluate((element) => element.click());
   await waitFor(() => page.evaluate(() => document.querySelectorAll('flt-semantics').length > 0), 15000);
-  await fill(page, 'Server URL', baseUrl);
-  await click(page, 'Connect securely');
+  // The browser build signs in to the server that serves it; there is no
+  // server address step.
+  await expectHostedSignIn(page, baseUrl);
+}
+
+async function visibleButtonBoxes(page, label) {
+  const buttons = page.getByRole('button', { name: label, exact: true });
+  const boxes = [];
+  const count = await buttons.count().catch(() => 0);
+  for (let index = 0; index < count; index += 1) {
+    const candidate = buttons.nth(index);
+    if (!await candidate.isVisible().catch(() => false)) continue;
+    const box = await candidate.boundingBox().catch(() => null);
+    if (box) boxes.push({ locator: candidate, box });
+  }
+  return boxes;
+}
+
+// Instance administration lives on its own workspace page (/admin) with its
+// own section list. Some section titles ("Audit log") also name a workspace
+// sidebar entry, so the section button is picked by its column: the one
+// aligned with the "Instance overview" section button.
+async function openAdminSection(page, sectionTitle) {
+  if (new URL(page.url()).pathname !== '/admin') {
+    await click(page, 'Admin');
+  }
+  await waitFor(async () => new URL(page.url()).pathname === '/admin' &&
+    (await visibleButtonBoxes(page, 'Instance overview')).length === 1, 30000);
+  const [anchor] = await visibleButtonBoxes(page, 'Instance overview');
+  const candidates = (await visibleButtonBoxes(page, sectionTitle))
+    .filter(({ box }) => Math.abs(box.x - anchor.box.x) < 2);
+  assertThat(candidates.length === 1, 'Admin section list did not offer exactly one matching section');
+  await candidates[0].locator.click();
+  await page.waitForTimeout(200);
+  assertThat(new URL(page.url()).pathname === '/admin', 'Admin section selection left the Admin page');
+}
+
+async function openSettingsPage(page) {
+  await click(page, 'Settings');
+  await waitFor(async () => new URL(page.url()).pathname === '/settings' &&
+    (await visibleButtonBoxes(page, 'Account security')).length === 1, 30000);
+}
+
+const ADMIN_BACKUP_SECTION = 'Backup, restore and maintenance';
+const ADMIN_AUDIT_SECTION = 'Audit log';
+
+// AdminJobPage (server/openapi.yaml) also carries the runtime capability
+// list; this SQLite fixture has no off-site replication target configured,
+// so replica restore must not be advertised.
+function jobsPageShapeValid(payload) {
+  return exactKeys(payload, ['jobs', 'total', 'supported_actions']) &&
+    JSON.stringify(payload.supported_actions) === JSON.stringify([
+      'maintenance', 'backup', 'restore', 'backup_status', 'backup_replication',
+      'backup_schedule', 'restore_stage_discard',
+    ]);
 }
 
 function apiRoute(request) {
@@ -777,9 +831,12 @@ async function armRestoreWorkerBreakpoint(server, privateRoot) {
     line.startsWith('fn read_encrypted_archive('));
   const readArchiveEnd = sourceLines.findIndex((line, index) =>
     index > readArchiveStart && line.startsWith('fn validate_manifest('));
+  // Server commit af0c8da moved the per-file sync of the archive reader into
+  // a match arm (the archived database key is kept in memory instead); it is
+  // still the first statement after one staged file has been fully written.
   const syncLine = sourceLines.findIndex((line, index) =>
     index > readArchiveStart && index < readArchiveEnd &&
-    line.trim() === 'output.sync_all()?;');
+    line.trim() === 'Some(file) => file.sync_all()?,');
   assertThat(readArchiveStart >= 0 && readArchiveEnd > readArchiveStart &&
       syncLine > readArchiveStart,
     'restore interruption breakpoint source marker was unavailable');
@@ -821,7 +878,7 @@ async function createAdminProfile(page, baseUrl, events) {
   setStage('register administrator: submit and wait for workspace');
   await click(page, 'Create owner account');
   bootstrapToken = undefined;
-  await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+  await waitForWorkspaceHome(page, { notice: 'expect' });
   setStage('register administrator: validate registration response');
   const registration = await waitForEvent(events,
     (event) => event.route === 'register' && event.sequence >= start);
@@ -856,7 +913,7 @@ async function createMemberProfile(page, baseUrl, events) {
   setStage('register invited member: submit and wait for workspace');
   await click(page, 'Create invited account');
   setStage('register invited member: validate registration response');
-  await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 45000 });
+  await waitForWorkspaceHome(page, { notice: 'expect' });
   const registration = await waitForEvent(events,
     (event) => event.route === 'register' && event.sequence >= start);
   const payload = await registration.payloadPromise;
@@ -877,7 +934,7 @@ async function waitForTerminalJob(baseUrl, token, jobId, archiveId) {
   const deadline = Date.now() + 60000;
   while (Date.now() < deadline) {
     const page = await directApi(baseUrl, 'GET', '/api/v1/admin/jobs?limit=100&offset=0', { token });
-    assertThat(page.status === 200 && exactKeys(page.payload, ['jobs', 'total']),
+    assertThat(page.status === 200 && jobsPageShapeValid(page.payload),
       'admin restore job polling failed');
     const job = page.payload.jobs.find((item) => item.job_id === jobId);
     if (job && ['succeeded', 'failed', 'interrupted'].includes(job.status)) {
@@ -892,7 +949,7 @@ async function waitForBackupTerminal(baseUrl, token, jobId) {
   const deadline = Date.now() + 60000;
   while (Date.now() < deadline) {
     const page = await directApi(baseUrl, 'GET', '/api/v1/admin/jobs?limit=100&offset=0', { token });
-    assertThat(page.status === 200 && exactKeys(page.payload, ['jobs', 'total']),
+    assertThat(page.status === 200 && jobsPageShapeValid(page.payload),
       'disposable backup job polling failed');
     const job = page.payload.jobs.find((item) => item.job_id === jobId);
     if (job && ['succeeded', 'failed', 'interrupted'].includes(job.status)) return job;
@@ -1007,8 +1064,11 @@ async function main() {
     reportBoolean('genuine_server_archive_created', true);
 
     setStage('verify non-admin controls hidden and restore API denied');
-    await click(memberPage, 'Settings');
-    await waitFor(() => hasVisibleSemanticText(memberPage, 'Workspace settings'));
+    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+      'non-admin workspace offered the Admin page');
+    await openSettingsPage(memberPage);
+    assertThat((await visibleButtonBoxes(memberPage, 'Admin')).length === 0,
+      'non-admin workspace offered the Admin page');
     const memberHasCard = await hasVisibleSemanticText(memberPage, 'Prepare isolated restore copy');
     assertThat(!memberHasCard &&
         !await hasVisibleSemanticText(memberPage, 'Instance jobs') &&
@@ -1035,7 +1095,7 @@ async function main() {
     reportBoolean('member_controls_hidden_and_api_denied', true);
 
     setStage('load and validate the safe restore source in Settings');
-    await click(adminPage, 'Settings');
+    await openAdminSection(adminPage, ADMIN_BACKUP_SECTION);
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Prepare isolated restore copy'));
     const sourceStart = adminEvents.length;
     await click(adminPage, 'Load restore sources');
@@ -1154,6 +1214,7 @@ async function main() {
     reportBoolean('restore_audit_three_success_stages_ordered', true);
 
     setStage('render real restore lifecycle in the Settings audit card');
+    await openAdminSection(adminPage, ADMIN_AUDIT_SECTION);
     await scrollUntilVisibleSemanticText(adminPage, 'Instance admin audit');
     const auditButton = await hasVisibleSemanticText(adminPage, 'Refresh admin audit')
       ? 'Refresh admin audit'
@@ -1178,9 +1239,9 @@ async function main() {
       'Settings refresh did not preserve the three validated restore lifecycle events');
     reportBoolean('settings_restore_audit_events_match_validated_writer_events', true);
     const localizedRestoreActions = [
-      ['admin.restore_requested', '管理员已请求恢复任务'],
-      ['admin.restore_started', '管理员恢复任务已开始'],
-      ['admin.restore_completed', '管理员恢复任务已完成'],
+      ['admin.restore_requested', 'An administrator requested a restore job'],
+      ['admin.restore_started', 'Admin restore job started'],
+      ['admin.restore_completed', 'Admin restore job completed'],
     ];
     for (const [action, label] of localizedRestoreActions) {
       assertThat(renderedRestoreEvents.some((event) => event.action === action),
@@ -1237,6 +1298,7 @@ async function main() {
         'prepared stage contained a non-private or unexpected file');
     }
 
+    await openAdminSection(adminPage, ADMIN_BACKUP_SECTION);
     await scrollUntilVisibleSemanticText(adminPage, 'Instance jobs');
     const discardButton = adminPage.getByRole('button', {
       name: 'Discard isolated copy', exact: true,
@@ -1315,7 +1377,7 @@ async function main() {
     const discardedRowsResponse = await directApi(baseUrl, 'GET',
       '/api/v1/admin/jobs?limit=100&offset=0', { token: adminAccessToken });
     assertThat(discardedRowsResponse.status === 200 &&
-        exactKeys(discardedRowsResponse.payload, ['jobs', 'total']),
+        jobsPageShapeValid(discardedRowsResponse.payload),
       'admin job listing failed after stage discard');
     const discardedRow = discardedRowsResponse.payload.jobs.find((item) =>
       item.job_id === accepted.job_id);
@@ -1380,6 +1442,7 @@ async function main() {
     const apiDiscardEvent = validateRestoreStageDiscardAuditEvent(
       discardAuditFeed.payload, adminProfile, accepted.job_id);
     const discardAuditRefreshStart = adminEvents.length;
+    await openAdminSection(adminPage, ADMIN_AUDIT_SECTION);
     await scrollUntilVisibleSemanticText(adminPage, 'Instance admin audit');
     await click(adminPage, 'Refresh admin audit');
     const discardAuditRefresh = await waitForEvent(adminEvents,
@@ -1390,13 +1453,14 @@ async function main() {
       renderedDiscardFeed, adminProfile, accepted.job_id);
     assertThat(JSON.stringify(apiDiscardEvent) === JSON.stringify(renderedDiscardEvent),
       'Settings audit card did not preserve the discard event fingerprint');
-    await scrollUntilVisibleSemanticText(adminPage, '管理员已丢弃隔离还原副本');
+    await scrollUntilVisibleSemanticText(adminPage, 'An administrator discarded the isolated restore copy');
     assertThat(!await hasVisibleSemanticText(adminPage,
       'admin.restore_stage_discarded'),
     'Settings audit card displayed the raw discard action key');
     reportBoolean('discard_audit_is_single_hmac_event_and_localized', true);
 
     setStage('create a private corrupt-archive restore failure fixture');
+    await openAdminSection(adminPage, ADMIN_BACKUP_SECTION);
     const sourceBytesBeforeFailure = fs.readFileSync(sourceArchivePath);
     assertThat(crypto.createHash('sha256').update(sourceBytesBeforeFailure).digest('hex') ===
         archiveHash,
@@ -1517,6 +1581,7 @@ async function main() {
       reportBoolean('restore_failure_audit_three_stages_ordered', true);
 
       setStage('render failed restore lifecycle in the Settings audit card');
+      await openAdminSection(adminPage, ADMIN_AUDIT_SECTION);
       const failureAuditRefreshStart = adminEvents.length;
       await click(adminPage, 'Refresh admin audit');
       const failureAuditRefresh = await waitForEvent(adminEvents,
@@ -1543,9 +1608,9 @@ async function main() {
             renderedFailureEvents.map(eventFingerprint).join('\n'),
         'Settings audit refresh did not preserve both real restore lifecycle fingerprints');
       const localizedFailureActions = [
-        ['admin.restore_requested', '管理员已请求恢复任务'],
-        ['admin.restore_started', '管理员恢复任务已开始'],
-        ['admin.restore_failed', '管理员恢复任务失败'],
+        ['admin.restore_requested', 'An administrator requested a restore job'],
+        ['admin.restore_started', 'Admin restore job started'],
+        ['admin.restore_failed', 'Admin restore job failed'],
       ];
       for (const [action, label] of localizedFailureActions) {
         assertThat(renderedFailureEvents.some((event) => event.action === action),
@@ -1584,6 +1649,7 @@ async function main() {
     reportBoolean('real_restore_worker_breakpoint_armed', true);
 
     setStage('submit third real restore job through Settings');
+    await openAdminSection(adminPage, ADMIN_BACKUP_SECTION);
     await click(adminPage, 'Prepare isolated copy');
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Prepare isolated restore copy?'));
     const interruptedConfirm = adminPage.getByRole('button', {
@@ -1700,7 +1766,7 @@ async function main() {
       'Settings restore-status refresh after restart was not authenticated and successful');
     await waitFor(() => hasVisibleSemanticText(adminPage, 'Restore staging · Interrupted'), 30000);
     await waitFor(() => hasVisibleSemanticText(
-      adminPage, '隔离还原副本准备任务已中断。在线数据未更改。'), 30000);
+      adminPage, "The isolated restore copy preparation job was interrupted. Live data wasn't changed."), 30000);
     reportBoolean('settings_restore_card_shows_interrupted_after_restart', true);
 
     setStage('validate interrupted restore lifecycle in the instance audit API');
@@ -1714,6 +1780,7 @@ async function main() {
     reportBoolean('restore_interrupted_audit_three_stages_ordered', true);
 
     setStage('render interrupted restore lifecycle in the Settings audit card');
+    await openAdminSection(adminPage, ADMIN_AUDIT_SECTION);
     await scrollUntilVisibleSemanticText(adminPage, 'Instance admin audit');
     const interruptedAuditRefreshStart = adminEvents.length;
     await click(adminPage, 'Refresh admin audit');
@@ -1734,9 +1801,9 @@ async function main() {
         renderedInterruptedEvents.map(auditFingerprint).join('\n'),
       'Settings audit refresh did not preserve the real interrupted lifecycle fingerprints');
     const localizedInterruptedActions = [
-      ['admin.restore_requested', '管理员已请求恢复任务'],
-      ['admin.restore_started', '管理员恢复任务已开始'],
-      ['admin.restore_interrupted', '管理员恢复任务已中断'],
+      ['admin.restore_requested', 'An administrator requested a restore job'],
+      ['admin.restore_started', 'Admin restore job started'],
+      ['admin.restore_interrupted', 'Admin restore job interrupted'],
     ];
     for (const [action, label] of localizedInterruptedActions) {
       assertThat(renderedInterruptedEvents.some((event) => event.action === action),
