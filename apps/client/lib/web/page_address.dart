@@ -114,8 +114,13 @@ class PageAddressBinding {
       bar.linkPending = false;
       final linked = pageForPath(bar.path);
       if (linked != null && linked != app.page) {
-        // Notifies, which re-enters here with the address already right.
         app.showWorkspacePage(linked);
+        // Opened: that notified and re-entered here with the address right.
+        if (app.page == linked) return;
+        // Refused (the Admin page, for an account that is not an instance
+        // administrator): the address must not keep naming a page that is
+        // not the one on screen, nor stay behind as a Back target.
+        bar.replace(pagePath(app.page));
         return;
       }
     }
@@ -134,5 +139,6 @@ class PageAddressBinding {
     final page = pageForPath(bar.path);
     if (page == null || page == app.page) return;
     app.showWorkspacePage(page);
+    if (app.page != page) bar.replace(pagePath(app.page));
   }
 }

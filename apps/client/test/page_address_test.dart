@@ -88,6 +88,25 @@ void main() {
     expect(bar.entries, ['/hosts']);
   });
 
+  test('a link to a page this account may not open is dropped', () async {
+    // The Admin page is for instance administrators only.
+    final app = await workspace();
+    expect(app.canShowWorkspacePage(WorkspacePage.admin), isFalse);
+    final bar = _FakeBar('/admin');
+    PageAddressBinding(app, bar).attach();
+    expect(app.page, WorkspacePage.hosts);
+    // Rewritten in place: Back must not lead to an address that shows
+    // another page.
+    expect(bar.entries, ['/hosts']);
+
+    app.showWorkspacePage(WorkspacePage.snippets);
+    bar
+      ..replace('/admin')
+      ..onNavigate!();
+    expect(app.page, WorkspacePage.snippets);
+    expect(bar.path, '/snippets');
+  });
+
   test('nothing moves before the workspace is open', () async {
     final app = await workspace()..stage = ClientStage.login;
     final bar = _FakeBar('/audit');
