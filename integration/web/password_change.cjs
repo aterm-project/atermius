@@ -11,6 +11,7 @@ const path = require('node:path');
 const net = require('node:net');
 const crypto = require('node:crypto');
 const { selectServerModeIfChooser } = require('./server_mode.cjs');
+const { expectHostedSignIn, waitForWorkspaceHome } = require('./support/hosted_web.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const { chromium } = require('playwright');
 
@@ -429,10 +430,8 @@ async function main() {
     await page.locator('flt-semantics-placeholder').evaluate((element) => element.click());
     setStage('wait for accessible Flutter controls');
     await waitFor(() => page.evaluate(() => document.querySelectorAll('flt-semantics').length > 0), 15000);
-    setStage('configure server endpoint');
-    await fill(page, 'Server URL', baseUrl);
-    setStage('connect server endpoint');
-    await click(page, 'Connect securely');
+    setStage('hosted sign-in page on the serving origin');
+    await expectHostedSignIn(page, baseUrl);
     setStage('wait for owner registration form');
     await field(page, 'Owner email');
 
@@ -453,7 +452,7 @@ async function main() {
     setStage('owner registration submit');
     await click(page, 'Create owner account');
     bootstrapToken = undefined;
-    await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 30000 });
+    await waitForWorkspaceHome(page, { notice: 'expect' });
     const registerEvent = await waitForEvent(
       apiEvents,
       (event) => event.route === 'register' && event.sequence >= registerStart,
@@ -468,6 +467,8 @@ async function main() {
 
     setStage('open password settings');
     await click(page, 'Settings');
+    // Settings is split into sections; the password form is in this one.
+    await click(page, 'Account security');
     setStage('wait for current password field');
     await field(page, 'Current master password');
     setStage('password settings field: current password');
@@ -496,7 +497,11 @@ async function main() {
     reportBoolean('current_session_survived', true);
 
     setStage('lock current session');
-    await click(page, 'Lock and sign out');
+    // Signing out lives in Settings > Account & sign-in and asks first.
+    await click(page, 'Account & sign-in');
+    await click(page, 'Sign out');
+    await button(page, 'Cancel');
+    await click(page, 'Sign out');
     await field(page, 'Email or username');
 
     setStage('old password rejection: username input');
@@ -555,7 +560,7 @@ async function main() {
     const newLoginEvent = await newLoginResponse;
     assertThat(newLoginEvent.status >= 200 && newLoginEvent.status < 300, 'new password login failed');
     reportStatus('new_password_login', newLoginEvent.status);
-    await (await button(page, 'Add host')).waitFor({ state: 'visible', timeout: 30000 });
+    await waitForWorkspaceHome(page, { notice: 'none' });
     reportBoolean('workspace_unlocked_with_new_password', true);
 
     setStage('open account audit after new password sign-in');
@@ -595,11 +600,12 @@ async function main() {
     reportBoolean('password_change_audit_secret_fields_absent', true);
 
     setStage('verify password-change audit UI label');
-    await page.getByText('账户', { exact: true }).click();
+    // The audit page follows the browser language (en-US in this context).
+    await page.getByText('Account', { exact: true }).click();
     await page.mouse.move(900, 800);
     await page.mouse.wheel(0, 10000);
-    await waitFor(async () => await visibleFlutterSemanticsCount(page, '主密码已更改') > 0);
-    const passwordChangedLabelCount = await visibleFlutterSemanticsCount(page, '主密码已更改');
+    await waitFor(async () => await visibleFlutterSemanticsCount(page, 'Master password changed') > 0);
+    const passwordChangedLabelCount = await visibleFlutterSemanticsCount(page, 'Master password changed');
     assertThat(passwordChangedLabelCount > 0,
       'account audit UI did not show the password-change event label');
     reportBoolean('password_change_audit_label_visible', true);
