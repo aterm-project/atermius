@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../credential_visibility/sensitive_clipboard.dart';
 import '../domain/models.dart';
 import '../l10n/l10n.dart';
 import '../mcp/mcp_access_policy.dart';
@@ -201,9 +202,10 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
 
   Future<void> _copy() async {
     try {
-      await Clipboard.setData(
-        ClipboardData(text: service.connectionConfiguration()),
-      );
+      // Carries the MCP bearer token.
+      final configuration = service.connectionConfiguration();
+      SensitiveClipboard.markSecret(configuration);
+      await Clipboard.setData(ClipboardData(text: configuration));
       if (mounted) setState(() => _copied = true);
     } catch (_) {
       if (mounted) {

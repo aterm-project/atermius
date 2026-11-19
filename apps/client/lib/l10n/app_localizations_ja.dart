@@ -18633,4 +18633,58 @@ class AppLocalizationsJa extends AppLocalizations {
   String waRetrying(String node) {
     return '$node が操作を再試行中です。詳細はエージェントログを確認してください。';
   }
+
+  @override
+  String get desktopClipboardTextSyncHelp =>
+      '接続中は、どちら側でコピーしたテキストも自動で同期されます。シークレットはセッションメニューの「ローカルのクリップボードのテキストを貼り付け」でのみ送信されます。';
+
+  @override
+  String get desktopClipboardRemoteTooLarge =>
+      'リモートのクリップボードのテキストが 64 KiB を超えているため、このデバイスにコピーしませんでした。';
+
+  @override
+  String get desktopClipboardWriteFailed =>
+      'リモートのクリップボードのテキストをこのデバイスのクリップボードに書き込めませんでした。';
+
+  @override
+  String get desktopClipboardReadDenied =>
+      'システムが Atermius によるクリップボードの読み取りを許可しなかったため、ローカルのテキストはリモートデスクトップに自動送信されません。システム設定で Atermius のクリップボードへのアクセスを許可してください。';
+
+  @override
+  String get desktopClipboardSecretSkipped =>
+      'シークレットとしてマークされたコピー済みのテキストは、リモートデスクトップに自動送信しませんでした。送信するには、セッションメニューの「ローカルのクリップボードのテキストを貼り付け」を使用してください。';
+
+  @override
+  String get desktopClipboardLocalTooLarge =>
+      'ローカルのクリップボードのテキストが 64 KiB を超えているため、リモートデスクトップに送信しませんでした。';
+
+  @override
+  String get desktopRemoteClipboardEmpty => 'リモートのクリップボードにテキストがありません。';
+
+  @override
+  String get clipboardIsEmpty => 'クリップボードは空です。';
+
+  @override
+  String get clipboardHasNoText =>
+      'クリップボードに貼り付けられるテキストがありません（画像やファイルの可能性があります）。';
+
+  @override
+  String get clipboardReadDenied =>
+      'システムが Atermius によるクリップボードの読み取りを許可しませんでした。システム設定で Atermius のクリップボードへのアクセスを許可してください。';
+
+  @override
+  String get clipboardReadUnfocused =>
+      'Android では前面のアプリしかクリップボードを読み取れません。もう一度貼り付けてください。';
+
+  @override
+  String clipboardTextTooLarge(String limit) {
+    return 'クリップボードのテキストが $limit を超えているため、貼り付けませんでした。';
+  }
+
+  @override
+  String get vncClipboardLatin1Only =>
+      'VNC のクリップボードは Latin-1 のテキストしか扱えないため、このテキストは送信できません。';
+
+  @override
+  String get vncDisplayAndClipboard => '解像度、ローカルのスケーリング、クリップボード';
 }

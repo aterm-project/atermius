@@ -201,6 +201,8 @@ class RdpConnection implements DirectDesktopConnection {
         _events.add(DesktopTouchSupport(message[1] as bool));
       case 'clipboard':
         _events.add(DesktopClipboard(message[1] as String));
+      case 'pasteRefused':
+        _events.add(DesktopClipboardRefused());
       case 'cursor':
         _events.add(
           DesktopCursor(
@@ -507,10 +509,9 @@ void _rdpWorker(List<dynamic> args) {
           try {
             bytes.asTypedList(units.length).setAll(0, units);
             if (api!.paste(handle, bytes.cast(), units.length * 2) != 1) {
-              output.send([
-                'notice',
-                currentL10n.theTargetRdpSessionDoesntHave2,
-              ]);
+              // The session decides how to tell the user (an automatic offer
+              // reports it only once).
+              output.send(['pasteRefused']);
             }
           } finally {
             bytes.asTypedList(units.length).fillRange(0, units.length, 0);

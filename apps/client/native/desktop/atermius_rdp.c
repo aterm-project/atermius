@@ -179,7 +179,7 @@ typedef struct {
   UINT32 revision, clipboard_revision, files_revision;
   UINT32 buttons;
   BOOL connected, pin_set, disp_ready, certificate_rejected;
-  BOOL clipboard_enabled, files_enabled, server_files;
+  BOOL clipboard_enabled, clipboard_ready, files_enabled, server_files;
   BYTE pin[32], rejected_certificate[32];
 #if defined(ATERMIUS_RDP_NATIVE_TOUCH)
   RdpeiClientContext* touch;
@@ -407,6 +407,7 @@ static UINT clip_ready(CliprdrClientContext* clip, const CLIPRDR_MONITOR_READY* 
   UINT rc = clip->ClientCapabilities(clip, &caps);
   if (rc != CHANNEL_RC_OK) return rc;
   EnterCriticalSection(&c->lock);
+  c->clipboard_ready = TRUE;
   rc = send_local_format_list(c);
   LeaveCriticalSection(&c->lock);
   return rc;
@@ -615,7 +616,12 @@ static void channel_disconnected(void* ctx, const ChannelDisconnectedEventArgs* 
   }
 #endif
   if (strcmp(event->name, DISP_DVC_CHANNEL_NAME) == 0) { c->disp = NULL; c->disp_ready = FALSE; }
-  if (strcmp(event->name, CLIPRDR_SVC_CHANNEL_NAME) == 0) c->clip = NULL;
+  if (strcmp(event->name, CLIPRDR_SVC_CHANNEL_NAME) == 0) {
+    EnterCriticalSection(&c->lock);
+    c->clip = NULL;
+    c->clipboard_ready = FALSE;
+    LeaveCriticalSection(&c->lock);
+  }
 }
 static BOOL pre_connect(freerdp* instance) {
   rdpContext* c = instance->context;
@@ -1246,16 +1252,20 @@ API const BYTE* aterm_rdp_pointer(void* handle, UINT32* info) {
   return c->cursor_pixels;
 }
 API int aterm_rdp_paste(void* handle, const BYTE* utf16, UINT32 length) {
+  if (!handle || (length && !utf16)) return 0;
   AtermContext* c = (AtermContext*)handle;
-  if (!c->clip || !c->clipboard_enabled || length > 131072 || (length & 1)) return 0;
+  if (!c->clipboard_enabled || length > 131072 || (length & 1)) return 0;
   BYTE* copy = (BYTE*)calloc(1, length + 2);
   if (!copy) return 0;
-  memcpy(copy, utf16, length);
+  if (length) memcpy(copy, utf16, length);
   EnterCriticalSection(&c->lock);
   if (c->local_clipboard) { SecureZeroMemory(c->local_clipboard, c->local_clipboard_len); free(c->local_clipboard); }
   c->local_clipboard = copy; c->local_clipboard_len = length + 2;
   free(c->local_files); c->local_files = NULL; c->local_files_len = 0;
-  UINT rc = send_local_format_list(c);
+  // The first framebuffer can arrive before CLIPRDR MonitorReady. Keep the
+  // latest local text until that callback announces it, instead of refusing
+  // the initial offer and disabling automatic sync for this connection.
+  UINT rc = c->clip && c->clipboard_ready ? send_local_format_list(c) : CHANNEL_RC_OK;
   LeaveCriticalSection(&c->lock);
   return rc == CHANNEL_RC_OK;
 }

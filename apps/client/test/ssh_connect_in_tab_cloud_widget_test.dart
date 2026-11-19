@@ -188,6 +188,10 @@ void main() {
 
       // The server ends the session: the automatic reconnect reuses the same
       // tab, and the home page does not wait for it either.
+      await tester.pumpAndSettle();
+      final measuredSize = (tab.terminal.viewWidth, tab.terminal.viewHeight);
+      expect(first.sizes.last, measuredSize);
+      expect(measuredSize, isNot((100, 30)));
       await first.end();
       await tester.pump();
       expect(tab.state, 'disconnected');
@@ -197,12 +201,27 @@ void main() {
       await showHome(tester);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsNothing);
-      fixture.attempts[2].result.complete(_Connection());
+      final retainedSize = (tab.terminal.viewWidth, tab.terminal.viewHeight);
+      final reconnected = _Connection();
+      fixture.attempts[2].result.complete(reconnected);
       await tester.pump();
       await tester.pump();
       expect(tab.state, 'connected');
       expect(fixture.app.terminalTabs, [tab]);
       expect(fixture.attempts, hasLength(3));
+      expect(
+        reconnected.sizes.first,
+        retainedSize,
+        reason: 'a retained view needs no layout to replay its PTY size',
+      );
+      await tester.tap(find.byKey(ValueKey('workspace-tab-${tab.id}')));
+      await tester.pumpAndSettle();
+      expect(
+        (tab.terminal.viewWidth, tab.terminal.viewHeight),
+        measuredSize,
+        reason: 'the same window has the same grid as the fresh connection',
+      );
+      expect(reconnected.sizes.last, measuredSize);
     } finally {
       await fixture.cleanup(tester);
     }
@@ -318,6 +337,7 @@ class _Fixture {
 
 class _Connection implements SshConnection {
   final _output = StreamController<String>.broadcast(sync: true);
+  final sizes = <(int, int)>[];
 
   @override
   Stream<String> get output => _output.stream;
@@ -329,7 +349,7 @@ class _Connection implements SshConnection {
   void input(String text) {}
 
   @override
-  void resize(int columns, int rows) {}
+  void resize(int columns, int rows) => sizes.add((columns, rows));
 
   @override
   Future<void> close() async {

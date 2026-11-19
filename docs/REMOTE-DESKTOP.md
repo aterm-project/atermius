@@ -54,6 +54,14 @@ RDP 目标的 NLA、域策略、所有键盘布局、资源/剪贴板组合仍�
 参考：[Guacamole 协议](https://guacamole.apache.org/doc/gug/guacamole-protocol.html)、[RDP 配置](https://guacamole.apache.org/doc/gug/configuring-guacamole.html)、[Flutter Windows 分发](https://docs.flutter.dev/platform-integration/windows/building)。
 
 
+## Text clipboard sharing
+
+Direct RDP and VNC sessions share text automatically when the Host's **Clipboard text** setting is enabled. Windows uses clipboard change notifications while the desktop has focus; returning to a session also offers the latest local text. Remote text is copied to this device's clipboard, including in detached and monitor windows. Repeated text is not echoed back. RDP supports Unicode; the standard VNC clipboard supports Latin-1 only. Text is limited to 64 KiB in UTF-8. Files remain explicit actions in the session menu; image clipboard formats are not synchronized.
+
+Atermius-copied credentials, recovery codes and tokens are skipped by automatic sharing. The session menu's explicit Paste remains available. Connections opened through MCP do not offer the local clipboard at startup. Gateway sessions keep the manual clipboard actions. On platforms which prompt for unattended clipboard reads, only incoming text is automatic.
+
+直连 RDP/VNC 在主机“剪贴板文字”开启时自动同步文字。Windows 在远程桌面获得焦点时监听剪贴板变更，切回会话时也会同步最新文字；远端复制的文字自动写入本机，独立窗口和多显示器窗口同样适用。RDP 支持中文和 Emoji；标准 VNC 仅支持 Latin-1。文字上限为 UTF-8 64 KiB；文件仍由会话菜单主动发送或保存，图片不自动同步。应用复制的凭据、令牌及恢复码不会自动发送，仍可通过菜单主动粘贴。
+
 ## Keyboard, pointer and fullscreen controls
 
 Android 首页及设置页进入全屏后保留导航和 Tools 菜单，始终可以选择退出全屏；选中会话时仍隐藏导航，仅放大当前面板。
@@ -110,3 +118,7 @@ Android file lists open a regular file with one tap through the system Open with
 SSH/Telnet's Android keybar includes Shift alongside Ctrl and Alt: tap for the next key, double-tap to lock, tap again or Reset to release. The default terminal palette uses brighter, more saturated text; saved custom palettes and presets keep their colors.
 
 Connection attempts open their tab before asynchronous credential lookup and network setup. The tab reports actual stages and provides Stop loading, Retry and Close. Retry uses the current saved settings in the same tab; late results from cancelled attempts cannot take over. An established session that later drops continues to use the existing reconnect controls.
+
+Windows precision-touchpad reports are assembled by scan time, including one- and two-contact hybrid reports. Report IDs, physical axis dimensions and contact confidence are checked; palm input, unplugging a device, changing panes and losing focus cancel the gesture and release its remote modifiers. Missing final reports have a timeout. Unsupported touchpads retain their ordinary mouse, wheel and pinch behavior. Three- and four-finger forwarding still requires the corresponding Windows setting to be **Nothing**.
+
+SSH connections resend the terminal's measured columns and rows whenever a new SSH transport attaches, in both local and account workspaces. This includes manual restore and automatic reconnect when the window did not resize; the remote PTY follows the same grid as a fresh connection.

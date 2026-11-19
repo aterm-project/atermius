@@ -7,7 +7,7 @@ import 'rdp_local_drives_store.dart';
 
 class FileRdpLocalDrivesStore implements RdpLocalDrivesStore {
   FileRdpLocalDrivesStore({Future<Directory> Function()? directory})
-    : _directory = directory ?? _deviceLocalDirectory;
+    : _directory = directory ?? deviceLocalDirectory;
   final Future<Directory> Function() _directory;
   Future<File> _file() async =>
       File('${(await _directory()).path}/rdp-local-drives-v1');
@@ -39,10 +39,11 @@ class FileRdpLocalDrivesStore implements RdpLocalDrivesStore {
 
 /// The app support directory, except on Windows: there it is under Roaming
 /// AppData, which follows the user to other PCs with roaming profiles, so
-/// this file goes to the same folder under Local AppData instead. (Android
-/// excludes the file from Auto Backup and device transfer in
-/// res/xml/backup_rules.xml and data_extraction_rules.xml.)
-Future<Directory> _deviceLocalDirectory() async {
+/// files that must stay on this device go to the same folder under Local
+/// AppData instead. (Android excludes each such file from Auto Backup and
+/// device transfer in res/xml/backup_rules.xml and
+/// data_extraction_rules.xml.)
+Future<Directory> deviceLocalDirectory() async {
   final support = await getApplicationSupportDirectory();
   if (!Platform.isWindows) return support;
   return Directory(
@@ -62,8 +63,7 @@ String windowsDeviceLocalPath(
   required String? roaming,
   required String? local,
 }) {
-  String trim(String path) =>
-      path.endsWith(r'\') || path.endsWith('/')
+  String trim(String path) => path.endsWith(r'\') || path.endsWith('/')
       ? path.substring(0, path.length - 1)
       : path;
   if (roaming == null || local == null || roaming.isEmpty || local.isEmpty) {

@@ -5240,5 +5240,19 @@
   "waNodeDetails": "ノード詳細",
   "waNoTarget": "互換性のある移行先がありません",
   "waInitial": "初期ワークスペース",
-  "waRetrying": "{node} が操作を再試行中です。詳細はエージェントログを確認してください。"
+  "waRetrying": "{node} が操作を再試行中です。詳細はエージェントログを確認してください。",
+  "desktopClipboardTextSyncHelp": "接続中は、どちら側でコピーしたテキストも自動で同期されます。シークレットはセッションメニューの「ローカルのクリップボードのテキストを貼り付け」でのみ送信されます。",
+  "desktopClipboardRemoteTooLarge": "リモートのクリップボードのテキストが 64 KiB を超えているため、このデバイスにコピーしませんでした。",
+  "desktopClipboardWriteFailed": "リモートのクリップボードのテキストをこのデバイスのクリップボードに書き込めませんでした。",
+  "desktopClipboardReadDenied": "システムが Atermius によるクリップボードの読み取りを許可しなかったため、ローカルのテキストはリモートデスクトップに自動送信されません。システム設定で Atermius のクリップボードへのアクセスを許可してください。",
+  "desktopClipboardSecretSkipped": "シークレットとしてマークされたコピー済みのテキストは、リモートデスクトップに自動送信しませんでした。送信するには、セッションメニューの「ローカルのクリップボードのテキストを貼り付け」を使用してください。",
+  "desktopClipboardLocalTooLarge": "ローカルのクリップボードのテキストが 64 KiB を超えているため、リモートデスクトップに送信しませんでした。",
+  "desktopRemoteClipboardEmpty": "リモートのクリップボードにテキストがありません。",
+  "clipboardIsEmpty": "クリップボードは空です。",
+  "clipboardHasNoText": "クリップボードに貼り付けられるテキストがありません（画像やファイルの可能性があります）。",
+  "clipboardReadDenied": "システムが Atermius によるクリップボードの読み取りを許可しませんでした。システム設定で Atermius のクリップボードへのアクセスを許可してください。",
+  "clipboardReadUnfocused": "Android では前面のアプリしかクリップボードを読み取れません。もう一度貼り付けてください。",
+  "clipboardTextTooLarge": "クリップボードのテキストが {limit} を超えているため、貼り付けませんでした。",
+  "vncClipboardLatin1Only": "VNC のクリップボードは Latin-1 のテキストしか扱えないため、このテキストは送信できません。",
+  "vncDisplayAndClipboard": "解像度、ローカルのスケーリング、クリップボード"
 }

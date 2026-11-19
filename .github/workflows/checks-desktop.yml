@@ -65,6 +65,13 @@ jobs:
       - run: bash tools/install_flutter_linux.sh
       - run: flutter pub get --enforce-lockfile
         working-directory: apps/client
+      - name: Touchpad HID frame assembly
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror integration/native/touchpad_frame_test.cpp -o /tmp/touchpad-frame-test
+          /tmp/touchpad-frame-test
+      - name: Clipboard, touchpad and SSH reconnect regressions
+        run: flutter test --concurrency=2 test/local_clipboard_test.dart test/desktop_clipboard_sync_test.dart test/desktop_clipboard_session_test.dart test/desktop_clipboard_view_test.dart test/clipboard_secret_marker_test.dart test/touchpad_gestures_test.dart test/keyboard_capture_test.dart test/desktop_wheel_test.dart test/ssh_connect_in_tab_local_widget_test.dart test/ssh_connect_in_tab_cloud_widget_test.dart
+        working-directory: apps/client
       - run: flutter test --concurrency=2 test/apple_platform_engineering_test.dart test/terminal_touch_selection_test.dart test/fullscreen_tabs_peek_test.dart test/ssh_background_keepalive_test.dart
         working-directory: apps/client
       - run: flutter test --concurrency=2 test/session_workspace_actions_test.dart test/workspace_tab_drag_test.dart test/terminal_tools_sidebar_test.dart test/cloud_access_client_test.dart test/cloud_access_interop_test.dart test/credential_escrow_crypto_test.dart test/credential_escrow_interop_test.dart test/credential_escrow_admin_test.dart test/credential_visibility_api_test.dart test/credential_visibility_service_test.dart test/credential_visibility_clipboard_test.dart test/credential_visibility_widget_test.dart test/fullscreen_test.dart test/desktop_keyboard_mode_test.dart test/direct_desktop_test.dart test/desktop_resolution_test.dart test/desktop_mobile_controls_test.dart test/desktop_protocol_test.dart

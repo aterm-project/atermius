@@ -39,6 +39,8 @@ bool FlutterWindow::OnCreate() {
       flutter_controller_->view()->GetNativeWindow());
   touchpad_gestures_ = std::make_unique<TouchpadGestures>(
       flutter_controller_->engine()->messenger(), GetHandle());
+  clipboard_bridge_ = std::make_unique<ClipboardBridge>(
+      flutter_controller_->engine()->messenger(), GetHandle());
   chrome_channel_ =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           flutter_controller_->engine()->messenger(), "atermius/window_chrome",
@@ -156,6 +158,7 @@ void FlutterWindow::OnDestroy() {
   geometry_channel_.reset();
   keyboard_capture_.reset();
   touchpad_gestures_.reset();
+  clipboard_bridge_.reset();
   chrome_channel_.reset();
   Win32Window::OnDestroy();
   if (flutter_controller_) {
@@ -185,8 +188,10 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   if (message == WM_DPICHANGED) {
     taskbar_identity_.UpdateIcons(hwnd, LOWORD(wparam));
   }
+  if (clipboard_bridge_) clipboard_bridge_->HandleMessage(message);
   if (touchpad_gestures_ &&
-      (message == WM_INPUT || message == WM_SETTINGCHANGE)) {
+      (message == WM_INPUT || message == WM_SETTINGCHANGE ||
+       message == WM_INPUT_DEVICE_CHANGE || message == WM_ACTIVATE)) {
     // Observed only: three- and four-finger touchpad gestures for Dart.
     touchpad_gestures_->HandleMessage(message, wparam, lparam);
   }

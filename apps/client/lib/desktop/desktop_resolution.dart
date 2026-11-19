@@ -58,11 +58,17 @@ class VncSettings {
     this.width = 1920,
     this.height = 1080,
     this.scaling = DesktopLocalScaling.fit,
+    this.clipboardText = true,
   });
   static const defaults = VncSettings();
   final VncResolutionMode resolution;
   final int width, height;
   final DesktopLocalScaling scaling;
+
+  /// Text clipboard with the server (RFC 6143 cut text), synced
+  /// automatically while connected. Off drops server text and refuses
+  /// pastes, like the RDP option of the same name.
+  final bool clipboardText;
 
   String? validate() => resolution == VncResolutionMode.fixed
       ? validateDesktopSize(width, height)
@@ -73,11 +79,13 @@ class VncSettings {
     int? width,
     int? height,
     DesktopLocalScaling? scaling,
+    bool? clipboardText,
   }) => VncSettings(
     resolution: resolution ?? this.resolution,
     width: width ?? this.width,
     height: height ?? this.height,
     scaling: scaling ?? this.scaling,
+    clipboardText: clipboardText ?? this.clipboardText,
   );
 
   Map<String, Object?> toJson() => {
@@ -86,6 +94,8 @@ class VncSettings {
     if (resolution == VncResolutionMode.fixed) 'width': width,
     if (resolution == VncResolutionMode.fixed) 'height': height,
     'scaling': scaling.name,
+    // Written only when off: older clients ignore the key either way.
+    if (!clipboardText) 'clipboard_text': false,
   };
 
   factory VncSettings.fromJson(Object? raw) {
@@ -121,6 +131,11 @@ class VncSettings {
         'scaling',
         DesktopLocalScaling.fit,
       ),
+      clipboardText: switch (raw['clipboard_text']) {
+        null => true,
+        final bool value => value,
+        _ => throw const FormatException('Invalid VNC setting clipboard_text'),
+      },
     );
     final issue = settings.validate();
     if (issue != null) throw FormatException(issue);
@@ -152,8 +167,9 @@ class VncSettings {
       other is VncSettings &&
       other.resolution == resolution &&
       other.scaling == scaling &&
+      other.clipboardText == clipboardText &&
       (resolution != VncResolutionMode.fixed ||
           (other.width == width && other.height == height));
   @override
-  int get hashCode => Object.hash(resolution, scaling);
+  int get hashCode => Object.hash(resolution, scaling, clipboardText);
 }

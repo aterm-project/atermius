@@ -71,14 +71,19 @@ class KeyboardCaptureTarget {
   /// Releases captured keys on the previous receiver, then sends to [send].
   void retarget(KeyboardCaptureSend send) {
     if (!_registered) return;
+    if (identical(_owner.pointerTarget.value, this)) {
+      // Release the gesture's modifiers on the old receiver first.
+      _owner.pointerTarget.value = null;
+    }
     _owner._releaseHeld(this);
     _send = send;
+    _owner._update();
   }
 
   /// Sends one key to this view's session (used for touchpad gestures, which
   /// become shortcuts). Dropped once the view is gone or cannot take input.
   void send(int keysym, bool down) {
-    if (_registered && _enabled) _send(keysym, down);
+    if (!down || (_registered && _enabled)) _send(keysym, down);
   }
 
   void unregister() {
@@ -313,9 +318,11 @@ class KeyboardCaptureController extends ChangeNotifier {
       unawaited(_invoke('configure', {'armed': armed}));
     }
     _setLocalIme(!_targets.any((target) => target._focused));
-    pointerTarget.value = _targets.reversed
-        .where((t) => t._enabled && t._focused && t._hovered)
-        .firstOrNull;
+    pointerTarget.value = !nativeWindowFocused
+        ? null
+        : _targets.reversed
+              .where((t) => t._enabled && t._focused && t._hovered)
+              .firstOrNull;
   }
 
   void _setLocalIme(bool enabled) {

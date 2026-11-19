@@ -495,6 +495,10 @@ void main() {
     expect(ssh.authenticated, 1);
 
     // The server ends the session: the tab offers to restore it.
+    final terminal = tester.widget<TerminalView>(find.byType(TerminalView)).terminal;
+    final measuredSize = (terminal.viewWidth, terminal.viewHeight);
+    expect(ssh.sessions.last.sizes.last, measuredSize);
+    expect(measuredSize, isNot((100, 30)));
     ssh.hold = true;
     final requests = ssh.requests.length;
     ssh.sessions.last.close();
@@ -533,6 +537,8 @@ void main() {
     expect(sessionTabs(tester), ['Alpha host']);
     expect(tabOf(tester, 'Alpha host').isConnected, isTrue);
     expect(find.byType(AlertDialog), findsNothing);
+    expect(ssh.sessions.last.sizes.first, measuredSize,
+        reason: 'manual restore must replay the retained terminal size');
     ssh.sessions.last.emit('back again\r\n');
     await tester.pump();
     expect(terminalText(tester), contains('back again'));
@@ -775,6 +781,7 @@ class _Session implements SSHSession {
   final _stdout = StreamController<Uint8List>(sync: true);
   final _stderr = StreamController<Uint8List>(sync: true);
   final written = <int>[];
+  final sizes = <(int, int)>[];
 
   @override
   Stream<Uint8List> get stdout => _stdout.stream;
@@ -799,7 +806,7 @@ class _Session implements SSHSession {
     int height, [
     int pixelWidth = 0,
     int pixelHeight = 0,
-  ]) {}
+  ]) { sizes.add((width, height)); }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

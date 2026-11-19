@@ -20,7 +20,7 @@ class _CardsController extends AppController {
   });
   HostRecord? connected;
   @override
-  Future<void> openTerminalTab(HostRecord host, {void Function(String)? onTabOpened}) async => connected = host;
+  Future<void> openTerminalTab(HostRecord host, {void Function(String)? onTabOpened, bool userStarted = true}) async => connected = host;
 }
 
 const _groupId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';

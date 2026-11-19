@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import '../../terminal/live_terminal_window_contract.dart';
 import '../../terminal/live_terminal_window_native.dart'
     show OwnedLiveTerminalChild;
+import '../desktop_clipboard_sync.dart';
 import '../desktop_session.dart';
 import '../direct/connection.dart';
 import 'desktop_window_contract.dart';
@@ -296,6 +297,8 @@ class DesktopWindowBroker {
         'state': session.state,
         'error': session.error,
         'follow': spec.viewport == null && session.followsWindowSize,
+        // Whether the window may offer local clipboard text on its own.
+        'clipboard_sync': session.clipboardSyncActive,
       }),
     );
     if (session.state == 'disconnected') {
@@ -494,6 +497,22 @@ class DesktopWindowBroker {
           } on FormatException catch (e) {
             _socket?.add(jsonEncode({'type': 'notice', 'text': e.message}));
           }
+        case 'clipboard_offer':
+          // Local text the window read on focus. The parent's sync decides
+          // (option, secrets, size, already sent), so the session's windows
+          // and tab never send the same text twice.
+          final text = data['text'];
+          if (!_clientReady || text is! String) throw const FormatException();
+          unawaited(
+            session.clipboardSync.offerLocal(
+              text,
+              // Shown where the user copied (the window), not in the
+              // hidden tab.
+              notice: (message) => _socket?.add(
+                jsonEncode({'type': 'notice', 'text': message}),
+              ),
+            ),
+          );
         case 'size':
           final w = data['width'], h = data['height'];
           if (!_clientReady || w is! int || h is! int) {
@@ -645,11 +664,35 @@ class MirroredDesktopSession extends DesktopSession {
   String title = 'Remote desktop';
   ui.Rect? viewport, coverMonitor;
   bool _follow = false, _confirmed = false, _disposedSocket = false;
-  bool _painting = false;
+  bool _painting = false, _clipboardSync = false;
   final List<Uint8List> _queue = [];
 
   @override
   bool get followsWindowSize => _follow && viewport == null;
+
+  @override
+  bool get clipboardSyncActive =>
+      _clipboardSync && _confirmed && !_disposedSocket && state == 'connected';
+
+  /// The parent writes remote text to this device's clipboard.
+  @override
+  bool get writesLocalClipboard => false;
+
+  /// The parent's sync decides about secrets ([offerClipboardText] goes
+  /// through its offerLocal). This process never copies one and must not
+  /// take or clear the parent's "a secret was copied" marker.
+  @override
+  bool Function(String text)? get clipboardSecretCheck => (_) => false;
+
+  @override
+  void offerClipboardText(String text) {
+    if (utf8.encode(text).length > desktopClipboardMaxBytes) {
+      throw FormatException(currentL10n.clipboardIsLimitedTo64Kib);
+    }
+    if (!_disposedSocket && _confirmed) {
+      _socket.add(jsonEncode({'type': 'clipboard_offer', 'text': text}));
+    }
+  }
 
   void confirmReady() {
     if (_confirmed || _disposedSocket) return;
@@ -689,6 +732,7 @@ class MirroredDesktopSession extends DesktopSession {
           final s = data['state'];
           if (s is! String) throw const FormatException();
           _follow = data['follow'] == true;
+          _clipboardSync = data['clipboard_sync'] == true;
           error = data['error'] as String?;
           if (s == 'disconnected') state = 'disconnected';
           notifyListeners();
@@ -696,6 +740,9 @@ class MirroredDesktopSession extends DesktopSession {
           final text = data['text'];
           if (text is! String) throw const FormatException();
           display.clipboard = text;
+          // Already on this device's clipboard (the parent wrote it): only
+          // remembered, so focusing this window does not send it back.
+          unawaited(clipboardSync.remoteChanged(text));
         case 'notice':
           final text = data['text'];
           if (text is String) onNotice?.call(text);
@@ -789,12 +836,13 @@ class MirroredDesktopSession extends DesktopSession {
   }
 
   @override
-  void paste(String text) {
-    if (utf8.encode(text).length > 65536) {
-      throw const FormatException('Clipboard is limited to 64 KiB');
+  void paste(String text, {bool automatic = false}) {
+    if (utf8.encode(text).length > desktopClipboardMaxBytes) {
+      throw FormatException(currentL10n.clipboardIsLimitedTo64Kib);
     }
     if (!_disposedSocket && _confirmed) {
       _socket.add(jsonEncode({'type': 'paste', 'text': text}));
+      clipboardSync.sent(text);
     }
   }
 

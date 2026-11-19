@@ -20997,6 +20997,7 @@ class AppController extends ChangeNotifier {
     HostRecord host, {
     void Function(String)? onTabOpened,
     TerminalTabSession? reuseTab,
+    bool userStarted = true,
   }) async {
     final client = _requireApi();
     final deviceId = identity?.deviceId;
@@ -21124,7 +21125,7 @@ class AppController extends ChangeNotifier {
     if (reuseTab == null) onTabOpened?.call(tab.id);
     notifyListeners();
     if (DesktopSession.supportsDirect(host.protocol)) {
-      await desktop.connectLocal(host);
+      await desktop.connectLocal(host, userStarted: userStarted);
     } else {
       await desktop.connect(client, deviceId!, host);
     }
@@ -21465,13 +21466,15 @@ class AppController extends ChangeNotifier {
   Future<void> openTerminalTab(
     HostRecord host, {
     void Function(String tabId)? onTabOpened,
-  }) => _openTerminalTab(host, onTabOpened: onTabOpened);
+    bool userStarted = true,
+  }) => _openTerminalTab(host, onTabOpened: onTabOpened, userStarted: userStarted);
 
   Future<void> _openTerminalTab(
     HostRecord host, {
     String? expectedVaultId,
     void Function(String tabId)? onTabOpened,
     TerminalTabSession? reuseTab,
+    bool userStarted = true,
   }) async {
     final reuseGeneration = reuseTab?.connectionGeneration;
     if (host.protocol == HostProtocol.telnet) {
@@ -21487,6 +21490,7 @@ class AppController extends ChangeNotifier {
         host,
         onTabOpened: onTabOpened,
         reuseTab: reuseTab,
+        userStarted: userStarted,
       );
     }
     final initialKnownHostAccountId = session?.accountId;
@@ -22193,6 +22197,9 @@ class AppController extends ChangeNotifier {
       // A reconnect reuses the tab's terminal; start from default modes, on
       // a line of its own.
       beginTerminalSession(tab.terminal);
+      // Replacing the SSH transport does not relayout a retained terminal,
+      // so onResize may never fire. Replay its current size for every new PTY.
+      connection.resize(tab.terminal.viewWidth, tab.terminal.viewHeight);
       tab.outputSubscription = connection.output.listen(
         (text) {
           if (!attemptCurrent() || !identical(tab.connection, connection)) return;

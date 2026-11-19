@@ -1,7 +1,10 @@
 // SensitiveClipboard: secrets copied from the escrow recovery dialog and the
 // admin credential viewer leave the clipboard again. Timers run in the
 // testWidgets fake-async zone.
+import 'dart:io';
+
 import 'package:aterm_client/credential_visibility/sensitive_clipboard.dart';
+import 'package:aterm_client/storage/clipboard_secret_marker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -152,5 +155,91 @@ void main() {
     clipboard.dispose();
     await tester.pump();
     expect(platformText, '');
+  });
+
+  group('secret registry (automatic remote-desktop sync skips these)', () {
+    setUp(SensitiveClipboard.debugForgetSecrets);
+    tearDown(SensitiveClipboard.debugForgetSecrets);
+
+    testWidgets('values copied here are secrets', (tester) async {
+      final fake = _FakeClipboard();
+      final clipboard = fake.create();
+      expect(SensitiveClipboard.isSecret('SENTINEL-PW'), isFalse);
+      await clipboard.copy('SENTINEL-PW');
+      expect(SensitiveClipboard.isSecret('SENTINEL-PW'), isTrue);
+      expect(SensitiveClipboard.isSecret('SENTINEL-PW '), isFalse);
+      clipboard.dispose();
+      await tester.pump();
+    });
+
+    test('marked values are remembered; the oldest leave first', () {
+      SensitiveClipboard.markSecret('');
+      expect(SensitiveClipboard.isSecret(''), isFalse);
+      for (var i = 0; i < 65; i++) {
+        SensitiveClipboard.markSecret('token-$i');
+      }
+      expect(SensitiveClipboard.isSecret('token-0'), isFalse);
+      expect(SensitiveClipboard.isSecret('token-1'), isTrue);
+      expect(SensitiveClipboard.isSecret('token-64'), isTrue);
+      // Marking again refreshes a value's place.
+      SensitiveClipboard.markSecret('token-1');
+      SensitiveClipboard.markSecret('token-65');
+      expect(SensitiveClipboard.isSecret('token-1'), isTrue);
+      expect(SensitiveClipboard.isSecret('token-2'), isFalse);
+    });
+  });
+
+  group('after a restart (device-local marker)', () {
+    tearDown(SensitiveClipboard.debugForgetSecrets);
+
+    test('a copy leaves the marker, written after it was read', () async {
+      final marker = MemoryClipboardSecretMarker();
+      SensitiveClipboard.debugForgetSecrets(marker: marker);
+      SensitiveClipboard.markSecret('recovery-code');
+      await SensitiveClipboard.ready();
+      await pumpEventQueue();
+      expect(marker.present, isTrue);
+      expect(marker.writes, 1);
+      // Its own marker never makes this run treat other text as a secret.
+      expect(SensitiveClipboard.isSecret('ordinary text'), isFalse);
+      expect(marker.clears, 0, reason: 'its copy may still be there');
+    });
+
+    test(
+      'the next run treats the first text it would sync as the earlier '
+      "run's secret, and drops the marker once other text replaced it",
+      () async {
+        final marker = MemoryClipboardSecretMarker(present: true);
+        SensitiveClipboard.debugForgetSecrets(marker: marker);
+        await SensitiveClipboard.ready();
+        expect(SensitiveClipboard.isSecret('recovery-code'), isTrue);
+        expect(SensitiveClipboard.isSecret('recovery-code'), isTrue);
+        expect(marker.clears, 0);
+        expect(SensitiveClipboard.isSecret('copied later'), isFalse);
+        await pumpEventQueue();
+        expect(marker.present, isFalse);
+        expect(marker.clears, 1);
+      },
+    );
+
+    test('a marker that cannot be read counts as found', () async {
+      final marker = MemoryClipboardSecretMarker()
+        ..readError = const FileSystemException('unreadable');
+      SensitiveClipboard.debugForgetSecrets(marker: marker);
+      await SensitiveClipboard.ready();
+      expect(SensitiveClipboard.isSecret('maybe a secret'), isTrue);
+    });
+
+    test('a secret this run copies replaces the earlier one', () async {
+      final marker = MemoryClipboardSecretMarker(present: true);
+      SensitiveClipboard.debugForgetSecrets(marker: marker);
+      await SensitiveClipboard.ready();
+      SensitiveClipboard.markSecret('new token');
+      expect(SensitiveClipboard.isSecret('new token'), isTrue);
+      expect(SensitiveClipboard.isSecret('copied later'), isFalse);
+      await pumpEventQueue();
+      expect(marker.present, isTrue, reason: "kept for this run's copy");
+      expect(marker.clears, 0);
+    });
   });
 }

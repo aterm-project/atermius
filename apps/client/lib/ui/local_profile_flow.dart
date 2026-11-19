@@ -263,7 +263,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
           'workspace_busy',
           'The workspace is busy.',
         );
-      await _connectLocalHost(host);
+      await _connectLocalHost(host, userStarted: false);
     },
     openConsole: _openConsole,
   );
@@ -2046,6 +2046,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
     void Function(_LocalTerminalSession session)? onSessionOpened,
     void Function(_LocalTerminalSession session)? onTabCreated,
     _LocalTerminalSession? reuseSession,
+    bool userStarted = true,
   }) async {
     if (kIsWeb) {
       // A browser LocalVault has no authenticated Relay and cannot open raw
@@ -2207,7 +2208,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
       } else if (mounted) {
         setState(() {});
       }
-      await desktop.connectLocal(host);
+      await desktop.connectLocal(host, userStarted: userStarted);
       return;
     }
     final repository = _repository;
@@ -7800,6 +7801,9 @@ class _LocalTerminalSession {
     terminal.onOutput = connection.input;
     terminal.onResize = (width, height, _, _) =>
         connection.resize(width, height);
+    // A reconnect keeps this view's dimensions, so layout has no resize
+    // event to send to the newly-created remote PTY.
+    connection.resize(terminal.viewWidth, terminal.viewHeight);
     _stdout = connection.output.listen(
       (text) {
         terminal.write(text);

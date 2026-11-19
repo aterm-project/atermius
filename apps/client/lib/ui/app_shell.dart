@@ -127,6 +127,7 @@ import 'credential_visibility/credential_visibility_widgets.dart';
 import 'credential_visibility/database_encryption_status.dart';
 import '../credential_visibility/credential_visibility_models.dart';
 import '../credential_visibility/credential_visibility_service.dart';
+import '../credential_visibility/sensitive_clipboard.dart';
 import 'app_theme_mode.dart';
 import 'wallpaper.dart';
 import 'wallpaper_settings.dart';
@@ -17014,6 +17015,7 @@ class _InstanceAdminMetricsCredentialCard extends StatelessWidget {
                                   copyFailed = false;
                                 });
                                 try {
+                                  SensitiveClipboard.markSecret(credential);
                                   await Clipboard.setData(
                                     ClipboardData(text: credential),
                                   ).timeout(const Duration(seconds: 5));
@@ -20402,6 +20404,7 @@ class _AdminAccountInvitationTokenDialogState
     final token = widget.tokenBuffer.value;
     if (token == null || token.isEmpty) return;
     try {
+      SensitiveClipboard.markSecret(token);
       await Clipboard.setData(ClipboardData(text: token));
       if (!mounted) return;
       widget.tokenBuffer.clear();
@@ -23715,6 +23718,7 @@ class _AccountRecoveryPanelState extends State<_AccountRecoveryPanel> {
                     onPressed: () async {
                       setDialogState(() => copyFeedback = null);
                       try {
+                        SensitiveClipboard.markSecret(code);
                         await Clipboard.setData(ClipboardData(text: code));
                         if (dialogContext.mounted) {
                           setDialogState(
@@ -25528,6 +25532,7 @@ Future<void> _inviteVaultMember(BuildContext context, AppController app) async {
         ),
         FilledButton.icon(
           onPressed: () async {
+            SensitiveClipboard.markSecret(token);
             await Clipboard.setData(ClipboardData(text: token));
             if (dialogContext.mounted) Navigator.pop(dialogContext);
             if (context.mounted) _snack(context, context.l10n.invitationTokenCopied);

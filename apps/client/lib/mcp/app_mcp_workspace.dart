@@ -30,7 +30,7 @@ McpWorkspace appMcpWorkspace(AppController app) => McpWorkspace(
         ),
       )
       .toList(),
-  connect: app.openTerminalTab,
+  connect: (host) => app.openTerminalTab(host, userStarted: false),
   openConsole: app.openConsoleTab,
 );
 

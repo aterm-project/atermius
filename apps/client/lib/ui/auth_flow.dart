@@ -6,6 +6,7 @@ import '../api/api_client.dart';
 import '../platform/server_hosted.dart';
 import '../api/insecure_server.dart';
 import '../app_controller.dart';
+import '../credential_visibility/sensitive_clipboard.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import '../l10n/l10n.dart';
@@ -1130,6 +1131,7 @@ class _AuthFlowState extends State<AuthFlow> {
                         onPressed: () async {
                           setDialogState(() => copyFeedback = null);
                           try {
+                            SensitiveClipboard.markSecret(code);
                             await Clipboard.setData(ClipboardData(text: code));
                             if (dialogContext.mounted) {
                               setDialogState(() => copyFeedback = true);

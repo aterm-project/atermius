@@ -16433,5 +16433,61 @@
         "type": "String"
       }
     }
-  }
+  },
+  "desktopClipboardTextSyncHelp": "Text copied on either side is synced automatically while connected. Secrets are sent only with Paste local clipboard text in the session menu.",
+  "@desktopClipboardTextSyncHelp": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "desktopClipboardRemoteTooLarge": "The remote clipboard text is larger than 64 KiB, so it wasn't copied to this device.",
+  "@desktopClipboardRemoteTooLarge": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "desktopClipboardWriteFailed": "Couldn't put the remote clipboard text on this device's clipboard.",
+  "@desktopClipboardWriteFailed": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "desktopClipboardReadDenied": "The system didn't let Atermius read the clipboard, so local text isn't sent to the remote desktop automatically. Allow clipboard access for Atermius in the system settings.",
+  "@desktopClipboardReadDenied": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "desktopClipboardSecretSkipped": "Copied text marked as secret wasn't sent to the remote desktop automatically. To send it, use Paste local clipboard text in the session menu.",
+  "@desktopClipboardSecretSkipped": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "desktopClipboardLocalTooLarge": "The local clipboard text is larger than 64 KiB, so it wasn't sent to the remote desktop.",
+  "@desktopClipboardLocalTooLarge": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "desktopRemoteClipboardEmpty": "The remote clipboard has no text.",
+  "@desktopRemoteClipboardEmpty": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "clipboardIsEmpty": "The clipboard is empty.",
+  "@clipboardIsEmpty": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "clipboardHasNoText": "The clipboard has no text to paste (it may hold an image or a file).",
+  "@clipboardHasNoText": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "clipboardReadDenied": "The system didn't let Atermius read the clipboard. Allow clipboard access for Atermius in the system settings.",
+  "@clipboardReadDenied": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "clipboardReadUnfocused": "Android lets only the app in front read the clipboard. Try pasting again.",
+  "@clipboardReadUnfocused": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback."
+  },
+  "clipboardTextTooLarge": "The clipboard text is larger than {limit}, so it wasn't pasted.",
+  "@clipboardTextTooLarge": {
+    "description": "Remote-desktop clipboard sync and clipboard paste feedback.",
+    "placeholders": {
+      "limit": {
+        "type": "String",
+        "example": "64 KiB"
+      }
+    }
+  },
+  "vncClipboardLatin1Only": "The VNC clipboard carries only Latin-1 text, so this text can't be sent.",
+  "vncDisplayAndClipboard": "Resolution, local scaling and clipboard"
 }

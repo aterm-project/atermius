@@ -10,6 +10,8 @@
 #include <memory>
 #include <vector>
 
+#include "touchpad_frame.h"
+
 // "atermius/touchpad_gestures": three- and four-finger gestures of a
 // precision touchpad for remote desktop sessions. Windows keeps those
 // gestures to itself (task view, switching apps and desktops) and Flutter
@@ -42,17 +44,20 @@ public:
   void HandleMessage(UINT message, WPARAM wparam, LPARAM lparam);
 
 private:
-  // What is needed to read one touchpad's reports.
+  struct Finger {
+    USHORT link;
+    UCHAR report_id;
+    bool confidence = false;
+    LONG x_min, x_max, y_min, y_max;
+    double aspect = 1;
+  };
   struct Device {
     bool touchpad = false;
     std::vector<BYTE> preparsed;
-    // Link collections that describe one finger each.
-    std::vector<USHORT> fingers;
-    LONG x_min = 0, x_max = 0, y_min = 0;
-  };
-  struct Contact {
-    ULONG id;
-    double x, y;
+    std::vector<Finger> fingers;
+    USHORT count_link = 0, scan_link = 0;
+    UCHAR report_id = 0;
+    TouchpadFrameAssembler frame;
   };
 
   void HandleCall(
@@ -61,20 +66,17 @@ private:
   flutter::EncodableValue State() const;
   void SetArmed(bool armed);
   void HandleInput(HRAWINPUT input);
-  const Device &DeviceFor(HANDLE handle);
-  void ReadReport(const Device &device, BYTE *report, ULONG length);
+  Device &DeviceFor(HANDLE handle);
+  void ReadReport(Device &device, BYTE *report, ULONG length);
+  void CancelGesture();
   void EmitFrame();
 
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
   const HWND window_;
   bool armed_ = false;
   std::map<HANDLE, Device> devices_;
-  // The frame being assembled: a touchpad may spread one frame over several
-  // reports (hybrid mode), the first of which carries the contact count.
-  std::vector<Contact> contacts_;
-  ULONG expected_ = 0, seen_ = 0;
-  // A gesture with three or more fingers is in progress: its frames are sent
-  // until every finger has lifted.
+  std::vector<TouchpadFrameContact> contacts_;
+  HANDLE active_device_ = nullptr;
   bool gesture_ = false;
   std::vector<BYTE> buffer_;
 };

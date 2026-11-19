@@ -9,8 +9,7 @@ const _tab = 0xff09, _left = 0xff51, _right = 0xff53;
 
 /// [count] fingers side by side, moved by ([dx], [dy]) from their start.
 List<TouchpadContact> fingers(int count, [double dx = 0, double dy = 0]) => [
-  for (var i = 0; i < count; i++)
-    TouchpadContact(i, .3 + i * .1 + dx, .3 + dy),
+  for (var i = 0; i < count; i++) TouchpadContact(i, .3 + i * .1 + dx, .3 + dy),
 ];
 
 /// Feeds a movement in small frames, 8 ms apart, and collects the events.
@@ -141,6 +140,22 @@ void main() {
       expect(pad.recognizer.cancel().map((e) => '$e'), ['end 3']);
       expect(pad.recognizer.cancel(), isEmpty);
     });
+
+    test(
+      'a fifth contact cancels an active swipe and requires a full lift',
+      () {
+        final pad = Pad()..slide(3, .12, 0);
+        pad.frame(fingers(5));
+        expect(pad.events, ['swipe 3 right', 'end 3']);
+        pad.events.clear();
+        pad.slide(3, .3, 0);
+        expect(pad.events, isEmpty);
+        pad.lift();
+        pad.slide(4, 0, -.12);
+        pad.lift();
+        expect(pad.events, ['swipe 4 up', 'end 4']);
+      },
+    );
   });
 
   group('mapper', () {
@@ -159,24 +174,31 @@ void main() {
     const free = TouchpadGestureSettings.allFree;
 
     test('up, down and taps are single shortcuts', () {
-      for (final (event, expected) in <(TouchpadGestureEvent, List<(int, bool)>)>[
-        (const TouchpadSwipeStarted(3, TouchpadSwipe.up), chord(_tab, [_meta])),
-        (const TouchpadSwipeStarted(4, TouchpadSwipe.up), chord(_tab, [_meta])),
-        (
-          const TouchpadSwipeStarted(3, TouchpadSwipe.down),
-          chord(0x64, [_meta]),
-        ),
-        (const TouchpadTap(3), chord(0x73, [_meta])),
-        (const TouchpadTap(4), chord(0x61, [_meta])),
-        (
-          const TouchpadSwipeStarted(4, TouchpadSwipe.left),
-          chord(_right, [_control, _meta]),
-        ),
-        (
-          const TouchpadSwipeStarted(4, TouchpadSwipe.right),
-          chord(_left, [_control, _meta]),
-        ),
-      ]) {
+      for (final (event, expected)
+          in <(TouchpadGestureEvent, List<(int, bool)>)>[
+            (
+              const TouchpadSwipeStarted(3, TouchpadSwipe.up),
+              chord(_tab, [_meta]),
+            ),
+            (
+              const TouchpadSwipeStarted(4, TouchpadSwipe.up),
+              chord(_tab, [_meta]),
+            ),
+            (
+              const TouchpadSwipeStarted(3, TouchpadSwipe.down),
+              chord(0x64, [_meta]),
+            ),
+            (const TouchpadTap(3), chord(0x73, [_meta])),
+            (const TouchpadTap(4), chord(0x61, [_meta])),
+            (
+              const TouchpadSwipeStarted(4, TouchpadSwipe.left),
+              chord(_right, [_control, _meta]),
+            ),
+            (
+              const TouchpadSwipeStarted(4, TouchpadSwipe.right),
+              chord(_left, [_control, _meta]),
+            ),
+          ]) {
         keys.clear();
         mapper.handle(event, free);
         mapper.handle(TouchpadSwipeEnded(event.fingers), free);
@@ -199,7 +221,10 @@ void main() {
       keys.clear();
       // To the left the first step goes backwards through the switcher.
       mapper.handle(const TouchpadSwipeStarted(3, TouchpadSwipe.left), free);
-      expect(keys, [(_alt, true), ...chord(_tab, [_shift])]);
+      expect(keys, [
+        (_alt, true),
+        ...chord(_tab, [_shift]),
+      ]);
       keys.clear();
       mapper.handle(const TouchpadSwipeStep(3, forward: true), free);
       expect(keys, chord(_tab, [_shift]));
@@ -288,62 +313,66 @@ void main() {
           (_) {},
         );
 
-    test('arms for the desktop under the pointer and sends it the keys', () async {
-      final keys = <(int, bool)>[];
-      controller.attach();
-      final target = targets.register((sym, down) => keys.add((sym, down)));
-      await pumpEventQueue();
-      expect(calls, isEmpty);
-      target.update(focused: true, hovered: true);
-      await pumpEventQueue();
-      expect(calls.single.method, 'configure');
-      expect(calls.single.arguments, {'armed': true});
-      expect(controller.settings.threeFingerSlide, 0);
-      expect(controller.settings.fourFingerTap, isNull);
+    test(
+      'arms for the desktop under the pointer and sends it the keys',
+      () async {
+        final keys = <(int, bool)>[];
+        controller.attach();
+        final target = targets.register((sym, down) => keys.add((sym, down)));
+        await pumpEventQueue();
+        expect(calls, isEmpty);
+        target.update(focused: true, hovered: true);
+        await pumpEventQueue();
+        expect(calls.single.method, 'configure');
+        expect(calls.single.arguments, {'armed': true});
+        expect(controller.settings.threeFingerSlide, 0);
+        expect(controller.settings.fourFingerTap, isNull);
 
-      // Three fingers up: Win+Tab on the remote computer.
-      var time = 0;
-      for (var i = 0; i <= 10; i++) {
-        await frame(fingers(3, 0, -.02 * i), time += 8);
-      }
-      await frame(const [], time += 8);
-      expect(keys, [
-        (_meta, true),
-        (_tab, true),
-        (_tab, false),
-        (_meta, false),
-      ]);
+        // Three fingers up: Win+Tab on the remote computer.
+        var time = 0;
+        for (var i = 0; i <= 10; i++) {
+          await frame(fingers(3, 0, -.02 * i), time += 8);
+        }
+        await frame(const [], time += 8);
+        expect(keys, [
+          (_meta, true),
+          (_tab, true),
+          (_tab, false),
+          (_meta, false),
+        ]);
 
-      // Four-finger slides belong to this computer here.
-      keys.clear();
-      for (var i = 0; i <= 10; i++) {
-        await frame(fingers(4, .03 * i, 0), time += 8);
-      }
-      await frame(const [], time += 8);
-      expect(keys, isEmpty);
+        // Four-finger slides belong to this computer here.
+        keys.clear();
+        for (var i = 0; i <= 10; i++) {
+          await frame(fingers(4, .03 * i, 0), time += 8);
+        }
+        await frame(const [], time += 8);
+        expect(keys, isEmpty);
 
-      // Leaving the desktop mid-swipe releases Alt and disarms.
-      for (var i = 0; i <= 10; i++) {
-        await frame(fingers(3, .02 * i, 0), time += 8);
-      }
-      expect(keys.first, (_alt, true));
-      expect(keys.contains((_alt, false)), isFalse);
-      target.update(hovered: false);
-      await pumpEventQueue();
-      expect(keys.last, (_alt, false));
-      expect(calls.last.arguments, {'armed': false});
-      keys.clear();
-      await frame(fingers(3), time += 8);
-      await frame(const [], time += 8);
-      expect(keys, isEmpty);
-      target.unregister();
-    });
+        // Leaving the desktop mid-swipe releases Alt and disarms.
+        for (var i = 0; i <= 10; i++) {
+          await frame(fingers(3, .02 * i, 0), time += 8);
+        }
+        expect(keys.first, (_alt, true));
+        expect(keys.contains((_alt, false)), isFalse);
+        target.update(hovered: false);
+        await pumpEventQueue();
+        expect(keys.last, (_alt, false));
+        expect(calls.last.arguments, {'armed': false});
+        keys.clear();
+        await frame(fingers(3), time += 8);
+        await frame(const [], time += 8);
+        expect(keys, isEmpty);
+        target.unregister();
+      },
+    );
 
     test('settings follow the runner, malformed frames are dropped', () async {
       final keys = <(int, bool)>[];
       controller.attach();
-      targets.register((sym, down) => keys.add((sym, down)))
-        .update(focused: true, hovered: true);
+      targets
+          .register((sym, down) => keys.add((sym, down)))
+          .update(focused: true, hovered: true);
       await pumpEventQueue();
       await messenger.handlePlatformMessage(
         gestures.name,
@@ -388,6 +417,79 @@ void main() {
       targets.register((_, _) {}).update(focused: true, hovered: true);
       await pumpEventQueue();
       expect(calls, isEmpty);
+    });
+
+    for (final interruption in [
+      'disable',
+      'unregister',
+      'retarget',
+      'focus',
+      'cancel',
+      'invalid',
+    ]) {
+      test(
+        'releases Alt on the original session after $interruption',
+        () async {
+          final oldKeys = <(int, bool)>[], newKeys = <(int, bool)>[];
+          controller.attach();
+          final target = targets.register(
+            (key, down) => oldKeys.add((key, down)),
+          )..update(focused: true, hovered: true);
+          await pumpEventQueue();
+          await frame(fingers(3), 0);
+          await frame(fingers(3, .12), 8);
+          expect(oldKeys.first, (_alt, true));
+          switch (interruption) {
+            case 'disable':
+              target.update(enabled: false);
+            case 'unregister':
+              target.unregister();
+            case 'retarget':
+              target.retarget((key, down) => newKeys.add((key, down)));
+            case 'focus':
+              await messenger.handlePlatformMessage(
+                capture.name,
+                const StandardMethodCodec().encodeMethodCall(
+                  const MethodCall('windowFocus', {'focused': false}),
+                ),
+                (_) {},
+              );
+            case 'cancel':
+              await messenger.handlePlatformMessage(
+                gestures.name,
+                const StandardMethodCodec().encodeMethodCall(
+                  const MethodCall('cancel'),
+                ),
+                (_) {},
+              );
+            case 'invalid':
+              await frame([const TouchpadContact(0, double.nan, 0)], 16);
+          }
+          expect(oldKeys.last, (_alt, false));
+          expect(oldKeys.where((k) => k == (_alt, false)), hasLength(1));
+          expect(newKeys, isEmpty);
+        },
+      );
+    }
+
+    testWidgets('a lost final frame releases the gesture modifier', (
+      tester,
+    ) async {
+      final keys = <(int, bool)>[];
+      controller.attach();
+      targets
+          .register((key, down) => keys.add((key, down)))
+          .update(focused: true, hovered: true);
+      await tester.pump();
+      await frame(fingers(3), 0);
+      await frame(fingers(3, .12), 8);
+      expect(keys.last, (_tab, false));
+      await tester.pump(const Duration(seconds: 1));
+      expect(keys.last, (_alt, false));
+      await frame(fingers(3, .3), 1100);
+      expect(keys.where((k) => k == (_alt, true)), hasLength(1));
+      controller.dispose();
+      debugDefaultTargetPlatformOverride = null;
     });
   });
 }

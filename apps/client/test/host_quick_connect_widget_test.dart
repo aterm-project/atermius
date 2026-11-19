@@ -22,6 +22,7 @@ class QuickController extends AppController {
   Future<void> openTerminalTab(
     HostRecord host, {
     void Function(String tabId)? onTabOpened,
+    bool userStarted = true,
   }) async {
     connected = host;
   }

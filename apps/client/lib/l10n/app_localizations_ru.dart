@@ -19836,4 +19836,60 @@ class AppLocalizationsRu extends AppLocalizations {
   String waRetrying(String node) {
     return 'Узел $node повторяет операцию. Сведения доступны в журнале агента.';
   }
+
+  @override
+  String get desktopClipboardTextSyncHelp =>
+      'Во время подключения текст, скопированный на любой стороне, синхронизируется автоматически. Секреты отправляются только через «Вставить текст из локального буфера обмена» в меню сеанса.';
+
+  @override
+  String get desktopClipboardRemoteTooLarge =>
+      'Текст в удалённом буфере обмена больше 64 КиБ, поэтому он не скопирован на это устройство.';
+
+  @override
+  String get desktopClipboardWriteFailed =>
+      'Не удалось поместить текст из удалённого буфера обмена в буфер обмена этого устройства.';
+
+  @override
+  String get desktopClipboardReadDenied =>
+      'Система не разрешила Atermius читать буфер обмена, поэтому локальный текст не отправляется на удалённый рабочий стол автоматически. Разрешите Atermius доступ к буферу обмена в настройках системы.';
+
+  @override
+  String get desktopClipboardSecretSkipped =>
+      'Скопированный текст, помеченный как секрет, не отправлен на удалённый рабочий стол автоматически. Чтобы отправить его, выберите «Вставить текст из локального буфера обмена» в меню сеанса.';
+
+  @override
+  String get desktopClipboardLocalTooLarge =>
+      'Текст в локальном буфере обмена больше 64 КиБ, поэтому он не отправлен на удалённый рабочий стол.';
+
+  @override
+  String get desktopRemoteClipboardEmpty =>
+      'В удалённом буфере обмена нет текста.';
+
+  @override
+  String get clipboardIsEmpty => 'Буфер обмена пуст.';
+
+  @override
+  String get clipboardHasNoText =>
+      'В буфере обмена нет текста для вставки (возможно, там изображение или файл).';
+
+  @override
+  String get clipboardReadDenied =>
+      'Система не разрешила Atermius прочитать буфер обмена. Разрешите Atermius доступ к буферу обмена в настройках системы.';
+
+  @override
+  String get clipboardReadUnfocused =>
+      'Android разрешает читать буфер обмена только активному приложению. Попробуйте вставить ещё раз.';
+
+  @override
+  String clipboardTextTooLarge(String limit) {
+    return 'Текст в буфере обмена больше $limit, поэтому он не вставлен.';
+  }
+
+  @override
+  String get vncClipboardLatin1Only =>
+      'Буфер обмена VNC передаёт только текст в Latin-1, поэтому этот текст отправить нельзя.';
+
+  @override
+  String get vncDisplayAndClipboard =>
+      'Разрешение, локальное масштабирование и буфер обмена';
 }

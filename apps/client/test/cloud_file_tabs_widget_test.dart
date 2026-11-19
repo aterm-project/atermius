@@ -719,6 +719,7 @@ class _TestApp extends AppController {
   Future<void> openTerminalTab(
     HostRecord host, {
     void Function(String tabId)? onTabOpened,
+    bool userStarted = true,
   }) {
     attempts.add(host.id);
     if (host.id == failedHost)

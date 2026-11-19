@@ -129,7 +129,16 @@ class MultiFingerGestureRecognizer {
       return events;
     }
     // More fingers than Windows has gestures for: not ours.
-    if (contacts.length > 4) _ignored = true;
+    if (contacts.length > 4) {
+      // A palm/fifth contact can interrupt an app-switching swipe. Always
+      // finish it now, otherwise the remote Alt stays down indefinitely.
+      if (_direction != null) events.add(TouchpadSwipeEnded(_fingers));
+      _tracking = false;
+      _direction = null;
+      _last = const {};
+      _waitForLift = true;
+      return events;
+    }
     if (contacts.length > _fingers && _direction == null) {
       // A fourth finger landing late still makes it a four-finger gesture.
       _fingers = contacts.length;
@@ -179,13 +188,13 @@ class MultiFingerGestureRecognizer {
   }
 
   /// Forgets the gesture in progress; reports the end of a started swipe.
-  List<TouchpadGestureEvent> cancel() {
+  List<TouchpadGestureEvent> cancel({bool waitForLift = false}) {
     final events = <TouchpadGestureEvent>[
       if (_tracking && !_ignored && _direction != null)
         TouchpadSwipeEnded(_fingers),
     ];
+    _waitForLift = waitForLift && (_tracking || _waitForLift);
     _tracking = false;
-    _waitForLift = false;
     _direction = null;
     _last = const {};
     return events;
@@ -355,6 +364,7 @@ class TouchpadGestureController {
   TouchpadGestureMapper? _mapper;
   KeyboardCaptureTarget? _target;
   bool _attached = false, _missing = false, _sentArmed = false;
+  Timer? _idle;
 
   /// As last reported by the runner.
   TouchpadGestureSettings settings = const TouchpadGestureSettings();
@@ -408,7 +418,9 @@ class TouchpadGestureController {
   /// Ends the gesture in progress on the current target.
   void _finish() {
     final mapper = _mapper;
-    for (final event in _recognizer.cancel()) {
+    _idle?.cancel();
+    _idle = null;
+    for (final event in _recognizer.cancel(waitForLift: true)) {
       mapper?.handle(event, settings);
     }
     mapper?.release();
@@ -417,32 +429,54 @@ class TouchpadGestureController {
   Future<Object?> _handle(MethodCall call) async {
     switch (call.method) {
       case 'stateChanged':
+        _finish();
         _accept(call.arguments);
+      case 'cancel':
+        _finish();
       case 'frame':
         final mapper = _mapper;
         final arguments = call.arguments;
         if (mapper == null || arguments is! Map) return null;
         final raw = arguments['contacts'], time = arguments['time'];
-        if (raw is! List || time is! int || raw.length % 3 != 0) return null;
+        if (raw is! List ||
+            time is! int ||
+            raw.length % 3 != 0 ||
+            raw.length > 48) {
+          _finish();
+          return null;
+        }
         final contacts = <TouchpadContact>[];
+        final ids = <int>{};
         for (var i = 0; i + 2 < raw.length && contacts.length < 16; i += 3) {
           final id = raw[i], x = raw[i + 1], y = raw[i + 2];
-          if (id is! num || x is! num || y is! num) return null;
-          if (!x.isFinite || !y.isFinite) return null;
+          if (id is! num ||
+              !id.isFinite ||
+              id != id.roundToDouble() ||
+              x is! num ||
+              y is! num ||
+              !x.isFinite ||
+              !y.isFinite ||
+              !ids.add(id.toInt())) {
+            _finish();
+            return null;
+          }
           contacts.add(TouchpadContact(id.toInt(), x.toDouble(), y.toDouble()));
         }
         for (final event in _recognizer.add(contacts, time)) {
           final blocked = switch (event) {
             TouchpadTap() => !settings.free(event.fingers, tap: true),
-            TouchpadSwipeStarted() => !settings.free(
-              event.fingers,
-              tap: false,
-            ),
+            TouchpadSwipeStarted() => !settings.free(event.fingers, tap: false),
             _ => false,
           };
           if (blocked) usedLocally.value++;
           mapper.handle(event, settings);
         }
+        _idle?.cancel();
+        // Device removal, a lost final HID report, or a suspended window
+        // must never leave a modifier held remotely.
+        _idle = contacts.isEmpty
+            ? null
+            : Timer(const Duration(seconds: 1), _finish);
     }
     return null;
   }
