@@ -6041,7 +6041,28 @@ class AppController extends ChangeNotifier {
   }
   // <<< credential-visibility
 
+  /// Builds running right now. While one rebuilds the selected Vault's
+  /// repository, [_repository] is null for a moment although nothing is
+  /// locked; SSH host key decisions wait for it (see
+  /// [_knownHostStateTransitionPending]).
+  int _repositoryBuildsActive = 0;
+
   Future<void> _buildRepository({
+    bool waitForPreviousRepositoryDrain = true,
+    int? expectedVaultSelectionGeneration,
+  }) async {
+    _repositoryBuildsActive++;
+    try {
+      await _buildRepositoryNow(
+        waitForPreviousRepositoryDrain: waitForPreviousRepositoryDrain,
+        expectedVaultSelectionGeneration: expectedVaultSelectionGeneration,
+      );
+    } finally {
+      _repositoryBuildsActive--;
+    }
+  }
+
+  Future<void> _buildRepositoryNow({
     bool waitForPreviousRepositoryDrain = true,
     int? expectedVaultSelectionGeneration,
   }) async {
@@ -7770,8 +7791,9 @@ class AppController extends ChangeNotifier {
     // another device while the dialog was open must be seen before this local
     // create is queued. The sole offline exception is this confirmation path,
     // whose dialog explicitly says that SSH will stop until sync verification.
+    final approvalDeadline = Stopwatch()..start();
     try {
-      await _pullVaultBeforeKnownHostDecision(deadline: Stopwatch()..start());
+      await _pullVaultBeforeKnownHostDecision(deadline: approvalDeadline);
     } on SyncReadTransportUnavailableException {
       if (!offlineFirstApprovalWasConfirmed ||
           approvalSource != KnownHostApprovalSource.interactiveConfirmation) {
@@ -7798,6 +7820,10 @@ class AppController extends ChangeNotifier {
       }
       offlineQueue = true;
     }
+    // A signed account refresh may be rebuilding the repository at this very
+    // moment. Wait for it rather than report the Vault as locked; the scope
+    // checks below still reject an account, device or Vault that changed.
+    await _waitForKnownHostStateTransitions(approvalDeadline);
     _ensureKnownHostDecisionCurrent();
     _ensureKnownHostDecisionScopeCurrent(
       accountId: initialAccountId,
@@ -8041,7 +8067,11 @@ class AppController extends ChangeNotifier {
       snapshotRecoveryActive ||
       _snapshotRecoveryFuture != null ||
       _membershipRefreshActive ||
-      _membershipRefreshFuture != null;
+      _membershipRefreshFuture != null ||
+      // The periodic account refresh rebuilds the repository. A host key
+      // decision that looked at that moment found none and failed the
+      // connection with "The current Vault is locked".
+      _repositoryBuildsActive > 0;
 
   Future<bool> _waitForKnownHostStateTransitions(Stopwatch deadline) async {
     var waited = false;
@@ -8055,9 +8085,12 @@ class AppController extends ChangeNotifier {
         await pending.timeout(_remainingKnownHostDecisionTime(deadline));
         continue;
       }
-      if (snapshotRecoveryActive || _membershipRefreshActive) {
+      if (snapshotRecoveryActive ||
+          _membershipRefreshActive ||
+          _repositoryBuildsActive > 0) {
         // An active flag can become visible just before its Future is
-        // published. Poll briefly under the same decision deadline.
+        // published, and a repository build has no Future of its own. Poll
+        // briefly under the same decision deadline.
         waited = true;
         await Future<void>.delayed(const Duration(milliseconds: 5))
             .timeout(_remainingKnownHostDecisionTime(deadline));
@@ -8085,6 +8118,13 @@ class AppController extends ChangeNotifier {
   }
 
   void _ensureKnownHostDecisionCurrent() {
+    if (authenticated &&
+        stage == ClientStage.workspace &&
+        _repository == null &&
+        _repositoryBuildsActive > 0) {
+      // Being rebuilt, not locked: say what is true, and what a retry fixes.
+      throw StateError(currentL10n.theVaultIsRestoringOrChanging);
+    }
     if (!authenticated ||
         stage != ClientStage.workspace ||
         _repository == null) {
