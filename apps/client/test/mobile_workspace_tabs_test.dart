@@ -55,6 +55,13 @@ void main() {
         await tester.pumpAndSettle();
         expect(_button, findsOneWidget);
         expect(tester.takeException(), isNull);
+        // Menu first, then the tab switcher.
+        expect(
+          tester
+              .getRect(find.byKey(const ValueKey('workspace_host_menu')))
+              .right,
+          lessThanOrEqualTo(tester.getRect(_button).left),
+        );
         await tester.tap(_button);
         await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('workspace-tab-a')), findsOneWidget);

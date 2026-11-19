@@ -561,7 +561,7 @@ class WorkspaceTabBar extends StatelessWidget {
             : (details) => _longPressMenu(context, tab, details.globalPosition),
         child: Padding(
           padding: EdgeInsets.fromLTRB(
-            tab.isHome ? 8 : 2,
+            tab.isHome && homeMenuActions.isEmpty ? 8 : 2,
             bar.tabInset,
             2,
             bar.tabInset,
@@ -574,7 +574,6 @@ class WorkspaceTabBar extends StatelessWidget {
             selected: selected,
             mobile: mobile,
             width: tab.isHome ? homeWidth : sessionWidth,
-            homeMenuActions: homeMenuActions,
             onTap: () => onSelect(_selectionFor(tab)),
             onClose: () => _closeTab(tab),
           ),
@@ -802,22 +801,38 @@ class WorkspaceTabBar extends StatelessWidget {
         height: bar.height,
         child: LayoutBuilder(
           builder: (context, barConstraints) {
-            final homeWidth = barConstraints.maxWidth < 380 ? 110.0 : 128.0;
+            final homeWidth = barConstraints.maxWidth < 380 ? 96.0 : 112.0;
             return sized(
               Row(
                 children: [
                   if (chrome.state.leadingInset > 0)
                     SizedBox(width: chrome.state.leadingInset),
                   ?leading,
+                  // The menu is its own control in front of the Home tab, on
+                  // every platform and in the compact Android switcher too.
+                  if (homeMenuActions.isNotEmpty)
+                    _WorkspaceMenuButton(
+                      actions: homeMenuActions,
+                      metrics: bar,
+                    ),
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, tabConstraints) {
                         // Use logical display width after toolbar actions and
                         // system insets, so Android density and split-screen
-                        // changes follow the same four-tab threshold.
+                        // changes follow the same four-tab threshold. The
+                        // menu button sits outside [tabConstraints]; it is
+                        // part of the Home slot the threshold counts.
+                        final menuWidth = homeMenuActions.isEmpty
+                            ? 0.0
+                            : _WorkspaceMenuButton.slotWidth(bar);
+                        final homeSlot = barConstraints.maxWidth < 380
+                            ? 110.0
+                            : 128.0;
                         if (Theme.of(context).platform ==
                                 TargetPlatform.android &&
-                            tabConstraints.maxWidth < homeWidth + 3 * 152) {
+                            tabConstraints.maxWidth + menuWidth <
+                                homeSlot + 3 * 152) {
                           return _CompactWorkspaceTabs(bar: this, metrics: bar);
                         }
                         return Row(
@@ -829,11 +844,14 @@ class WorkspaceTabBar extends StatelessWidget {
                                 context,
                                 tab,
                                 bar,
-                                // 首页标签左右外边距共 10px；Windows 窄窗口中标题栏按钮占去
-                                // 大部分宽度时按实际可用标签区收窄，避免整行溢出。
-                                homeWidth: (tabConstraints.maxWidth - 10)
-                                    .clamp(72.0, homeWidth)
-                                    .toDouble(),
+                                // 首页标签左右外边距：前面有菜单按钮时共 4px，否则 10px。
+                                // Windows 窄窗口中标题栏按钮占去大部分宽度时按实际可用
+                                // 标签区收窄（标题省略），菜单、首页和窗口按钮仍在一行。
+                                homeWidth:
+                                    (tabConstraints.maxWidth -
+                                            (homeMenuActions.isEmpty ? 10 : 4))
+                                        .clamp(44.0, homeWidth)
+                                        .toDouble(),
                               ),
                             Expanded(
                               child: LayoutBuilder(
@@ -1094,7 +1112,6 @@ class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
                                       selected: active,
                                       mobile: true,
                                       width: double.infinity,
-                                      homeMenuActions: bar.homeMenuActions,
                                       onTap: () {
                                         _hide();
                                         bar.onSelect(bar._selectionFor(tab));
@@ -1201,12 +1218,6 @@ class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
                 ),
               ),
             ),
-            if (bar.homeMenuActions.isNotEmpty)
-              WorkspaceOverflowMenu(
-                key: const ValueKey('workspace_host_menu'),
-                tooltip: context.l10n.hostMenuClickToOpen,
-                actions: bar.homeMenuActions,
-              ),
           ],
         ),
       ),
@@ -1272,7 +1283,6 @@ class _TabSurfaceChip extends StatefulWidget {
     required this.selected,
     required this.mobile,
     required this.width,
-    required this.homeMenuActions,
     required this.onTap,
     required this.onClose,
   });
@@ -1284,7 +1294,6 @@ class _TabSurfaceChip extends StatefulWidget {
   final bool selected;
   final bool mobile;
   final double width;
-  final List<WorkspaceAction> homeMenuActions;
   final VoidCallback onTap;
   final VoidCallback onClose;
 
@@ -1346,50 +1355,26 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
             width: widget.width,
             child: Row(
               children: [
-                if (tab.isHome && widget.homeMenuActions.isNotEmpty) ...[
-                  // Two separate targets: the home glyph belongs to the tab
-                  // (selects Home), the menu glyph only opens the menu.
-                  SizedBox(
-                    key: const ValueKey('workspace_home_button'),
-                    width: 30,
-                    child: Icon(
-                      Icons.home_outlined,
-                      size: bar.iconSize,
-                      color: selected ? palette.accentText : palette.muted,
+                const SizedBox(width: 10),
+                _TabIcon(
+                  tab: tab,
+                  size: bar.iconSize,
+                  color: tab.isConnected
+                      ? palette.accentText
+                      : (selected ? palette.text : palette.muted),
+                ),
+                if (!tab.isHome && tab.isConnected) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF34C759),
+                      shape: BoxShape.circle,
                     ),
                   ),
-                  WorkspaceOverflowMenu(
-                    key: const ValueKey('workspace_host_menu'),
-                    tooltip: context.l10n.hostMenuClickToOpen,
-                    actions: widget.homeMenuActions,
-                    child: _HomeMenuGlyph(
-                      height: bar.tabHeight,
-                      color: selected ? palette.accentText : palette.muted,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                ] else ...[
-                  const SizedBox(width: 10),
-                  _TabIcon(
-                    tab: tab,
-                    size: bar.iconSize,
-                    color: tab.isConnected
-                        ? palette.accentText
-                        : (selected ? palette.text : palette.muted),
-                  ),
-                  if (!tab.isHome && tab.isConnected) ...[
-                    const SizedBox(width: 4),
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF34C759),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(width: 7),
                 ],
+                const SizedBox(width: 7),
                 Expanded(
                   child: Text(
                     tab.title,
@@ -1433,34 +1418,65 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
   }
 }
 
-/// The Home tab's menu trigger: its own hover-highlighted button next to the
-/// home glyph, so it reads as a separate control from the tab itself.
-class _HomeMenuGlyph extends StatefulWidget {
-  const _HomeMenuGlyph({required this.height, required this.color});
-  final double height;
-  final Color color;
+/// The workspace menu: an icon-only button of its own at the start of the
+/// bar, in front of the Home tab. It only opens the menu; selecting Home is
+/// the Home tab's job.
+class _WorkspaceMenuButton extends StatefulWidget {
+  const _WorkspaceMenuButton({required this.actions, required this.metrics});
+  final List<WorkspaceAction> actions;
+  final WindowBarMetrics metrics;
+
+  static double _width(WindowBarMetrics metrics) =>
+      metrics.dense ? metrics.tabHeight : 40;
+
+  /// Bar width the button takes, padding included.
+  static double slotWidth(WindowBarMetrics metrics) => _width(metrics) + 10;
+
   @override
-  State<_HomeMenuGlyph> createState() => _HomeMenuGlyphState();
+  State<_WorkspaceMenuButton> createState() => _WorkspaceMenuButtonState();
 }
 
-class _HomeMenuGlyphState extends State<_HomeMenuGlyph> {
+class _WorkspaceMenuButtonState extends State<_WorkspaceMenuButton> {
   bool _hovered = false;
   @override
-  Widget build(BuildContext context) => MouseRegion(
-    onEnter: (_) => setState(() => _hovered = true),
-    onExit: (_) => setState(() => _hovered = false),
-    child: Container(
-      width: 26,
-      height: widget.height - 6,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        color: Theme.of(
-          context,
-        ).colorScheme.onSurface.withValues(alpha: _hovered ? .14 : .06),
+  Widget build(BuildContext context) {
+    final metrics = widget.metrics;
+    final palette = context.palette;
+    final colors = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(8);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(8, metrics.tabInset, 2, metrics.tabInset),
+      // The bar is not a Material; the menu's ink needs one of its own.
+      child: Material(
+        type: MaterialType.transparency,
+        child: WorkspaceOverflowMenu(
+          key: const ValueKey('workspace_host_menu'),
+          tooltip: context.l10n.hostMenuClickToOpen,
+          actions: widget.actions,
+          borderRadius: radius,
+          child: MouseRegion(
+            onEnter: (_) => setState(() => _hovered = true),
+            onExit: (_) => setState(() => _hovered = false),
+            child: AnimatedContainer(
+              duration: AppMotion.duration(context, MotionDurations.quick),
+              curve: MotionCurves.move,
+              width: _WorkspaceMenuButton._width(metrics),
+              height: metrics.tabHeight,
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                color: colors.onSurface.withValues(alpha: _hovered ? .12 : .05),
+              ),
+              child: Icon(
+                Icons.menu_rounded,
+                size: metrics.iconSize,
+                color: _hovered ? palette.text : palette.muted,
+              ),
+            ),
+          ),
+        ),
       ),
-      child: Icon(Icons.menu_rounded, size: 15, color: widget.color),
-    ),
-  );
+    );
+  }
 }
 
 /// Touch-platform tab drag. Unlike [LongPressDraggable] it starts as soon as

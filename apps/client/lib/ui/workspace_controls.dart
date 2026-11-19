@@ -59,6 +59,7 @@ class WorkspaceOverflowMenu extends StatelessWidget {
     this.icon,
     this.padding = const EdgeInsets.all(8),
     this.child,
+    this.borderRadius,
     super.key,
   });
 
@@ -74,6 +75,9 @@ class WorkspaceOverflowMenu extends StatelessWidget {
   final Widget? icon;
   final EdgeInsetsGeometry padding;
   final Widget? child;
+
+  /// Shape of the ink on a custom [child] trigger.
+  final BorderRadius? borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +98,7 @@ class WorkspaceOverflowMenu extends StatelessWidget {
           ? Colors.black.withValues(alpha: palette.isDark ? 0.45 : 0.14)
           : null,
       clipBehavior: Clip.antiAlias,
+      borderRadius: borderRadius,
       tooltip: tooltip ?? context.l10n.more,
       padding: padding,
       onOpened: () {

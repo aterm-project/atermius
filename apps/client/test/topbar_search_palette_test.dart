@@ -42,7 +42,7 @@ void main() {
         tester.view.devicePixelRatio = 1;
         await tester.pumpWidget(
           MaterialApp(
-            theme: buildAppTheme(),
+            theme: buildAppTheme(platform: TargetPlatform.windows),
             home: WindowChromeScope(
               controller: chrome,
               child: Scaffold(
@@ -102,7 +102,28 @@ void main() {
         expect(search.right, sidebar.left);
         expect(sidebar.right, controls.left);
         expect(sidebar.center.dy, search.center.dy);
-        expect(home.left - bar.left, 8);
+        // The menu is its own icon-only button in front of the Home tab.
+        final menu = tester.getRect(
+          find.byKey(const ValueKey('workspace_host_menu')),
+        );
+        expect(menu.left - bar.left, 8);
+        expect(home.left - menu.right, 4);
+        expect(menu.top, home.top);
+        expect(menu.height, home.height);
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('workspace_host_menu')),
+            matching: find.byType(Text),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('workspace-tab-hosts')),
+            matching: find.byKey(const ValueKey('workspace_host_menu')),
+          ),
+          findsNothing,
+        );
         expect(home.top - bar.top, 4);
         await tester.tap(
           find.byKey(const ValueKey('workspace_terminal_sidebar_button')),
