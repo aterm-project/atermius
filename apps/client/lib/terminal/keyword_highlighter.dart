@@ -296,12 +296,18 @@ class TerminalKeywordHighlighter extends ChangeNotifier
   static const _flagTruncated = 4;
 
   final _scratch = Uint32List(maxAnalysedCells + 1);
+  // 复用解码与列映射缓冲区，避免高吞吐滚动高亮时每行重复堆分配两个 Uint16List。
+  final _unitsScratch = Uint16List(maxAnalysedCells * 2);
+  final _columnsScratch = Uint16List(maxAnalysedCells * 2);
   final _cache = <int, _CachedLine>{};
 
   /// How many lines went through the regular expression so far. Repaints of
   /// unchanged lines must not increase it.
   @visibleForTesting
   int debugAnalysedLines = 0;
+
+  @visibleForTesting
+  int debugCacheHits = 0;
 
   @visibleForTesting
   int get debugCachedLines => _cache.length;
@@ -334,6 +340,7 @@ class TerminalKeywordHighlighter extends ChangeNotifier
 
     final cached = _cache.remove(hash);
     if (cached != null && cached.matches(key, cells + 1)) {
+      debugCacheHits++;
       _cache[hash] = cached; // Most recently used.
       return cached.spans;
     }
@@ -354,8 +361,8 @@ class TerminalKeywordHighlighter extends ChangeNotifier
     // Text as the user reads it, and for every UTF-16 unit the cell it is in.
     // A wide character takes two cells but is one character of text; a
     // skipped (never written) cell reads as a space.
-    final units = Uint16List(cells * 2);
-    final columns = Uint16List(cells * 2);
+    final units = _unitsScratch;
+    final columns = _columnsScratch;
     var length = 0;
     var afterWide = false;
     for (var i = 0; i < cells; i++) {

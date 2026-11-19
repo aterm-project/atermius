@@ -69,6 +69,7 @@ import '../ssh/host_operating_system_probe.dart';
 import '../ssh/host_operating_system_persistence.dart';
 import '../terminal/terminal_search.dart';
 import '../terminal/mirrored_terminal.dart';
+import '../terminal/terminal_output_coalescer.dart';
 import '../terminal/terminal_session_reset.dart';
 import '../terminal/terminal_scrollback.dart';
 import '../terminal/terminal_scrollback_tiers.dart';
@@ -7844,6 +7845,7 @@ class _LocalTerminalSession {
   Future<void> attachSsh(SshConnection value, SessionLogRecorder? recorder) async {
     final generation = connectionGeneration;
     final old = connection;
+    _resetOutputCoalescer(flushPending: false);
     await _stdout?.cancel();
     await _stderr?.cancel();
     await old?.close();
@@ -7858,6 +7860,13 @@ class _LocalTerminalSession {
 
   String? _reconnectFailure;
   String? lastDisconnectReason;
+  TerminalOutputCoalescer? _outputCoalescer;
+
+  void _resetOutputCoalescer({bool flushPending = false}) {
+    final active = _outputCoalescer;
+    _outputCoalescer = null;
+    active?.close(flushPending: flushPending);
+  }
 
   /// Why reconnecting this once-connected tab failed, written to its terminal
   /// (the "Connection lost" overlay stays above it). Automatic retries repeat
@@ -7877,13 +7886,23 @@ class _LocalTerminalSession {
     // A reconnect keeps this view's dimensions, so layout has no resize
     // event to send to the newly-created remote PTY.
     connection.resize(terminal.viewWidth, terminal.viewHeight);
+    _resetOutputCoalescer(flushPending: false);
+    final coalescer = TerminalOutputCoalescer(
+      onFlush: (batch) {
+        if (_closed || !identical(this.connection, connection)) return;
+        terminal.write(batch);
+        log?.output(batch);
+      },
+    );
+    _outputCoalescer = coalescer;
     _stdout = connection.output.listen(
       (text) {
-        terminal.write(text);
-        log?.output(text);
+        if (_closed || !identical(this.connection, connection)) return;
+        coalescer.add(text);
       },
       onError: (Object error) {
         if (_closed || !identical(this.connection, connection)) return;
+        _resetOutputCoalescer(flushPending: true);
         lastDisconnectReason =
             sshConnectionHealthOf(connection)?.keepaliveTimedOut == true
             ? 'keepalive_timeout'
@@ -7895,6 +7914,7 @@ class _LocalTerminalSession {
       },
       onDone: () {
         if (_closed || !identical(this.connection, connection)) return;
+        _resetOutputCoalescer(flushPending: true);
         lastDisconnectReason =
             sshConnectionHealthOf(connection)?.keepaliveTimedOut == true
             ? 'keepalive_timeout'
@@ -7910,8 +7930,8 @@ class _LocalTerminalSession {
         .bind(connection.session.stderr)
         .listen(
           (text) {
-            terminal.write(text);
-            log?.output(text);
+            if (_closed || !identical(this.connection, connection)) return;
+            coalescer.add(text);
           },
           onError: (_) => terminal.write(currentL10n.sshErrorStreamUnavailable),
         );
@@ -8138,6 +8158,7 @@ class _LocalTerminalSession {
     sshCancellation = null;
     unawaited(ssh?.cancel());
     connectionGeneration++;
+    _resetOutputCoalescer(flushPending: false);
     _telnetCancellation?.cancel();
     _telnetCancellation = null;
     final output = _stdout, errors = _stderr, oldTelnet = telnet;
@@ -8156,6 +8177,7 @@ class _LocalTerminalSession {
   Future<void> _close() async {
     if (_closed) return;
     _closed = true;
+    _resetOutputCoalescer(flushPending: false);
     progress.retire();
     final cancellation = sshCancellation;
     sshCancellation = null;

@@ -58,6 +58,7 @@ import 'ssh/ssh_service.dart';
 import 'ssh/tmux_service.dart';
 import 'terminal/terminal_collaboration_service.dart';
 import 'terminal/mirrored_terminal.dart';
+import 'terminal/terminal_output_coalescer.dart';
 import 'terminal/terminal_session_reset.dart';
 import 'terminal/terminal_scrollback.dart';
 import 'terminal/terminal_scrollback_tiers.dart';
@@ -306,6 +307,12 @@ class TerminalTabSession {
   Object? get liveTerminalTransport => connection ?? telnet ?? console;
   SshConnectCancellation? connectionCancellation = SshConnectCancellation();
   StreamSubscription<String>? outputSubscription;
+  TerminalOutputCoalescer? outputCoalescer;
+  void resetOutputCoalescer({bool flushPending = false}) {
+    final active = outputCoalescer;
+    outputCoalescer = null;
+    active?.close(flushPending: flushPending);
+  }
   void Function(String text)? outputListener;
   final Map<Object, void Function(String text)> _outputFanout = {};
   SftpClient? sftp;
@@ -10302,6 +10309,7 @@ class AppController extends ChangeNotifier {
     SshConnection connection,
     TmuxAttachHandle handle,
   ) async {
+    tab.resetOutputCoalescer(flushPending: true);
     final previousSubscription = tab.outputSubscription;
     await previousSubscription?.cancel();
     if (!_isTerminalTabOpen(tab) || !identical(tab.connection, connection)) {
@@ -20885,6 +20893,7 @@ class AppController extends ChangeNotifier {
     tab.connectionCancellation = null;
     tab.telnetCancellation?.cancel();
     tab.telnetCancellation = null;
+    tab.resetOutputCoalescer(flushPending: false);
     final output = tab.outputSubscription;
     final connection = tab.connection, telnet = tab.telnet;
     final desktop = tab.desktop, console = tab.console;
@@ -20994,6 +21003,7 @@ class AppController extends ChangeNotifier {
     tab.connectionCancellation = null;
     tab.telnetCancellation?.cancel();
     tab.telnetCancellation = null;
+    tab.resetOutputCoalescer(flushPending: false);
     final connection = tab.connection, telnet = tab.telnet;
     final output = tab.outputSubscription;
     tab.outputSubscription = null;
@@ -21312,6 +21322,7 @@ class AppController extends ChangeNotifier {
     Object? error,
   }) {
     if (!_isTerminalTabOpen(tab) || !identical(tab.telnet, telnet)) return;
+    tab.resetOutputCoalescer(flushPending: true);
     final subscription = tab.outputSubscription;
     tab.outputSubscription = null;
     tab.telnet = null;
@@ -22225,16 +22236,26 @@ class AppController extends ChangeNotifier {
       // Replacing the SSH transport does not relayout a retained terminal,
       // so onResize may never fire. Replay its current size for every new PTY.
       connection.resize(tab.terminal.viewWidth, tab.terminal.viewHeight);
+      tab.resetOutputCoalescer(flushPending: false);
+      final coalescer = TerminalOutputCoalescer(
+        onFlush: (batch) {
+          if (!attemptCurrent() || !identical(tab.connection, connection)) {
+            return;
+          }
+          tab.terminal.write(batch);
+          tab.log?.output(batch);
+          tab.outputListener?.call(batch);
+          tab.publishOutputToFanout(batch);
+          if (_activeTerminalTabId == tab.id) {
+            _legacyTerminalOutputListener?.call(batch);
+          }
+        },
+      );
+      tab.outputCoalescer = coalescer;
       tab.outputSubscription = connection.output.listen(
         (text) {
           if (!attemptCurrent() || !identical(tab.connection, connection)) return;
-          tab.terminal.write(text);
-          tab.log?.output(text);
-          tab.outputListener?.call(text);
-          tab.publishOutputToFanout(text);
-          if (_activeTerminalTabId == tab.id) {
-            _legacyTerminalOutputListener?.call(text);
-          }
+          coalescer.add(text);
         },
         onError: (Object error) {
           _handleTerminalConnectionEnded(tab, connection, error: error);
@@ -22301,6 +22322,7 @@ class AppController extends ChangeNotifier {
     if (!_isTerminalTabOpen(tab) || !identical(tab.connection, connection)) {
       return;
     }
+    tab.resetOutputCoalescer(flushPending: true);
     final subscription = tab.outputSubscription;
     tab.outputSubscription = null;
     final tmuxHandle = _tmuxAttachHandles.remove(tab.id);
@@ -22699,6 +22721,7 @@ class AppController extends ChangeNotifier {
     tab.connectionCancellation = null;
     _tmuxOperationCancellations.remove(tab.id)?.cancel();
     final tmuxHandle = _tmuxAttachHandles.remove(tab.id);
+    tab.resetOutputCoalescer(flushPending: false);
     final subscription = tab.outputSubscription;
     final connection = tab.connection;
     tab.outputSubscription = null;

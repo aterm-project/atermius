@@ -156,14 +156,24 @@ TerminalSearchResult searchTerminalBuffer(
           line.getWidth(column - 1) == 2;
       if (isWideGlyphContinuation) continue;
 
-      final character = codePoint == 0 ? ' ' : String.fromCharCode(codePoint);
-      final folded = _caseFold(character);
-      text.write(folded);
       final packed = codePoint != 0 && width == 0 && lastOccupiedPacked >= 0
           ? lastOccupiedPacked
           : localRow * stride + column;
-      for (var i = 0; i < folded.length; i++) {
+      if (codePoint < 0x80) {
+        // ASCII 零分配快路径：避免百万单元格检索时为每个字符分配 2 个临时 String。
+        final foldedCode = codePoint == 0
+            ? 0x20
+            : (codePoint >= 0x41 && codePoint <= 0x5A)
+            ? codePoint + 0x20
+            : codePoint;
+        text.writeCharCode(foldedCode);
         positions.add(packed);
+      } else {
+        final folded = _caseFold(String.fromCharCode(codePoint));
+        text.write(folded);
+        for (var i = 0; i < folded.length; i++) {
+          positions.add(packed);
+        }
       }
       if (codePoint == 0) {
         // An erased gap breaks the local base cell for following combining

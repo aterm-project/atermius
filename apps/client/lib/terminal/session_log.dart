@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:math' show max;
 
@@ -10,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import '../domain/models.dart';
 import '../ssh/ssh_service.dart';
 import '../storage/local_host_repository.dart';
+import 'mirrored_terminal.dart' show utf8EncodedLength;
 import 'session_log_scope.dart';
 
 /// Session logs are a device-local journal of terminal *connections* (who,
@@ -1062,35 +1064,56 @@ String plainTerminalText(String text) => text
 final class _TranscriptBuffer {
   _TranscriptBuffer(this.maxBytes);
   final int maxBytes;
-  final _chunks = <String>[];
+  final Queue<({String text, int bytes})> _chunks = Queue();
   int _bytes = 0;
   bool truncated = false;
 
   void add(String raw) {
     final text = plainTerminalText(raw);
     if (text.isEmpty) return;
-    _chunks.add(text);
-    _bytes += utf8.encode(text).length;
+    final addedBytes = utf8EncodedLength(text);
+    _chunks.addLast((text: text, bytes: addedBytes));
+    _bytes += addedBytes;
     while (_bytes > maxBytes && _chunks.isNotEmpty) {
       truncated = true;
       final first = _chunks.first;
-      final firstBytes = utf8.encode(first).length;
-      if (_bytes - firstBytes >= maxBytes || _chunks.length > 1) {
-        _chunks.removeAt(0);
-        _bytes -= firstBytes;
+      if (_bytes - first.bytes >= maxBytes || _chunks.length > 1) {
+        _chunks.removeFirst();
+        _bytes -= first.bytes;
       } else {
-        // Keep the newest tail of a single oversized chunk.
-        var tail = first.substring(first.length ~/ 2);
-        while (utf8.encode(tail).length > maxBytes) {
-          tail = tail.substring(tail.length ~/ 2);
+        // 单块超限时保留最新尾部，同时避开 UTF-16 低代理码元切分。
+        _chunks.removeFirst();
+        var tail = first.text;
+        var tailBytes = first.bytes;
+        while (tailBytes > maxBytes && tail.length > 1) {
+          var cut = tail.length ~/ 2;
+          if (cut < tail.length &&
+              tail.codeUnitAt(cut) >= 0xDC00 &&
+              tail.codeUnitAt(cut) <= 0xDFFF) {
+            cut++;
+          }
+          tail = cut >= tail.length ? '' : tail.substring(cut);
+          tailBytes = utf8EncodedLength(tail);
         }
-        _chunks[0] = tail;
-        _bytes = utf8.encode(tail).length;
+        if (tail.isNotEmpty && tailBytes <= maxBytes) {
+          _chunks.addFirst((text: tail, bytes: tailBytes));
+          _bytes = tailBytes;
+        } else {
+          _bytes = 0;
+        }
       }
     }
   }
 
-  String get text => _chunks.join();
+  String get text {
+    if (_chunks.isEmpty) return '';
+    if (_chunks.length == 1) return _chunks.first.text;
+    final out = StringBuffer();
+    for (final chunk in _chunks) {
+      out.write(chunk.text);
+    }
+    return out.toString();
+  }
 
   void clear() {
     _chunks.clear();
