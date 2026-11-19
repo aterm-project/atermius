@@ -122,6 +122,10 @@ Win32Window::Win32Window() { ++g_active_window_count; }
 Win32Window::~Win32Window() {
   --g_active_window_count;
   Destroy();
+  if (background_brush_ != nullptr) {
+    DeleteObject(background_brush_);
+    background_brush_ = nullptr;
+  }
 }
 
 bool Win32Window::Create(const std::wstring &title, const Point &origin,
@@ -260,6 +264,21 @@ Win32Window::MessageHandler(HWND hwnd, UINT const message, WPARAM const wparam,
   case WM_DWMCOLORIZATIONCOLORCHANGED:
     UpdateTheme(hwnd);
     return 0;
+
+  case WM_ERASEBKGND: {
+    if (background_brush_ == nullptr) {
+      // Matches macOS MainFlutterWindow (`#0B0F10`) and AppColors.background.
+      background_brush_ = CreateSolidBrush(RGB(0x0B, 0x0F, 0x10));
+    }
+    if (background_brush_ != nullptr) {
+      RECT rc{};
+      if (GetClientRect(hwnd, &rc)) {
+        FillRect(reinterpret_cast<HDC>(wparam), &rc, background_brush_);
+        return 1;
+      }
+    }
+    break;
+  }
   }
 
   return DefWindowProc(window_handle_, message, wparam, lparam);

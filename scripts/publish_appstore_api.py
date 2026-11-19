@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """
-Atermius — Apple App Store Connect 全自动一键上架脚本 (零第三方依赖)
+Atermius — Apple App Store Connect 全自动一键上架与版本更新脚本 (零第三方依赖)
 
 功能：
 1. 纯标准库 + OpenSSL 生成 Apple ES256 JWT，无需安装 PyJWT / cryptography。
 2. 自动定位 ~/Downloads 或 ~/.appstoreconnect/private_keys 下的 AuthKey_<KEY_ID>.p8，
    并安装至 ~/.appstoreconnect/private_keys/ (权限 0600) 供 xcrun altool 共用。
-3. 调用 xcrun altool 上传正式商店签名包 ios/dist/appstore/Atermius-1.0.0-build1.ipa。
-4. 通过 App Store Connect REST API v1 全自动填写：
-   - 主/次分类 (Developer Tools / Productivity)
-   - 年龄分级问卷 (全套 NONE/False -> 4+ 全区评级)
-   - 四语 (zh-Hans / en-US / ja / ru) 副标题、隐私政策网址、宣传文本、关键词、完整描述、技术支持网址
-   - 版权声明 (2026 Zenwalk LLC)
-   - 高清无 Alpha 商店截图自动分块上传与 MD5 校验提交 (iPhone 6.9"/6.7" + iPad Pro 13")
-   - App Review 免登录审核备注与审核联系人信息
-5. 可选 (--wait-and-submit) 轮询等待二进制构建解析为 VALID 后，自动绑定构建并提交人工审核！
+3. 支持通过 --create-version 自动创建新版本（如 1.0.1），按目标 versionString 精准定位，
+   绝对不会误操作已上线的 1.0.0 版本。
+4. 通过 xcrun altool 上传正式商店签名包 IPA，并按 --build-number 精准等待与绑定目标 Build。
+5. 全自动填写四语 (zh-Hans / en-US / ja / ru) App 名称、副标题、隐私政策网址、版权、
+   关键词、描述、宣传文本、营销网址、技术支持网址及新版更新说明 (whatsNew)。
+6. 支持 --replace-screenshots 先清除继承旧图，再按分语种目录 (<dir>/<locale>/{iphone_69,ipad_13})
+   自动分块上传 24-bit 无 Alpha 高清海报并轮询等待 COMPLETE。
+7. 可选 (--wait-and-submit) 轮询等待目标 Build 解析为 VALID 后，自动绑定并提交 Apple 审核！
 """
 
 from __future__ import annotations
@@ -37,133 +36,149 @@ from typing import Any
 
 API_BASE = "https://api.appstoreconnect.apple.com/v1"
 PRIVACY_URL = "https://github.com/aterm-project/atermius/blob/main/docs/PRIVACY_POLICY.md"
-SUPPORT_URL = "https://github.com/aterm-project/atermius/blob/main/docs/PRIVACY_POLICY.md#support"
+MARKETING_URL = "https://github.com/aterm-project/atermius"
+SUPPORT_URL = "https://github.com/aterm-project/atermius/issues"
 COPYRIGHT_TEXT = "2026 Zenwalk LLC"
 
 LOCALIZED_METADATA: dict[str, dict[str, str]] = {
     "zh-Hans": {
-        "subtitle": "端到端加密 SSH、SFTP 与远程桌面",
+        "name": "Atermius - SSH 终端与远程桌面",
+        "subtitle": "SFTP、Mosh 与本地加密钥匙串",
         "promotionalText": (
-            "开箱即用的专业 SSH、SFTP、Telnet、RDP 与 VNC 客户端。免注册即可创建受本机钥匙串保护的"
-            "加密工作区，支持端口转发、Ed25519 密钥生成、分屏终端与代码片段，并可按需接入自托管零知识加密同步。"
+            "1.0.1 重磅升级！全面适配折叠屏与多窗口自适应；免注册开箱即用，支持 48+ 服务器系统图标、SSH/SFTP/RDP/VNC、端口转发与本机加密钥匙串。"
         ),
-        "keywords": "ssh,sftp,terminal,rdp,vnc,telnet,devops,linux,server,shell,keychain,终端,远程桌面,服务器,运维,端口转发,密钥,文件传输",
+        "keywords": "ssh,sftp,mosh,rdp,vnc,telnet,terminal,linux,devops,tunnel,ed25519,keygen,tmux,终端,远程桌面,端口转发,运维",
+        "whatsNew": """• 全面适配折叠屏 iPhone 与 iPad 动态窗口调整：展开/合盖与分屏拖拽实时自适应，活跃 SSH 会话零中断、零缓冲丢失，横屏非对称安全区全面加固。
+• 新增「在线 SSH 诊断小工具」：独立只读 exec 通道查看系统概览、监听端口与 TCP 连通性、Top 进程与服务日志，不干扰当前交互终端。
+• 预留无端口原生 MCP 接口（atermius/mcp_native）与 4 项只读诊断工具，为未来内置 AI 与系统智能体协同做好准备。
+• 修复 SSH 断线重连后 PTY 终端网格尺寸未重放的问题，优化 xterm 解析与四语展示体验。""",
         "description": """专为系统工程师、DevOps 与开发者打造的安全远程终端与服务器管理工作区。在一个原生应用内统一管理 SSH、SFTP/SCP、Telnet、RDP 与 VNC 连接，兼顾开箱即用的本机离线体验与端到端零知识加密架构。
 
 【免注册开箱即用 · 本机钥匙串保护】
 • 首次打开即可直接使用，无强制账号注册墙。
 • 自动创建受 iOS / iPadOS 系统钥匙串（Keychain）与生物识别（Face ID / Touch ID）保护的本地加密配置库，所有服务器地址、登录凭证与私钥默认仅加密存储在您的设备本地。
 
+【纯正原生 Liquid Glass · 折叠屏与分屏自适应】
+• 深度适配 iPhone、折叠屏自适应视口与 iPad 多任务分屏，运行时尺寸切换不断连、不丢滚动历史。
+• 顶部毛玻璃会话控制栏与底部翡翠实时会话胶囊，一键切回任意活跃终端。
+
 【多协议一体化远程连接】
-• SSH 终端：高速流畅的终端渲染，支持多会话实时切换、工作区分屏、断线重连恢复、外接硬件键盘快捷键与移动端专属修饰键扩展栏（Ctrl / Alt / Shift / Esc / Tab）。
-• SFTP / SCP 文件传输：可视化远程文件管理，支持上传、下载、权限查看、断点续传及主机加密附件管理。
-• 远程桌面与传统设备支持：内置 Telnet、RDP 与 VNC 客户端连接管理，支持证书 SHA-256 指纹核验、自定义分辨率缩放以及直接触控 / 虚拟触控板双操作模式。
+• SSH 终端：高速流畅的终端渲染，自动识别 48+ Linux/BSD 发行版系统图标，支持多会话切换、断线重连与 PTY 网格恢复、外接硬件键盘快捷键捕获及移动端专属修饰键扩展栏（Esc / Tab / Ctrl / Alt）。
+• SFTP / SCP 文件传输：可视化远程文件管理，支持上传、下载、权限查看与加密附件。
+• 远程桌面与传统设备支持：内置 Telnet、RDP 与 VNC 客户端，支持 NLA 服务端系统识别、SHA-256 证书指纹核验、自由缩放与直接触控 / 虚拟触控板模式。
 
 【专业网络与密钥管理能力】
-• 本机密钥库：在设备端离线生成、导入与管理 Ed25519、RSA 等 SSH 密钥对及主机指纹，私钥永不明文落盘。
-• SSH 端口转发与跳板：支持本地转发（Local）、远程转发（Remote）与动态 SOCKS 转发规则编排，支持多级堡垒机 / 跳板连接。
-• 代码片段（Snippets）与分组管理：按环境、标签与目录整理主机，将常用运维指令保存为可复用片段一键下发。
-• 加密备份与迁移：支持标准 SSH 配置及加密归档导入导出。
+• 本机密钥库：在设备端离线生成、导入与管理 Ed25519、RSA 密钥对及主机指纹。
+• SSH 端口转发与跳板：支持 Local、Remote 与动态 SOCKS5 转发规则编排及多级堡垒机连接。
+• 代码片段与加密归档：按环境与目录分组管理主机，一键从本机 SSH 配置及加密备份迁移。
 
 【可选自托管端到端零知识同步】
-• 面向拥有自有基础设施的用户与团队，支持按需连接自托管（Self-Hosted）同步服务。
-• 采用严格的客户端 AEAD 端到端加密与设备数字签名：所有主机记录、密钥与附件均在本地完成加密后再传输，服务端仅存储不透明密文，无法读取您的任何明文凭证。
-
-【纯正原生体验与多语言支持】
-• 采用原生 Liquid Glass 与 Cupertino 交互设计，深度适配 iPhone 与 iPad 分屏多任务，支持自定义终端配色方案、字体字号与深浅色外观，内置简体中文、英文、日文、俄文四语界面。""",
+• 面向拥有自有基础设施的开发者与团队，支持按需接入自托管同步服务，全数据均由客户端 AEAD 端到端加密签名，服务端仅存密文。""",
     },
     "en-US": {
-        "subtitle": "Encrypted SSH, SFTP & Desktop",
+        "name": "Atermius: SSH, SFTP & RDP",
+        "subtitle": "Encrypted Terminal & Keychain",
         "promotionalText": (
-            "Modern SSH, SFTP, Telnet, RDP & VNC client. Start instantly with a Keychain-protected "
-            "local vault, port forwarding, snippets & optional zero-knowledge sync."
+            "New in 1.0.1: Seamless foldable & resizable window support, 48+ OS marks, SSH PTY reconnect size fix, SFTP, RDP/VNC, tunnels & local Keychain—no sign-up needed."
         ),
-        "keywords": "ssh,sftp,terminal,rdp,vnc,telnet,devops,linux,server,shell,keychain,scp,tunnel,ed25519,sysadmin,it",
+        "keywords": "mosh,vnc,telnet,devops,linux,shell,tunnel,ed25519,keygen,bastion,tmux,sysadmin,cli,scp,it,server",
+        "whatsNew": """• Foldable & Resizable Window Ready: Dynamically adapts between compact and unfolded / Split View layouts without disconnecting active SSH sessions or losing scrollback history, with asymmetric horizontal Safe Area support.
+• New Live SSH Diagnostic Tools: Read-only out-of-band inspection for system overview, listening ports, TCP reachability, top processes, and service logs without disturbing your interactive shell.
+• Native In-Process MCP Bridge: Port-free native MCP interface reserved for future AI workflows alongside 48+ automatic OS marks and SSH PTY reconnect sizing fixes.""",
         "description": """A secure, native remote operations workspace built for developers, sysadmins, and DevOps engineers. Manage SSH, SFTP/SCP, Telnet, RDP, and VNC connections in one unified interface—combining instant offline local vaults with optional zero-knowledge end-to-end encrypted synchronization.
 
 INSTANT OFFLINE ACCESS — NO SIGN-UP REQUIRED
 • Launch and connect immediately with zero mandatory registration or login walls.
-• Your local encrypted profile is automatically protected by the iOS / iPadOS Keychain and optional Face ID / Touch ID authentication. All host profiles, credentials, and private keys stay encrypted on your device by default.
+• Your local encrypted profile is automatically protected by the iOS / iPadOS Keychain and Face ID / Touch ID. Host profiles, credentials, and private keys remain encrypted on your device by default.
 
-ALL-IN-ONE MULTI-PROTOCOL WORKSPACE
-• SSH Terminal: Responsive terminal emulation with live session switching, split panes, session reconnect controls, hardware keyboard shortcuts, and an ergonomic on-screen modifier bar (Ctrl, Alt, Shift, Esc, Tab).
-• SFTP & SCP File Manager: Browse remote directories, upload and download files with transfer progress and resume support, and manage encrypted host attachments.
-• RDP, VNC & Telnet Clients: Connect to remote desktops and network gear with SHA-256 certificate fingerprint verification, flexible display scaling, and switchable direct-touch or relative trackpad pointer modes.
+NATIVE LIQUID GLASS & RESIZABLE WORKSPACE
+• Adaptive layout built for iPhone, foldable displays, and iPad Split View / Stage Manager—resizing mid-session without dropping SSH connections or terminal scrollback.
+• Tinted emerald Live Session Pill lets you jump back into active shells from anywhere in the app.
 
-BUILT FOR SERIOUS INFRASTRUCTURE WORKFLOWS
-• On-Device Keychain & Key Generator: Generate, import, and manage Ed25519 and RSA SSH keys directly on your device.
-• Port Forwarding & Jump Hosts: Configure local, remote, and dynamic port forwarding tunnels alongside multi-hop SSH bastion hosts.
-• Snippets & Host Organization: Group servers with tags and folders, and save frequently used shell commands as reusable snippets.
-• Encrypted Import & Export: Easily back up or migrate configurations via encrypted archives and standard SSH config imports.
+ALL-IN-ONE MULTI-PROTOCOL CONNECTIONS
+• SSH Terminal: Fast ANSI-256 terminal emulation with 48+ automatic OS distro icons, split panes, reconnect PTY size restoration, hardware keyboard shortcut capture, and an ergonomic touch modifier bar (Esc, Tab, Ctrl, Alt).
+• SFTP & SCP File Manager: Browse remote directories, upload/download files cleanly, and inspect permissions.
+• RDP, VNC & Telnet Clients: Connect to Windows (NLA OS detection), Linux desktops, and serial/network gear with SHA-256 certificate verification and touch/trackpad pointer modes.
 
-OPTIONAL SELF-HOSTED ZERO-KNOWLEDGE SYNC
-• Teams and power users running their own self-hosted server can optionally enable cross-device Vault synchronization.
-• Powered by client-side AEAD encryption and cryptographic device signatures: every host record, credential, key, and chunked attachment is encrypted before leaving your device. The server stores opaque ciphertext only and never sees plaintext secrets.
-
-DESIGNED FOR iPHONE & iPAD
-• Native Liquid Glass & Cupertino experience with full support for iPad multitasking, custom terminal color palettes, adjustable typography, and localized interfaces in English, Simplified Chinese, Japanese, and Russian.""",
+KEYS, TUNNELS & SNIPPETS
+• On-Device Keychain: Generate, import, and manage Ed25519 and RSA SSH keys offline.
+• Port Forwarding & Jump Hosts: Configure Local, Remote, and SOCKS5 tunnels alongside multi-hop SSH bastions.
+• Optional Self-Hosted Zero-Knowledge Sync: Teams running their own server can optionally sync encrypted vaults using client-side AEAD cryptography—servers never see plaintext secrets.""",
     },
     "ja": {
-        "subtitle": "暗号化SSH・SFTP・リモート接続",
+        "name": "Atermius - SSH・SFTP・リモートデスクトップ",
+        "subtitle": "ローカル暗号化キーチェーン搭載",
         "promotionalText": (
-            "登録不要ですぐ使える暗号化SSH・SFTP・Telnet・RDP・VNCクライアント。Keychain保護のローカル保管庫、"
-            "ポート転送、鍵生成、スニペット管理を備え、ゼロ知識E2E暗号化同期にも対応。"
+            "1.0.1登場：可変ウィンドウと折りたたみ画面に完全対応。48種以上のOSアイコン自動判別、SSH再接続時のPTYサイズ復元、ポート転送・Keychain保護を登録不要で。"
         ),
-        "keywords": "ssh,sftp,terminal,rdp,vnc,telnet,devops,linux,server,shell,keychain,ターミナル,リモートデスクトップ,サーバー,鍵管理,転送",
+        "keywords": "ssh,sftp,mosh,rdp,vnc,telnet,terminal,devops,linux,tunnel,ed25519,keygen,ターミナル,サーバー,リモート,転送",
+        "whatsNew": """• 折りたたみiPhone・可変ウィンドウ対応：コンパクト表示と大画面間の切替時にSSHセッションやスクロール履歴を破棄せず適応し、非対称セーフエリアにも対応。
+• 「ライブ SSH 診断ツール」を新搭載：操作中の端末を妨げず、別チャネルでシステム概要・待受ポート/TCP疎通・上位プロセス・サービスログを読み取り専用で即座に確認可能。
+• 将来のAI連携に向けたポート不要のネイティブ MCP ブリッジ基盤を予約実装し、SSH再接続時のPTYサイズ復元と48種以上のOS識別を強化しました。""",
         "description": """開発者・インフラエンジニア・システム管理者向けのセキュアな統合リモート接続クライアントです。SSH、SFTP/SCP、Telnet、RDP、VNC をひとつのネイティブワークスペースに統合し、登録不要のローカル暗号化保管庫とゼロ知識エンドツーエンド暗号化アーキテクチャを提供します。
 
 【アカウント登録不要・すぐに利用開始】
 • 初回起動時からログイン不要で全機能を利用可能。
 • iOS / iPadOS キーチェーンと Face ID / Touch ID で保護されたローカル暗号化プロファイルを自動作成し、接続先や秘密鍵を端末内で安全に管理します。
 
+【進化したネイティブ操作感と適応レイアウト】
+• 折りたたみディスプレイや iPad 分割表示でのリアルタイムサイズ変更に完全対応。作業中のターミナルを切らずにレイアウトをシームレス切替。
+• 下部のライブセッションカプセルから進行中のターミナルへ瞬時に復帰できます。
+
 【主な機能】
-• SSH ターミナル & SFTP/SCP ファイル転送：ライブセッション切替、画面分割（Split Panes）、自動再接続、ハードウェアキーボードおよび専用修飾キーバーに対応。
-• RDP / VNC / Telnet 対応：SHA-256 証明書フィンガープリント検証、画面スケーリング、タッチ／トラックパッド操作モード切替をサポート。
-• 鍵管理・ポート転送・スニペット：端末内での Ed25519 / RSA 鍵ペア生成、ローカル／リモート／ダイナミックポート転送、踏み台接続、よく使うコマンドのスニペット保存に対応。
-• 任意のセルフホスト型ゼロ知識同期：独自サーバーを利用する場合のみオプションで有効化でき、すべてのデータはクライアント側で AEAD 暗号化・署名されてから送信されます。""",
+• SSH ターミナル & SFTP/SCP ファイル転送：48種類以上のOSディストリビューション自動認識、再接続時のPTYサイズ自動復元、画面分割、外付けキーボード＆修飾キーバー対応。
+• RDP / VNC / Telnet 対応：NLA サーバーOS検出、SHA-256 証明書フィンガープリント検証、タッチ／トラックパッド操作モード切替をサポート。
+• 鍵管理・ポート転送・スニペット：端末内での Ed25519 / RSA 鍵生成、Local / Remote / SOCKS5 転送、多段踏み台ホスト、コマンドスニペット保存に対応。
+• 任意のセルフホスト型ゼロ知識同期：独自サーバーを利用する場合のみオプションで有効化でき、全データはクライアント側で AEAD 暗号化・署名されます。""",
     },
     "ru": {
-        "subtitle": "SSH, SFTP и удалённый доступ",
+        "name": "Atermius — SSH, SFTP и RDP",
+        "subtitle": "Терминал и локальный сейф",
         "promotionalText": (
-            "Клиент SSH, SFTP, Telnet, RDP и VNC без обязательной регистрации. Локальное хранилище "
-            "под защитой Keychain, проброс портов, генерация ключей и сквозное шифрование."
+            "Версия 1.0.1: адаптация к складным и изменяемым экранам без разрыва SSH, 48+ иконок ОС, исправление размера PTY при переподключении, туннели и локальный Keychain."
         ),
-        "keywords": "ssh,sftp,terminal,rdp,vnc,telnet,devops,linux,server,shell,keychain,терминал,сервер,консоль,ключи",
+        "keywords": "ssh,sftp,mosh,rdp,vnc,telnet,terminal,devops,linux,tunnel,ed25519,keygen,сервер,консоль,ключи",
+        "whatsNew": """• Адаптация для складных экранов и гибких окон: бесшовное переключение режимов без разрыва активных SSH-сессий и потери истории прокрутки, с поддержкой асимметричных Safe Area.
+• Новые инструменты диагностики SSH: просмотр сводки системы, открытых портов, проверки TCP, топ-процессов и журналов служб в отдельном read-only канале без вмешательства в терминал.
+• Заложен нативный in-process шлюз MCP для будущей интеграции ИИ, а также исправлено восстановление сетки PTY и добавлены 48+ иконок ОС.""",
         "description": """Безопасное рабочее пространство для системных администраторов, DevOps-инженеров и разработчиков. Управляйте подключениями SSH, SFTP/SCP, Telnet, RDP и VNC в едином нативном приложении с локальным шифрованием и опциональной сквозной (zero-knowledge) синхронизацией.
 
 【РАБОТА БЕЗ РЕГИСТРАЦИИ С ПЕРВОГО ЗАПУСКА】
-• Не требует создания учётной записи для работы.
+• Не требует создания учётной записи — запускайте и подключайтесь сразу.
 • Локальное зашифрованное хранилище защищено системной связкой ключей iOS / iPadOS Keychain и биометрией Face ID / Touch ID.
 
+【АДАПТИВНЫЙ НАТИВНЫЙ ИНТЕРФЕЙС】
+• Поддержка складных дисплеев, Split View и асимметричных вырезов: при изменении размера окна активные терминалы и прокрутка полностью сохраняются.
+• Изумрудная капсула живой сессии позволяет в одно касание вернуться в активную консоль.
+
 【ОСНОВНЫЕ ВОЗМОЖНОСТИ】
-• Терминал SSH и файловый менеджер SFTP/SCP: быстрое переключение сессий, разделение экрана, переподключение, поддержка внешних клавиатур и панели клавиш-модификаторов.
-• Клиенты RDP, VNC и Telnet: проверка SHA-256 отпечатков сертификатов, масштабирование экрана и режимы прямого касания или виртуального тачпада.
-• Ключи, туннели и сниппеты: локальная генерация ключей Ed25519/RSA, проброс портов (Local / Remote / Dynamic), работа через jump-хосты и шаблоны команд.
-• Опциональная self-hosted синхронизация с нулевым разглашением: все записи и ключи шифруются на устройстве до отправки на ваш сервер.""",
+• Терминал SSH и SFTP/SCP: 48+ иконок ОС серверов, восстановление размера PTY при переподключении, сплит-панели, аппаратные шорткаты и панель клавиш-модификаторов.
+• Клиенты RDP, VNC и Telnet: определение ОС сервера через NLA, проверка SHA-256 сертификатов, режимы касания и виртуального тачпада.
+• Ключи, туннели и сниппеты: локальная генерация Ed25519/RSA, проброс портов (Local / Remote / SOCKS5), jump-хосты и шаблоны команд.
+• Опциональная self-hosted E2E-синхронизация с нулевым разглашением: все секреты шифруются AEAD на устройстве до отправки.""",
     },
 }
 
-REVIEW_NOTES = """1. No Login Required — Instant Full Functionality (Guidelines 2.1 & 4.2):
+REVIEW_NOTES = """1. What's New in 1.0.1:
+- Added foldable display & dynamic window resizability support (migrated scene lifecycle observers to UISceneDelegate callbacks, preserved active SSH TerminalView state across compact/expanded viewport transitions, and hardened asymmetric horizontal Safe Area insets).
+- Added read-only "SSH Live Tools" diagnostic sheet (system overview, listening ports / TCP probe, process snapshot, service logs via out-of-band SSH exec channel) and reserved an internal port-free native MCP bridge (`atermius/mcp_native`, zero network port listener opened on iOS).
+- Included upstream stability fixes for SSH PTY reconnect sizing, xterm escape parsing, OS distro detection badges, and hardware keyboard capture.
+- Updated localized screenshots (5 iPhone 6.9" + 3 iPad 13" scenes across en-US, zh-Hans, ja, ru) showing only RFC 5737 synthetic hosts.
+
+2. No Login Required — Instant Full Functionality (Guidelines 2.1 & 4.2):
 Upon first launch, the app automatically creates and unlocks a local encrypted profile protected by the iOS Keychain ("Local Mode") with zero sign-up or login required. All core client features work immediately out of the box:
 - Create and organize SSH, SFTP, Telnet, RDP, and VNC host profiles ("+" button in the Hosts tab).
 - Generate Ed25519 / RSA SSH key pairs locally on the device (Keychain tab).
 - Create reusable command Snippets and configure SSH Port Forwarding rules.
 - Export and import encrypted backup archives.
-(Note: If you navigate to the optional self-hosted Cloud Sync sign-in screen, you can switch back to Local Mode at any time via the top-right Mode menu without entering any server URL.)
 
-2. Optional Self-Hosted Cloud Account & In-App Account Deletion (Guideline 5.1.1(v)):
-Cloud Vault synchronization is strictly optional and designed for users who run their own self-hosted server. When signed into a cloud account, users can permanently delete their account directly inside the app without contacting support:
-- Navigation Path: Settings -> Account & sign-in -> Account security -> Account deletion -> tap "Schedule account deletion" -> enter "DELETE" and confirm with the account password.
+3. Optional Self-Hosted Cloud Account & In-App Account Deletion (Guideline 5.1.1(v)):
+Cloud Vault synchronization is strictly optional for self-hosted server users. Signed-in users can schedule permanent deletion directly in Settings -> Account & sign-in -> Account security -> Account deletion.
 
-3. Purpose of System Permissions:
-- Local Network: Used only when connecting directly to SSH, SFTP, Telnet, RDP, or VNC servers on the local network (LAN).
-- Face ID: Used optionally on-device to unlock the local encrypted vault and protected SSH keys.
-- Photo Library / Camera / Media Picker: Triggered only when a user chooses a custom terminal wallpaper or attaches local files to an encrypted host record.
-
-------------------------------------------------------------
-【简体中文审核说明】
-1. 免注册开箱即用：首次启动自动进入受 iOS Keychain 保护的本地加密模式，无需任何账号登录即可新建管理 SSH/SFTP/RDP/VNC 主机、离线生成 Ed25519/RSA 密钥对、配置端口转发与代码片段。
-2. 可选自托管云账号应用内永久删除路径：设置 -> 账户与登录 -> 账户安全 -> 账户删除 -> 安排账户删除，立即吊销全部会话并物理清除服务端密文。"""
+4. Purpose of System Permissions:
+- Local Network: Connecting directly to user-configured SSH/SFTP/Telnet/RDP/VNC servers on LAN.
+- Face ID: Optional local vault & SSH key unlock.
+- Photo Library / Media Picker: Only triggered when choosing custom terminal wallpaper or host attachments."""
 
 
 def _b64url(data: bytes) -> str:
@@ -226,6 +241,12 @@ def generate_asc_jwt(issuer_id: str, key_id: str, p8_path: Path) -> str:
     return f"{header}.{payload}.{_b64url(raw_sig)}"
 
 
+class AscHttpError(RuntimeError):
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+
+
 class AscClient:
     def __init__(self, issuer_id: str, key_id: str, p8_path: Path) -> None:
         self.issuer_id = issuer_id
@@ -262,7 +283,7 @@ class AscClient:
                 return json.loads(raw.decode("utf-8")) if raw else {}
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"ASC API {method} {url} -> HTTP {e.code}:\n{err_body}") from e
+            raise AscHttpError(e.code, f"ASC API {method} {url} -> HTTP {e.code}:\n{err_body}") from e
 
 
 def resolve_and_install_p8(key_id: str, explicit_path: str | None) -> Path:
@@ -311,14 +332,14 @@ def upload_ipa_via_altool(ipa_path: Path, issuer_id: str, key_id: str) -> None:
     out = (res.stdout or "") + "\n" + (res.stderr or "")
     if res.returncode != 0:
         if "Redundant Binary Upload" in out or "already been uploaded" in out or "90189" in out:
-            print("    [OK] 构建 1.0.0 (1) 先前已上传至 App Store Connect，跳过重复上传。")
+            print(f"    [OK] 构建 {ipa_path.name} 先前已上传至 App Store Connect，跳过重复上传。")
             return
         raise RuntimeError(f"xcrun altool 上传失败 (exit {res.returncode}):\n{out}")
     print("    [OK] IPA 二进制包上传成功！Apple 后台正在异步处理符号与静态扫描。")
 
 
 def configure_categories_and_age_rating(client: AscClient, app_id: str) -> str:
-    print("==> [2/6] 配置 App 分类 (Developer Tools / Productivity) 与 4+ 年龄分级...")
+    print("==> [2/6] 选择可编辑 appInfo 并核验分类与 4+ 年龄分级...")
     infos = client.request("GET", f"/apps/{app_id}/appInfos")["data"]
     editable_states = {
         "PREPARE_FOR_SUBMISSION",
@@ -328,11 +349,19 @@ def configure_categories_and_age_rating(client: AscClient, app_id: str) -> str:
         "REJECTED",
         "METADATA_REJECTED",
     }
-    app_info = next(
-        (i for i in infos if i.get("attributes", {}).get("appStoreState") in editable_states),
-        infos[0],
+    editable = [
+        i for i in infos if i.get("attributes", {}).get("appStoreState") in editable_states
+    ]
+    editable.sort(
+        key=lambda i: 0
+        if i.get("attributes", {}).get("appStoreState") == "PREPARE_FOR_SUBMISSION"
+        else 1
     )
+    app_info = editable[0] if editable else infos[0]
     app_info_id = app_info["id"]
+    print(
+        f"    选中 appInfo {app_info_id} (state={app_info.get('attributes', {}).get('appStoreState')})"
+    )
 
     try:
         client.request(
@@ -357,7 +386,6 @@ def configure_categories_and_age_rating(client: AscClient, app_id: str) -> str:
     except Exception as exc:
         print(f"    [WARN] 设置分类提示: {exc}")
 
-    # 动态获取当前 ageRatingDeclaration schema 支持的字段并设为全部无/否 (4+)
     age_resp = client.request("GET", f"/appInfos/{app_info_id}/ageRatingDeclaration")["data"]
     age_id = age_resp["id"]
     existing_attrs: dict[str, Any] = age_resp.get("attributes", {})
@@ -405,54 +433,113 @@ def configure_categories_and_age_rating(client: AscClient, app_id: str) -> str:
             f"/ageRatingDeclarations/{age_id}",
             {"data": {"type": "ageRatingDeclarations", "id": age_id, "attributes": patch_attrs}},
         )
-        print("    [OK] 年龄分级问卷已全部更新为 4+ 标准答案。")
+        print("    [OK] 年龄分级问卷已全部确认 4+。")
     return app_info_id
 
 
 def configure_app_info_localizations(client: AscClient, app_info_id: str) -> None:
-    print("==> [3/6] 配置四语副标题与正式版隐私政策 URL...")
+    print("==> [3/6] 配置四语 ASO 应用名 (含 409 回退)、副标题与隐私政策 URL...")
     locs = client.request("GET", f"/appInfos/{app_info_id}/appInfoLocalizations")["data"]
     by_locale = {item["attributes"]["locale"]: item for item in locs}
 
     for locale, meta in LOCALIZED_METADATA.items():
-        attrs = {
+        desired_name = meta["name"]
+        assert len(desired_name) <= 30, f"[{locale}] name exceeds 30 chars: {desired_name}"
+        assert len(meta["subtitle"]) <= 30, f"[{locale}] subtitle exceeds 30 chars"
+
+        base_attrs = {
             "subtitle": meta["subtitle"],
             "privacyPolicyUrl": PRIVACY_URL,
         }
         if locale in by_locale:
             loc_id = by_locale[locale]["id"]
-            client.request(
-                "PATCH",
-                f"/appInfoLocalizations/{loc_id}",
-                {"data": {"type": "appInfoLocalizations", "id": loc_id, "attributes": attrs}},
-            )
-        else:
-            # 新语言需同时带 name，复用主语言应用名
-            primary_name = locs[0]["attributes"]["name"]
-            client.request(
-                "POST",
-                "/appInfoLocalizations",
-                {
-                    "data": {
-                        "type": "appInfoLocalizations",
-                        "attributes": {"locale": locale, "name": primary_name, **attrs},
-                        "relationships": {
-                            "appInfo": {"data": {"type": "appInfos", "id": app_info_id}}
+            try:
+                client.request(
+                    "PATCH",
+                    f"/appInfoLocalizations/{loc_id}",
+                    {
+                        "data": {
+                            "type": "appInfoLocalizations",
+                            "id": loc_id,
+                            "attributes": {"name": desired_name, **base_attrs},
+                        }
+                    },
+                )
+            except AscHttpError as exc:
+                if exc.status == 409:
+                    print(f"    [INFO] [{locale}] name '{desired_name}' 遇到 409，自动回退为 'Atermius'")
+                    client.request(
+                        "PATCH",
+                        f"/appInfoLocalizations/{loc_id}",
+                        {
+                            "data": {
+                                "type": "appInfoLocalizations",
+                                "id": loc_id,
+                                "attributes": {"name": "Atermius", **base_attrs},
+                            }
                         },
-                    }
-                },
-            )
+                    )
+                else:
+                    raise
+        else:
+            try:
+                client.request(
+                    "POST",
+                    "/appInfoLocalizations",
+                    {
+                        "data": {
+                            "type": "appInfoLocalizations",
+                            "attributes": {"locale": locale, "name": desired_name, **base_attrs},
+                            "relationships": {
+                                "appInfo": {"data": {"type": "appInfos", "id": app_info_id}}
+                            },
+                        }
+                    },
+                )
+            except AscHttpError as exc:
+                if exc.status == 409:
+                    client.request(
+                        "POST",
+                        "/appInfoLocalizations",
+                        {
+                            "data": {
+                                "type": "appInfoLocalizations",
+                                "attributes": {"locale": locale, "name": "Atermius", **base_attrs},
+                                "relationships": {
+                                    "appInfo": {"data": {"type": "appInfos", "id": app_info_id}}
+                                },
+                            }
+                        },
+                    )
+                else:
+                    raise
         print(f"    [OK] appInfoLocalization [{locale}] 已保存。")
 
 
 def configure_version_and_localizations(
-    client: AscClient, app_id: str, version_str: str
+    client: AscClient,
+    app_id: str,
+    version_str: str,
+    *,
+    create_version: bool,
 ) -> tuple[str, dict[str, str]]:
-    print(f"==> [4/6] 配置版本 {version_str} 版权与四语商店描述/关键词/宣传文本/支持网址...")
+    print(f"==> [4/6] 精准匹配/创建版本 {version_str} 并写入四语元数据与 whatsNew...")
     versions = client.request("GET", f"/apps/{app_id}/appStoreVersions?filter[platform]=IOS")[
         "data"
     ]
-    if not versions:
+    target = next(
+        (v for v in versions if v.get("attributes", {}).get("versionString") == version_str),
+        None,
+    )
+    if target is None:
+        if not create_version:
+            available = [
+                f"{v.get('attributes', {}).get('versionString')}({v.get('attributes', {}).get('appStoreState')})"
+                for v in versions
+            ]
+            raise RuntimeError(
+                f"未找到版本 {version_str}（当前已有：{available}）。如需创建新版本请传入 --create-version。"
+            )
         created = client.request(
             "POST",
             "/appStoreVersions",
@@ -470,8 +557,11 @@ def configure_version_and_localizations(
             },
         )["data"]
         version_id = created["id"]
+        print(f"    [OK] 已新建 iOS 版本 {version_str} ({version_id})。")
     else:
-        version_id = versions[0]["id"]
+        version_id = target["id"]
+        state = target.get("attributes", {}).get("appStoreState")
+        print(f"    [OK] 已锁定版本 {version_str} ({version_id}, state={state})。")
         client.request(
             "PATCH",
             f"/appStoreVersions/{version_id}",
@@ -480,7 +570,6 @@ def configure_version_and_localizations(
                     "type": "appStoreVersions",
                     "id": version_id,
                     "attributes": {
-                        "versionString": version_str,
                         "copyright": COPYRIGHT_TEXT,
                         "releaseType": "AFTER_APPROVAL",
                     },
@@ -493,13 +582,25 @@ def configure_version_and_localizations(
     ]
     by_locale = {item["attributes"]["locale"]: item["id"] for item in vlocs}
 
+    is_update_version = version_str != "1.0.0"
+
     for locale, meta in LOCALIZED_METADATA.items():
-        attrs = {
+        assert len(meta["keywords"]) <= 100, (
+            f"[{locale}] keywords len={len(meta['keywords'])} exceeds 100: {meta['keywords']}"
+        )
+        assert len(meta["promotionalText"]) <= 170, (
+            f"[{locale}] promotionalText exceeds 170"
+        )
+        attrs: dict[str, Any] = {
             "description": meta["description"],
             "keywords": meta["keywords"],
             "promotionalText": meta["promotionalText"],
+            "marketingUrl": MARKETING_URL,
             "supportUrl": SUPPORT_URL,
         }
+        if is_update_version and meta.get("whatsNew"):
+            attrs["whatsNew"] = meta["whatsNew"]
+
         if locale in by_locale:
             loc_id = by_locale[locale]
             client.request(
@@ -535,7 +636,7 @@ def configure_version_and_localizations(
     return version_id, by_locale
 
 
-def _upload_single_screenshot(client: AscClient, set_id: str, file_path: Path) -> None:
+def _upload_single_screenshot(client: AscClient, set_id: str, file_path: Path) -> str:
     raw_bytes = file_path.read_bytes()
     md5_hex = hashlib.md5(raw_bytes).hexdigest()
 
@@ -579,26 +680,55 @@ def _upload_single_screenshot(client: AscClient, set_id: str, file_path: Path) -
             }
         },
     )
+    return shot_id
+
+
+def _resolve_locale_files(screenshots_root: Path, locale: str) -> tuple[list[Path], list[Path]]:
+    locale_dir = screenshots_root / locale
+    base = locale_dir if locale_dir.is_dir() else screenshots_root
+    iphone_files = sorted((base / "iphone_69").glob("*.png"))
+    ipad_files = sorted((base / "ipad_13").glob("*.png"))
+    return iphone_files, ipad_files
+
+
+def _wait_screenshots_complete(
+    client: AscClient, set_id: str, expected_count: int, *, label: str, locale: str
+) -> None:
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        shots = client.request("GET", f"/appScreenshotSets/{set_id}/appScreenshots")["data"]
+        states = [
+            s.get("attributes", {}).get("assetDeliveryState", {}).get("state")
+            for s in shots
+        ]
+        if any(st == "FAILED" for st in states):
+            raise RuntimeError(f"[{locale}] {label} 存在上传失败截图: {shots}")
+        if len(shots) == expected_count and all(st == "COMPLETE" for st in states):
+            return
+        time.sleep(3)
+    raise TimeoutError(f"[{locale}] {label} 等待截图处理 COMPLETE 超时！")
 
 
 def upload_screenshots_for_locales(
     client: AscClient,
     version_loc_ids: dict[str, str],
     screenshots_root: Path,
+    *,
+    replace_existing: bool,
 ) -> None:
-    print("==> [5/6] 上传真实模拟器高清无 Alpha 商店截图 (iPhone 6.9\" + iPad 13\")...")
-    iphone_files = sorted((screenshots_root / "iphone_69").glob("*.png"))
-    ipad_files = sorted((screenshots_root / "ipad_13").glob("*.png"))
-    if not iphone_files and not ipad_files:
-        print(f"    [SKIP] 未在 {screenshots_root} 找到截图文件。")
-        return
-
-    display_groups = [
-        (["APP_IPHONE_67", "APP_IPHONE_65"], iphone_files, "iPhone"),
-        (["APP_IPAD_PRO_3GEN_129"], ipad_files, "iPad 13\""),
-    ]
+    print("==> [5/6] 上传分语种高清无 Alpha 精装营销海报 (iPhone 6.9\" + iPad 13\")...")
 
     for locale, vloc_id in version_loc_ids.items():
+        iphone_files, ipad_files = _resolve_locale_files(screenshots_root, locale)
+        if not iphone_files and not ipad_files:
+            print(f"    [SKIP] [{locale}] 未在 {screenshots_root} 找到截图文件。")
+            continue
+
+        display_groups = [
+            (["APP_IPHONE_67", "APP_IPHONE_65"], iphone_files, "iPhone 6.9\""),
+            (["APP_IPAD_PRO_3GEN_129"], ipad_files, "iPad 13\""),
+        ]
+
         existing_sets = client.request(
             "GET", f"/appStoreVersionLocalizations/{vloc_id}/appScreenshotSets"
         )["data"]
@@ -647,7 +777,13 @@ def upload_screenshots_for_locales(
             existing_shots = client.request(
                 "GET", f"/appScreenshotSets/{set_id}/appScreenshots"
             )["data"]
-            if len(existing_shots) >= len(files):
+            if existing_shots and replace_existing:
+                for shot in existing_shots:
+                    client.request("DELETE", f"/appScreenshots/{shot['id']}")
+                print(
+                    f"    [CLEAN] [{locale}] {label} ({chosen_type}) 已清除 {len(existing_shots)} 张旧截图。"
+                )
+            elif len(existing_shots) >= len(files) and not replace_existing:
                 print(
                     f"    [OK] [{locale}] {label} ({chosen_type}) 已有 {len(existing_shots)} 张截图，跳过重复上传。"
                 )
@@ -655,7 +791,12 @@ def upload_screenshots_for_locales(
 
             for f in files:
                 _upload_single_screenshot(client, set_id, f)
-            print(f"    [OK] [{locale}] {label} ({chosen_type}) 已上传 {len(files)} 张截图。")
+            _wait_screenshots_complete(
+                client, set_id, len(files), label=label, locale=locale
+            )
+            print(
+                f"    [OK] [{locale}] {label} ({chosen_type}) 已上传 {len(files)} 张精装海报并校验 COMPLETE。"
+            )
 
 
 def configure_review_details(
@@ -710,35 +851,47 @@ def configure_review_details(
             )
         print("    [OK] App Review 审核备注与免登录标记已保存。")
     except Exception as exc:
-        print(f"    [WARN] 保存审核详情时提示 (若缺少联系电话可补充 --contact-phone): {exc}")
+        print(f"    [WARN] 保存审核详情时提示: {exc}")
 
 
 def bind_build_and_submit(
-    client: AscClient, app_id: str, version_id: str, submit: bool
+    client: AscClient,
+    app_id: str,
+    version_id: str,
+    version_str: str,
+    *,
+    build_number: str | None,
+    submit: bool,
 ) -> None:
-    print("==> 正在查询 App Store Connect 上的可用构建包 (1.0.0)...")
+    target_desc = f"Build {build_number}" if build_number else "最新 VALID 构建"
+    print(f"==> 正在查询 App Store Connect 上的目标构建 ({version_str} / {target_desc})...")
     deadline = time.time() + (900 if submit else 15)
     valid_build_id: str | None = None
+    matched_ver: str | None = None
 
     while time.time() < deadline:
         builds = client.request(
-            "GET", f"/builds?filter[app]={app_id}&sort=-uploadedDate&limit=5"
+            "GET",
+            f"/builds?filter[app]={app_id}&filter[preReleaseVersion.platform]=IOS&sort=-uploadedDate&limit=10",
         ).get("data", [])
         for b in builds:
             state = b.get("attributes", {}).get("processingState")
-            ver = b.get("attributes", {}).get("version")
+            ver = str(b.get("attributes", {}).get("version", ""))
             print(f"    检测到构建 Build {ver}: processingState={state}")
+            if build_number is not None and ver != str(build_number):
+                continue
             if state == "VALID":
                 valid_build_id = b["id"]
+                matched_ver = ver
                 break
         if valid_build_id or not submit:
             break
-        print("    等待 Apple 完成二进制符号解析 (每 25 秒轮询一次)...")
+        print("    等待 Apple 完成目标 Build 处理 (每 25 秒轮询一次)...")
         time.sleep(25)
 
     if not valid_build_id:
         print(
-            "    [INFO] 构建包仍在 Apple 云端处理中（通常需 5~10 分钟）。处理完成后重跑本脚本加 --wait-and-submit 即可自动绑定提交！"
+            f"    [INFO] {target_desc} 仍在 Apple 云端处理中，稍后带 --wait-and-submit 重跑即可完成绑定并提交！"
         )
         return
 
@@ -747,7 +900,7 @@ def bind_build_and_submit(
         f"/appStoreVersions/{version_id}/relationships/build",
         {"data": {"type": "builds", "id": valid_build_id}},
     )
-    print(f"    [OK] 已成功将构建 ({valid_build_id}) 绑定至版本 1.0.0！")
+    print(f"    [OK] 已将 Build {matched_ver} ({valid_build_id}) 精准绑定至版本 {version_str}！")
 
     if submit:
         sub = client.request(
@@ -790,7 +943,7 @@ def bind_build_and_submit(
                 }
             },
         )
-        print("    🎉 [SUBMITTED] 新 App 已正式提交至 Apple App Review 审核队列！")
+        print(f"    🎉 [SUBMITTED] 版本 {version_str} (Build {matched_ver}) 已正式提交 Apple 审核！")
 
 
 def _self_test_jwt() -> None:
@@ -806,32 +959,46 @@ def _self_test_jwt() -> None:
         assert len(parts) == 3, "JWT must have 3 segments"
         raw_sig = base64.urlsafe_b64decode(parts[2] + "==")
         assert len(raw_sig) == 64, f"ES256 raw signature must be 64 bytes, got {len(raw_sig)}"
-        print("[SELF-TEST OK] Pure-stdlib + OpenSSL ES256 JWT signer verified (64-byte r||s).")
+    for locale, meta in LOCALIZED_METADATA.items():
+        assert len(meta["name"]) <= 30, f"[{locale}] name > 30 chars"
+        assert len(meta["subtitle"]) <= 30, f"[{locale}] subtitle > 30 chars"
+        assert len(meta["keywords"]) <= 100, f"[{locale}] keywords > 100 chars"
+        assert len(meta["promotionalText"]) <= 170, f"[{locale}] promotionalText > 170 chars"
+        assert "termius" not in meta["keywords"].lower(), f"[{locale}] competitor word in keywords"
+        assert "termius" not in meta["description"].lower(), f"[{locale}] competitor word in description"
+    print("[SELF-TEST OK] JWT signer (64-byte r||s) and 4-locale ASO length/compliance guards passed.")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Atermius App Store Connect 全自动一键发布工具")
-    parser.add_argument("--self-test", action="store_true", help="运行本地 ES256 JWT 签名自检并退出")
+    parser = argparse.ArgumentParser(description="Atermius App Store Connect 全自动一键发布与更新工具")
+    parser.add_argument("--self-test", action="store_true", help="运行本地 JWT 签名与 ASO 长度合规自检并退出")
     parser.add_argument("--issuer-id", help="App Store Connect API Issuer ID (UUID)")
-    parser.add_argument("--key-id", help="App Store Connect API Key ID (如 2X9R4HXF34)")
-    parser.add_argument("--key-path", help="可选：AuthKey_<KEY_ID>.p8 路径（默认自动扫描 ~/Downloads）")
+    parser.add_argument("--key-id", help="App Store Connect API Key ID")
+    parser.add_argument("--key-path", "--key-file", dest="key_path", help="AuthKey_<KEY_ID>.p8 路径")
     parser.add_argument("--bundle-id", default="com.atermius.ios", help="App Bundle ID")
-    parser.add_argument("--version", default="1.0.0", help="上架版本号")
+    parser.add_argument("--version", default="1.0.1", help="目标上架版本号")
+    parser.add_argument("--build-number", help="精准绑定目标 Build 号（如 2）")
+    parser.add_argument("--create-version", action="store_true", help="目标版本不存在时自动创建 iOS 版本")
     parser.add_argument(
         "--ipa",
-        default="/Users/yang/Downloads/aterm-project/ios/dist/appstore/Atermius-1.0.0-build1.ipa",
+        default="/Users/yang/Downloads/aterm-project/ios/build/appstore/export/Atermius-1.0.1-build2.ipa",
         help="待上传的正式 IPA 路径",
     )
     parser.add_argument(
         "--screenshots-dir",
-        default="/Users/yang/Downloads/aterm-project/ios/dist/appstore/screenshots",
-        help="截图根目录（含 iphone_69/ 与 ipad_13/ 子目录）",
+        default="/Users/yang/Downloads/aterm-project/ios/build/appstore_posters",
+        help="海报根目录（支持按语种 <locale>/{iphone_69,ipad_13} 或单套目录）",
+    )
+    parser.add_argument(
+        "--replace-screenshots",
+        action="store_true",
+        help="上传前清除当前版本继承的旧截图再重新上传",
     )
     parser.add_argument("--skip-ipa-upload", action="store_true", help="跳过 IPA 二进制上传")
-    parser.add_argument("--contact-first", default="Yifei")
-    parser.add_argument("--contact-last", default="Yang")
+    parser.add_argument("--contact-first", "--contact-first-name", dest="contact_first", default="Yifei")
+    parser.add_argument("--contact-last", "--contact-last-name", dest="contact_last", default="Yang")
     parser.add_argument("--contact-email", default="yangyifeifly@gmail.com")
-    parser.add_argument("--contact-phone", help="App Review 审核联系人电话（含国际区号，如 +81... 或 +1...）")
+    parser.add_argument("--contact-phone", help="App Review 审核联系人电话（含国际区号）")
     parser.add_argument("--wait-and-submit", action="store_true", help="等待构建处理完成并直接提交审核")
     args = parser.parse_args()
 
@@ -845,28 +1012,34 @@ def main() -> None:
     p8_path = resolve_and_install_p8(args.key_id, args.key_path)
     client = AscClient(args.issuer_id, args.key_id, p8_path)
 
-    # 先验证该 Bundle ID 的新 App 记录是否已在 App Store Connect 创建
     apps = client.request("GET", f"/apps?filter[bundleId]={urllib.parse.quote(args.bundle_id)}").get(
         "data", []
     )
     if not apps:
         raise SystemExit(
-            f"[BLOCKED] App Store Connect 中尚未找到 Bundle ID '{args.bundle_id}' 的 App 记录！\n"
-            f"请先在浏览器打开 https://appstoreconnect.apple.com/apps 点击「+ 新建 App」，"
-            f"套装 ID 选择 '{args.bundle_id}' 点击创建后再运行本脚本。"
+            f"[BLOCKED] App Store Connect 中尚未找到 Bundle ID '{args.bundle_id}' 的 App 记录！"
         )
     app_id = apps[0]["id"]
     app_name = apps[0]["attributes"].get("name", args.bundle_id)
     print(f"==> 已连接 App Store Connect 应用: {app_name} (ID: {app_id}, Bundle: {args.bundle_id})")
 
     ipa_path = Path(args.ipa)
-    if not args.skip_ipa_upload and ipa_path.is_file():
+    if not args.skip_ipa_upload:
+        if not ipa_path.is_file():
+            raise FileNotFoundError(f"未找到指定 IPA 文件: {ipa_path}")
         upload_ipa_via_altool(ipa_path, args.issuer_id, args.key_id)
 
+    version_id, vloc_ids = configure_version_and_localizations(
+        client, app_id, args.version, create_version=args.create_version
+    )
     app_info_id = configure_categories_and_age_rating(client, app_id)
     configure_app_info_localizations(client, app_info_id)
-    version_id, vloc_ids = configure_version_and_localizations(client, app_id, args.version)
-    upload_screenshots_for_locales(client, vloc_ids, Path(args.screenshots_dir))
+    upload_screenshots_for_locales(
+        client,
+        vloc_ids,
+        Path(args.screenshots_dir),
+        replace_existing=args.replace_screenshots,
+    )
     configure_review_details(
         client,
         version_id,
@@ -875,8 +1048,15 @@ def main() -> None:
         args.contact_email,
         args.contact_phone,
     )
-    bind_build_and_submit(client, app_id, version_id, args.wait_and_submit)
-    print("\n==> 全部自动化配置已完成！")
+    bind_build_and_submit(
+        client,
+        app_id,
+        version_id,
+        args.version,
+        build_number=args.build_number,
+        submit=args.wait_and_submit,
+    )
+    print("\n==> 全部自动化配置与提审操作已完成！")
 
 
 if __name__ == "__main__":

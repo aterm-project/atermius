@@ -79,6 +79,7 @@ import 'connect_progress_view.dart';
 import '../platform/application_windows.dart';
 import 'session_workspace.dart';
 import 'ssh_forwarding_page.dart';
+import 'ssh_live_tools_sheet.dart';
 import 'ssh_port_forwarding_dialog.dart';
 import 'workspace_controls.dart';
 import 'workspace_status_bar.dart';
@@ -347,6 +348,9 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
   String? _lastIosToastedPageError;
   final GlobalKey<IosHomeShellState> _iosShellKey =
       GlobalKey<IosHomeShellState>();
+  final GlobalKey _terminalSurfaceKey = GlobalKey(
+    debugLabel: 'local_terminal_surface',
+  );
   int _operationGeneration = 0;
   int _catalogGeneration = 0;
 
@@ -1344,6 +1348,14 @@ class _LocalProfileFlowState extends State<LocalProfileFlow> {
       if (!_isCurrentOperation(generation)) return;
       if (!await _reloadHosts(generation)) {
         _showMessage(currentL10n.theHostWasUpdatedButThe);
+      } else if (mounted && isIosPhone(context)) {
+        final label =
+            edited.name.trim().isNotEmpty ? edited.name.trim() : edited.address;
+        IosToast.show(
+          context,
+          context.l10n.savedName(label),
+          kind: IosToastKind.success,
+        );
       }
     } on LocalHostConflictException {
       if (_isCurrentOperation(generation)) {
@@ -4993,6 +5005,19 @@ _showMessage(
                 enabled: !_busy,
               ),
               WorkspaceAction(
+                'local_ssh_live_tools',
+                sshLiveToolsMenuLabel(context),
+                Icons.monitor_heart_outlined,
+                () => unawaited(
+                  showSshLiveToolsSheet(
+                    context,
+                    host: activeSession.host,
+                    connection: activeSession.connection!,
+                  ),
+                ),
+                enabled: !_busy,
+              ),
+              WorkspaceAction(
                 'local_ssh_search',
                 context.l10n.searchTerminal,
                 Icons.search,
@@ -5016,6 +5041,8 @@ _showMessage(
     final Widget homeSurface = SafeArea(
       top: !iosPhone,
       bottom: !iosPhone,
+      left: !iosPhone,
+      right: !iosPhone,
       child: _storageRecoveryRequired
           ? (iosPhone
                 ? _buildStorageRecoveryPageIos(context)
@@ -5089,7 +5116,9 @@ _showMessage(
     final toolsSession = activeSession?.viewKey.currentState != null ? activeSession :
         _sessions.where((session) => _layout.sessionIds.contains(session.id) &&
             session.viewKey.currentState != null).firstOrNull;
-    final Widget terminalSurface = TerminalToolsLayout(
+    final Widget terminalSurface = KeyedSubtree(
+      key: _terminalSurfaceKey,
+      child: TerminalToolsLayout(
                     sidebar: toolsSession?.viewKey.currentState?.toolsSidebar,
                     child: SessionWorkspaceView(
                       controller: _layout,
@@ -5228,7 +5257,8 @@ _showMessage(
                         )));
                       },
                     ),
-                  );
+      ),
+    );
     final scaffold = Scaffold(
       resizeToAvoidBottomInset: !iosPhone,
       backgroundColor: iosPhone
@@ -5238,6 +5268,8 @@ _showMessage(
         builder: (context, body) => SafeArea(
           top: !iosPhone,
           bottom: !iosPhone,
+          left: !iosPhone,
+          right: !iosPhone,
           child: Column(
             children: [
               if (!iosPhone)

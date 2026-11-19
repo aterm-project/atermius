@@ -146,6 +146,9 @@ private:
 
   // window handle for hosted content.
   HWND child_content_ = nullptr;
+
+  // Obsidian-Emerald dark fallback brush preventing startup/resize white flashes.
+  HBRUSH background_brush_ = nullptr;
 };
 
 #endif // RUNNER_WIN32_WINDOW_H_

@@ -489,13 +489,11 @@ extension _LocalProfileFlowIos on _LocalProfileFlowState {
                 ),
               ),
               Expanded(
-                child: hasKeybar
-                    ? terminalChild
-                    : SafeArea(
-                        top: false,
-                        bottom: keyboardBottom == 0,
-                        child: terminalChild,
-                      ),
+                child: SafeArea(
+                  top: false,
+                  bottom: !hasKeybar && keyboardBottom == 0,
+                  child: terminalChild,
+                ),
               ),
               _sharedTerminalKeybar(
                 activeSession,

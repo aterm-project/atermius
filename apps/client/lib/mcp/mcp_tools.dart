@@ -10,6 +10,7 @@ import 'package:crypto/crypto.dart';
 import '../domain/models.dart';
 import '../sftp/dart_sftp_text_file_system.dart';
 import '../sftp/sftp_text_editor_service.dart';
+import '../ssh/ssh_live_tools.dart';
 import '../ssh/ssh_service.dart';
 import 'mcp_access_policy.dart';
 import 'mcp_activity.dart';
@@ -184,6 +185,61 @@ const mcpTools = [
     },
     required: ['session_id', 'path', 'text', 'mode'],
     mutating: true,
+  ),
+  McpToolDefinition(
+    'ssh_system_overview',
+    'Read-only structured diagnostic summary of an active SSH host (OS, kernel, architecture, uptime, load average, CPU cores, memory and root disk usage). Available under read_only access.',
+    {
+      'session_id': _id,
+      'timeout_seconds': {'type': 'integer', 'minimum': 1, 'maximum': 30},
+    },
+    required: ['session_id'],
+  ),
+  McpToolDefinition(
+    'ssh_network_probe',
+    'Read-only SSH network diagnostic: inspect listening ports or check TCP reachability from the remote host without shell injection. Available under read_only access.',
+    {
+      'session_id': _id,
+      'mode': {
+        'type': 'string',
+        'enum': ['listening_ports', 'tcp_check'],
+      },
+      'host': {'type': 'string', 'minLength': 1, 'maxLength': 253},
+      'port': {'type': 'integer', 'minimum': 1, 'maximum': 65535},
+      'timeout_seconds': {'type': 'integer', 'minimum': 1, 'maximum': 30},
+    },
+    required: ['session_id', 'mode'],
+  ),
+  McpToolDefinition(
+    'ssh_process_snapshot',
+    'Read-only snapshot of top remote processes sorted by CPU or memory usage. Available under read_only access.',
+    {
+      'session_id': _id,
+      'sort_by': {
+        'type': 'string',
+        'enum': ['cpu', 'memory'],
+      },
+      'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50},
+      'timeout_seconds': {'type': 'integer', 'minimum': 1, 'maximum': 30},
+    },
+    required: ['session_id'],
+  ),
+  McpToolDefinition(
+    'ssh_service_logs',
+    'Read-only tail of a systemd service journal or absolute log file path on an active SSH host, with safe local substring filtering. Available under read_only access.',
+    {
+      'session_id': _id,
+      'source': {
+        'type': 'string',
+        'enum': ['journal', 'file'],
+      },
+      'unit': {'type': 'string', 'minLength': 1, 'maxLength': 128},
+      'path': _path,
+      'lines': {'type': 'integer', 'minimum': 1, 'maximum': 500},
+      'contains': {'type': 'string', 'minLength': 1, 'maxLength': 256},
+      'timeout_seconds': {'type': 'integer', 'minimum': 1, 'maximum': 30},
+    },
+    required: ['session_id', 'source'],
   ),
 ];
 
@@ -538,6 +594,122 @@ class McpToolRunner {
           'output_truncated': result.outputTruncated,
           'exec_open_pending': result.execOpenPending,
         };
+      case 'ssh_system_overview':
+      case 'ssh_network_probe':
+      case 'ssh_process_snapshot':
+      case 'ssh_service_logs':
+        final connection = session.connection;
+        if (connection == null || session.state != 'connected') {
+          throw const McpToolException(
+            'ssh_required',
+            'A connected SSH session is required.',
+          );
+        }
+        final timeout = Duration(seconds: args['timeout_seconds'] as int? ?? 15);
+        final cancellation = SshExecCancellation();
+        context.onCancel(cancellation.cancel);
+        try {
+          switch (name) {
+            case 'ssh_system_overview':
+              McpActivity.show(session, name);
+              final res = await SshLiveTools.systemOverview(
+                connection,
+                cancellation: cancellation,
+                timeout: timeout,
+              );
+              checkSession();
+              McpActivity.show(session, name, detail: '→ ok');
+              return res;
+            case 'ssh_network_probe':
+              final mode = args['mode'] as String;
+              final host = args['host'] as String?;
+              final port = args['port'] as int?;
+              SshLiveTools.buildNetworkProbeCommand(
+                mode: mode,
+                host: host,
+                port: port,
+              );
+              final probeDetail = mode == 'tcp_check'
+                  ? '$mode ${McpActivity.printable('${host ?? ''}:${port ?? ''}')}'
+                  : mode;
+              McpActivity.show(session, name, detail: probeDetail);
+              final res = await SshLiveTools.networkProbe(
+                connection,
+                mode: mode,
+                host: host,
+                port: port,
+                cancellation: cancellation,
+                timeout: timeout,
+              );
+              checkSession();
+              McpActivity.show(session, name, detail: '→ ok');
+              return res;
+            case 'ssh_process_snapshot':
+              final sortBy = args['sort_by'] as String? ?? 'cpu';
+              final limit = args['limit'] as int? ?? 15;
+              SshLiveTools.buildProcessSnapshotCommand(
+                sortBy: sortBy,
+                limit: limit,
+              );
+              McpActivity.show(
+                session,
+                name,
+                detail: 'sort=$sortBy limit=$limit',
+              );
+              final res = await SshLiveTools.processSnapshot(
+                connection,
+                sortBy: sortBy,
+                limit: limit,
+                cancellation: cancellation,
+                timeout: timeout,
+              );
+              checkSession();
+              McpActivity.show(
+                session,
+                name,
+                detail: '→ ${res['count']} processes',
+              );
+              return res;
+            case 'ssh_service_logs':
+              final source = args['source'] as String;
+              final unit = args['unit'] as String?;
+              final logPath = args['path'] as String?;
+              final lines = args['lines'] as int? ?? 80;
+              final contains = args['contains'] as String?;
+              SshLiveTools.buildServiceLogsCommand(
+                source: source,
+                unit: unit,
+                path: logPath,
+                lines: lines,
+              );
+              final target = McpActivity.printable(unit ?? logPath ?? '');
+              McpActivity.show(session, name, detail: '$source $target');
+              final res = await SshLiveTools.serviceLogs(
+                connection,
+                source: source,
+                unit: unit,
+                path: logPath,
+                lines: lines,
+                contains: contains,
+                cancellation: cancellation,
+                timeout: timeout,
+              );
+              checkSession();
+              McpActivity.show(
+                session,
+                name,
+                detail: '→ ${res['line_count']} lines',
+              );
+              return res;
+          }
+        } on FormatException catch (e) {
+          throw McpToolException('invalid_arguments', e.message);
+        } on SshLiveToolAbortedException catch (e) {
+          if (e.cancelled) {
+            throw const McpToolException('cancelled', 'SSH probe cancelled.');
+          }
+          throw const McpToolException('timeout', 'SSH probe timed out.');
+        }
     }
     final connection = session.connection;
     if (connection == null || session.state != 'connected') {

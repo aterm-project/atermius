@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
@@ -86,12 +86,12 @@ Future<TermiusUpsertReport> upsertTermiusDocumentToLocalRepository(
     return parent;
   }
 
+  final envUser = _nonEmptyEnv(Platform.environment, 'USER') ??
+      _nonEmptyEnv(Platform.environment, 'USERNAME');
   final defaultUser =
       (fallbackUsername?.trim().isNotEmpty == true
           ? fallbackUsername!.trim()
-          : (Platform.environment['USER']?.trim().isNotEmpty == true
-                ? Platform.environment['USER']!.trim()
-                : 'root'));
+          : (envUser ?? 'root'));
 
   // Index existing hosts by exact endpoint and by (protocol, address, username)
   // so previously imported bare-IP rows get upgraded with their Termius remark.
@@ -261,51 +261,180 @@ Future<TermiusUpsertReport> upsertTermiusDocumentToLocalRepository(
   );
 }
 
-List<File> _candidateSeedFiles() {
-  final out = <File>[];
-  final home = Platform.environment['HOME']?.trim();
-  if (home != null && home.isNotEmpty) {
-    // iOS sandbox Documents/ or macOS ~/Documents
-    out.add(File(p.join(home, 'Documents', 'atermius-auto-import.json')));
-    out.add(
-      File(
-        p.join(
-          home,
-          'Library',
-          'Application Support',
-          'com.atermius.atermClient',
-          'atermius-auto-import.json',
-        ),
-      ),
-    );
+String? _nonEmptyEnv(Map<String, String> env, String key) {
+  final value = env[key]?.trim();
+  return value == null || value.isEmpty ? null : value;
+}
+
+/// 解析跨平台候选预置种子文件路径（依次覆盖 Windows / macOS / iOS / Linux）。
+@visibleForTesting
+List<String> termiusSeedCandidatePaths({
+  required bool isWindows,
+  required bool isMacOS,
+  bool isIOS = false,
+  required Map<String, String> env,
+  String? executableDir,
+  String? currentDir,
+}) {
+  final ctx = isWindows ? p.windows : p.posix;
+  final out = <String>[];
+  final seen = <String>{};
+  void add(String candidate) {
+    final normalized = candidate.trim();
+    if (normalized.isNotEmpty && seen.add(normalized)) {
+      out.add(normalized);
+    }
   }
-  try {
-    final exeDir = File(Platform.resolvedExecutable).parent;
-    // iOS Runner.app/atermius-local-seed.json (injected only into private local signed builds)
-    out.add(File(p.join(exeDir.path, 'atermius-local-seed.json')));
-    // macOS Atermius.app/Contents/Resources/atermius-local-seed.json
-    out.add(
-      File(p.join(exeDir.parent.path, 'Resources', 'atermius-local-seed.json')),
-    );
-  } on Object {
-    // Ignore executable resolution errors in unit tests.
+
+  final override = _nonEmptyEnv(env, 'ATERMIUS_SEED_FILE');
+  if (override != null) add(override);
+
+  final home = _nonEmptyEnv(env, 'HOME') ?? _nonEmptyEnv(env, 'USERPROFILE');
+  if (isWindows) {
+    final appData = _nonEmptyEnv(env, 'APPDATA');
+    final localAppData = _nonEmptyEnv(env, 'LOCALAPPDATA');
+    final profile = _nonEmptyEnv(env, 'USERPROFILE') ?? home;
+    if (appData != null) {
+      add(ctx.join(appData, 'Atermius', 'atermius-local-seed.json'));
+      add(
+        ctx.join(appData, 'com.atermius.atermClient', 'atermius-auto-import.json'),
+      );
+    }
+    if (localAppData != null) {
+      add(ctx.join(localAppData, 'Atermius', 'atermius-local-seed.json'));
+    }
+    if (profile != null) {
+      add(ctx.join(profile, 'Documents', 'atermius-auto-import.json'));
+      add(
+        ctx.join(
+          profile,
+          'Downloads',
+          'aterm-project',
+          'atermius-local-seed.json',
+        ),
+      );
+    }
+  } else {
+    if (home != null) {
+      // iOS sandbox Documents/ or macOS ~/Documents
+      add(ctx.join(home, 'Documents', 'atermius-auto-import.json'));
+      if (isIOS || isMacOS) {
+        add(
+          ctx.join(
+            home,
+            'Library',
+            'Application Support',
+            'com.atermius.atermClient',
+            'atermius-auto-import.json',
+          ),
+        );
+      } else {
+        final xdgConfig =
+            _nonEmptyEnv(env, 'XDG_CONFIG_HOME') ?? ctx.join(home, '.config');
+        add(ctx.join(xdgConfig, 'Atermius', 'atermius-auto-import.json'));
+      }
+    }
+  }
+
+  if (executableDir != null && executableDir.trim().isNotEmpty) {
+    final exe = executableDir.trim();
+    // Runner.app/atermius-local-seed.json or Windows exe dir
+    add(ctx.join(exe, 'atermius-local-seed.json'));
+    if (isWindows) {
+      add(ctx.join(exe, 'data', 'flutter_assets', 'atermius-local-seed.json'));
+    } else if (isMacOS || isIOS) {
+      // macOS Atermius.app/Contents/Resources/atermius-local-seed.json
+      add(ctx.join(ctx.dirname(exe), 'Resources', 'atermius-local-seed.json'));
+    }
+  }
+  if (currentDir != null && currentDir.trim().isNotEmpty) {
+    add(ctx.join(currentDir.trim(), 'atermius-local-seed.json'));
   }
   return out;
 }
 
-File? _markerFileForProfile(String profileId) {
-  final home = Platform.environment['HOME']?.trim();
-  if (home == null || home.isEmpty) return null;
-  final baseDir = Platform.isIOS
-      ? p.join(home, 'Library', 'Application Support')
-      : p.join(
+/// 解析跨平台已导入摘要标记文件路径，避免重复导入相同种子。
+@visibleForTesting
+String? termiusSeedMarkerPath({
+  required bool isWindows,
+  required bool isMacOS,
+  required bool isIOS,
+  required Map<String, String> env,
+  required String profileId,
+}) {
+  final ctx = isWindows ? p.windows : p.posix;
+  final safeProfile = profileId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+  final fileName = '.seed-applied-$safeProfile.sha256';
+  String? baseDir;
+  if (isWindows) {
+    final appData = _nonEmptyEnv(env, 'APPDATA');
+    final localAppData = _nonEmptyEnv(env, 'LOCALAPPDATA');
+    final profile = _nonEmptyEnv(env, 'USERPROFILE') ?? _nonEmptyEnv(env, 'HOME');
+    if (appData != null) {
+      baseDir = ctx.join(appData, 'Atermius');
+    } else if (localAppData != null) {
+      baseDir = ctx.join(localAppData, 'Atermius');
+    } else if (profile != null) {
+      baseDir = ctx.join(profile, '.atermius');
+    }
+  } else {
+    final home = _nonEmptyEnv(env, 'HOME');
+    if (home != null) {
+      if (isIOS) {
+        baseDir = ctx.join(home, 'Library', 'Application Support');
+      } else if (isMacOS) {
+        baseDir = ctx.join(
           home,
           'Library',
           'Application Support',
           'com.atermius.atermClient',
         );
-  final safeProfile = profileId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
-  return File(p.join(baseDir, '.seed-applied-$safeProfile.sha256'));
+      } else {
+        final xdgConfig =
+            _nonEmptyEnv(env, 'XDG_CONFIG_HOME') ?? ctx.join(home, '.config');
+        baseDir = ctx.join(xdgConfig, 'atermius');
+      }
+    }
+  }
+  if (baseDir == null) return null;
+  return ctx.join(baseDir, fileName);
+}
+
+List<File> _candidateSeedFiles() {
+  String? exeDir;
+  try {
+    exeDir = File(Platform.resolvedExecutable).parent.path;
+  } on Object {
+    exeDir = null;
+  }
+  String? currentDir;
+  try {
+    currentDir = Directory.current.path;
+  } on Object {
+    currentDir = null;
+  }
+  return [
+    for (final path in termiusSeedCandidatePaths(
+      isWindows: Platform.isWindows,
+      isMacOS: Platform.isMacOS,
+      isIOS: Platform.isIOS,
+      env: Platform.environment,
+      executableDir: exeDir,
+      currentDir: currentDir,
+    ))
+      File(path),
+  ];
+}
+
+File? _markerFileForProfile(String profileId) {
+  final path = termiusSeedMarkerPath(
+    isWindows: Platform.isWindows,
+    isMacOS: Platform.isMacOS,
+    isIOS: Platform.isIOS,
+    env: Platform.environment,
+    profileId: profileId,
+  );
+  return path == null ? null : File(path);
 }
 
 /// Automatically imports/updates pre-staged labeled Termius SSH hosts once per
@@ -314,6 +443,12 @@ Future<TermiusUpsertReport?> syncPendingTermiusSeedIfPresent(
   LocalHostRepository repository, {
   required String profileId,
 }) async {
+  final isFlutterTest = Platform.environment['FLUTTER_TEST'] == 'true';
+  final hasExplicitOverride =
+      _nonEmptyEnv(Platform.environment, 'ATERMIUS_SEED_FILE') != null;
+  if (isFlutterTest && !hasExplicitOverride) {
+    return null;
+  }
   File? seedFile;
   for (final candidate in _candidateSeedFiles()) {
     try {

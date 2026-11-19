@@ -163,7 +163,7 @@ class IosSessionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = IosColors.of(context);
     final l10n = context.l10n;
-    final topPadding = MediaQuery.paddingOf(context).top;
+    final pad = MediaQuery.paddingOf(context);
     final live = sessions.where((tab) => !tab.isHome).toList();
     final current =
         live.where((tab) => tab.id == selectedId).firstOrNull ??
@@ -219,7 +219,11 @@ class IosSessionBar extends StatelessWidget {
       bottomSeparator: true,
       separatorColor: separatorColor,
       child: Padding(
-        padding: EdgeInsets.only(top: topPadding, left: 6, right: 10),
+        padding: EdgeInsets.only(
+          top: pad.top,
+          left: pad.left + 6,
+          right: pad.right + 10,
+        ),
         child: SizedBox(
           height: 44,
           child: NavigationToolbar(

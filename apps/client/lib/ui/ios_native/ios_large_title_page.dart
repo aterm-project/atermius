@@ -351,16 +351,17 @@ class IosLargeTitlePage extends StatelessWidget {
                     CupertinoSliverRefreshControl(onRefresh: onRefresh),
                   if (searchField != null)
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(
-                        IosMetrics.sectionMargin,
+                      padding: EdgeInsets.fromLTRB(
+                        media.padding.left + IosMetrics.sectionMargin,
                         10,
-                        IosMetrics.sectionMargin,
+                        media.padding.right + IosMetrics.sectionMargin,
                         0,
                       ),
                       sliver: SliverToBoxAdapter(child: searchField),
                     ),
                   const SliverToBoxAdapter(child: SizedBox(height: 12)),
-                  ...slivers,
+                  for (final sliver in slivers)
+                    SliverSafeArea(top: false, bottom: false, sliver: sliver),
                   SliverToBoxAdapter(child: SizedBox(height: bottom)),
                 ],
               ),
@@ -441,7 +442,8 @@ class IosLargeTitlePage extends StatelessWidget {
             if (onRefresh != null)
               CupertinoSliverRefreshControl(onRefresh: onRefresh),
             const SliverToBoxAdapter(child: SizedBox(height: 12)),
-            ...slivers,
+            for (final sliver in slivers)
+              SliverSafeArea(top: false, bottom: false, sliver: sliver),
             SliverToBoxAdapter(child: SizedBox(height: bottom)),
           ],
         ),

@@ -855,6 +855,10 @@ for p in sorted(app.rglob("Info.plist")):
         data["CFBundleIdentifier"] = f"{main_bid}.pkg.{slug}"
         p.write_bytes(plistlib.dumps(data, fmt=plistlib.FMT_XML))
 PY
+# 移除 Flutter.framework 内未剥离的 Headers / Modules 开发残留目录，避免触发 IPA 终检拦截与无关重签膨胀
+rm -rf "$ARCHIVE_APP/Frameworks/Flutter.framework/Headers" \
+       "$ARCHIVE_APP/Frameworks/Flutter.framework/Modules"
+
 for fw in "$ARCHIVE_APP/Frameworks"/*.framework; do
   [ -d "$fw" ] && /usr/bin/codesign --remove-signature "$fw" 2>/dev/null || true
 done

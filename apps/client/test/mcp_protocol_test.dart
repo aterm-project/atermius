@@ -69,7 +69,7 @@ void main() {
       expect(
         (result(await h.protocol.handle(rpc('tools/list')))['tools'] as List)
             .length,
-        13,
+        17,
       );
       final bad = await h.protocol.handle(
         modern,

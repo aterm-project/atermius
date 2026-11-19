@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 const _macosFilePanelChannel = MethodChannel('atermius/file_panel');
 
@@ -36,7 +37,7 @@ Future<({Uint8List bytes, String name})?> pickBoundedImportFile({
       );
       if (path == null) return null;
       if (path.isNotEmpty) {
-        return readBoundedFilePath(path, maxBytes: maxBytes);
+        return await readBoundedFilePath(path, maxBytes: maxBytes);
       }
     } on MissingPluginException {
       // Fall back to standard FilePicker below.
@@ -138,7 +139,11 @@ String? defaultSystemSshUsername() {
 }
 
 String? _defaultSshConfigPath() {
-  final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-  if (home == null || home.trim().isEmpty) return null;
-  return '$home/.ssh/config';
+  final homeRaw = Platform.environment['HOME']?.trim();
+  final profileRaw = Platform.environment['USERPROFILE']?.trim();
+  final home = (homeRaw != null && homeRaw.isNotEmpty)
+      ? homeRaw
+      : (profileRaw != null && profileRaw.isNotEmpty ? profileRaw : null);
+  if (home == null) return null;
+  return p.join(home, '.ssh', 'config');
 }

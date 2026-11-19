@@ -146,8 +146,8 @@ class _IosToastViewState extends State<_IosToastView>
     );
     return Positioned(
       top: media.padding.top + 6,
-      left: 16,
-      right: 16,
+      left: media.padding.left + 16,
+      right: media.padding.right + 16,
       child: Center(
         child: AnimatedBuilder(
           animation: curved,

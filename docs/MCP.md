@@ -4,7 +4,7 @@
 
 服务默认仅监听 `http://127.0.0.1:8765/mcp`（端口可改，范围 1024–65535）。监听范围在启用前选择，见下文「监听范围」。每次启用生成独立随机 Bearer 令牌，不写入磁盘。配置含令牌，只交给信任的客户端。锁定、退出或切换工作区会撤销授权；重新启用后需要更新 AI 端配置。多窗口应使用不同端口。停止 MCP 不关闭已打开的会话，也不能撤销已经发生的远程操作；等待用户确认的连接可能仍由应用完成。
 
-Windows、Linux、macOS 和 Android 支持监听；Web、iOS 不监听端口。Android 使用带“停止 MCP”按钮的前台通知；电脑端通过 ADB 转发同一端口连接，见 [Android 连通与后台运行](MCP-ANDROID.md)。服务与当前已解锁的本地 Profile 或云端 Vault 绑定，不把密钥交给服务器，不包含内置模型聊天。
+Windows、Linux、macOS 和 Android 支持监听；Web、iOS 不监听端口。Android 使用带“停止 MCP”按钮的前台通知；电脑端通过 ADB 转发同一端口连接，见 [Android 连通与后台运行](MCP-ANDROID.md)。此外，客户端现已预留无 HTTP 端口的**进程内原生 MCP 接口**（Dart 侧 `McpService.createNativeGateway` / `McpNativeBridge` 与 `MethodChannel('atermius/mcp_native')`，iOS Swift 宿主侧 `AtermiusNativeMcpBridge.shared`），在包括 iOS / iPadOS 在内的全平台均可为未来内置 AI 或系统助手提供受控能力，且同样受下方工作区锁屏撤销与逐机权限策略严格约束。服务与当前已解锁的本地 Profile 或云端 Vault 绑定，不把密钥交给服务器，不包含内置模型聊天。
 
 | 工具 | 用途 | 需要操作权限 |
 | --- | --- | --- |
@@ -15,6 +15,10 @@ Windows、Linux、macOS 和 Android 支持监听；Web、iOS 不监听端口。A
 | `terminal_read` | 读取保留的终端文本 | 否 |
 | `terminal_write` | 向交互终端输入文本（换行可能执行命令） | 是 |
 | `ssh_exec` | 在已有 SSH 连接的独立通道执行命令 | 是 |
+| `ssh_system_overview` | 只读采集远端主机 OS、内核、负载、CPU、内存与根分区概览 | 否 |
+| `ssh_network_probe` | 只读检查远端监听端口（`listening_ports`）或 TCP 连通性（`tcp_check`） | 否 |
+| `ssh_process_snapshot` | 只读快照远端 CPU / 内存占用 Top 进程列表 | 否 |
+| `ssh_service_logs` | 只读查看 `journalctl` 或绝对路径日志尾行（本地过滤关键字） | 否 |
 | `sftp_list` / `sftp_read_text` | 列目录 / 读取 UTF-8 文本和 SHA-256 | 否 |
 | `sftp_write_text` | 独占创建或核对摘要后替换文本文件 | 是 |
 

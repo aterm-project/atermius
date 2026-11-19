@@ -29,13 +29,10 @@ import UIKit
   private var mcpLeaseId: String?
   private var mcpBackgroundTask: UIBackgroundTaskIdentifier = .invalid
 
-  private var lifecycleObservers: [NSObjectProtocol] = []
-
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    installLifecycleObservers()
     installKeyboardCaptureObservers()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
@@ -46,33 +43,29 @@ import UIKit
     setupSshKeepaliveChannel(messenger: messenger)
     setupTransferForegroundChannel(messenger: messenger)
     setupMcpForegroundChannel(messenger: messenger)
+    setupMcpNativeBridgeChannel(messenger: messenger)
     setupExternalEditChannel(messenger: messenger)
     setupRdpStorageChannel(messenger: messenger)
     setupKeyboardCaptureChannel(messenger: messenger)
   }
 
-  // MARK: - App Lifecycle Background Task Rotation
+  // MARK: - Scene Lifecycle Background Task Rotation
 
-  private func installLifecycleObservers() {
-    let center = NotificationCenter.default
-    lifecycleObservers.append(
-      center.addObserver(
-        forName: UIApplication.didEnterBackgroundNotification,
-        object: nil,
-        queue: .main
-      ) { [weak self] _ in
-        self?.handleDidEnterBackground()
+  private func hasForegroundScene() -> Bool {
+    return UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .contains {
+        $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive
       }
-    )
-    lifecycleObservers.append(
-      center.addObserver(
-        forName: UIApplication.willEnterForegroundNotification,
-        object: nil,
-        queue: .main
-      ) { [weak self] _ in
-        self?.handleWillEnterForeground()
-      }
-    )
+  }
+
+  func handleSceneDidEnterBackground(_ scene: UIScene) {
+    guard !hasForegroundScene() else { return }
+    handleDidEnterBackground()
+  }
+
+  func handleSceneWillEnterForeground(_ scene: UIScene) {
+    handleWillEnterForeground()
   }
 
   private func handleDidEnterBackground() {
@@ -161,10 +154,10 @@ import UIKit
       self.sshSessions = sessions
       self.sshRevision += 1
       if sessions > 0 {
-        if UIApplication.shared.applicationState != .active {
+        if !self.hasForegroundScene() {
           self.acquireSshBackgroundTaskIfNeeded()
         }
-        let isActive = UIApplication.shared.applicationState == .active || self.sshBackgroundTask != .invalid
+        let isActive = self.hasForegroundScene() || self.sshBackgroundTask != .invalid
         var reply: [String: Any] = [
           "revision": self.sshRevision,
           "active": isActive,
@@ -309,10 +302,10 @@ import UIKit
           ])
         }
         self.mcpLeaseId = leaseId
-        if UIApplication.shared.applicationState != .active {
+        if !self.hasForegroundScene() {
           self.acquireMcpBackgroundTask(for: leaseId)
         }
-        let active = UIApplication.shared.applicationState == .active || self.mcpBackgroundTask != .invalid
+        let active = self.hasForegroundScene() || self.mcpBackgroundTask != .invalid
         result([
           "active": active,
           "notifications": false,
@@ -623,10 +616,15 @@ import UIKit
     }
   }
 
+  private func setupMcpNativeBridgeChannel(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "atermius/mcp_native",
+      binaryMessenger: messenger
+    )
+    AtermiusNativeMcpBridge.shared.attach(channel: channel)
+  }
+
   deinit {
-    for observer in lifecycleObservers {
-      NotificationCenter.default.removeObserver(observer)
-    }
     for observer in keyboardCaptureObservers {
       NotificationCenter.default.removeObserver(observer)
     }
@@ -634,6 +632,104 @@ import UIKit
     endMcpBackgroundTask()
     for leaseId in Array(transferTasks.keys) {
       releaseTransferLease(leaseId)
+    }
+  }
+}
+
+/// 面向未来 Apple Intelligence / App Intents 与 Siri 快捷指令的无端口原生 MCP 网关桥接。
+///
+/// 保持无本地 HTTP 端口监听，所有工具发现与调用直接透传给 Dart 侧受 [McpAccessPolicy] 约束的
+/// `atermius/mcp_native` 通道，在未解锁工作区或越权调用时自动遵循应用内访问策略。
+@MainActor
+final class AtermiusNativeMcpBridge {
+  static let shared = AtermiusNativeMcpBridge()
+
+  private var channel: FlutterMethodChannel?
+
+  private init() {}
+
+  func attach(channel: FlutterMethodChannel) {
+    self.channel = channel
+  }
+
+  var isAttached: Bool {
+    channel != nil
+  }
+
+  func status(completion: @escaping ([String: Any]?, Error?) -> Void) {
+    invoke(method: "status", arguments: nil, completion: completion)
+  }
+
+  func discover(completion: @escaping ([String: Any]?, Error?) -> Void) {
+    invoke(method: "discover", arguments: nil, completion: completion)
+  }
+
+  func listTools(completion: @escaping ([[String: Any]]?, Error?) -> Void) {
+    invoke(method: "listTools", arguments: nil) { payload, error in
+      if let error = error {
+        completion(nil, error)
+        return
+      }
+      let tools = payload?["tools"] as? [[String: Any]] ?? []
+      completion(tools, nil)
+    }
+  }
+
+  func callTool(
+    name: String,
+    arguments: [String: Any] = [:],
+    completion: @escaping ([String: Any]?, Error?) -> Void
+  ) {
+    invoke(
+      method: "callTool",
+      arguments: ["name": name, "arguments": arguments],
+      completion: completion
+    )
+  }
+
+  private func invoke(
+    method: String,
+    arguments: Any?,
+    completion: @escaping ([String: Any]?, Error?) -> Void
+  ) {
+    guard let channel = channel else {
+      completion(
+        nil,
+        NSError(
+          domain: "com.atermius.ios.mcp",
+          code: 503,
+          userInfo: [NSLocalizedDescriptionKey: "Native MCP bridge is not attached."]
+        )
+      )
+      return
+    }
+    channel.invokeMethod(method, arguments: arguments) { result in
+      if let err = result as? FlutterError {
+        completion(
+          nil,
+          NSError(
+            domain: "com.atermius.ios.mcp",
+            code: 403,
+            userInfo: [
+              NSLocalizedDescriptionKey: err.message ?? err.code,
+              "mcpErrorCode": err.code,
+            ]
+          )
+        )
+        return
+      }
+      if (result as AnyObject) === FlutterMethodNotImplemented {
+        completion(
+          nil,
+          NSError(
+            domain: "com.atermius.ios.mcp",
+            code: 501,
+            userInfo: [NSLocalizedDescriptionKey: "Native MCP method not implemented: \(method)"]
+          )
+        )
+        return
+      }
+      completion(result as? [String: Any], nil)
     }
   }
 }

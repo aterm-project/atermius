@@ -356,15 +356,15 @@ class IosTabScaffoldState extends State<IosTabScaffold> {
           content,
           if (widget.accessory != null)
             Positioned(
-              left: IosMetrics.tabBarMargin,
-              right: IosMetrics.tabBarMargin,
+              left: media.padding.left + IosMetrics.tabBarMargin,
+              right: media.padding.right + IosMetrics.tabBarMargin,
               bottom: tabTotal + IosMetrics.accessoryGap,
               height: accessoryHeight,
               child: _KeyboardHide(hidden: keyboardUp, child: widget.accessory!),
             ),
           Positioned(
-            left: IosMetrics.tabBarMargin,
-            right: IosMetrics.tabBarMargin,
+            left: media.padding.left + IosMetrics.tabBarMargin,
+            right: media.padding.right + IosMetrics.tabBarMargin,
             bottom: tabBottom,
             height: tabHeight,
             child: _KeyboardHide(

@@ -8,10 +8,13 @@ import '../domain/models.dart';
 import 'mcp_access_policy.dart';
 import 'mcp_access_policy_store.dart';
 import 'mcp_listener.dart';
+import 'mcp_native_bridge.dart';
 import 'mcp_protocol.dart';
 import 'mcp_workspace.dart';
 
 export 'mcp_access_policy.dart' show McpAccessMode, mcpLocalDeviceHostId;
+export 'mcp_native_bridge.dart'
+    show McpNativeBridge, McpNativeGateway, mcpNativeChannelName;
 
 class McpAuditEntry {
   McpAuditEntry(this.tool, this.success) : at = DateTime.now();
@@ -43,9 +46,11 @@ class McpService extends ChangeNotifier {
   McpProtocol? _protocol;
   String? _scope, _token;
   int _generation = 0;
+  int _nativeEpoch = 0;
   bool _starting = false;
   bool _disposed = false;
   final _audit = <McpAuditEntry>[];
+  final _nativeGateways = <McpNativeGateway>{};
 
   // Access policy. Everything below belongs to [_policyScope]; a different
   // live workspace scope means "not loaded" and therefore denied.
@@ -61,6 +66,10 @@ class McpService extends ChangeNotifier {
   Future<void> _storeChain = Future.value();
 
   bool get supported => mcpListenerSupported;
+
+  /// 无 HTTP 端口的进程内原生 MCP 桥接能力在所有平台（含 iOS / iPadOS）均可用。
+  bool get nativeBridgeSupported => true;
+
   bool get running => _listener != null;
   bool get starting => _starting;
   bool get workspaceReady => _workspace?.scope() != null;
@@ -92,12 +101,14 @@ class McpService extends ChangeNotifier {
     final scope = _liveScope;
     if (scope == _policyScope) return;
     _policyEpoch++;
+    _nativeEpoch++;
     _policyScope = scope;
     _policyError = false;
     _committed = _requested = _floor = _enforced = null;
     _pending.clear();
     _policyLoading = scope != null;
     _protocol?.revalidate();
+    _closeNativeGateways();
     if (scope != null) unawaited(_load(scope, _policyEpoch));
   }
 
@@ -231,7 +242,10 @@ class McpService extends ChangeNotifier {
     _requested = next;
     _pending.add(next);
     _recompute();
-    if (before.reducedBy(_enforced!)) _protocol?.revalidate();
+    if (before.reducedBy(_enforced!)) {
+      _protocol?.revalidate();
+      _revalidateNativeGateways();
+    }
     notifyListeners();
     try {
       // Keyed by the captured scope, so a lock or switch while queued still
@@ -285,11 +299,113 @@ class McpService extends ChangeNotifier {
     return _enforced?.effective(hostKey) ?? McpAccessMode.denied;
   }
 
+  void _recordAudit(String name, bool success) {
+    _audit.add(McpAuditEntry(name, success));
+    if (_audit.length > 50) _audit.removeAt(0);
+    if (!_disposed) notifyListeners();
+  }
+
+  void _revalidateNativeGateways() {
+    for (final gw in _nativeGateways.toList(growable: false)) {
+      gw.revalidate();
+    }
+  }
+
+  void _closeNativeGateways() {
+    for (final gw in _nativeGateways.toList(growable: false)) {
+      gw.close();
+    }
+    _nativeGateways.clear();
+  }
+
+  McpAccessMode _resolveNative(
+    String? hostKey,
+    int nativeEpoch,
+    McpWorkspace workspace,
+    String scope,
+  ) {
+    if (_disposed ||
+        nativeEpoch != _nativeEpoch ||
+        !identical(_workspace, workspace) ||
+        workspace.scope() != scope ||
+        _policyScope != scope) {
+      return McpAccessMode.denied;
+    }
+    return _enforced?.effective(hostKey) ?? McpAccessMode.denied;
+  }
+
+  /// 创建无 HTTP 端口的进程内原生 MCP 网关，供内置 AI、Apple Intelligence 或原生插件调用。
+  ///
+  /// 与外部 Streamable HTTP 服务共享相同的 [McpAccessPolicy]、锁屏/切区自动撤销以及审计流水。
+  McpNativeGateway createNativeGateway({String callerId = 'native'}) {
+    _syncScope();
+    final workspace = _workspace;
+    final scope = workspace?.scope();
+    final capturedEpoch = _nativeEpoch;
+
+    bool isGatewayReady() =>
+        !_disposed &&
+        capturedEpoch == _nativeEpoch &&
+        workspace != null &&
+        scope != null &&
+        identical(_workspace, workspace) &&
+        workspace.scope() == scope &&
+        _policyScope == scope &&
+        _enforced != null;
+
+    Future<void> prepare() async {
+      if (_disposed || capturedEpoch != _nativeEpoch || scope == null) {
+        throw const McpToolException(
+          'workspace_changed',
+          'Workspace authorization expired.',
+        );
+      }
+      _syncScope();
+      await _storeChain;
+      if (_disposed ||
+          capturedEpoch != _nativeEpoch ||
+          !identical(_workspace, workspace) ||
+          workspace?.scope() != scope) {
+        throw const McpToolException(
+          'workspace_changed',
+          'Workspace authorization expired.',
+        );
+      }
+      if (_policyScope != scope || _enforced == null) {
+        throw const McpPermissionsUnavailable();
+      }
+    }
+
+    late final McpNativeGateway gateway;
+    gateway = McpNativeGateway(
+      prepare,
+      () => _nativeGateways.remove(gateway),
+      callerId: callerId,
+      boundScope: scope,
+      workspace: workspace,
+      isReady: isGatewayReady,
+      access: (hostKey) => workspace == null || scope == null
+          ? McpAccessMode.denied
+          : _resolveNative(hostKey, capturedEpoch, workspace, scope),
+      onCall: (name, success) {
+        if (!_disposed && capturedEpoch == _nativeEpoch) {
+          _recordAudit(name, success);
+        }
+      },
+    );
+    if (workspace != null && scope != null && !_disposed) {
+      _nativeGateways.add(gateway);
+    }
+    return gateway;
+  }
+
   // ---------------------------------------------------------------------
   // Lifecycle.
 
   void attach(McpWorkspace workspace) {
     if (identical(_workspace, workspace)) return;
+    _nativeEpoch++;
+    _closeNativeGateways();
     unawaited(stop());
     _workspace = workspace;
     _syncScope();
@@ -297,12 +413,16 @@ class McpService extends ChangeNotifier {
 
   void detach(McpWorkspace workspace) {
     if (!identical(_workspace, workspace)) return;
+    _nativeEpoch++;
+    _closeNativeGateways();
     _workspace = null;
     unawaited(stop());
     _syncScope();
   }
 
   void workspaceChanged() {
+    _nativeEpoch++;
+    _closeNativeGateways();
     if (_scope != null && _scope != _workspace?.scope()) unawaited(stop());
     final previous = _policyScope;
     _syncScope();
@@ -313,6 +433,8 @@ class McpService extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _policyEpoch++;
+    _nativeEpoch++;
+    _closeNativeGateways();
     unawaited(stop());
     super.dispose();
   }
@@ -370,10 +492,7 @@ class McpService extends ChangeNotifier {
         },
         access: (hostKey) => _resolve(hostKey, generation, workspace, scope),
         onCall: (name, success) {
-          if (generation != _generation) return;
-          _audit.add(McpAuditEntry(name, success));
-          if (_audit.length > 50) _audit.removeAt(0);
-          if (!_disposed) notifyListeners();
+          if (generation == _generation) _recordAudit(name, success);
         },
       );
       _protocol = protocol;

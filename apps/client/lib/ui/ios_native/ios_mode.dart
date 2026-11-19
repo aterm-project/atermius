@@ -27,10 +27,14 @@ class IosNativeScope extends InheritedWidget {
       enabled != oldWidget.enabled;
 }
 
-/// iPhone 纯血 iOS 模式：Theme 平台为 iOS、非 Web、设备为手机级（最短边 < 600）。
+/// iPhone 纯血 iOS 模式：Theme 平台为 iOS、非 Web，且可用视口最短边 < 600pt。
 ///
-/// 用 shortestSide 而非当前宽度：横屏时不会翻回桌面形态导致状态树重建。
-/// iPad / macOS / Android / Windows / Web 一律返回 `false`，旧行为不变。
+/// 适配契约（含 iPhone 横屏、iPhone Duo 折叠屏与 iPad Slide Over）：
+/// - 普通 iPhone 竖屏/横屏及 iPhone Duo 合盖外屏（最短边 < 600pt）保持单栏 5-Tab 壳，
+///   横屏不会误翻回桌面布局；
+/// - iPhone Duo 展开内屏（例如 `760×820pt`，最短边 >= 600pt）或 iPad 分屏拖宽时，
+///   自动切换为侧边栏 + 多栏工作区 + 顶部标签栏，并在运行时通过稳定 GlobalKey 无损迁移会话；
+/// - macOS / Android / Windows / Web 一律返回 `false`，旧行为不变。
 bool isIosPhone(BuildContext context) {
   final forced = IosNativeScope.maybeOf(context);
   if (forced != null) return forced;

@@ -528,6 +528,7 @@ class _TerminalKeybarState extends State<TerminalKeybar>
     if (!_visible) return const SizedBox.shrink();
     if (isIosPhone(context)) {
       final c = IosColors.of(context);
+      final mq = MediaQuery.of(context);
       final bottomSafePad = _iosBottomSafePad(context);
       return IosGlassBar(
         sigma: 20,
@@ -536,7 +537,11 @@ class _TerminalKeybarState extends State<TerminalKeybar>
         child: ExcludeFocus(
           // Pointer/semantics activation must not take focus from the IME.
           child: Padding(
-            padding: EdgeInsets.only(bottom: bottomSafePad),
+            padding: EdgeInsets.only(
+              left: mq.padding.left,
+              right: mq.padding.right,
+              bottom: bottomSafePad,
+            ),
             child: LayoutBuilder(builder: _buildRows),
           ),
         ),

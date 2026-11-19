@@ -467,3 +467,19 @@ Cloud Vault synchronization is strictly optional and designed for users who run 
 针对需要**本机交互式 Shell (`flutter_pty`)、多独立 OS 进程窗口、外部编辑器直调与本地回环 MCP 服务**的重度桌面用户，保持通过官网 / GitHub Releases 独立分发 macOS `.dmg` / `.zip`：
 - 保留 `app-sandbox = false`，开启 Hardened Runtime（`codesign --options runtime --timestamp`）；
 - 使用 `Developer ID Application` 证书签名后，调用 `xcrun notarytool submit --wait` 完成 Apple 官方公证，并执行 `xcrun stapler staple` 钉合离线公证票据。
+
+---
+
+## 第五步：`1.0.1 (Build 2)` 迭代升级与全自动换图提审流水线
+
+1. **折叠屏 iPhone Duo 与动态视口自适应**：
+   - 将 Swift 后台 SSH 保活与 MCP 生命周期判定全面迁移至 `SceneDelegate` (`UIScene` activationState)，替代进程级通知；
+   - 借助 `GlobalKey` 锚定 `TerminalView` 树并在折叠/分屏切换（`shortestSide < 600` ⇄ `>= 600`）时保持活跃 SSH 连接不断流、历史缓冲区零丢失，同时补全非对称水平 `SafeArea` 避让；
+   - `archive_appstore.sh` Step 3c 增加清理未剥离的 `Flutter.framework/{Headers,Modules}` 目录，确保 Release IPA 重签洁净。
+2. **原生 AI 预留接口与在线 SSH 只读小工具**：
+   - 预留无网络端口的进程内原生 MCP 网关（`McpService.createNativeGateway` / `McpNativeBridge` 与 `MethodChannel('atermius/mcp_native')`，iOS `AtermiusNativeMcpBridge.shared`），复用逐机权限策略与锁屏撤销且完全遵守 iOS 不开放本地 HTTP 监听端口规范；
+   - 新增 4 项只读在线 SSH 诊断工具（`ssh_system_overview`、`ssh_network_probe`、`ssh_process_snapshot`、`ssh_service_logs`）及客户端弹窗 `showSshLiveToolsSheet`。
+3. **生图 AI 赋能 + 32 张四语高精度海报与 API 自动发布**：
+   - 配合 `scripts/build_appstore_posters.py --bg-dir <AI_BG_DIR>` 将 5 张 3D 液态玻璃工作室背景与来自真实 `iPhone 16 Pro Max` (`1320×2868`) / `iPad Pro 13-inch (M4)` (`2064×2752`) 模拟器的 RFC 5737 脱敏截图合成为 32 张 24-bit RGB 无 Alpha 通道高清海报；
+   - 通过 `scripts/publish_appstore_api.py --version 1.0.1 --build-number 2 --create-version --replace-screenshots --wait-and-submit` 全自动完成 IPA 上传、四语（`zh-Hans` / `en-US` / `ja` / `ru`）32 张海报替换、`whatsNew` 写入、Build `2` 绑定及提审。
+   - 环境变量与私钥凭据始终保存在本机 `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8`，严禁写入仓库或脚本。

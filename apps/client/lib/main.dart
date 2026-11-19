@@ -91,6 +91,7 @@ Future<void> main(List<String> arguments) async {
       stopLabel: currentL10n.mcpForegroundNotificationStop,
     ),
   );
+  McpNativeBridge.install(McpService.instance);
   // Bounded browser-drop policy + central drop cleanup before any root runs.
   initializeFileDrop();
   // Web only: gives terminals (also a visitor's) a real fixed-width font.
