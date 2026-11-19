@@ -825,7 +825,16 @@ class WorkspaceTabBar extends StatelessWidget {
                             for (final tab in visibleTabs.where(
                               (tab) => tab.isHome,
                             ))
-                              _tab(context, tab, bar, homeWidth: homeWidth),
+                              _tab(
+                                context,
+                                tab,
+                                bar,
+                                // 首页标签左右外边距共 10px；Windows 窄窗口中标题栏按钮占去
+                                // 大部分宽度时按实际可用标签区收窄，避免整行溢出。
+                                homeWidth: (tabConstraints.maxWidth - 10)
+                                    .clamp(72.0, homeWidth)
+                                    .toDouble(),
+                              ),
                             Expanded(
                               child: LayoutBuilder(
                                 builder: (context, constraints) {

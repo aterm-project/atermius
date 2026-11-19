@@ -381,6 +381,7 @@ class _RecoveryApi extends ApiClient {
     required String username,
     required String loginVerifier,
     required String deviceId,
+    Map<String, Object?>? newDevice,
   }) async {
     loginCalls++;
     throw StateError('Recovery must not create a session');

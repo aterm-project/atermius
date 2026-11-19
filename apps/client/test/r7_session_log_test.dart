@@ -489,6 +489,8 @@ void main() {
         await File('${root.path}/authorized_keys').writeAsString(
           await File('${root.path}/user.pub').readAsString(),
         );
+        // 非 root 启动的 sshd 只能让当前用户登录（以 root 登录会在 setuid(0) 时被拒并重置连接）。
+        final sshUser = await _currentSshUser();
         final lease = await ServerSocket.bind('127.0.0.1', 0);
         final port = lease.port;
         await lease.close();
@@ -500,7 +502,7 @@ PidFile ${root.path}/sshd.pid
 AuthorizedKeysFile ${root.path}/authorized_keys
 AuthenticationMethods publickey
 PermitRootLogin yes
-AllowUsers root
+AllowUsers $sshUser
 StrictModes no
 UsePAM no
 UseDNS no
@@ -530,7 +532,7 @@ LogLevel ERROR
           name: 'real sshd',
           address: '127.0.0.1',
           port: port,
-          username: 'root',
+          username: sshUser,
         );
         final book = SessionLogBook.memory();
         await book.setRecordTranscripts(true);
@@ -544,7 +546,7 @@ LogLevel ERROR
           credential: CredentialRecord(
             id: 'c',
             name: 'k',
-            username: 'root',
+            username: sshUser,
             kind: AuthKind.privateKey,
             privateKey: await File('${root.path}/user').readAsString(),
           ),
@@ -576,7 +578,7 @@ LogLevel ERROR
         final entry = book.entries.single;
         expect(entry.status, SessionLogStatus.closed);
         expect(entry.endReason, SessionLogEndReason.remote);
-        expect(entry.endpoint, 'root@127.0.0.1:$port');
+        expect(entry.endpoint, '$sshUser@127.0.0.1:$port');
         expect(await book.transcript(log.id), contains('r7-marker-42'));
         expect(await book.transcript(log.id), isNot(contains('\x1B[')));
       } finally {
@@ -586,4 +588,15 @@ LogLevel ERROR
       }
     }, skip: tools ? null : 'OpenSSH unavailable');
   });
+}
+
+/// 返回 sshd 测试应使用的登录用户：root 环境（CI 容器）下为 root，否则为当前用户。
+Future<String> _currentSshUser() async {
+  final fromEnvironment = Platform.environment['USER'];
+  if (fromEnvironment != null && fromEnvironment.isNotEmpty) {
+    return fromEnvironment;
+  }
+  final result = await Process.run('id', ['-un']);
+  if (result.exitCode != 0) throw StateError('Could not determine SSH user.');
+  return (result.stdout as String).trim();
 }

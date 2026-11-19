@@ -69,3 +69,19 @@
 - **真实本机回环 TCP `ServerSocket` 集成测试与回归扩充**：
   - 在 `test/ssh_keepalive_watchdog_test.dart`、`test/commercial_ux_habits_test.dart`、`test/stress/terminal_throughput_stress_test.dart`、`test/workspace_tmux_controller_test.dart`、`test/local_shell_local_profile_widget_test.dart`、`test/telnet_local_profile_widget_test.dart` 补齐：真实 `ServerSocket.bind(InternetAddress.loopbackIPv4, 0)` + `connectNativeSocket` 静默黑洞集成测试、`keepAliveInterval == null` 经 `SshConnection.probeLiveness` → `onKeepAliveDead` → 关闭真实 Socket → `SessionRecovery(keepalive_timeout)` 端到端测试、只读与跨行 `dd` 放行及写盘 `dd` 拦截测试、注入 `pasteSafetyController` 组件测试、慢帧 Stage-2 节流单测、以及 `AppController`（LocalConsole / Telnet / `tmux attach`）与 `LocalProfileFlow`（LocalConsole / Telnet）全入口 Stage-2 合批、PTY 晚到尾包保留与主动销毁清理测试；
   - 复跑 17 个核心测试与压测文件共 229 项用例全绿（双仓同步零差异、App Store 6 闸门全绿、`flutter build ios --release --no-codesign` 实编通过）。
+
+---
+
+## 审计修复（全量回归 + 真实 sshd 长连接验证）
+
+- **全量回归首次跑满**：`apps/client` 436 个测试文件 → 3582 通过 / 39 跳过 / 42 失败；42 项失败全部位于 19 个在基线 `0241a75` 上同样失败的上游存量文件中（逐文件在 HEAD 与基线 worktree 对照复现），本轮迭代零回归。
+- **修复本轮引入的回归**：`host_search_palette.dart` 键盘提示按整屏 `MediaQuery` 宽度显示且不可收缩，面板窄于屏幕时溢出 98px（`local_profile_terminal_preferences_test` 捕获）；改为按面板实际可用宽度显示并省略号收缩。
+- **修复审计点名的 3 项基线失败**：
+  - `keyword_highlighter_test`：上游 `806ab78` 将 Atermius Dark 前景改为 `#21B568` 后，普通绿与正文难以区分，算法按设计改用高亮绿（ANSI 10）；更新过时断言。
+  - `topbar_search_palette_test`：用例校验 Windows 标题栏却未指定平台（默认按 Android 渲染紧凑标签）；补 `TargetPlatformVariant.only(windows)` 后暴露**真实缺陷**——390px Windows 窗口首页标签固定 138px 而可用标签区仅 126px，溢出 12px；`workspace_tab_bar.dart` 改为按实际可用宽度收窄首页标签。
+  - `r7_session_log_test` / `r7_openssh_certificate_test`：硬编码以 `root` 登录，非 root 启动的 sshd 在 `setuid(0)` 失败后重置连接；改为当前用户；证书用例另对回环豁免 OpenSSH 9.8+ `PerSourcePenalties`（故意制造的认证失败会累计惩罚导致组内后续用例随机失败）。
+  - `account_deletion_*_test`：测试替身缺少上游新增的 `login(newDevice:)` 参数导致整文件无法加载；补齐后控制器用例全过（widget 用例余 3 项上游 UI 漂移）。
+- **真实 sshd 长连接集成测试**（`test/real_sshd_long_connection_test.dart`，真实墙钟 + 真实 OpenSSH 10.5 + 公钥认证 + 可切换 TCP 黑洞代理）：
+  - 周期保活（10s / 连续 2 次）：已认证会话进入半开黑洞后 **26.4s** 被看门狗识破断开，网络恢复后经同一代理重新建连成功；
+  - 关闭周期保活：前台切回探活在黑洞中连续 2 次超时后关闭僵死传输；
+  - 真实墙钟浸泡 **1502s**：372 次端到端回显、74 次主动 rekey、150 次保活成功、0 次丢失。

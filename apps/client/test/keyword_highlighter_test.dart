@@ -329,12 +329,29 @@ void main() {
       for (final theme in [_dark, _light]) {
         for (final color in KeywordHighlightColor.values) {
           final appearance = look(theme, color);
-          expect(appearance.ansi, color.ansi, reason: color.id);
-          expect(appearance.color, terminalAnsiColor(theme, color.ansi));
+          // 只会在同色相的普通 / 高亮两档之间取舍，且颜色与所选 ANSI 槽位一致。
+          expect(
+            appearance.ansi,
+            anyOf(color.ansi, color.ansi + 8),
+            reason: color.id,
+          );
+          expect(appearance.color, terminalAnsiColor(theme, appearance.ansi));
         }
       }
-      // Green words on the green default text are told apart by weight.
-      expect(look(_dark, KeywordHighlightColor.green).bold, isTrue);
+      for (final color in KeywordHighlightColor.values) {
+        if (color == KeywordHighlightColor.green) continue;
+        expect(look(_dark, color).ansi, color.ansi, reason: color.id);
+        expect(look(_light, color).ansi, color.ansi, reason: color.id);
+      }
+      // Atermius Dark 默认前景为绿色（806ab78 起为 #21B568）：普通绿与正文难以区分，
+      // 因此改用可读且可区分的高亮绿，无需再靠加粗区分。
+      final darkGreen = look(_dark, KeywordHighlightColor.green);
+      expect(darkGreen.ansi, KeywordHighlightColor.green.ansi + 8);
+      expect(darkGreen.bold, isFalse);
+      expect(
+        look(_light, KeywordHighlightColor.green).ansi,
+        KeywordHighlightColor.green.ansi,
+      );
       expect(look(_dark, KeywordHighlightColor.red).bold, isFalse);
       expect(look(_dark, KeywordHighlightColor.yellow).bold, isFalse);
       for (final color in KeywordHighlightColor.values) {

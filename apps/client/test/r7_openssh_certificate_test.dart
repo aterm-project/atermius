@@ -7,6 +7,16 @@ import 'package:aterm_client/ssh/openssh_certificate.dart';
 import 'package:aterm_client/ssh/ssh_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// sshd 测试登录用户：root 环境（CI 容器）下为 root，否则为当前用户
+/// （非 root 启动的 sshd 无法 setuid(0)，以 root 登录会在认证成功后被重置连接）。
+final String _sshUser = () {
+  final fromEnvironment = Platform.environment['USER'];
+  if (fromEnvironment != null && fromEnvironment.isNotEmpty) {
+    return fromEnvironment;
+  }
+  return (Process.runSync('id', ['-un']).stdout as String).trim();
+}();
+
 /// Real OpenSSH fixtures: keys/certificates are generated with ssh-keygen in a
 /// private temp directory and a loopback sshd trusts only the test CA
 /// (`AuthorizedKeysFile none`), so a successful login proves certificate auth.
@@ -32,7 +42,7 @@ void main() {
   Future<({String key, String cert, String pub})> userCert(
     String name,
     List<String> keyArgs, {
-    String principals = 'root',
+    String? principals,
     String validity = '-5m:+1h',
     bool host = false,
     String passphrase = '',
@@ -45,7 +55,7 @@ void main() {
       '-I',
       'id-$name',
       '-n',
-      principals,
+      principals ?? _sshUser,
       '-V',
       validity,
       '-z',
@@ -69,7 +79,7 @@ void main() {
       expect(cert.isUserCertificate, isTrue);
       expect(cert.keyId, 'id-ed');
       expect(cert.serial, BigInt.from(42));
-      expect(cert.principals, ['root']);
+      expect(cert.principals, [_sshUser]);
       expect(cert.isValidAt(DateTime.now()), isTrue);
       expect(cert.extensions, contains('permit-pty'));
       final fingerprint = await _keygen(['-lf', '${root.path}/ed.pub']);
@@ -187,12 +197,12 @@ void main() {
           name: 'plain',
           address: '127.0.0.1',
           port: server.port,
-          username: 'root',
+          username: _sshUser,
         ),
         credential: CredentialRecord(
           id: 'p',
           name: 'p',
-          username: 'root',
+          username: _sshUser,
           kind: AuthKind.privateKey,
           privateKey: fixture.key,
           passphrase: '',
@@ -203,7 +213,7 @@ void main() {
       await connection.close();
       expect(out.trim(), 'plain-ok');
       final log = await server.log();
-      expect(log, contains('Accepted publickey for root'));
+      expect(log, contains('Accepted publickey for $_sshUser'));
       expect(log, isNot(contains('-CERT')));
     } finally {
       await server.stop();
@@ -234,7 +244,7 @@ void main() {
           name: 'cert host',
           address: '127.0.0.1',
           port: sshd.port,
-          username: 'root',
+          username: _sshUser,
         ),
         credential: credential,
         verifyHostKey: (_, fingerprint) async =>
@@ -258,7 +268,7 @@ void main() {
         final withCert = CredentialRecord(
           id: 'c-${spec.$1}',
           name: spec.$1,
-          username: 'root',
+          username: _sshUser,
           kind: AuthKind.privateKey,
           privateKey: fixture.key,
           passphrase: '',
@@ -267,13 +277,13 @@ void main() {
         expect(await run(withCert), 'cert-login-ok');
         expect(
           await sshd.log(),
-          contains('Accepted publickey for root'),
+          contains('Accepted publickey for $_sshUser'),
         );
         expect(await sshd.log(), contains(spec.$3));
         final keyOnly = CredentialRecord(
           id: 'k-${spec.$1}',
           name: spec.$1,
-          username: 'root',
+          username: _sshUser,
           kind: AuthKind.privateKey,
           privateKey: fixture.key,
         );
@@ -290,7 +300,7 @@ void main() {
       final credential = CredentialRecord(
         id: 'locked',
         name: 'locked',
-        username: 'root',
+        username: _sshUser,
         kind: AuthKind.privateKey,
         privateKey: fixture.key,
         passphrase: 'correct horse',
@@ -305,7 +315,7 @@ void main() {
       final path = '${root.path}/rogue';
       await _keygen(['-t', 'ed25519', '-N', '', '-f', path]);
       await _keygen([
-        '-s', otherCa, '-I', 'rogue', '-n', 'root', '-V', '-5m:+1h',
+        '-s', otherCa, '-I', 'rogue', '-n', _sshUser, '-V', '-5m:+1h',
         '$path.pub',
       ]);
       // Structurally valid and bound to the key: the client offers it, the
@@ -324,7 +334,7 @@ void main() {
           CredentialRecord(
             id: 'rogue',
             name: 'rogue',
-            username: 'root',
+            username: _sshUser,
             kind: AuthKind.privateKey,
             privateKey: key,
             certificate: cert,
@@ -345,7 +355,7 @@ void main() {
           CredentialRecord(
             id: 'e',
             name: 'e',
-            username: 'root',
+            username: _sshUser,
             kind: AuthKind.privateKey,
             privateKey: expired.key,
             certificate: expired.cert,
@@ -359,7 +369,7 @@ void main() {
           CredentialRecord(
             id: 'hc',
             name: 'hc',
-            username: 'root',
+            username: _sshUser,
             kind: AuthKind.privateKey,
             privateKey: hostCert.key,
             certificate: hostCert.cert,
@@ -380,7 +390,7 @@ void main() {
           CredentialRecord(
             id: 'p',
             name: 'p',
-            username: 'root',
+            username: _sshUser,
             kind: AuthKind.privateKey,
             privateKey: wrongPrincipal.key,
             certificate: wrongPrincipal.cert,
@@ -395,7 +405,7 @@ void main() {
           CredentialRecord(
             id: 'm',
             name: 'm',
-            username: 'root',
+            username: _sshUser,
             kind: AuthKind.privateKey,
             privateKey: a.key,
             certificate: b.cert,
@@ -468,8 +478,8 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 AuthenticationMethods publickey
 PermitRootLogin yes
-AllowUsers root
-StrictModes no
+AllowUsers $_sshUser
+${_sshdPenaltyExemption()}StrictModes no
 UsePAM no
 UseDNS no
 PrintMotd no
@@ -507,4 +517,17 @@ LogLevel INFO
       },
     );
   }
+}
+
+/// OpenSSH 9.8+ 的 PerSourcePenalties 会因本用例故意制造的认证失败（authfail）
+/// 累计惩罚并拒绝 127.0.0.1 后续连接，使组内后续用例随机失败；测试 sshd 对回环豁免。
+/// 旧版 sshd 不认识该关键字，仅在支持时写入。
+String _sshdPenaltyExemption() {
+  final sshd = _which('sshd');
+  if (sshd == null) return '';
+  final probe = Process.runSync(sshd, ['-G', '-f', '/dev/null']);
+  final output = '${probe.stdout}${probe.stderr}'.toLowerCase();
+  return output.contains('persourcepenaltyexemptlist')
+      ? 'PerSourcePenaltyExemptList 127.0.0.1\n'
+      : '';
 }

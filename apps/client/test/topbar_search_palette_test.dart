@@ -124,6 +124,9 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     },
+    // 本用例校验 Windows 标题栏单行布局；未指定平台时测试默认按 Android 渲染，
+    // 窄屏会切换为 _CompactWorkspaceTabs 紧凑标签条而没有独立 Home 标签。
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
 
   testWidgets('search closes on scope change and does not select stale hosts', (

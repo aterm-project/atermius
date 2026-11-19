@@ -415,21 +415,31 @@ class _HostSearchPaletteState extends State<_HostSearchPalette> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        context.l10n.countHosts2(matches.length),
-                        style: Theme.of(context).textTheme.labelMedium,
+                // 按面板实际可用宽度（而非整屏 MediaQuery 宽度）决定是否展示键盘提示，
+                // 窄分屏 / 窄窗口中面板远窄于屏幕时也不会溢出。
+                LayoutBuilder(
+                  builder: (context, constraints) => Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          context.l10n.countHosts2(matches.length),
+                          style: Theme.of(context).textTheme.labelMedium,
+                        ),
                       ),
-                    ),
-                    if (MediaQuery.sizeOf(context).width >= 480)
-                      Text(
-                        _keyboardHint(context),
-                        key: const ValueKey('host_search_keyboard_hint'),
-                        style: TextStyle(fontSize: 11, color: palette.muted),
-                      ),
-                  ],
+                      if (constraints.maxWidth >= 420)
+                        Flexible(
+                          child: Text(
+                            _keyboardHint(context),
+                            key: const ValueKey('host_search_keyboard_hint'),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.end,
+                            style: TextStyle(fontSize: 11, color: palette.muted),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Flexible(

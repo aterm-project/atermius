@@ -296,6 +296,7 @@ class _AccountDeletionApi extends ApiClient {
     required String username,
     required String loginVerifier,
     required String deviceId,
+    Map<String, Object?>? newDevice,
   }) async {
     loginCalls++;
     throw StateError('login must require a separate explicit action');
