@@ -425,7 +425,12 @@ function trackApi(page, events) {
       try { body = request.postDataJSON(); } catch (_) { body = null; }
     }
     const url = new URL(request.url());
+    // Counted when the request is issued, so a caller can tell a response
+    // to its own click from one to a request already in flight (the Audit
+    // section loads its first page on opening).
+    events.requestsSeen = (events.requestsSeen || 0) + 1;
     byRequest.set(request, {
+      requestIndex: events.requestsSeen,
       route,
       method: request.method(),
       hasBearer: (request.headers().authorization || '').startsWith('Bearer '),
@@ -1220,10 +1225,12 @@ async function main() {
       ? 'Refresh admin audit'
       : 'Load admin audit';
     const auditRefreshStart = adminEvents.length;
+    const auditRefreshRequestMark = adminEvents.requestsSeen || 0;
     await click(adminPage, auditButton);
     const auditRefresh = await waitForEvent(adminEvents,
       (event) => event.route === 'admin-audit' && event.method === 'GET' &&
-        event.sequence >= auditRefreshStart);
+        event.sequence >= auditRefreshStart &&
+        event.requestIndex > auditRefreshRequestMark);
     const refreshedAuditFeed = await auditRefresh.payloadPromise;
     reportStatus('settings_restore_audit_refresh', auditRefresh.status);
     assertThat(auditRefresh.hasBearer && auditRefresh.status === 200,
@@ -1442,12 +1449,14 @@ async function main() {
     const apiDiscardEvent = validateRestoreStageDiscardAuditEvent(
       discardAuditFeed.payload, adminProfile, accepted.job_id);
     const discardAuditRefreshStart = adminEvents.length;
+    const discardAuditRefreshRequestMark = adminEvents.requestsSeen || 0;
     await openAdminSection(adminPage, ADMIN_AUDIT_SECTION);
     await scrollUntilVisibleSemanticText(adminPage, 'Instance admin audit');
     await click(adminPage, 'Refresh admin audit');
     const discardAuditRefresh = await waitForEvent(adminEvents,
       (event) => event.route === 'admin-audit' && event.method === 'GET' &&
-        event.sequence >= discardAuditRefreshStart);
+        event.sequence >= discardAuditRefreshStart &&
+        event.requestIndex > discardAuditRefreshRequestMark);
     const renderedDiscardFeed = await discardAuditRefresh.payloadPromise;
     const renderedDiscardEvent = validateRestoreStageDiscardAuditEvent(
       renderedDiscardFeed, adminProfile, accepted.job_id);
@@ -1583,10 +1592,12 @@ async function main() {
       setStage('render failed restore lifecycle in the Settings audit card');
       await openAdminSection(adminPage, ADMIN_AUDIT_SECTION);
       const failureAuditRefreshStart = adminEvents.length;
+      const failureAuditRefreshRequestMark = adminEvents.requestsSeen || 0;
       await click(adminPage, 'Refresh admin audit');
       const failureAuditRefresh = await waitForEvent(adminEvents,
         (event) => event.route === 'admin-audit' && event.method === 'GET' &&
-          event.sequence >= failureAuditRefreshStart);
+          event.sequence >= failureAuditRefreshStart &&
+        event.requestIndex > failureAuditRefreshRequestMark);
       assertThat(failureAuditRefresh.hasBearer && failureAuditRefresh.status === 200,
         'Settings audit-card refresh after restore failure was not authenticated and successful');
       const renderedFailureFeed = await failureAuditRefresh.payloadPromise;
@@ -1783,10 +1794,12 @@ async function main() {
     await openAdminSection(adminPage, ADMIN_AUDIT_SECTION);
     await scrollUntilVisibleSemanticText(adminPage, 'Instance admin audit');
     const interruptedAuditRefreshStart = adminEvents.length;
+    const interruptedAuditRefreshRequestMark = adminEvents.requestsSeen || 0;
     await click(adminPage, 'Refresh admin audit');
     const interruptedAuditRefresh = await waitForEvent(adminEvents,
       (event) => event.route === 'admin-audit' && event.method === 'GET' &&
-        event.sequence >= interruptedAuditRefreshStart);
+        event.sequence >= interruptedAuditRefreshStart &&
+        event.requestIndex > interruptedAuditRefreshRequestMark);
     const renderedInterruptedFeed = await interruptedAuditRefresh.payloadPromise;
     assertThat(interruptedAuditRefresh.hasBearer && interruptedAuditRefresh.status === 200,
       'Settings audit-card refresh after interrupted restore was not authenticated and successful');
