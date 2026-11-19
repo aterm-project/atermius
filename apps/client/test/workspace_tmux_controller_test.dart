@@ -402,6 +402,83 @@ void main() {
       }
     },
   );
+
+  test(
+    'tmux attach routes stdout through TerminalOutputCoalescer, flushes Stage-2 tail on EOF, and clears timer on disconnect',
+    () async {
+      final fixture = await _TmuxControllerFixture.create();
+      try {
+        await fixture.connect();
+        final tab = fixture.app.workspacePaneTerminalTab(
+          fixture.workspace.id,
+          _paneId,
+        )!;
+        await fixture.app.startWorkspacePaneTmux(fixture.workspace.id, _paneId);
+        final handle = fixture.tmux.lastHandle!;
+        expect(tab.outputCoalescer, isNotNull);
+
+        // 推入 20KiB 打满 Stage-1 预算（16KiB），再推入末行使其进入 Stage-2 帧缓冲。
+        handle.emit('${'M' * 20000}\r\n');
+        for (var i = 0; i < 4; i++) {
+          await Future<void>.microtask(() {});
+        }
+        handle.emit('TMUX_FINAL_TAIL_MARKER\r\n');
+        for (var i = 0; i < 4; i++) {
+          await Future<void>.microtask(() {});
+        }
+        expect(tab.outputCoalescer, isNotNull);
+        expect(tab.outputCoalescer!.pendingChars, greaterThan(0));
+
+        // 远端 tmux stdout 在 8ms 帧窗口到期前关闭 -> 必须先冲刷末行再结束连接，且合批器归零。
+        handle.close();
+        await pumpEventQueue();
+        expect(tab.outputCoalescer, isNull);
+        expect(tab.state, 'disconnected');
+
+        final buffer = StringBuffer();
+        for (var i = 0; i < tab.terminal.buffer.lines.length; i++) {
+          buffer.writeln(tab.terminal.buffer.lines[i].toString());
+        }
+        expect(
+          buffer.toString(),
+          contains('TMUX_FINAL_TAIL_MARKER'),
+          reason: 'tmux attach 断流前 Stage-2 缓冲中的末行不得丢失',
+        );
+      } finally {
+        await fixture.close();
+      }
+
+      // 场景二：处于 tmux Stage-2 洪流缓冲时主动断开连接 -> 立即销毁合批器防止定时器泄漏。
+      final fixture2 = await _TmuxControllerFixture.create();
+      try {
+        await fixture2.connect();
+        final tab2 = fixture2.app.workspacePaneTerminalTab(
+          fixture2.workspace.id,
+          _paneId,
+        )!;
+        await fixture2.app.startWorkspacePaneTmux(
+          fixture2.workspace.id,
+          _paneId,
+        );
+        final handle2 = fixture2.tmux.lastHandle!;
+        handle2.emit('${'N' * 20000}\r\n');
+        for (var i = 0; i < 4; i++) {
+          await Future<void>.microtask(() {});
+        }
+        handle2.emit('TMUX_PENDING_DISCONNECT\r\n');
+        for (var i = 0; i < 4; i++) {
+          await Future<void>.microtask(() {});
+        }
+        expect(tab2.outputCoalescer!.pendingChars, greaterThan(0));
+
+        await fixture2.app.disconnectTerminalTab(tab2.id);
+        expect(tab2.outputCoalescer, isNull);
+        expect(handle2.closed, isTrue);
+      } finally {
+        await fixture2.close();
+      }
+    },
+  );
 }
 
 class _TmuxControllerFixture {
@@ -732,6 +809,8 @@ class _RecordingTmuxHandle implements TmuxAttachHandle {
   final List<String> inputs = [];
   final List<(int, int)> resizes = [];
   bool closed = false;
+
+  void emit(String text) => _stdout.add(Uint8List.fromList(utf8.encode(text)));
 
   @override
   Stream<Uint8List> get stdout => _stdout.stream;

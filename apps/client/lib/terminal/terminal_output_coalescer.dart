@@ -87,6 +87,13 @@ class TerminalOutputCoalescer {
     _windowFlushedChars += batch.length;
     _flushedBatches++;
     onFlush(batch);
+    // 若单次同步渲染本身耗时已达到或超过单帧窗口，将窗口起点锚定到本次渲染完成时刻，
+    // 防止慢帧后紧随其来的下一包被误判为「已空闲」而绕过 Stage-2 节流持续阻塞 UI 线程。
+    final finishedAt = _now();
+    if (_windowStart != null &&
+        finishedAt.difference(_windowStart!) >= burstWindow) {
+      _windowStart = finishedAt;
+    }
   }
 
   /// 推入一段来自 SSH / Telnet / 本机终端的新输出。

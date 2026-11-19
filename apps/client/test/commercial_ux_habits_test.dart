@@ -64,6 +64,7 @@ void main() {
         'rm -rfv /tmp/release': 'rm_rf',
         'mkfs.ext4 /dev/nvme0n1': 'disk_format',
         'dd if=/dev/zero of=/dev/sda': 'disk_format',
+        'dd\tof=/dev/sda': 'disk_format',
         'dd bs=4M of=/dev/nvme0n1 if=/dev/zero': 'disk_format',
         'dd of=/dev/nvme0n1 bs=4M': 'disk_format',
         'sudo dd bs=4M of=/dev/sdb': 'disk_format',
@@ -114,6 +115,22 @@ void main() {
           analyzeTerminalPaste(benign).level,
           PasteRiskLevel.safe,
           reason: '无害命令不应误报: $benign',
+        );
+      }
+
+      // 回归测试：跨行无关的 dd 与下一行 of= 在括号粘贴模式下不得被 \s+ 误连成 disk_format。
+      for (final crossLineBenign in const [
+        'ls dd\necho of=1',
+        'cd /srv/dd\nexport of=backup.log',
+        'echo dd\nset of=/tmp/out',
+      ]) {
+        expect(
+          analyzeTerminalPaste(
+            crossLineBenign,
+            bracketedPasteActive: true,
+          ).level,
+          PasteRiskLevel.safe,
+          reason: '跨行无害脚本不应误报为 dd 写盘: $crossLineBenign',
         );
       }
 

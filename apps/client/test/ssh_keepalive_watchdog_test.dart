@@ -1004,6 +1004,127 @@ void main() {
         await serverPeerClosed.future.timeout(const Duration(seconds: 2));
       },
     );
+
+    test(
+      'keepAliveInterval == null 端到端链路：SshConnection.probeLiveness 连续超时关闭真实 Socket 并驱动 SessionRecovery 以 keepalive_timeout 重连',
+      () async {
+        final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        final acceptedPeers = <Socket>[];
+        final serverPeerClosed = Completer<void>();
+
+        final serverSub = server.listen((peer) {
+          acceptedPeers.add(peer);
+          peer.listen(
+            (_) {},
+            onDone: () {
+              if (!serverPeerClosed.isCompleted) serverPeerClosed.complete();
+            },
+            onError: (_) {
+              if (!serverPeerClosed.isCompleted) serverPeerClosed.complete();
+            },
+          );
+        });
+        addTearDown(() async {
+          for (final peer in acceptedPeers) {
+            peer.destroy();
+          }
+          await serverSub.cancel();
+          await server.close();
+        });
+
+        final socket = await SSHSocket.connect(
+          server.address.address,
+          server.port,
+          timeout: const Duration(seconds: 2),
+        );
+        final health = SshConnectionHealth(maxMissedThreshold: 2);
+        addTearDown(health.dispose);
+
+        final client = SSHClient(
+          socket,
+          username: 'ops',
+          keepAliveInterval: null,
+          keepAliveMaxMissed: 2,
+          onKeepAliveLatency: health.recordProbeSuccess,
+          onKeepAliveMissed: health.recordProbeMissed,
+          onKeepAliveDead: health.recordKeepaliveDead,
+        );
+        addTearDown(() async {
+          if (!client.isClosed) await client.close();
+        });
+
+        final connection = SshConnection(
+          client: client,
+          session: _FakeProbeSession(),
+          health: health,
+        );
+        final policy = SessionReconnectController();
+        addTearDown(policy.dispose);
+        var reconnectTriggered = false;
+        final recovery = SessionRecovery(
+          automatic: true,
+          isCurrent: () => true,
+          policy: policy,
+          reconnect: () async {
+            reconnectTriggered = true;
+          },
+        );
+        addTearDown(recovery.dispose);
+        recovery.update(connected: true);
+
+        final clientDone = Completer<void>();
+        client.done.then(
+          (_) {
+            recovery.update(
+              connected: false,
+              disconnectReason: health.keepaliveTimedOut
+                  ? 'keepalive_timeout'
+                  : 'remote_closed',
+            );
+            if (!clientDone.isCompleted) clientDone.complete();
+          },
+          onError: (Object _, StackTrace _) {
+            recovery.update(
+              connected: false,
+              disconnectReason: health.keepaliveTimedOut
+                  ? 'keepalive_timeout'
+                  : 'transport_error',
+            );
+            if (!clientDone.isCompleted) clientDone.complete();
+          },
+        );
+
+        // 第 1 次探活超时 -> degraded，不关闭底层连接。
+        expect(
+          await connection.probeLiveness(
+            timeout: const Duration(milliseconds: 50),
+          ),
+          isFalse,
+        );
+        expect(health.state, SshHealthState.degraded);
+        expect(health.missedProbes, 1);
+        expect(health.keepaliveTimedOut, isFalse);
+        expect(client.isClosed, isFalse);
+
+        // 第 2 次探活超时达到阈值 -> onKeepAliveDead 标记 keepaliveTimedOut、销毁真实 TCP Socket，
+        // 并将 SessionRecovery 切入 interrupted（disconnectReason == keepalive_timeout）。
+        expect(
+          await connection.probeLiveness(
+            timeout: const Duration(milliseconds: 50),
+          ),
+          isFalse,
+        );
+        expect(health.keepaliveTimedOut, isTrue);
+        expect(health.state, SshHealthState.closed);
+        expect(client.isClosed, isTrue);
+
+        await clientDone.future.timeout(const Duration(seconds: 2));
+        await serverPeerClosed.future.timeout(const Duration(seconds: 2));
+        expect(recovery.interrupted, isTrue);
+        expect(recovery.lastDisconnectReason, 'keepalive_timeout');
+        expect(reconnectTriggered, isFalse);
+      },
+    );
   });
 }
 

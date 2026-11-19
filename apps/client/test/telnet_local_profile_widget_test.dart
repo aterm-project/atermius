@@ -373,4 +373,95 @@ void main() {
     );
     await tester.pumpAndSettle();
   });
+
+  testWidgets(
+    'LocalVault Telnet Stage-2 burst flushes tail strictly before remote closed banner',
+    (tester) async {
+      tester.view.physicalSize = const Size(1600, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme().copyWith(platform: TargetPlatform.windows),
+          home: LocalProfileFlow(
+            catalog: catalog,
+            service: profileService,
+            crypto: crypto,
+            onExit: () {},
+            quarantineRegistry: DatabaseQuarantineRegistry(),
+            databaseFactory: (profile, {required mode}) async {
+              final record = profile.record;
+              final database = await LocalVaultDatabase.openForTesting(
+                executor: NativeDatabase(
+                  File('${directory.path}/vault.sqlite'),
+                ),
+                profileId: record.profileId,
+                localDataDomainId: record.localDataDomainId,
+                localVaultId: record.localVaultId,
+                mode: mode,
+              );
+              openedDatabases.add(database);
+              return database;
+            },
+          ),
+        ),
+      );
+      await pumpUntil(
+        tester,
+        () => find
+            .byKey(ValueKey('local_profile_${profileRecord.profileId}'))
+            .evaluate()
+            .isNotEmpty,
+      );
+      await tester.tap(
+        find.byKey(ValueKey('local_profile_${profileRecord.profileId}')),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('local_profile_unlock_password')),
+        _password,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('local_profile_unlock_button')),
+      );
+      await pumpUntil(
+        tester,
+        () => find.byKey(ValueKey('local_host_$hostId')).evaluate().isNotEmpty,
+      );
+      await tester.tap(find.byKey(ValueKey('local_host_$hostId')));
+      await pumpUntil(tester, () => telnetView().evaluate().isNotEmpty);
+      await pumpUntil(tester, () => channels.isNotEmpty);
+
+      final channel = channels.single;
+      await tester.runAsync(() async {
+        channel.emit('${'K' * 20000}\r\n'.codeUnits);
+        for (var i = 0; i < 4; i++) {
+          await Future<void>.microtask(() {});
+        }
+        channel.emit('LOCAL_TELNET_FINAL_TAIL\r\n'.codeUnits);
+        for (var i = 0; i < 4; i++) {
+          await Future<void>.microtask(() {});
+        }
+        await channel.incoming.close();
+        await pumpEventQueue();
+      });
+      await tester.pump();
+
+      final rendered = screen(tester);
+      final tailPos = rendered.indexOf('LOCAL_TELNET_FINAL_TAIL');
+      final closedPos = rendered.toLowerCase().indexOf('closed');
+      expect(tailPos, greaterThanOrEqualTo(0), reason: '本地 Telnet 断流前末行不得丢失');
+      expect(closedPos, greaterThan(tailPos), reason: '断线提示必须严格排在末行之后');
+
+      await tester.tap(find.byKey(const ValueKey('session_recovery_close')));
+      await tester.pump();
+      await pumpUntil(tester, () => channel.closed);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+      await tester.pumpAndSettle();
+    },
+  );
 }

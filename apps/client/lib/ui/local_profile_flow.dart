@@ -8020,18 +8020,21 @@ class _LocalTerminalSession {
       },
     );
     _outputCoalescer = coalescer;
+    var outputDone = false;
     _stdout = value.output.listen(
       (text) {
         if (_closed || !identical(console, value)) return;
         coalescer.add(text);
       },
       onError: (_) {
+        outputDone = true;
         if (!_closed && identical(console, value)) {
           _resetOutputCoalescer(flushPending: true);
           connected.value = false;
         }
       },
       onDone: () {
+        outputDone = true;
         if (!_closed && identical(console, value)) {
           _resetOutputCoalescer(flushPending: true);
         }
@@ -8040,13 +8043,19 @@ class _LocalTerminalSession {
     unawaited(
       value.exitCode.then((code) {
         if (!_closed && identical(console, value)) {
-          _resetOutputCoalescer(flushPending: true);
+          if (outputDone) {
+            _resetOutputCoalescer(flushPending: true);
+          } else {
+            // PTY 场景下 exitCode 可能先于 stdout 尾包与 onDone 到达：先冲刷已缓冲数据并取消定时器，
+            // 保留合批器直至 onDone/onError/close，防止晚到的尾包被静默吞掉。
+            coalescer.flush();
+          }
           connected.value = false;
           // A serial device keeps running whatever it was running.
           if (consoleSerialPort == null) resetTerminalForNewSession(terminal);
           terminal.write(currentL10n.consoleExitedCode(code));
         }
-      }),
+      }, onError: (Object _) {}),
     );
     connected.value = true;
   }

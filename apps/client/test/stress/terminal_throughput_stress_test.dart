@@ -229,6 +229,41 @@ void main() {
         );
       });
     });
+
+    test('TerminalOutputCoalescer 慢帧渲染超窗后仍强制切入 Stage-2 节流，不会误判空闲直通阻塞 UI', () {
+      fakeAsync((async) {
+        var now = DateTime.utc(2026, 11, 19, 12, 0, 0);
+        final writes = <String>[];
+        final coalescer = TerminalOutputCoalescer(
+          onFlush: (batch) {
+            writes.add(batch);
+            // 模拟复杂 ANSI 批次同步解析耗时 12ms（超过 8ms 单帧窗口）。
+            now = now.add(const Duration(milliseconds: 12));
+          },
+          burstWindow: const Duration(milliseconds: 8),
+          maxBatchChars: 64 * 1024,
+          microtaskBudgetChars: 16 * 1024,
+          immediatePassThroughMaxChars: 2048,
+          now: () => now,
+        );
+
+        // 推送超过 16KiB 预算的大块并经微任务冲刷（耗时 12ms > 8ms 帧窗）。
+        coalescer.add('S' * 20000);
+        async.flushMicrotasks();
+        expect(writes.length, 1);
+
+        // 紧随慢帧后立即到达的短包不得绕过 Stage-2 直通，必须进入 8ms 帧缓冲让出渲染时机。
+        coalescer.add('FOLLOW_UP_AFTER_SLOW_FRAME');
+        expect(writes.length, 1, reason: '慢帧之后紧接包必须转入 Stage-2 缓冲而非立刻同步渲染');
+        expect(coalescer.pendingChars, 'FOLLOW_UP_AFTER_SLOW_FRAME'.length);
+
+        now = now.add(const Duration(milliseconds: 8));
+        async.elapse(const Duration(milliseconds: 8));
+        expect(writes.length, 2);
+        expect(writes.last, 'FOLLOW_UP_AFTER_SLOW_FRAME');
+        coalescer.close(flushPending: false);
+      });
+    });
   });
 
   group('商业级高吞吐终端压测 (Log Flood + Multi-Session Concurrency)', () {
@@ -448,18 +483,34 @@ void main() {
       return out.toString();
     }
 
+    /// 确定性地打满 Stage-1 预算（16KiB）并将 [tail] 压入 Stage-2 帧缓冲，
+    /// 避免在冷启动 JIT 下因多轮 `pumpEventQueue()` 超过 8ms 墙钟窗口导致用例抖动。
+    Future<void> pushIntoStage2Buffer(
+      void Function(String) emit,
+      String fillerChar,
+      String tail,
+    ) async {
+      emit('${fillerChar * 20000}\r\n');
+      for (var i = 0; i < 4; i++) {
+        await Future<void>.microtask(() {});
+      }
+      emit(tail);
+      for (var i = 0; i < 4; i++) {
+        await Future<void>.microtask(() {});
+      }
+    }
+
     test('LocalConsole 突发输出接入合批器，进程退出前先冲刷末行再写退出提示，主动关闭无定时器泄漏', () async {
       final id = await app.openLocalShellTab();
       final tab = app.terminalTabFor(id)!;
       final console = consoles.opened.single;
       expect(tab.outputCoalescer, isNotNull);
 
-      // 灌入超过 Stage-1 预算（16KiB）的洪流，使末行驻留在 Stage-2 帧定时器缓冲中。
-      for (var i = 0; i < 24; i++) {
-        console.emit('${'C' * 1000}\r\n');
-      }
-      console.emit('FINAL_CONSOLE_TAIL_MARKER\r\n');
-      await pumpEventQueue();
+      await pushIntoStage2Buffer(
+        console.emit,
+        'C',
+        'FINAL_CONSOLE_TAIL_MARKER\r\n',
+      );
       expect(tab.outputCoalescer, isNotNull);
       expect(tab.outputCoalescer!.pendingChars, greaterThan(0));
 
@@ -479,13 +530,47 @@ void main() {
       final id2 = await app.openLocalShellTab();
       final tab2 = app.terminalTabFor(id2)!;
       final console2 = consoles.opened.last;
-      for (var i = 0; i < 24; i++) {
-        console2.emit('${'D' * 1000}\r\n');
-      }
-      await pumpEventQueue();
+      await pushIntoStage2Buffer(console2.emit, 'D', 'PENDING_BEFORE_CLOSE\r\n');
       expect(tab2.outputCoalescer!.pendingChars, greaterThan(0));
       await app.closeTerminalTab(id2!);
       expect(tab2.outputCoalescer, isNull);
+    });
+
+    test('LocalConsole exitCode 先于 stdout 尾包与 onDone 到达时不得吞掉尾包且最终清理合批器', () async {
+      final id = await app.openLocalShellTab();
+      final tab = app.terminalTabFor(id)!;
+      final console = consoles.opened.single;
+      expect(tab.outputCoalescer, isNotNull);
+
+      await pushIntoStage2Buffer(
+        console.emit,
+        'E',
+        'PRE_EXIT_BUFFERED_TAIL\r\n',
+      );
+      expect(tab.outputCoalescer!.pendingChars, greaterThan(0));
+
+      // 模拟真实 PTY：waitpid 先返回 exitCode，而 master fd 还有最后一行输出随后到达。
+      console.completeExitCodeOnly(0);
+      await pumpEventQueue();
+
+      final afterExit = dumpTerminalText(tab.terminal);
+      final preTailPos = afterExit.indexOf('PRE_EXIT_BUFFERED_TAIL');
+      final exitPos = afterExit.indexOf('exited');
+      expect(preTailPos, greaterThanOrEqualTo(0), reason: '退出前已缓冲输出必须立即冲刷');
+      expect(exitPos, greaterThan(preTailPos), reason: '退出提示必须排在已缓冲输出之后');
+
+      // 在 onDone 前到达的 PTY 尾包不得被已关闭的合批器静默吞掉。
+      console.emit('LATE_TAIL_AFTER_EXITCODE\r\n');
+      await console.finishOutput();
+      await pumpEventQueue();
+
+      final finalRendered = dumpTerminalText(tab.terminal);
+      expect(
+        finalRendered,
+        contains('LATE_TAIL_AFTER_EXITCODE'),
+        reason: 'exitCode 先于 stdout EOF 到达时的尾包不得丢失',
+      );
+      expect(tab.outputCoalescer, isNull, reason: 'onDone 后必须彻底释放合批器');
     });
 
     test('Telnet 突发输出接入合批器，远端断流前先冲刷末行再写断线提示，主动断开立即销毁合批器', () async {
@@ -508,11 +593,11 @@ void main() {
       final channel = channels.single;
       expect(tab.outputCoalescer, isNotNull);
 
-      for (var i = 0; i < 24; i++) {
-        channel.emit('${'T' * 1000}\r\n');
-      }
-      channel.emit('FINAL_TELNET_TAIL_MARKER\r\n');
-      await pumpEventQueue();
+      await pushIntoStage2Buffer(
+        channel.emit,
+        'T',
+        'FINAL_TELNET_TAIL_MARKER\r\n',
+      );
       expect(tab.outputCoalescer, isNotNull);
       expect(tab.outputCoalescer!.pendingChars, greaterThan(0));
 
@@ -532,10 +617,11 @@ void main() {
       await app.openTerminalTab(host);
       final tab2 = app.activeTerminalTab!;
       final channel2 = channels.last;
-      for (var i = 0; i < 24; i++) {
-        channel2.emit('${'U' * 1000}\r\n');
-      }
-      await pumpEventQueue();
+      await pushIntoStage2Buffer(
+        channel2.emit,
+        'U',
+        'PENDING_TELNET_BEFORE_DISCONNECT\r\n',
+      );
       expect(tab2.outputCoalescer!.pendingChars, greaterThan(0));
       await app.disconnectTerminalTab(tab2.id);
       expect(tab2.outputCoalescer, isNull);

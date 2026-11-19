@@ -65,7 +65,7 @@ final List<({String id, RegExp pattern})> _destructiveRules = [
     pattern: RegExp(
       r'(^|[;&|\s])(sudo\s+)?(?:'
       r'(?:mkfs(?:\.[a-z0-9]+)?|fdisk|parted|wipefs)(?=\s|$|[;&|])'
-      r'|dd\s+[^\r\n;&|]*\bof='
+      r'|dd[ \t]+[^\r\n;&|]*\bof='
       r')',
       caseSensitive: false,
       multiLine: true,

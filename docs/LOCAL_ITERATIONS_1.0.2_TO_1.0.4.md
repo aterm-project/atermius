@@ -58,13 +58,14 @@
 
 - **关闭周期保活模式下主动探活状态机闭环（`packages/dartssh2/lib/src/ssh_client.dart`）**：
   - 修复 `keepAliveInterval == null` 时 `_runDirectProbe` 连续超时达到 `keepAliveMaxMissed` 仅触发 `onKeepAliveMissed` 而未关闭僵死底层传输的分裂状态；现在达到阈值后立即调用 `_handleKeepAliveDead()` 关闭僵死连接，交由自动重连恢复。
-- **全终端输出热路径合批全覆盖（`lib/app_controller.dart`, `lib/ui/local_profile_flow.dart`）**：
+- **全终端输出热路径合批全覆盖与慢帧/PTY 竞态加固（`lib/terminal/terminal_output_coalescer.dart`, `lib/app_controller.dart`, `lib/ui/local_profile_flow.dart`）**：
   - 除 SSH 外，将 `tmux attach`（`_installTmuxAttach`）、云/本地 Telnet（`_openTelnetTab`、`_LocalTerminalSession._connectTelnet`）与云/本地 LocalConsole（`_openConsoleTab`、`_LocalTerminalSession.attachConsole`）统一接入 `TerminalOutputCoalescer`；
-  - 连接正常断开或进程退出前先调用 `resetOutputCoalescer(flushPending: true)` 保障末行日志不丢且严格排在退出/断线提示之前；主动关闭或重连销毁前立即调用 `resetOutputCoalescer(flushPending: false)` 防止定时器泄漏。
-- **粘贴护栏规则精度、组件可测性与 Lint 清零（`lib/terminal/paste_safety.dart`, `lib/ui/ssh_keepalive_setting.dart`）**：
-  - 将 `disk_format` 中的 `dd` 规则收窄为仅匹配含输出目标 `of=` 的写盘命令（`dd\s+[^\r\n;&|]*\bof=`），放行 `dd if=/dev/urandom bs=16 count=1 | base64` 等无害只读命令同时继续稳定拦截 `dd if=/dev/zero of=/dev/sda`、`dd of=/dev/nvme0n1 ...`；
+  - 连接正常断开或进程退出前冲刷待渲染缓冲保障末行日志不丢且严格排在退出/断线提示之前；针对真实 PTY 中 `exitCode` 先于 `stdout` 尾包与 `onDone` 到达的竞态，改为在 `onDone` 之前仅调用 `coalescer.flush()` 冲刷并取消定时器而不提前关闭合批器，待 `onDone`/`onError`/标签关闭再彻底销毁，防止晚到尾包被静默吞掉；主动关闭或重连销毁前立即调用 `resetOutputCoalescer(flushPending: false)` 防止定时器泄漏；
+  - 修复 `TerminalOutputCoalescer._emitBatch` 慢帧超窗（单次 `onFlush` 耗时 >= 8ms）后窗口起点被提前判空导致后续包绕过 Stage-2 节流的隐患，确保高负载下仍强制切入帧级节流让出 UI 渲染机会。
+- **粘贴护栏规则精度、组件可测性与 Lint 清零（`lib/terminal/paste_safety.dart`, `lib/ui/ssh_keepalive_setting.dart`, `lib/ssh/ssh_service.dart`）**：
+  - 将 `disk_format` 中的 `dd` 规则收窄为同行水平空白匹配含输出目标 `of=` 的写盘命令（`dd[ \t]+[^\r\n;&|]*\bof=`），放行 `dd if=/dev/urandom bs=16 count=1 | base64` 及跨行无害文本（如 `ls dd\necho of=1`），同时继续稳定拦截 `dd if=/dev/zero of=/dev/sda`、`dd\tof=/dev/sda`、`dd of=/dev/nvme0n1 ...`；
   - `SshKeepaliveSetting` 新增可选构造参数 `pasteSafetyController`（与 `controller` 对称），消除测试对全局单例的耦合；
-  - 修复 `PasteSafetyController` 构造函数 `prefer_initializing_formals` 提示，全部新增 Dart 文件与 `packages/dartssh2` 改动文件达到零 info / warning / error。
+  - 修复 `PasteSafetyController` 与 `SshService`（`this._keepaliveController`）的 `prefer_initializing_formals` 提示，全部新增 Dart 文件、`packages/dartssh2` 改动文件以及自 `0241a75` 起全部新增/改动行均达到零 info / warning / error。
 - **真实本机回环 TCP `ServerSocket` 集成测试与回归扩充**：
-  - 在 `test/ssh_keepalive_watchdog_test.dart`、`test/commercial_ux_habits_test.dart`、`test/stress/terminal_throughput_stress_test.dart` 新增真实 `ServerSocket.bind(InternetAddress.loopbackIPv4, 0)` + `connectNativeSocket` 静默黑洞集成测试、`keepAliveInterval == null` 主动探活达阈值断流测试、只读 `dd` 放行与写盘 `dd` 拦截回归测试、注入 `pasteSafetyController` 组件测试，以及 `AppController` LocalConsole / Telnet 合批与退出保序集成测试；
-  - 复跑 223 项单测/Widget 测试/商业级压测全绿（14.1 MB 洪流 11,000 包收敛至 276 批，重绘削减 **97.5%**，吞吐 **5.98 MB/s**，双语检索 **111ms**，1,200 行高亮 **5ms** / 命中率 **99.58%**，24 并发压测 **61ms** 且销毁后 RSS 从 316.1 MB 回落至 294.0 MB）。
+  - 在 `test/ssh_keepalive_watchdog_test.dart`、`test/commercial_ux_habits_test.dart`、`test/stress/terminal_throughput_stress_test.dart`、`test/workspace_tmux_controller_test.dart`、`test/local_shell_local_profile_widget_test.dart`、`test/telnet_local_profile_widget_test.dart` 补齐：真实 `ServerSocket.bind(InternetAddress.loopbackIPv4, 0)` + `connectNativeSocket` 静默黑洞集成测试、`keepAliveInterval == null` 经 `SshConnection.probeLiveness` → `onKeepAliveDead` → 关闭真实 Socket → `SessionRecovery(keepalive_timeout)` 端到端测试、只读与跨行 `dd` 放行及写盘 `dd` 拦截测试、注入 `pasteSafetyController` 组件测试、慢帧 Stage-2 节流单测、以及 `AppController`（LocalConsole / Telnet / `tmux attach`）与 `LocalProfileFlow`（LocalConsole / Telnet）全入口 Stage-2 合批、PTY 晚到尾包保留与主动销毁清理测试；
+  - 复跑 17 个核心测试与压测文件共 229 项用例全绿（双仓同步零差异、App Store 6 闸门全绿、`flutter build ios --release --no-codesign` 实编通过）。

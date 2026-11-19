@@ -21487,6 +21487,7 @@ class AppController extends ChangeNotifier {
         },
       );
       tab.outputCoalescer = coalescer;
+      var outputDone = false;
       tab.outputSubscription = console.output.listen(
         (text) {
           if (!_isTerminalTabOpen(tab) || !identical(tab.console, console)) {
@@ -21495,6 +21496,7 @@ class AppController extends ChangeNotifier {
           coalescer.add(text);
         },
         onError: (_) {
+          outputDone = true;
           if (_isTerminalTabOpen(tab) && identical(tab.console, console)) {
             tab.resetOutputCoalescer(flushPending: true);
             tab.state = 'disconnected';
@@ -21503,6 +21505,7 @@ class AppController extends ChangeNotifier {
           }
         },
         onDone: () {
+          outputDone = true;
           if (_isTerminalTabOpen(tab) && identical(tab.console, console)) {
             tab.resetOutputCoalescer(flushPending: true);
           }
@@ -21514,7 +21517,13 @@ class AppController extends ChangeNotifier {
           if (!_isTerminalTabOpen(tab) || !identical(tab.console, console)) {
             return;
           }
-          tab.resetOutputCoalescer(flushPending: true);
+          if (outputDone) {
+            tab.resetOutputCoalescer(flushPending: true);
+          } else {
+            // PTY 场景下 exitCode 可能先于 stdout 尾包与 onDone 到达：先冲刷已缓冲数据并取消定时器，
+            // 保留合批器直至 onDone/onError/close，防止晚到的尾包被静默吞掉。
+            coalescer.flush();
+          }
           tab.state = 'disconnected';
           // A serial device keeps running whatever it was running.
           if (serialPort == null) resetTerminalForNewSession(tab.terminal);

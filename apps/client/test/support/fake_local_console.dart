@@ -18,6 +18,14 @@ class FakeLocalConsole implements LocalConsole, LocalConsoleWorkingDirectory {
   bool get outputHasListener => _output.hasListener;
 
   void emit(String text) => _output.add(text);
+  void completeExitCodeOnly(int code) {
+    if (!_exit.isCompleted) _exit.complete(code);
+  }
+
+  Future<void> finishOutput() async {
+    if (!_output.isClosed) await _output.close();
+  }
+
   void exit(int code) {
     if (!_exit.isCompleted) _exit.complete(code);
     unawaited(_output.close());

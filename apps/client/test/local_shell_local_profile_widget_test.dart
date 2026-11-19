@@ -252,4 +252,67 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await settle(tester);
   });
+
+  testWidgets(
+    'local Profile: console Stage-2 burst flushes before exit banner and retains post-exitCode tail before EOF',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await unlock(tester);
+      final bar = tester.widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar));
+      await tester.runAsync(
+        () async => bar.homeMenuActions
+            .firstWhere((a) => a.id == 'local_new_console')
+            .run(),
+      );
+      await settle(tester);
+
+      final console = consoles.opened.single;
+      final terminal = tester
+          .widget<TerminalView>(find.byType(TerminalView))
+          .terminal;
+      String dump() => [
+        for (var i = 0; i < terminal.buffer.lines.length; i++)
+          terminal.buffer.lines[i].getText(),
+      ].join('\n');
+
+      // 先推送 20KiB 打满 Stage-1 预算，再推入末行使其进入 Stage-2 帧缓冲，随后模拟
+      // 真实 PTY 的 exitCode 先于 stdout 尾包与 onDone 到达。
+      await tester.runAsync(() async {
+        console.emit('${'L' * 20000}\r\n');
+        for (var i = 0; i < 4; i++) {
+          await Future<void>.microtask(() {});
+        }
+        console.emit('LOCAL_CONSOLE_PRE_EXIT_TAIL\r\n');
+        for (var i = 0; i < 4; i++) {
+          await Future<void>.microtask(() {});
+        }
+        console.completeExitCodeOnly(0);
+        await pumpEventQueue();
+      });
+      await tester.pump();
+
+      final afterExit = dump();
+      final prePos = afterExit.indexOf('LOCAL_CONSOLE_PRE_EXIT_TAIL');
+      final exitPos = afterExit.indexOf('exited');
+      expect(prePos, greaterThanOrEqualTo(0), reason: '退出前缓冲末行不得丢失');
+      expect(exitPos, greaterThan(prePos), reason: '退出提示必须排在已缓冲末行之后');
+
+      await tester.runAsync(() async {
+        console.emit('LOCAL_CONSOLE_POST_EXIT_TAIL\r\n');
+        await console.finishOutput();
+        await pumpEventQueue();
+      });
+      await tester.pump();
+
+      expect(
+        dump(),
+        contains('LOCAL_CONSOLE_POST_EXIT_TAIL'),
+        reason: 'exitCode 先于 EOF 到达时的晚到 stdout 尾包不得被吞掉',
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await settle(tester);
+    },
+  );
 }
