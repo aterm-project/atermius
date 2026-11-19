@@ -13,14 +13,22 @@ credential-visibility notice. Scripts share these entry steps through
 `support/hosted_web.cjs` (`expectHostedSignIn`, `waitForWorkspaceHome`).
 
 Scripts that follow the current UI and pass on the current bundle:
-`test:password-change`, `test:session-refresh-multitab`, `test:admin-audit`,
-`test:admin-accounts`, `test:admin-push-health`, `test:admin-relay-policy`,
-`test:admin-relay-groups`, `test:admin-jobs`, `test:admin-restore-stage`.
+`test:password-change`, `test:session-refresh-multitab`, `test:multi-vault-switch`,
+`test:admin-audit`, `test:admin-accounts`, `test:admin-push-health`,
+`test:admin-relay-policy`, `test:admin-relay-groups`, `test:admin-jobs`,
+`test:admin-restore-stage`. The `max-panes` and `rename-sync` modes of
+`test:workspace-layout` pass in most runs but not all.
 
-Scripts that still describe an earlier UI, in part or in whole, and fail until
-they are brought up to date: `cross_profile_sync.cjs` (`test:profiles`,
-`test:multi-vault-switch` and its other modes), `workspace_layout.cjs`, and
-every script not listed above that still starts with `Server URL`.
+Partly brought up to date and still failing: `test:profiles` (stops in its
+Credential sync block) and the full and `tmux-process-restart` runs of
+`test:workspace-layout`. Every other script that still starts with `Server URL`
+describes the earlier UI and fails at its entry step.
+
+In `cross_profile_sync.cjs` and `workspace_layout.cjs` the manual enrollment
+block (request, approve, import) only runs with
+`ATERMIUS_WEB_LEGACY_MANUAL_DEVICE_ENROLLMENT=1`: the sign-in page no longer
+offers manual enrollment, so a second profile signs in with the master
+password instead.
 
 `test:local-profile`, `test:local-to-sync-migration` and
 `test:local-quota-recovery` exercise the browser's local mode, which the
