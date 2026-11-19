@@ -24,11 +24,10 @@
   var PRELOAD_RESOURCES = [
     { path: "assets/AssetManifest.bin.json" },
     { path: "assets/FontManifest.json" },
-    // The bundle layout for pubspec fonts is under "assets/assets/…" today;
-    // the bare variants are optional probes so either layout counts.
+    // Where the build puts each font: pubspec fonts under "assets/assets/…",
+    // the framework's icon font under "assets/fonts/…". Probing the other
+    // layout as well only logged two 404 errors on every page load.
     { path: "assets/assets/fonts/atermius_icons.ttf", optional: true },
-    { path: "assets/fonts/atermius_icons.ttf", optional: true },
-    { path: "assets/assets/fonts/MaterialIcons-Regular.otf", optional: true },
     { path: "assets/fonts/MaterialIcons-Regular.otf", optional: true },
     { path: "sqlite3.wasm" },
     { path: "drift_worker.js" },
