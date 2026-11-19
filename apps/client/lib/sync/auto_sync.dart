@@ -15,7 +15,6 @@ class AutoSyncCoordinator {
     required this.isEnabled,
     required this.synchronize,
     this.debounce = const Duration(milliseconds: 700),
-    this.backgroundDebounce = const Duration(seconds: 10),
     this.interval = const Duration(seconds: 45),
     bool initialUserEnabled = true,
   }) : _userEnabled = initialUserEnabled;
@@ -23,11 +22,9 @@ class AutoSyncCoordinator {
   final bool Function() isEnabled;
   final Future<void> Function() synchronize;
   final Duration debounce;
-  final Duration backgroundDebounce;
   final Duration interval;
 
   Timer? _debounceTimer;
-  Timer? _backgroundTimer;
   Timer? _periodicTimer;
   bool _running = false;
   bool _followUpPending = false;
@@ -67,19 +64,6 @@ class AutoSyncCoordinator {
     _debounceTimer = Timer(debounce, _runSafely);
   }
 
-  /// Like [scheduleEdit], for a record nobody is waiting for (the browser's
-  /// own open-tabs snapshot). It is written exactly when the user opens a
-  /// connection, and an upload at that moment made the connection wait: the
-  /// SSH host key check needs a sync of its own and had to queue behind this
-  /// upload, the server's hint about it and the sync that hint asks for.
-  /// The record is uploaded by whichever pass starts first, or by a pass of
-  /// its own once the workspace has been quiet for [backgroundDebounce].
-  void scheduleBackgroundEdit() {
-    if (!_active) return;
-    _backgroundTimer?.cancel();
-    _backgroundTimer = Timer(backgroundDebounce, _runSafely);
-  }
-
   Future<void> foregroundResumed() => _runSafely();
 
   /// Coalesces realtime invalidation hints with an in-flight sync. A hint is
@@ -104,10 +88,6 @@ class AutoSyncCoordinator {
       return;
     }
     _running = true;
-    // This pass uploads whatever a background edit queued. One queued while
-    // the pass is already running sets its timer after this line.
-    _backgroundTimer?.cancel();
-    _backgroundTimer = null;
     try {
       await synchronize();
     } catch (_) {
@@ -125,8 +105,6 @@ class AutoSyncCoordinator {
   void _cancelTimers() {
     _debounceTimer?.cancel();
     _debounceTimer = null;
-    _backgroundTimer?.cancel();
-    _backgroundTimer = null;
     _periodicTimer?.cancel();
     _periodicTimer = null;
     _followUpPending = false;

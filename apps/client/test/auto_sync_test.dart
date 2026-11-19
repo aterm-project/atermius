@@ -204,45 +204,6 @@ void main() {
       coordinator.stop();
     },
   );
-
-  test(
-    'a background edit waits for a quiet moment or rides the next pass',
-    () async {
-      var calls = 0;
-      final coordinator = AutoSyncCoordinator(
-        isEnabled: () => true,
-        synchronize: () async => calls++,
-        debounce: const Duration(milliseconds: 10),
-        backgroundDebounce: const Duration(milliseconds: 60),
-        interval: const Duration(hours: 1),
-      );
-      addTearDown(coordinator.stop);
-
-      // Alone, it is uploaded once the quiet period is over, not before.
-      coordinator.scheduleBackgroundEdit();
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-      expect(calls, 0);
-      coordinator.scheduleBackgroundEdit();
-      await Future<void>.delayed(const Duration(milliseconds: 40));
-      expect(calls, 0, reason: 'a newer background edit restarts the wait');
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(calls, 1);
-
-      // A pass that starts first carries it; no second pass follows.
-      coordinator.scheduleBackgroundEdit();
-      coordinator.scheduleEdit();
-      await Future<void>.delayed(const Duration(milliseconds: 25));
-      expect(calls, 2);
-      await Future<void>.delayed(const Duration(milliseconds: 90));
-      expect(calls, 2);
-
-      // Stopping drops it with the other timers; the outbox keeps the edit.
-      coordinator.scheduleBackgroundEdit();
-      coordinator.stop();
-      await Future<void>.delayed(const Duration(milliseconds: 90));
-      expect(calls, 2);
-    },
-  );
 }
 
 Future<void> _waitFor(bool Function() predicate) async {
