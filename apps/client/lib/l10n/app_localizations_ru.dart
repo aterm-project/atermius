@@ -6388,11 +6388,11 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get aNewerAtermiusWebBuildIs =>
-      'Доступна более новая веб-сборка Atermius.';
+      'Новая версия Atermius Web загружена и готова.';
 
   @override
   String get aNewerWebBuildIsAvailable =>
-      'Доступна более новая веб-сборка. Когда будет удобно перезагрузить, ознакомьтесь с уведомлением выше.';
+      'Новая веб-версия загружена. Когда будет удобно перезагрузить, ознакомьтесь с уведомлением выше.';
 
   @override
   String aPreviousRepairAlreadySelectedRetainedrepairid(
@@ -20229,4 +20229,8 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get temporaryJumpPickerSearch => 'Поиск хостов';
+
+  @override
+  String get webUpdateDownloading =>
+      'Новая веб-версия загружается в фоне. Можно продолжать работу: страница остаётся на текущей версии, пока загрузка не завершится и вы не перезагрузите её.';
 }

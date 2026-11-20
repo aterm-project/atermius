@@ -20,8 +20,10 @@ cd "$ROOT/apps/client"
 flutter config --no-analytics >/dev/null
 flutter pub get --enforce-lockfile
 flutter build web --release --no-pub --no-web-resources-cdn --target lib/main.dart
+# File list for the browser's bundle cache (web/atermius-sw.js).
+dart run tool/web_cache_manifest.dart build/web
 web="$ROOT/apps/client/build/web"
-for required in index.html main.dart.js flutter_bootstrap.js share-bootstrap.js startup-theme.js manifest.json \
+for required in index.html main.dart.js flutter_bootstrap.js atermius-sw.js atermius-cache-manifest.json share-bootstrap.js startup-theme.js manifest.json \
   favicon.ico icons/apple-touch-icon.png icons/atermius-192.png icons/atermius-512.png; do
   [[ -f "$web/$required" ]] || die "web build lacks $required"
 done

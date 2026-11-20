@@ -10,7 +10,16 @@
 cd apps/client
 flutter pub get --enforce-lockfile
 flutter build web --release --no-web-resources-cdn
+dart run tool/web_cache_manifest.dart build/web
 ```
+
+第二条命令生成 `atermius-cache-manifest.json`（构建标识和每个文件的 SHA-256）。有了它，浏览器会保存一份完整的网页包：
+
+- 再次打开时直接从浏览器缓存启动，不再重新下载。只缓存清单里列出的文件，并逐个校验哈希；API 响应、访客分享页和加入链接从不缓存。
+- 服务器有新版本时，已打开的页面继续运行当前版本，同时在后台下载新版本。新版本完整保存之后才提示更新；用户确认重新加载后，页面从已保存的新版本启动。在此之前刷新仍是旧版本。
+- 缓存需要安全来源（HTTPS 或 `localhost`）。明文 `http://`、不支持 Service Worker 的浏览器，或构建时没有生成清单的网页包，都不会缓存，页面照旧从服务器加载。
+
+`atermius-sw.js`、`flutter_bootstrap.js` 和 `atermius-cache-manifest.json` 须以 `Cache-Control: no-cache` 提供（自带的 `deploy/nginx.conf` 已如此），并且一次部署要整体替换所有文件。
 
 部署 **`apps/client/build/web/` 完整目录**。`--no-web-resources-cdn` 保证 CanvasKit 同源，仓库也包含 Unicode 回退字体与许可证。使用真正的 HTTP 服务，不使用 `file://` 打开。
 

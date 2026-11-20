@@ -9609,13 +9609,13 @@ abstract class AppLocalizations {
   /// No description provided for @aNewerAtermiusWebBuildIs.
   ///
   /// In en, this message translates to:
-  /// **'A newer Atermius Web build is available.'**
+  /// **'A new Atermius Web version has been downloaded and is ready.'**
   String get aNewerAtermiusWebBuildIs;
 
   /// No description provided for @aNewerWebBuildIsAvailable.
   ///
   /// In en, this message translates to:
-  /// **'A newer Web build is available. Review the notice above when it is safe to reload.'**
+  /// **'A new Web version has been downloaded. Review the notice above when it is safe to reload.'**
   String get aNewerWebBuildIsAvailable;
 
   /// No description provided for @aPreviousRepairAlreadySelectedRetainedrepairid.
@@ -31899,6 +31899,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search hosts'**
   String get temporaryJumpPickerSearch;
+
+  /// Web update: a newer bundle is being downloaded into the browser cache; the page keeps running the current one.
+  ///
+  /// In en, this message translates to:
+  /// **'A new Web version is being downloaded in the background. You can keep working; this page stays on the current version until the download is complete and you reload.'**
+  String get webUpdateDownloading;
 }
 
 class _AppLocalizationsDelegate

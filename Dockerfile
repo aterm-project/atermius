@@ -28,8 +28,10 @@ COPY apps/client/pubspec.yaml apps/client/pubspec.lock ./
 COPY apps/client/lib ./lib
 COPY apps/client/web ./web
 COPY apps/client/assets ./assets
+COPY apps/client/tool/web_cache_manifest.dart ./tool/web_cache_manifest.dart
 RUN flutter --version && flutter pub get --enforce-lockfile
 RUN flutter build web --release --no-web-resources-cdn
+RUN dart run tool/web_cache_manifest.dart build/web
 
 FROM nginx:stable-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311
 COPY --from=web-build /src/apps/client/build/web/ /usr/share/nginx/html/

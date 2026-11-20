@@ -22,6 +22,138 @@ globalThis.atermiusProbeWebBuild = async () => {
 };
 globalThis.atermiusReloadWebApp = () => window.location.reload();
 
+// --- Persistent bundle cache (atermius-sw.js) --------------------------------
+// The cache worker keeps a complete, verified copy of each build. This page
+// asks it to store the build it runs (so the next visit starts from the
+// cache), to download a newer build in the background, and (only from the
+// user's confirmed reload) to switch to that build. Without service worker
+// support, on an insecure origin or with a bundle that has no cache manifest
+// everything below reports 'unsupported' and the page behaves as before.
+const atermiusCacheWorkerUrl = 'atermius-sw.js';
+let atermiusCacheRegistration = null;
+
+function atermiusCacheSupported() {
+  if (!('serviceWorker' in navigator) || !window.isSecureContext) return false;
+  // Guest share and join pages stay uncached.
+  const base = new URL(document.baseURI).pathname;
+  const relative = window.location.pathname.startsWith(base)
+    ? window.location.pathname.slice(base.length) : '';
+  return !/^(?:s\/|join\/?$)/.test(relative);
+}
+
+async function atermiusCacheWorker() {
+  if (!atermiusCacheSupported()) return null;
+  if (!atermiusCacheRegistration) {
+    atermiusCacheRegistration = navigator.serviceWorker
+      .register(new URL(atermiusCacheWorkerUrl, document.baseURI), {
+        scope: new URL('./', document.baseURI).pathname,
+        updateViaCache: 'none',
+      })
+      .catch(() => null);
+  }
+  const registration = await atermiusCacheRegistration;
+  if (!registration) return null;
+  const waitForActive = (worker) => new Promise((resolve) => {
+    if (!worker) return resolve(null);
+    if (worker.state === 'activated') return resolve(worker);
+    const timer = setTimeout(() => resolve(null), 30000);
+    worker.addEventListener('statechange', () => {
+      if (worker.state === 'activated') {
+        clearTimeout(timer);
+        resolve(worker);
+      } else if (worker.state === 'redundant') {
+        clearTimeout(timer);
+        resolve(null);
+      }
+    });
+  });
+  return registration.active ||
+    waitForActive(registration.installing || registration.waiting);
+}
+
+function atermiusCacheCall(worker, message, timeoutMs, onProgress) {
+  return new Promise((resolve, reject) => {
+    const channel = new MessageChannel();
+    // A browser may stop an idle or long-running worker; do not wait forever.
+    let timer = setTimeout(() => reject(new Error('cache worker timeout')), timeoutMs);
+    channel.port1.onmessage = (event) => {
+      const data = event.data || {};
+      if (data.progress) {
+        clearTimeout(timer);
+        timer = setTimeout(() => reject(new Error('cache worker timeout')), timeoutMs);
+        onProgress?.(data);
+        return;
+      }
+      clearTimeout(timer);
+      channel.port1.close();
+      if (data.ok) resolve(data); else reject(new Error(data.error || 'cache worker error'));
+    };
+    worker.postMessage(message, [channel.port2]);
+  });
+}
+
+// Resolves 'ready' once the complete build is stored, or 'unsupported'.
+// Rejects when the download did not finish (retry later).
+globalThis.atermiusPrepareWebBuild = async (buildId) => {
+  const worker = await atermiusCacheWorker();
+  if (!worker) return 'unsupported';
+  const result = await atermiusCacheCall(worker, {
+    type: 'prepare',
+    buildId: String(buildId),
+    adopt: String(buildId) === String(globalThis.atermiusWebBuildId),
+  }, 300000);
+  return result.state === 'ready' ? 'ready' : 'unsupported';
+};
+
+// Makes the next page load start from the prepared build. If that cannot be
+// done the cache is dropped instead, so the reload fetches the server's
+// build rather than showing the old one again.
+globalThis.atermiusActivateWebBuild = async (buildId) => {
+  const worker = await atermiusCacheWorker();
+  if (!worker) return;
+  try {
+    await atermiusCacheCall(worker, { type: 'activate', buildId: String(buildId) }, 15000);
+  } catch (_) {
+    try {
+      await atermiusCacheCall(worker, { type: 'reset' }, 15000);
+    } catch (_) {}
+  }
+};
+
+async function atermiusStartBundleCache() {
+  try {
+    const worker = await atermiusCacheWorker();
+    if (!worker) return;
+    await atermiusCacheCall(worker, {
+      type: 'hello',
+      buildId: String(globalThis.atermiusWebBuildId),
+    }, 15000);
+    // Ask the browser not to evict the stored bundle under storage pressure.
+    try {
+      await navigator.storage?.persist?.();
+    } catch (_) {}
+    await globalThis.atermiusPrepareWebBuild(globalThis.atermiusWebBuildId);
+  } catch (_) {
+    // Best effort: the page keeps working from the network.
+  }
+}
+
+// A stored bundle that cannot start must not lock the user out: drop the
+// cache once and load from the server.
+async function atermiusRecoverFromCachedBundleFailure() {
+  const key = 'atermius.bundle-cache-recovery.v1';
+  try {
+    if (!navigator.serviceWorker?.controller) return false;
+    if (sessionStorage.getItem(key)) return false;
+    sessionStorage.setItem(key, '1');
+    await atermiusCacheCall(navigator.serviceWorker.controller, { type: 'reset' }, 15000);
+    window.location.reload();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function isFlutterLegacyWorker(worker) {
   if (!worker) return false;
   try {
@@ -147,7 +279,9 @@ async function loadAtermiusFlutter() {
     if (target instanceof HTMLScriptElement &&
         /\/main\.dart\.(?:js|mjs)(?:\?|$)/.test(target.src)) {
       console.error('Atermius app bundle failed to load');
-      splash?.fail?.('bundle-load');
+      atermiusRecoverFromCachedBundleFailure().then((recovering) => {
+        if (!recovering) splash?.fail?.('bundle-load');
+      });
     }
   }, true);
   const config = {
@@ -164,12 +298,20 @@ async function loadAtermiusFlutter() {
         const runner = await initializer.initializeEngine(config);
         splash?.onFlutterRunning?.();
         await runner.runApp();
+        try {
+          sessionStorage.removeItem('atermius.bundle-cache-recovery.v1');
+        } catch (_) {}
+        // Store this build for the next visit once the app is up, so the
+        // download does not compete with the first start.
+        setTimeout(atermiusStartBundleCache, 3000);
       },
       // Omitting serviceWorkerSettings disables Flutter's force-activate worker.
     });
   } catch (error) {
     console.error('Atermius Flutter startup failed:', error);
-    splash?.fail?.('flutter-load');
+    if (!(await atermiusRecoverFromCachedBundleFailure())) {
+      splash?.fail?.('flutter-load');
+    }
   }
 }
 

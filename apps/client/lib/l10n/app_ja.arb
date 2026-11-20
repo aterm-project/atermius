@@ -1580,8 +1580,8 @@
   "aHostCanHaveAtMost": "1 台のホストに設定できるポート転送プロファイルは最大 {maxHostPortForwardProfiles} 個です。",
   "aConcurrentChangeWasDetectedYour": "同時に行われた変更を検出しました。名前、メンバーシップ、ポリシーの下書きは保持されています。",
   "aNewEncryptedRevisionWillBe": "現在のリモートの先頭に対して新しい暗号化リビジョンが作成されます。サーバーが解決を受け入れるまで、古いブランチは記録されたままです。",
-  "aNewerAtermiusWebBuildIs": "新しい Atermius Web のビルドを利用できます。",
-  "aNewerWebBuildIsAvailable": "新しい Web ビルドを利用できます。再読み込みしても問題ないタイミングで、上の通知を確認してください。",
+  "aNewerAtermiusWebBuildIs": "新しい Atermius Web のバージョンをダウンロードしました。更新できます。",
+  "aNewerWebBuildIsAvailable": "新しい Web バージョンをダウンロードしました。再読み込みしても問題ないタイミングで、上の通知を確認してください。",
   "aPreviousRepairAlreadySelectedRetainedrepairid": "以前の修復ですでに {retainedRepairId} が選択されています。同期で削除マーカーが確認されるまで、再試行時もこのレコードを保持する必要があります。",
   "aPreviousRepairSelectedRetainedrecordidRetry": "以前の修復で {retainedRecordId} が選択されています。保管庫の同期で削除マーカーが確認されるまで、再試行時もこのレコードを保持する必要があります。",
   "aPreviousRepairSelectedRetainedrecordidRetry2": "以前の修復で {retainedRecordId} が選択されています。保管庫の同期で削除マーカーが確認されるまで、再試行時もこのレコードを保持する必要があります。",
@@ -5359,5 +5359,6 @@
   "temporaryJumpPickerEmpty": "踏み台として使用できる他の SSH ホストがありません。",
   "temporaryJumpPickerNoMatch": "一致するホストがありません。",
   "temporaryJumpPickerSavedRoute": "保存済みの経路を使用（一時的な踏み台なし）",
-  "temporaryJumpPickerSearch": "ホストを検索"
+  "temporaryJumpPickerSearch": "ホストを検索",
+  "webUpdateDownloading": "新しい Web バージョンをバックグラウンドでダウンロードしています。そのまま作業を続けられます。ダウンロードが完了して再読み込みするまで、このページは現在のバージョンのままです。"
 }

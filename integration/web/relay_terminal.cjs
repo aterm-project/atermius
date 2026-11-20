@@ -6304,8 +6304,12 @@ async function runWebUpdateLifecycleAcceptance({
       navigationType: performance.getEntriesByType('navigation')[0]?.type ?? null,
       serviceWorkerSupported: Boolean(serviceWorker),
       serviceWorkerRegistrations: serviceWorker
-        ? (await serviceWorker.getRegistrations()).length : null,
-      serviceWorkerControllingPage: Boolean(serviceWorker?.controller),
+        ? (await serviceWorker.getRegistrations()).filter((registration) =>
+          [registration.active, registration.waiting, registration.installing]
+            .some((worker) => worker?.scriptURL.endsWith('/flutter_service_worker.js'))).length
+        : null,
+      serviceWorkerControllingPage: Boolean(
+        serviceWorker?.controller?.scriptURL.endsWith('/flutter_service_worker.js')),
       flutterOfflineCache: 'caches' in window
         ? await caches.has('flutter-app-cache') : false,
     };
@@ -6672,8 +6676,12 @@ async function runWebUpdateLifecycleAcceptance({
       buildId: globalThis.atermiusWebBuildId ?? null,
       bundleMarker: globalThis.__atermiusTestBundleMarker ?? null,
       serviceWorkerRegistrations: serviceWorker
-        ? (await serviceWorker.getRegistrations()).length : null,
-      serviceWorkerControllingPage: Boolean(serviceWorker?.controller),
+        ? (await serviceWorker.getRegistrations()).filter((registration) =>
+          [registration.active, registration.waiting, registration.installing]
+            .some((worker) => worker?.scriptURL.endsWith('/flutter_service_worker.js'))).length
+        : null,
+      serviceWorkerControllingPage: Boolean(
+        serviceWorker?.controller?.scriptURL.endsWith('/flutter_service_worker.js')),
       flutterOfflineCache: 'caches' in window
         ? await caches.has('flutter-app-cache') : false,
     };

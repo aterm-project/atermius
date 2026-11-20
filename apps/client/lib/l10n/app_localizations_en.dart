@@ -6398,11 +6398,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aNewerAtermiusWebBuildIs =>
-      'A newer Atermius Web build is available.';
+      'A new Atermius Web version has been downloaded and is ready.';
 
   @override
   String get aNewerWebBuildIsAvailable =>
-      'A newer Web build is available. Review the notice above when it is safe to reload.';
+      'A new Web version has been downloaded. Review the notice above when it is safe to reload.';
 
   @override
   String aPreviousRepairAlreadySelectedRetainedrepairid(
@@ -20164,4 +20164,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get temporaryJumpPickerSearch => 'Search hosts';
+
+  @override
+  String get webUpdateDownloading =>
+      'A new Web version is being downloaded in the background. You can keep working; this page stays on the current version until the download is complete and you reload.';
 }

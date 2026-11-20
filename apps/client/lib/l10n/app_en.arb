@@ -4362,9 +4362,9 @@
   "@aConcurrentChangeWasDetectedYour": {},
   "aNewEncryptedRevisionWillBe": "A new encrypted revision will be created against the current remote head. The old branch remains recorded until the server accepts the resolution.",
   "@aNewEncryptedRevisionWillBe": {},
-  "aNewerAtermiusWebBuildIs": "A newer Atermius Web build is available.",
+  "aNewerAtermiusWebBuildIs": "A new Atermius Web version has been downloaded and is ready.",
   "@aNewerAtermiusWebBuildIs": {},
-  "aNewerWebBuildIsAvailable": "A newer Web build is available. Review the notice above when it is safe to reload.",
+  "aNewerWebBuildIsAvailable": "A new Web version has been downloaded. Review the notice above when it is safe to reload.",
   "@aNewerWebBuildIsAvailable": {},
   "aPreviousRepairAlreadySelectedRetainedrepairid": "A previous repair already selected {retainedRepairId}. Retry must keep that record until sync confirms the tombstones.",
   "@aPreviousRepairAlreadySelectedRetainedrepairid": {
@@ -16832,5 +16832,9 @@
   "temporaryJumpPickerEmpty": "No other SSH host can be used as a jump host.",
   "temporaryJumpPickerNoMatch": "No matching hosts.",
   "temporaryJumpPickerSavedRoute": "Use the saved route (no temporary jump host)",
-  "temporaryJumpPickerSearch": "Search hosts"
+  "temporaryJumpPickerSearch": "Search hosts",
+  "webUpdateDownloading": "A new Web version is being downloaded in the background. You can keep working; this page stays on the current version until the download is complete and you reload.",
+  "@webUpdateDownloading": {
+    "description": "Web update: a newer bundle is being downloaded into the browser cache; the page keeps running the current one."
+  }
 }

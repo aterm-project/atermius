@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "test:local-profile": "node local_profile.cjs",
+    "test:web-bundle-cache": "node web_bundle_cache.cjs",
     "test:local-quota-recovery": "node local_vault_quota_recovery.cjs",
     "test:local-to-sync-migration": "node local_to_sync_migration.cjs",
     "test:groups": "node cross_profile_sync.cjs --groups-only",

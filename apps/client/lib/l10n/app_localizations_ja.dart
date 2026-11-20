@@ -5918,11 +5918,12 @@ class AppLocalizationsJa extends AppLocalizations {
       '現在のリモートの先頭に対して新しい暗号化リビジョンが作成されます。サーバーが解決を受け入れるまで、古いブランチは記録されたままです。';
 
   @override
-  String get aNewerAtermiusWebBuildIs => '新しい Atermius Web のビルドを利用できます。';
+  String get aNewerAtermiusWebBuildIs =>
+      '新しい Atermius Web のバージョンをダウンロードしました。更新できます。';
 
   @override
   String get aNewerWebBuildIsAvailable =>
-      '新しい Web ビルドを利用できます。再読み込みしても問題ないタイミングで、上の通知を確認してください。';
+      '新しい Web バージョンをダウンロードしました。再読み込みしても問題ないタイミングで、上の通知を確認してください。';
 
   @override
   String aPreviousRepairAlreadySelectedRetainedrepairid(
@@ -19013,4 +19014,8 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get temporaryJumpPickerSearch => 'ホストを検索';
+
+  @override
+  String get webUpdateDownloading =>
+      '新しい Web バージョンをバックグラウンドでダウンロードしています。そのまま作業を続けられます。ダウンロードが完了して再読み込みするまで、このページは現在のバージョンのままです。';
 }

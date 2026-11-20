@@ -5394,10 +5394,10 @@ class AppLocalizationsZh extends AppLocalizations {
       '将基于当前远程头部创建新的加密修订版本。在服务器接受解决方案之前，旧分支会继续保留记录。';
 
   @override
-  String get aNewerAtermiusWebBuildIs => '有更新的 Atermius Web 版本可用。';
+  String get aNewerAtermiusWebBuildIs => '新版本的 Atermius Web 已加载完毕，可以更新。';
 
   @override
-  String get aNewerWebBuildIsAvailable => '有更新的 Web 版本可用。适合重新加载时请查看上方提示。';
+  String get aNewerWebBuildIsAvailable => '新版本的 Web 已加载完毕。适合重新加载时请查看上方提示。';
 
   @override
   String aPreviousRepairAlreadySelectedRetainedrepairid(
@@ -18080,4 +18080,8 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get temporaryJumpPickerSearch => '搜索主机';
+
+  @override
+  String get webUpdateDownloading =>
+      '正在后台加载新版本的 Web。你可以继续使用；在新版本加载完毕并由你重新加载之前，此页面一直沿用当前版本。';
 }

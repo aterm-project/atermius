@@ -10,7 +10,16 @@ First complete repository access, cloning and the Flutter toolchain in the [inst
 cd apps/client
 flutter pub get --enforce-lockfile
 flutter build web --release --no-web-resources-cdn
+dart run tool/web_cache_manifest.dart build/web
 ```
+
+The second command writes `atermius-cache-manifest.json` (build identifier and SHA-256 of every file). With it the browser keeps a complete copy of the bundle:
+
+- A second visit starts from the browser's cache instead of downloading the bundle again. Only files named in the manifest are stored, each checked against its hash; API answers, guest share pages and join links are never cached.
+- When the server has a newer build, the open page keeps running its current build and downloads the new one in the background. Only once the new build is completely stored does the page offer the update; the reload the user confirms then starts from the stored new build. A reload before that still shows the old build.
+- The cache needs a secure origin (HTTPS or `localhost`). Over plain `http://`, in a browser without service workers, or for a bundle built without the manifest, nothing is cached and the page loads from the server as before.
+
+Serve `atermius-sw.js`, `flutter_bootstrap.js` and `atermius-cache-manifest.json` with `Cache-Control: no-cache` (the bundled `deploy/nginx.conf` does), and replace all files of a deployment together.
 
 Deploy the complete **`apps/client/build/web/`** output. `--no-web-resources-cdn` keeps CanvasKit same-origin; the repository also bundles Unicode fallback fonts and their notices. Use a real HTTP server, not `file://`.
 

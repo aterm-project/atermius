@@ -1580,8 +1580,8 @@
   "aHostCanHaveAtMost": "一台主机最多可有 {maxHostPortForwardProfiles} 个端口转发配置。",
   "aConcurrentChangeWasDetectedYour": "检测到并发更改。你的名称、成员资格和策略草稿已保留。",
   "aNewEncryptedRevisionWillBe": "将基于当前远程头部创建新的加密修订版本。在服务器接受解决方案之前，旧分支会继续保留记录。",
-  "aNewerAtermiusWebBuildIs": "有更新的 Atermius Web 版本可用。",
-  "aNewerWebBuildIsAvailable": "有更新的 Web 版本可用。适合重新加载时请查看上方提示。",
+  "aNewerAtermiusWebBuildIs": "新版本的 Atermius Web 已加载完毕，可以更新。",
+  "aNewerWebBuildIsAvailable": "新版本的 Web 已加载完毕。适合重新加载时请查看上方提示。",
   "aPreviousRepairAlreadySelectedRetainedrepairid": "之前的修复已选择 {retainedRepairId}。重试时必须保留该记录，直到同步确认删除标记。",
   "aPreviousRepairSelectedRetainedrecordidRetry": "之前的修复选择了 {retainedRecordId}。重试时必须保留该记录，直到保险库同步确认删除标记。",
   "aPreviousRepairSelectedRetainedrecordidRetry2": "之前的修复选择了 {retainedRecordId}。重试时必须保留此记录，直到保险库同步确认删除标记。",
@@ -5359,5 +5359,6 @@
   "temporaryJumpPickerEmpty": "没有可用作跳板机的其他 SSH 主机。",
   "temporaryJumpPickerNoMatch": "没有匹配的主机。",
   "temporaryJumpPickerSavedRoute": "使用已保存的路由（不使用临时跳板机）",
-  "temporaryJumpPickerSearch": "搜索主机"
+  "temporaryJumpPickerSearch": "搜索主机",
+  "webUpdateDownloading": "正在后台加载新版本的 Web。你可以继续使用；在新版本加载完毕并由你重新加载之前，此页面一直沿用当前版本。"
 }

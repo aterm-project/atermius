@@ -2585,7 +2585,9 @@ class _WebAppUpdateBanner extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              protocolMismatch && !monitor.hasUpdate
+              monitor.downloadingUpdate
+                  ? context.l10n.webUpdateDownloading
+                  : protocolMismatch && !monitor.hasUpdate
                   ? context.l10n.noNewerBundleIsAvailableAt
                   : context.l10n.atermiusWillKeepThisPageAnd,
               style: const TextStyle(fontSize: 12, height: 1.35),
@@ -2666,6 +2668,7 @@ class _WebAppUpdateSettingsCard extends StatelessWidget {
     monitor.hasUpdate,
     monitor.lastCheckSucceeded,
   )) {
+    _ when monitor.downloadingUpdate => currentL10n.webUpdateDownloading,
     (true, _, _) => currentL10n.checkingThisSelfHostedInstanceFor,
     (false, true, _) => currentL10n.aNewerWebBuildIsAvailable,
     (false, false, true) => currentL10n.thisWebBuildIsCurrent,

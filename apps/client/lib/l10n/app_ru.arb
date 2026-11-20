@@ -1580,8 +1580,8 @@
   "aHostCanHaveAtMost": "У хоста может быть не более {maxHostPortForwardProfiles} профилей переадресации портов.",
   "aConcurrentChangeWasDetectedYour": "Обнаружено одновременное изменение. Черновики имени, членства и политики сохранены.",
   "aNewEncryptedRevisionWillBe": "Будет создана новая зашифрованная версия относительно текущей удалённой головы. Старая ветка остаётся записанной, пока сервер не примет решение.",
-  "aNewerAtermiusWebBuildIs": "Доступна более новая веб-сборка Atermius.",
-  "aNewerWebBuildIsAvailable": "Доступна более новая веб-сборка. Когда будет удобно перезагрузить, ознакомьтесь с уведомлением выше.",
+  "aNewerAtermiusWebBuildIs": "Новая версия Atermius Web загружена и готова.",
+  "aNewerWebBuildIsAvailable": "Новая веб-версия загружена. Когда будет удобно перезагрузить, ознакомьтесь с уведомлением выше.",
   "aPreviousRepairAlreadySelectedRetainedrepairid": "Предыдущее исправление уже выбрало {retainedRepairId}. При повторе эту запись нужно сохранить, пока синхронизация не подтвердит метки удаления.",
   "aPreviousRepairSelectedRetainedrecordidRetry": "Предыдущее исправление выбрало {retainedRecordId}. При повторе эту запись нужно сохранить, пока синхронизация сейфа не подтвердит метки удаления.",
   "aPreviousRepairSelectedRetainedrecordidRetry2": "Предыдущее исправление выбрало {retainedRecordId}. При повторе эту запись нужно сохранить, пока синхронизация сейфа не подтвердит метки удаления.",
@@ -5359,5 +5359,6 @@
   "temporaryJumpPickerEmpty": "Нет других SSH-хостов, которые можно использовать как промежуточные.",
   "temporaryJumpPickerNoMatch": "Подходящих хостов нет.",
   "temporaryJumpPickerSavedRoute": "Использовать сохранённый маршрут (без временного хоста)",
-  "temporaryJumpPickerSearch": "Поиск хостов"
+  "temporaryJumpPickerSearch": "Поиск хостов",
+  "webUpdateDownloading": "Новая веб-версия загружается в фоне. Можно продолжать работу: страница остаётся на текущей версии, пока загрузка не завершится и вы не перезагрузите её."
 }

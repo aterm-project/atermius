@@ -23,6 +23,7 @@ From `apps/client` / 在 `apps/client` 执行:
 
 ```sh
 flutter build web --release --no-web-resources-cdn
+dart run tool/web_cache_manifest.dart build/web
 ```
 
 Then, from the repository root / 然后在仓库根目录:
