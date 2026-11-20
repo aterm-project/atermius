@@ -27553,7 +27553,7 @@ abstract class AppLocalizations {
   /// External editor (file tab) UI text.
   ///
   /// In en, this message translates to:
-  /// **'Stop watching'**
+  /// **'End external edit'**
   String get fileEditStop;
 
   /// External editor (file tab) UI text.
@@ -31461,6 +31461,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sort hosts: {order}'**
   String hostSortCurrent(String order);
+
+  /// No description provided for @fileCopyBetweenHosts.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy between hosts'**
+  String get fileCopyBetweenHosts;
+
+  /// No description provided for @fileCopyFromTo.
+  ///
+  /// In en, this message translates to:
+  /// **'From {source}\nTo {destination}'**
+  String fileCopyFromTo(String source, String destination);
+
+  /// No description provided for @fileCopyViaLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy through this device'**
+  String get fileCopyViaLocal;
+
+  /// No description provided for @fileCopyDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy directly over SSH'**
+  String get fileCopyDirect;
+
+  /// No description provided for @fileCopyDirectFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'If the SSH connection fails, copy through this device.'**
+  String get fileCopyDirectFallback;
+
+  /// No description provided for @fileCopyCountdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy starts in {seconds} s.'**
+  String fileCopyCountdown(int seconds);
+
+  /// No description provided for @fileCopyFallingBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct SSH failed. Continuing through this device.'**
+  String get fileCopyFallingBack;
 }
 
 class _AppLocalizationsDelegate

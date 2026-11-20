@@ -5413,6 +5413,7 @@ _showMessage(
                           title: entry.title,
                           isConnected: true,
                           isFile: true,
+                          fileController: entry.controller,
                           canDetach: supportsFilesWindows,
                         ),
                     ], (tab) => tab.id),

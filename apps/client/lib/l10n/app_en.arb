@@ -13932,7 +13932,7 @@
   "@fileEditOpenExternal": {
     "description": "External editor (file tab) UI text."
   },
-  "fileEditStop": "Stop watching",
+  "fileEditStop": "End external edit",
   "fileEditStatusFailed": "Upload failed — local change kept",
   "fileEditKeepLocal": "Keep local",
   "fileEditReplace": "Replace server copy",
@@ -16512,6 +16512,30 @@
     "placeholders": {
       "order": {
         "type": "String"
+      }
+    }
+  },
+  "fileCopyBetweenHosts": "Copy between hosts",
+  "fileCopyFromTo": "From {source}\nTo {destination}",
+  "fileCopyViaLocal": "Copy through this device",
+  "fileCopyDirect": "Copy directly over SSH",
+  "fileCopyDirectFallback": "If the SSH connection fails, copy through this device.",
+  "fileCopyCountdown": "Copy starts in {seconds} s.",
+  "fileCopyFallingBack": "Direct SSH failed. Continuing through this device.",
+  "@fileCopyFromTo": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "@fileCopyCountdown": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
       }
     }
   }

@@ -15,7 +15,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, precisionErrorTolerance;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -191,40 +191,85 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
 
   Offset _pan = Offset.zero;
 
-  /// How far the picture is slid up from under the soft keyboard, in logical
-  /// pixels (0 while nothing is covered). The remote keeps its resolution: an
-  /// overlaid keyboard and its key bar hide the bottom of the picture, and
-  /// the slide handle brings that part into view.
-  double _keyboardPan = 0;
-  double _keyboardPanLimit = 0;
+  // Temporary translation of the painted desktop, in local logical pixels.
+  // The normal actual-size scroll position is restored when the IME closes.
+  Offset _keyboardPan = Offset.zero;
+  Rect _keyboardPanBounds = Rect.zero;
 
-  void _slideUnderKeyboard(double delta) {
-    final next = (_keyboardPan + delta).clamp(0.0, _keyboardPanLimit);
+  Rect _keyboardTravel(
+    Rect picture,
+    Size area,
+    double covered, {
+    required bool fourWay,
+  }) {
+    final visible = Size(area.width, math.max(0.0, area.height - covered));
+    final hiddenBottom = math.max(0.0, picture.bottom - visible.height);
+    if (!fourWay) {
+      return Rect.fromLTRB(0, -math.min(hiddenBottom, covered), 0, 0);
+    }
+
+    // An oversized desktop can travel edge to edge. A fitted desktop can
+    // also move sideways (e.g. around a floating IME); keep its centre in
+    // the pane so the picture can always be brought back.
+    final wide = picture.width - visible.width > precisionErrorTolerance;
+    final left = wide ? visible.width - picture.right : -picture.center.dx;
+    final right = wide ? -picture.left : visible.width - picture.center.dx;
+    final hiddenTop = math.max(0.0, -picture.top);
+    if (hiddenBottom > precisionErrorTolerance ||
+        hiddenTop > precisionErrorTolerance) {
+      return Rect.fromLTRB(left, -hiddenBottom, right, hiddenTop);
+    }
+    return Rect.fromLTRB(
+      left,
+      -picture.center.dy,
+      right,
+      visible.height - picture.center.dy,
+    );
+  }
+
+  Offset _clampKeyboardPan(Offset pan, Rect bounds) => Offset(
+    pan.dx.clamp(bounds.left, bounds.right),
+    pan.dy.clamp(bounds.top, bounds.bottom),
+  );
+
+  void _slideUnderKeyboard(Offset delta) {
+    final next = _clampKeyboardPan(_keyboardPan + delta, _keyboardPanBounds);
     if (next != _keyboardPan) setState(() => _keyboardPan = next);
   }
 
-  /// The handle that slides the picture while the keyboard covers part of
-  /// it. Dragging it up moves the picture up, like dragging the page.
-  Widget _keyboardPanHandle() {
+  Widget _keyboardPanHandle({required bool fourWay}) {
     final colors = Theme.of(context).colorScheme;
-    final step = math.max(24.0, _keyboardPanLimit / 4);
-    String percent(double pan) => _keyboardPanLimit <= 0
+    final bounds = _keyboardPanBounds;
+    final stepY = math.max(24.0, bounds.height / 4);
+    final stepX = math.max(24.0, bounds.width / 4);
+    String percent(double y) => bounds.height <= 0
         ? '0%'
-        : '${(pan.clamp(0.0, _keyboardPanLimit) / _keyboardPanLimit * 100).round()}%';
+        : '${((bounds.bottom - y.clamp(bounds.top, bounds.bottom)) / bounds.height * 100).round()}%';
     return Semantics(
       slider: true,
       label: context.l10n.desktopKeyboardPan,
-      value: percent(_keyboardPan),
-      increasedValue: percent(_keyboardPan + step),
-      decreasedValue: percent(_keyboardPan - step),
-      onIncrease: () => _slideUnderKeyboard(step),
-      onDecrease: () => _slideUnderKeyboard(-step),
+      value: percent(_keyboardPan.dy),
+      increasedValue: percent(_keyboardPan.dy - stepY),
+      decreasedValue: percent(_keyboardPan.dy + stepY),
+      onIncrease: () => _slideUnderKeyboard(Offset(0, -stepY)),
+      onDecrease: () => _slideUnderKeyboard(Offset(0, stepY)),
+      onScrollLeft: fourWay
+          ? () => _slideUnderKeyboard(Offset(-stepX, 0))
+          : null,
+      onScrollRight: fourWay
+          ? () => _slideUnderKeyboard(Offset(stepX, 0))
+          : null,
       child: GestureDetector(
         key: const ValueKey('desktop_keyboard_pan'),
         behavior: HitTestBehavior.opaque,
         excludeFromSemantics: true,
-        onVerticalDragUpdate: (details) =>
-            _slideUnderKeyboard(-details.delta.dy),
+        dragStartBehavior: DragStartBehavior.down,
+        onPanUpdate: fourWay
+            ? (details) => _slideUnderKeyboard(details.delta)
+            : null,
+        onVerticalDragUpdate: fourWay
+            ? null
+            : (details) => _slideUnderKeyboard(Offset(0, details.delta.dy)),
         child: Material(
           color: colors.surfaceContainerHigh.withValues(alpha: 0.86),
           shape: const StadiumBorder(),
@@ -232,7 +277,10 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
           child: SizedBox(
             width: 48,
             height: 48,
-            child: Icon(Icons.swap_vert, color: colors.onSurface),
+            child: Icon(
+              fourWay ? Icons.open_with : Icons.swap_vert,
+              color: colors.onSurface,
+            ),
           ),
         ),
       ),
@@ -985,6 +1033,8 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
               _mobilePlatform &&
               DesktopKeyboardController.instance.mode ==
                   DesktopKeyboardMode.overlay;
+          final keyboardOverlay = overlay && _keyboardOpen;
+          final fourWay = Theme.of(context).platform == TargetPlatform.android;
           final view = View.of(context);
           final box = context.findRenderObject() as RenderBox?;
           final top = box != null && box.hasSize
@@ -993,13 +1043,15 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
           final keyboardTop =
               (view.physicalSize.height - view.viewInsets.bottom) /
               view.devicePixelRatio;
-          final overlap = overlay && _keyboardOpen
+          final overlap = keyboardOverlay
               ? (top + pane.maxHeight - keyboardTop).clamp(0.0, pane.maxHeight)
               : 0.0;
           final visibleHeight = math.max(0.0, pane.maxHeight - overlap);
           final keybarHeight = _mobilePlatform && _keyboardOpen
               ? (visibleHeight >= 280 ? 96.0 : 48.0)
               : 0.0;
+          final panInKeybar =
+              keyboardOverlay && fourWay && visibleHeight - keybarHeight < 56;
           return Stack(
             children: [
               Positioned.fill(
@@ -1044,20 +1096,16 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                             (area.width - size.width * scale) / 2,
                             (area.height - size.height * scale) / 2,
                           );
-                    // An overlaid keyboard and its key bar cover the bottom
-                    // of this surface. The picture may be slid up by as much
-                    // of it as they hide, never further.
-                    final covered = overlay && _keyboardOpen
-                        ? overlap + keybarHeight
-                        : 0.0;
-                    final hidden = covered <= 0
-                        ? 0.0
-                        : (placed.dy +
-                                  size.height * scale -
-                                  (area.height - covered))
-                              .clamp(0.0, covered);
-                    _keyboardPan = _keyboardPan.clamp(0.0, hidden);
-                    final offset = placed.translate(0, -_keyboardPan);
+                    final bounds = keyboardOverlay
+                        ? _keyboardTravel(
+                            placed & (size * scale),
+                            area,
+                            overlap + keybarHeight,
+                            fourWay: fourWay,
+                          )
+                        : Rect.zero;
+                    _keyboardPan = _clampKeyboardPan(_keyboardPan, bounds);
+                    final offset = placed + _keyboardPan;
                     // Where a point of this surface lies on the remote
                     // desktop.
                     Offset remote(Offset local) =>
@@ -1136,13 +1184,13 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                     final limit = actual ? maxPan : Offset.zero;
                     if (limit != _panLimit ||
                         area != _panArea ||
-                        hidden != _keyboardPanLimit) {
+                        bounds != _keyboardPanBounds) {
                       // Pan bars and the slide handle live outside this
                       // LayoutBuilder; refresh them once layout has produced
                       // the new bounds.
                       _panLimit = limit;
                       _panArea = area;
-                      _keyboardPanLimit = hidden;
+                      _keyboardPanBounds = bounds;
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (mounted) setState(() {});
                       });
@@ -1355,6 +1403,9 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                     connected: session.state == 'connected',
                     trackpad: _touch.trackpad,
                     keybarHeight: keybarHeight,
+                    panHandle: panInKeybar
+                        ? _keyboardPanHandle(fourWay: true)
+                        : null,
                     menu: widget.embeddedMenu ? menuButton() : null,
                     onKeyboardChanged: (value) {
                       DesktopKeyboardController.instance.keyboardVisible(
@@ -1378,14 +1429,17 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                     },
                   ),
                 ),
-              if (_mobilePlatform && _keyboardPanLimit > 0)
+              if (keyboardOverlay &&
+                  !panInKeybar &&
+                  (fourWay || _keyboardPanBounds.height > 0))
                 Positioned(
                   key: const ValueKey('desktop_keyboard_pan_slot'),
-                  // The start side above the key bar shows what the input
-                  // method is composing.
-                  right: 8,
+                  // Keep the grip clear of IME preedit text and the edge dock.
+                  right: fourWay
+                      ? math.min(56.0, math.max(0.0, pane.maxWidth - 48))
+                      : 8,
                   bottom: overlap + keybarHeight + 8,
-                  child: _keyboardPanHandle(),
+                  child: _keyboardPanHandle(fourWay: fourWay),
                 ),
               if (widget.embeddedMenu && !_mobilePlatform && _paneSlot == null)
                 Positioned(

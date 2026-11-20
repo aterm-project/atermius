@@ -4610,7 +4610,7 @@
   "fileEditStatusChanged": "ローカルで変更済み — 未アップロード",
   "fileEditTooMany": "外部で同時に編集できるファイルは最大 {count} 個です。",
   "fileEditLocalMissing": "ローカルコピーが見つかりません。何もアップロードされていません。",
-  "fileEditStop": "監視を停止",
+  "fileEditStop": "外部編集を終了",
   "fileEditNotRegular": "外部で編集できるのは通常のリモートファイルのみです。",
   "fileEditStatusWatching": "保存を監視中",
   "fileEditIgnore": "無視",
@@ -5272,5 +5272,12 @@
   "hostSortAddress": "アドレス",
   "hostSortProtocol": "プロトコル",
   "hostSortFavoritesFirst": "お気に入り優先",
-  "hostSortCurrent": "ホストの並べ替え：{order}"
+  "hostSortCurrent": "ホストの並べ替え：{order}",
+  "fileCopyBetweenHosts": "ホスト間でコピー",
+  "fileCopyFromTo": "コピー元 {source}\nコピー先 {destination}",
+  "fileCopyViaLocal": "この端末を経由してコピー",
+  "fileCopyDirect": "SSH で直接コピー",
+  "fileCopyDirectFallback": "SSH 接続に失敗した場合は、この端末を経由してコピーします。",
+  "fileCopyCountdown": "{seconds} 秒後にコピーを開始します。",
+  "fileCopyFallingBack": "SSH 直接接続に失敗しました。この端末を経由して続行します。"
 }

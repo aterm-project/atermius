@@ -33,6 +33,7 @@ class DesktopMobileControls extends StatefulWidget {
     required this.onTogglePointer,
     required this.onKeyboardChanged,
     required this.keybarHeight,
+    this.panHandle,
     this.menu,
   });
   final FocusNode focus;
@@ -46,6 +47,7 @@ class DesktopMobileControls extends StatefulWidget {
   final VoidCallback onTogglePointer;
   final ValueChanged<bool> onKeyboardChanged;
   final double keybarHeight;
+  final Widget? panHandle;
   final Widget? menu;
   @override
   State<DesktopMobileControls> createState() => DesktopMobileControlsState();
@@ -505,6 +507,7 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
                       ),
                     ),
                   ),
+                  if (index == 0 && widget.panHandle != null) widget.panHandle!,
                 ],
               ),
             ),

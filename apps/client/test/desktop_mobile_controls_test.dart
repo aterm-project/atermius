@@ -2,6 +2,7 @@ import 'package:aterm_client/desktop/desktop_mobile_controls.dart';
 import 'package:aterm_client/desktop/desktop_keyboard_mode.dart';
 import 'package:aterm_client/platform/fullscreen.dart';
 import 'package:aterm_client/desktop/desktop_session.dart';
+import 'package:aterm_client/desktop/desktop_resolution.dart';
 import 'package:aterm_client/desktop/desktop_touch_input.dart';
 import 'package:aterm_client/desktop/desktop_view.dart';
 import 'package:aterm_client/domain/models.dart';
@@ -13,12 +14,17 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Session extends DesktopSession {
-  _Session({this.protocol = HostProtocol.rdp}) {
+  _Session({
+    this.protocol = HostProtocol.rdp,
+    this.localScaling = DesktopLocalScaling.fit,
+  }) {
     state = 'connected';
     display.layer(0).resize(1000, 800);
   }
   @override
   final HostProtocol protocol;
+  @override
+  final DesktopLocalScaling localScaling;
   final sent = <List<Object>>[];
   @override
   void send(List<Object> command) => sent.add(command);
@@ -29,10 +35,11 @@ Future<_Session> _mount(
   WidgetTester tester, {
   TargetPlatform platform = TargetPlatform.android,
   HostProtocol protocol = HostProtocol.rdp,
+  DesktopLocalScaling scaling = DesktopLocalScaling.fit,
   bool safeArea = false,
   Locale? locale,
 }) async {
-  final session = _Session(protocol: protocol);
+  final session = _Session(protocol: protocol, localScaling: scaling);
   await tester.pumpWidget(
     MaterialApp(
       locale: locale,
@@ -305,16 +312,28 @@ void main() {
   group('slide handle under the overlaid keyboard', () {
     final handle = find.byKey(const ValueKey('desktop_keyboard_pan'));
 
-    /// Remote y of a direct touch at [y] on screen (the last pointer report).
-    Future<int> remoteY(WidgetTester tester, _Session session, double y) async {
-      session.sent.clear();
-      await tester.tapAt(Offset(195, y));
+    Future<Offset> remoteAt(
+      WidgetTester tester,
+      _Session session,
+      Offset point,
+    ) async {
+      await tester.tapAt(point);
       await tester.pump(const Duration(milliseconds: 400));
       final report = session.sent.lastWhere(
         (e) => e.first == 'mouse' || e.first == 'touch',
       );
-      return (report.first == 'mouse' ? report[2] : report[4]) as int;
+      final index = report.first == 'mouse' ? 1 : 3;
+      return Offset(
+        (report[index] as int).toDouble(),
+        (report[index + 1] as int).toDouble(),
+      );
     }
+
+    Future<double> remoteY(
+      WidgetTester tester,
+      _Session session,
+      double y,
+    ) async => (await remoteAt(tester, session, Offset(195, y))).dy;
 
     Future<_Session> openOverKeyboard(WidgetTester tester) async {
       tester.view.physicalSize = const Size(390, 844);
@@ -402,6 +421,100 @@ void main() {
       );
       await tester.pump();
       expect(await remoteY(tester, session, 422), closeTo(400, 4));
+    });
+
+    testWidgets(
+      'floating Android IME can pan a fitted RDP picture on both axes '
+      'even when the keyboard reports zero inset',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final session = await _mount(tester);
+        await tester.pump(const Duration(milliseconds: 300));
+        await _open(tester);
+        await tester.pump();
+        expect(
+          find.descendant(of: handle, matching: find.byIcon(Icons.open_with)),
+          findsOneWidget,
+        );
+        final bar = find.byKey(const ValueKey('desktop_special_keybar'));
+        final keybarRect = tester.getRect(bar);
+        const point = Offset(195, 422);
+        final before = await remoteAt(tester, session, point);
+        _ime(tester, '', 'zhong');
+        await tester.pump();
+        session.sent.clear();
+        await tester.drag(handle, const Offset(39, -39));
+        await tester.pump();
+        expect(session.sent, isEmpty);
+        expect(tester.testTextInput.isVisible, isTrue);
+        expect(
+          find.descendant(
+            of: find.byKey(_preedit),
+            matching: find.text('zhong'),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.getRect(bar), keybarRect);
+        final moved = await remoteAt(tester, session, point);
+        expect(moved.dx, closeTo(before.dx - 100, 1));
+        expect(moved.dy, closeTo(before.dy + 100, 1));
+        await tester.drag(handle, const Offset(-78, 78));
+        await tester.pump();
+        final reversed = await remoteAt(tester, session, point);
+        expect(reversed.dx, closeTo(before.dx + 100, 1));
+        expect(reversed.dy, closeTo(before.dy - 100, 1));
+        _ime(tester, '中');
+        await tester.pump();
+        expect(session.keys, _strokes([0x01004e2d]));
+        expect(session.sent.where((e) => e.first == 'size'), isEmpty);
+        await tester.tap(find.byKey(const ValueKey('desktop_keyboard_toggle')));
+        await tester.pump();
+        expect(handle, findsNothing);
+        expect(await remoteAt(tester, session, point), before);
+      },
+    );
+
+    testWidgets('landscape actual-size pan reaches both remote edges and keeps '
+        'the grip reachable above a tall Android keyboard', (tester) async {
+      tester.view.physicalSize = const Size(800, 420);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final session = await _mount(
+        tester,
+        scaling: DesktopLocalScaling.actualSize,
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await _open(tester);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 335);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('desktop_special_keybar')),
+          matching: handle,
+        ),
+        findsOneWidget,
+      );
+      expect(tester.getRect(handle).bottom, lessThanOrEqualTo(85));
+      session.sent.clear();
+      await tester.drag(handle, const Offset(-1200, -1200));
+      await tester.pump();
+      expect(session.sent, isEmpty);
+      // The 800 x 37 visible area is now at (200, 763) in the 1000 x 800 desktop.
+      expect(
+        await remoteAt(tester, session, const Offset(300, 20)),
+        const Offset(500, 783),
+      );
+      await tester.drag(handle, const Offset(1200, 1200));
+      await tester.pump();
+      expect(
+        await remoteAt(tester, session, const Offset(300, 20)),
+        const Offset(300, 20),
+      );
+      expect(tester.testTextInput.isVisible, isTrue);
+      expect(session.sent.where((e) => e.first == 'size'), isEmpty);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('a keyboard that resizes the view covers nothing: no handle', (

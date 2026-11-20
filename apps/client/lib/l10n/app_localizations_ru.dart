@@ -17549,7 +17549,7 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get fileEditStop => 'Прекратить отслеживание';
+  String get fileEditStop => 'Завершить внешнее редактирование';
 
   @override
   String get fileEditStatusFailed =>
@@ -19950,4 +19950,31 @@ class AppLocalizationsRu extends AppLocalizations {
   String hostSortCurrent(String order) {
     return 'Сортировка хостов: $order';
   }
+
+  @override
+  String get fileCopyBetweenHosts => 'Копирование между хостами';
+
+  @override
+  String fileCopyFromTo(String source, String destination) {
+    return 'Из $source\nВ $destination';
+  }
+
+  @override
+  String get fileCopyViaLocal => 'Через это устройство';
+
+  @override
+  String get fileCopyDirect => 'Напрямую по SSH';
+
+  @override
+  String get fileCopyDirectFallback =>
+      'При сбое прямого соединения файл будет скопирован через это устройство.';
+
+  @override
+  String fileCopyCountdown(int seconds) {
+    return 'Копирование начнётся через $seconds с.';
+  }
+
+  @override
+  String get fileCopyFallingBack =>
+      'Прямое соединение SSH не удалось. Копирование продолжится через это устройство.';
 }

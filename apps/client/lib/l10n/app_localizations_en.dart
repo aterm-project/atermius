@@ -17507,7 +17507,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get fileEditStop => 'Stop watching';
+  String get fileEditStop => 'End external edit';
 
   @override
   String get fileEditStatusFailed => 'Upload failed — local change kept';
@@ -19885,4 +19885,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String hostSortCurrent(String order) {
     return 'Sort hosts: $order';
   }
+
+  @override
+  String get fileCopyBetweenHosts => 'Copy between hosts';
+
+  @override
+  String fileCopyFromTo(String source, String destination) {
+    return 'From $source\nTo $destination';
+  }
+
+  @override
+  String get fileCopyViaLocal => 'Copy through this device';
+
+  @override
+  String get fileCopyDirect => 'Copy directly over SSH';
+
+  @override
+  String get fileCopyDirectFallback =>
+      'If the SSH connection fails, copy through this device.';
+
+  @override
+  String fileCopyCountdown(int seconds) {
+    return 'Copy starts in $seconds s.';
+  }
+
+  @override
+  String get fileCopyFallingBack =>
+      'Direct SSH failed. Continuing through this device.';
 }

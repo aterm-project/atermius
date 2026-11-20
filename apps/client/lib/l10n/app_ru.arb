@@ -4610,7 +4610,7 @@
   "fileEditStatusChanged": "Изменён локально — не загружен",
   "fileEditTooMany": "Одновременно во внешних приложениях можно редактировать не более {count} файлов.",
   "fileEditLocalMissing": "Локальная копия отсутствует. Ничего не загружено.",
-  "fileEditStop": "Прекратить отслеживание",
+  "fileEditStop": "Завершить внешнее редактирование",
   "fileEditNotRegular": "Во внешних приложениях можно редактировать только обычные удалённые файлы.",
   "fileEditStatusWatching": "Ожидание сохранения",
   "fileEditIgnore": "Игнорировать",
@@ -5272,5 +5272,12 @@
   "hostSortAddress": "Адрес",
   "hostSortProtocol": "Протокол",
   "hostSortFavoritesFirst": "Сначала избранные",
-  "hostSortCurrent": "Сортировка хостов: {order}"
+  "hostSortCurrent": "Сортировка хостов: {order}",
+  "fileCopyBetweenHosts": "Копирование между хостами",
+  "fileCopyFromTo": "Из {source}\nВ {destination}",
+  "fileCopyViaLocal": "Через это устройство",
+  "fileCopyDirect": "Напрямую по SSH",
+  "fileCopyDirectFallback": "При сбое прямого соединения файл будет скопирован через это устройство.",
+  "fileCopyCountdown": "Копирование начнётся через {seconds} с.",
+  "fileCopyFallingBack": "Прямое соединение SSH не удалось. Копирование продолжится через это устройство."
 }

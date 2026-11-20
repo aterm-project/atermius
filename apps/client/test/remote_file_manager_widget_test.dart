@@ -5,11 +5,13 @@ import 'dart:async';
 import 'package:aterm_client/platform/file_drop_region.dart';
 import 'package:aterm_client/sftp/remote_file_operations.dart';
 import 'package:aterm_client/ssh/file_workspace_controller.dart';
+import 'package:aterm_client/ssh/peer_file_copy.dart';
 import 'package:aterm_client/ssh/local_profile_sftp_controller.dart';
 import 'package:aterm_client/ssh/scp_transfer_types.dart';
 import 'package:aterm_client/ssh/ssh_service.dart';
 import 'package:aterm_client/ui/app_theme.dart';
 import 'package:aterm_client/ui/remote_file_workspace.dart';
+import 'package:aterm_client/ui/workspace_tab_bar.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
@@ -64,25 +66,28 @@ class _Transport extends Fake
 void main() {
   late MemoryRemoteFs fs;
 
-  FileWorkspaceController controller(List<String> uploads) =>
-      FileWorkspaceController(
-        connection: SshConnection(client: _Client(), session: _Session()),
-        protocol: SshTransferProtocol.sftp,
-        initialPath: '/srv',
-        transportFactory: (_) async => _Transport(fs),
-        uploader:
-            ({
-              required remotePath,
-              required source,
-              required size,
-              required cancellation,
-              required onProgress,
-            }) async {
-              await source.drain<void>();
-              uploads.add(remotePath);
-              fs.addFile(remotePath, 'uploaded');
-            },
-      );
+  FileWorkspaceController controller(
+    List<String> uploads, {
+    RemoteFileExchange? exchange,
+  }) => FileWorkspaceController(
+    connection: SshConnection(client: _Client(), session: _Session()),
+    protocol: SshTransferProtocol.sftp,
+    initialPath: '/srv',
+    exchange: exchange,
+    transportFactory: (_) async => _Transport(fs),
+    uploader:
+        ({
+          required remotePath,
+          required source,
+          required size,
+          required cancellation,
+          required onProgress,
+        }) async {
+          await source.drain<void>();
+          uploads.add(remotePath);
+          fs.addFile(remotePath, 'uploaded');
+        },
+  );
 
   setUp(() {
     fs = MemoryRemoteFs()
@@ -170,6 +175,136 @@ void main() {
       },
     );
   }
+
+  testWidgets('peer paste and drag remember the route and wait five seconds', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    await tester.binding.setSurfaceSize(const Size(1440, 800));
+    final exchange = RemoteFileExchange();
+    final source = controller([], exchange: exchange);
+    final target = controller([], exchange: exchange);
+    Finder pane(FileWorkspaceController model) => find.byWidgetPredicate(
+      (widget) => widget is RemoteFileWorkspace && widget.controller == model,
+    );
+    Finder inPane(FileWorkspaceController model, Finder finder) =>
+        find.descendant(of: pane(model), matching: finder);
+    Future<void> shortcut(LogicalKeyboardKey key) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(key);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+    }
+
+    try {
+      await pumpWorkspace(
+        tester,
+        Column(
+          children: [
+            WorkspaceTabBar(
+              tabs: [
+                WorkspaceTab(
+                  id: 's',
+                  title: 'Source',
+                  isFile: true,
+                  fileController: source,
+                ),
+                WorkspaceTab(
+                  id: 't',
+                  title: 'Destination',
+                  isFile: true,
+                  fileController: target,
+                ),
+              ],
+              selectedId: 's',
+              onSelect: (_) {},
+              onClose: (_) {},
+            ),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(child: RemoteFileWorkspace(controller: source)),
+                  Expanded(child: RemoteFileWorkspace(controller: target)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+      final file = inPane(source, find.text('a.txt'));
+      await tester.tap(file);
+      await tester.pump(const Duration(milliseconds: 350));
+      await shortcut(LogicalKeyboardKey.keyC);
+      expect(target.clipboard?.owner, same(source));
+      final destination =
+          tester.getBottomLeft(
+            inPane(
+              target,
+              find.byKey(const ValueKey('remote_file_background')),
+            ),
+          ) +
+          const Offset(40, -25);
+      await tester.tapAt(destination);
+      await shortcut(LogicalKeyboardKey.keyV);
+      expect(find.text('Copy between hosts'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.text('Name already in use'), findsNothing);
+      // Early confirmation uses the newly selected route.
+      await tester.tap(
+        inPane(target, find.byKey(const ValueKey('file_manager_paste_here'))),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Copy directly over SSH'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Copy'));
+      await tester.pumpAndSettle();
+      expect(find.text('Name already in use'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      Future<void> dragTo(Offset to) async {
+        final start = tester.getCenter(file);
+        final gesture = await tester.startGesture(
+          start,
+          kind: PointerDeviceKind.mouse,
+        );
+        for (var i = 1; i <= 10; i++) {
+          await gesture.moveTo(Offset.lerp(start, to, i / 10)!);
+          await tester.pump();
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+      }
+
+      await dragTo(tester.getCenter(find.text('Destination')));
+      expect(find.text('Copy between hosts'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await dragTo(destination);
+      final radios = tester.widget<RadioGroup<FileCopyRoute>>(
+        find.byType(RadioGroup<FileCopyRoute>),
+      );
+      expect(radios.groupValue, FileCopyRoute.direct);
+      await tester.pump(const Duration(seconds: 4));
+      expect(find.text('Copy starts in 1 s.'), findsOneWidget);
+      expect(find.text('Name already in use'), findsNothing);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.text('Name already in use'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(fs.text('/srv/a.txt'), 'A');
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+      await source.close();
+      expect(target.clipboard, isNull);
+      await target.close();
+      debugDefaultTargetPlatformOverride = null;
+      await tester.binding.setSurfaceSize(null);
+    }
+  });
 
   testWidgets('desktop drag onto a folder moves only after confirmation', (
     tester,

@@ -29,6 +29,10 @@
   also enables `SocketOption.tcpNoDelay` to remove Nagle interactive keystroke
   latency.
 
+- `SSHClient.verifiedHostKey` returns a copy of the public host key accepted
+  during key exchange. Direct file copies pin the peer SSH connection to that
+  key before sending data.
+
 When updating dartssh2, re-apply `renameNoReplace` (or switch to an upstream
 no-replace API if one appears) and keep
 `apps/client/test/remote_file_operations_test.dart` passing. The application

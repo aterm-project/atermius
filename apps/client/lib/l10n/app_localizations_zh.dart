@@ -15600,7 +15600,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get fileEditStop => '停止监视';
+  String get fileEditStop => '结束外部编辑';
 
   @override
   String get fileEditStatusFailed => '上传失败 — 已保留本地更改';
@@ -17822,4 +17822,29 @@ class AppLocalizationsZh extends AppLocalizations {
   String hostSortCurrent(String order) {
     return '主机排序：$order';
   }
+
+  @override
+  String get fileCopyBetweenHosts => '跨主机复制';
+
+  @override
+  String fileCopyFromTo(String source, String destination) {
+    return '从 $source\n到 $destination';
+  }
+
+  @override
+  String get fileCopyViaLocal => '通过本机复制';
+
+  @override
+  String get fileCopyDirect => '通过 SSH 远端直连复制';
+
+  @override
+  String get fileCopyDirectFallback => '直连失败时将自动通过本机传输。';
+
+  @override
+  String fileCopyCountdown(int seconds) {
+    return '将在 $seconds 秒后开始复制。';
+  }
+
+  @override
+  String get fileCopyFallingBack => 'SSH 直连失败，已切换为通过本机传输。';
 }

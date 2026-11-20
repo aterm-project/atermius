@@ -453,6 +453,9 @@ class SSHClient {
   /// completed.
   String? get remoteVersion => _transport.remoteVersion;
 
+  /// Wire-format host public key for pinning another connection to this peer.
+  Uint8List? get verifiedHostKey => _transport.verifiedHostKey;
+
   /// Whether strict key exchange is in effect for this connection.
   ///
   /// It is negotiated automatically and requires the server to support it too.

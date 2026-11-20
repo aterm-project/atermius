@@ -396,6 +396,9 @@ class _FakeSshClient extends Fake implements SSHClient {
 class _FakeSftpClient extends Fake implements SftpClient {
   _FakeSftpClient(this.sftpPaths);
 
+  @override
+  Future<SftpHandsake> get handshake async => SftpHandsake(3, {});
+
   final List<String> sftpPaths;
 
   @override

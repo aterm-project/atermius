@@ -11,6 +11,8 @@ import '../domain/sftp_entries.dart';
 import '../platform/file_drop_region.dart';
 import '../sftp/external_edit_manager.dart';
 import '../ssh/file_workspace_controller.dart';
+import '../ssh/peer_file_copy.dart';
+import 'file_copy_route_dialog.dart';
 import 'app_motion.dart';
 import 'external_edit_footer.dart';
 import 'sftp_text_editor_dialog.dart';
@@ -20,7 +22,7 @@ import '../l10n/l10n.dart';
 
 enum _FileAction {
   open,
-  download,
+  endExternalEdit,
   edit,
   openExternal,
   rename,
@@ -36,13 +38,154 @@ enum _FileAction {
   copyFolderPath,
 }
 
-/// An internal remote-entry drag; accepted only by the tab that started it.
+/// Captures the source tab and path at the start of a workspace drag.
 class _RemoteEntryDrag {
   const _RemoteEntryDrag(this.owner, this.parent, this.entry);
   final FileWorkspaceController owner;
   final String parent;
   final SftpName entry;
   String get path => sftpChildPath(parent, entry.filename);
+
+  bool canCopyTo(FileWorkspaceController target) =>
+      !identical(owner, target) &&
+      identical(owner.exchange, target.exchange) &&
+      !owner.isClosed &&
+      !target.isClosed &&
+      !owner.busy &&
+      !target.busy &&
+      !target.loading &&
+      (entry.attr.isDirectory ||
+          entry.attr.mode?.type == SftpFileType.regularFile);
+}
+
+Future<bool> _confirmFileAction(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String action,
+  bool destructive = false,
+}) async {
+  final confirmed = await showAppDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(context.l10n.cancel),
+        ),
+        FilledButton(
+          style: destructive
+              ? FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                )
+              : null,
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(action),
+        ),
+      ],
+    ),
+  );
+  return confirmed == true;
+}
+
+Future<bool> _keepBothAt(BuildContext context, String name) =>
+    _confirmFileAction(
+      context,
+      title: context.l10n.fileManagerNameConflictTitle,
+      message: context.l10n.fileManagerNameConflictKeepBoth(name),
+      action: context.l10n.fileManagerKeepBoth,
+    );
+
+Future<void> _copyBetween(
+  BuildContext context,
+  FileWorkspaceController source,
+  String path,
+  FileWorkspaceController target,
+  String directory, {
+  required bool Function() isCurrent,
+}) async {
+  final parent = target.path;
+  bool valid() =>
+      context.mounted &&
+      isCurrent() &&
+      target.path == parent &&
+      !target.isClosed &&
+      !source.isClosed;
+  var route = FileCopyRoute.local;
+  if (!source.sharesFilesystem(target)) {
+    final choice = await showAppDialog<FileCopyRoute>(
+      context: context,
+      builder: (_) => FileCopyRouteDialog(
+        source: '${source.host?.name ?? ''} $path'.trim(),
+        destination: '${target.host?.name ?? ''} $directory'.trim(),
+      ),
+    );
+    if (choice == null) return;
+    route = choice;
+  }
+  if (!valid()) return;
+  await target.copyFrom(
+    source,
+    path,
+    directory,
+    route: route,
+    keepBoth: (name) async =>
+        context.mounted && valid() && await _keepBothAt(context, name),
+    onFallback: () {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.fileCopyFallingBack)),
+        );
+      }
+    },
+  );
+}
+
+/// Dropping on a background tab copies to the folder it currently displays.
+class FileTabDropTarget extends StatelessWidget {
+  const FileTabDropTarget({
+    required this.controller,
+    required this.child,
+    super.key,
+  });
+  final FileWorkspaceController controller;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => DragTarget<_RemoteEntryDrag>(
+    onWillAcceptWithDetails: (details) => details.data.canCopyTo(controller),
+    onAcceptWithDetails: (details) async {
+      final drag = details.data;
+      if (!drag.canCopyTo(controller)) return;
+      try {
+        await _copyBetween(
+          context,
+          drag.owner,
+          drag.path,
+          controller,
+          controller.path,
+          isCurrent: () => !controller.isClosed,
+        );
+      } catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(fileWorkspaceErrorText(error))),
+          );
+        }
+      }
+    },
+    builder: (context, candidates, _) => DecoratedBox(
+      decoration: BoxDecoration(
+        border: candidates.isEmpty
+            ? null
+            : Border.all(color: Theme.of(context).colorScheme.primary),
+      ),
+      child: child,
+    ),
+  );
 }
 
 /// Mouse-driven platforms get internal drag-to-folder; touch keeps scrolling
@@ -54,7 +197,12 @@ bool get _pointerDragPlatform =>
 
 /// Embedded directly below the workspace tabs; the caller owns the controller.
 class RemoteFileWorkspace extends StatefulWidget {
-  const RemoteFileWorkspace({required this.controller, super.key});
+  const RemoteFileWorkspace({
+    required this.controller,
+    this.onDirectoryChanged,
+    super.key,
+  });
+  final ValueChanged<String>? onDirectoryChanged;
   final FileWorkspaceController controller;
 
   @override
@@ -64,6 +212,7 @@ class RemoteFileWorkspace extends StatefulWidget {
 class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
   late final TextEditingController _path;
   final _pathFocus = FocusNode();
+  final _listingFocus = FocusNode();
   bool _editingPath = false;
   FileWorkspaceController get model => widget.controller;
   bool _working = false;
@@ -90,6 +239,9 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
 
   void _changed() {
     if (!mounted) return;
+    if (!model.loading && model.error == null) {
+      widget.onDirectoryChanged?.call(model.path);
+    }
     if (!model.loading && !_pathFocus.hasFocus) _path.text = model.path;
     setState(() {});
   }
@@ -98,6 +250,7 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
   void dispose() {
     model.removeListener(_changed);
     _pathFocus.dispose();
+    _listingFocus.dispose();
     _path.dispose();
     super.dispose();
   }
@@ -210,21 +363,17 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
     }
   }
 
-  Future<void> _transfer({SftpName? item}) async {
+  Future<void> _uploadFile() async {
+    final owner = model;
     final completed = await showSshTransferDialog(
       context: context,
-      client: model.connection.client,
-      direction: item == null
-          ? SshTransferDirection.upload
-          : SshTransferDirection.download,
-      remotePath: item == null
-          ? model.path
-          : sftpChildPath(model.path, item.filename),
-      uploadIntoDirectory: item == null,
-      suggestedName: item?.filename,
-      initialProtocol: model.protocol,
+      client: owner.connection.client,
+      direction: SshTransferDirection.upload,
+      remotePath: owner.path,
+      uploadIntoDirectory: true,
+      initialProtocol: owner.protocol,
     );
-    if (completed == true && !model.isClosed) await model.refresh();
+    if (completed == true && !owner.isClosed) await owner.refresh();
   }
 
   Future<String?> _askName({
@@ -235,38 +384,6 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
     context: context,
     builder: (_) => _NameDialog(title: title, action: action, initial: initial),
   );
-
-  Future<bool> _confirm({
-    required String title,
-    required String message,
-    required String action,
-    bool destructive = false,
-  }) async {
-    final confirmed = await showAppDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.l10n.cancel),
-          ),
-          FilledButton(
-            style: destructive
-                ? FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                    foregroundColor: Theme.of(context).colorScheme.onError,
-                  )
-                : null,
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(action),
-          ),
-        ],
-      ),
-    );
-    return confirmed == true;
-  }
 
   Future<void> _createDirectory() async {
     final owner = model;
@@ -298,7 +415,8 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
     final plan = await owner.planDelete(parent, item);
     if (!mounted || owner.isClosed) return;
     final contents = plan.entries.length - 1;
-    final confirmed = await _confirm(
+    final confirmed = await _confirmFileAction(
+      context,
       title: context.l10n.confirmDeletion,
       message: contents <= 0
           ? context.l10n.fileManagerDeleteConfirm(item.filename)
@@ -317,16 +435,29 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
     final owner = model;
     final clip = owner.clipboard;
     if (clip == null) return;
-    await owner.paste(
+    if (clip.owner != owner) {
+      await _copyFrom(clip.owner, clip.path, directory);
+    } else {
+      await owner.paste(directory, keepBoth: _keepBoth);
+    }
+  }
+
+  Future<bool> _keepBoth(String name) async =>
+      mounted && await _keepBothAt(context, name);
+
+  Future<void> _copyFrom(
+    FileWorkspaceController source,
+    String path,
+    String directory,
+  ) {
+    final target = model;
+    return _copyBetween(
+      context,
+      source,
+      path,
+      target,
       directory,
-      keepBoth: (name) async {
-        if (!mounted) return false;
-        return _confirm(
-          title: context.l10n.fileManagerNameConflictTitle,
-          message: context.l10n.fileManagerNameConflictKeepBoth(name),
-          action: context.l10n.fileManagerKeepBoth,
-        );
-      },
+      isCurrent: () => mounted && identical(target, model),
     );
   }
 
@@ -334,7 +465,8 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
     final owner = model;
     if (!identical(drag.owner, owner) || drag.parent != owner.path) return;
     final destination = sftpChildPath(owner.path, folder.filename);
-    final confirmed = await _confirm(
+    final confirmed = await _confirmFileAction(
+      context,
       title: context.l10n.fileManagerMoveTitle,
       message: context.l10n.fileManagerMoveConfirm(
         drag.entry.filename,
@@ -385,10 +517,6 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
     }
     try {
       await edits.open(owner.entryPath(item), listedSize: item.attr.size);
-      if (mounted &&
-          defaultTargetPlatform != TargetPlatform.android &&
-          defaultTargetPlatform != TargetPlatform.iOS)
-        _snack(context.l10n.fileEditOpened(item.filename));
     } catch (error) {
       if (mounted) _snack(externalEditErrorText(context, error));
     }
@@ -402,7 +530,8 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
     var result = await edits.upload(item);
     if (result == ExternalEditUploadResult.remoteChanged) {
       if (!mounted || owner.isClosed) return;
-      final replace = await _confirm(
+      final replace = await _confirmFileAction(
+        context,
         title: context.l10n.fileEditConflictTitle,
         message: context.l10n.fileEditConflictMessage(item.name),
         action: context.l10n.fileEditReplace,
@@ -539,7 +668,6 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
     return [
       if (directory)
         entry(_FileAction.open, Icons.folder_open, l10n.fileManagerOpen),
-      if (regular) entry(_FileAction.download, Icons.download, l10n.download),
       if (regular) entry(_FileAction.edit, Icons.edit_note, l10n.editText),
       if (regular)
         entry(
@@ -547,6 +675,8 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
           Icons.open_in_new,
           l10n.fileEditOpenExternal,
         ),
+      if (regular && model.externalEdits.itemFor(model.entryPath(item)) != null)
+        entry(_FileAction.endExternalEdit, Icons.close, l10n.fileEditStop),
       const PopupMenuDivider(),
       entry(
         _FileAction.rename,
@@ -627,8 +757,9 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
       default:
         _run(() async {
           switch (action) {
-            case _FileAction.download:
-              await _transfer(item: item);
+            case _FileAction.endExternalEdit:
+              final edit = owner.externalEdits.itemFor(owner.entryPath(item!));
+              if (edit != null) await owner.externalEdits.keepLocal(edit);
             case _FileAction.edit:
               await _edit(item!);
             case _FileAction.openExternal:
@@ -642,7 +773,7 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
             case _FileAction.paste:
               await _paste(parent);
             case _FileAction.upload:
-              await _transfer();
+              await _uploadFile();
             case _FileAction.mkdir:
               await _createDirectory();
             default:
@@ -655,6 +786,8 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
   Future<void> _showMenuAt(Offset global, {SftpName? item}) async {
     final disabled = _working || model.loading || model.isClosed || model.busy;
     if (disabled) return;
+    final owner = model;
+    final parent = owner.path;
     if (item != null) model.select(item);
     final overlay =
         Overlay.of(context).context.findRenderObject()! as RenderBox;
@@ -668,7 +801,13 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
       ),
       items: item == null ? _backgroundMenuItems() : _entryMenuItems(item),
     );
-    if (action == null || !mounted || model.isClosed) return;
+    if (action == null ||
+        !mounted ||
+        model != owner ||
+        model.path != parent ||
+        model.isClosed) {
+      return;
+    }
     _perform(action, item);
   }
 
@@ -702,6 +841,13 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
                     unawaited(_openExternal(item));
                   }
                 },
+          onDoubleTap:
+              !disabled &&
+                  !kIsWeb &&
+                  _pointerDragPlatform &&
+                  item.attr.mode?.type == SftpFileType.regularFile
+              ? () => _run(() => _openExternal(item))
+              : null,
           onSecondaryTapUp: disabled
               ? null
               : (details) => _showMenuAt(details.globalPosition, item: item),
@@ -756,9 +902,10 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
           final drag = details.data;
           final ok =
               !disabled &&
-              identical(drag.owner, model) &&
-              drag.parent == model.path &&
-              drag.entry.filename != item.filename;
+              (drag.canCopyTo(model) ||
+                  (identical(drag.owner, model) &&
+                      drag.parent == model.path &&
+                      drag.entry.filename != item.filename));
           if (ok && _dragTargetName != item.filename) {
             setState(() => _dragTargetName = item.filename);
           }
@@ -771,7 +918,12 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
         },
         onAcceptWithDetails: (details) {
           setState(() => _dragTargetName = null);
-          _run(() => _move(details.data, item));
+          final drag = details.data;
+          if (drag.owner == model) {
+            _run(() => _move(drag, item));
+          } else if (drag.canCopyTo(model)) {
+            _run(() => _copyFrom(drag.owner, drag.path, model.entryPath(item)));
+          }
         },
         builder: (context, _, _) => content,
       );
@@ -815,6 +967,31 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
     return KeyedSubtree(
       key: ValueKey('remote_file_row_${item.filename}'),
       child: row,
+    );
+  }
+
+  Widget _listingShortcuts(Widget child, bool disabled) {
+    if (!_pointerDragPlatform) return child;
+    final mac = defaultTargetPlatform == TargetPlatform.macOS;
+    SingleActivator shortcut(LogicalKeyboardKey key) =>
+        SingleActivator(key, meta: mac, control: !mac);
+    final selected = model.selected;
+    return CallbackShortcuts(
+      bindings: {
+        if (!disabled && selected != null)
+          shortcut(LogicalKeyboardKey.keyC): () =>
+              model.copyToClipboard(selected),
+        if (!disabled && model.canPasteInto(model.path))
+          shortcut(LogicalKeyboardKey.keyV): () => _perform(_FileAction.paste),
+      },
+      child: Focus(
+        focusNode: _listingFocus,
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => _listingFocus.requestFocus(),
+          child: child,
+        ),
+      ),
     );
   }
 
@@ -953,7 +1130,26 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
             enabled: !model.isClosed,
             maxFiles: fileManagerMaxDroppedFiles,
             onDrop: (result) => _onDrop(result, dropOwner, dropDirectory),
-            child: listing,
+            child: DragTarget<_RemoteEntryDrag>(
+              onWillAcceptWithDetails: (details) =>
+                  !disabled && details.data.canCopyTo(model),
+              onAcceptWithDetails: (details) {
+                final drag = details.data;
+                if (drag.canCopyTo(model)) {
+                  _run(() => _copyFrom(drag.owner, drag.path, dropDirectory));
+                }
+              },
+              builder: (context, candidates, _) => DecoratedBox(
+                decoration: BoxDecoration(
+                  border: candidates.isEmpty
+                      ? null
+                      : Border.all(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                ),
+                child: _listingShortcuts(listing, disabled),
+              ),
+            ),
           ),
         ),
         if (!model.isClosed)

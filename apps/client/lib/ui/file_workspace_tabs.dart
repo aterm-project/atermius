@@ -26,7 +26,12 @@ class FileWorkspaceTab {
 
 /// File tabs have independent paths/channels while borrowing a fixed SSH owner.
 class FileWorkspaceTabs extends ChangeNotifier {
+  final exchange = RemoteFileExchange();
   final List<FileWorkspaceTab> _entries = [];
+  // The Files sidebar keeps one browser per live terminal without adding a
+  // file tab to the terminal layout. Its clipboard and lifetime are shared.
+  final List<FileWorkspaceTab> _browsers = [];
+  Iterable<FileWorkspaceTab> get _all => _entries.followedBy(_browsers);
   final Map<String, Future<void>> _closing = {};
   bool _disposed = false;
   List<FileWorkspaceTab> get entries => List.unmodifiable(_entries);
@@ -40,9 +45,11 @@ class FileWorkspaceTabs extends ChangeNotifier {
     required SshTransferProtocol protocol,
     String initialPath = '/',
     bool reuseExisting = true,
+    bool sidebar = false,
   }) {
     if (_disposed) throw StateError(currentL10n.fileWorkspaceIsClosed);
-    final existing = _entries
+    final entries = sidebar ? _browsers : _entries;
+    final existing = entries
         .where(
           (entry) =>
               entry.sourceSessionId == sourceSessionId &&
@@ -56,25 +63,28 @@ class FileWorkspaceTabs extends ChangeNotifier {
       sourceSessionId: sourceSessionId,
       host: host,
       controller: FileWorkspaceController(
+        exchange: exchange,
+        host: host,
         connection: connection,
         protocol: protocol,
         initialPath: initialPath,
       ),
     );
-    _entries.add(entry);
-    notifyListeners();
+    entries.add(entry);
+    if (!sidebar) notifyListeners();
     return entry;
   }
 
   Future<void> close(String id) {
     final pending = _closing[id];
     if (pending != null) return pending;
-    final entry = find(id);
+    final entry = _all.where((entry) => entry.id == id).firstOrNull;
     if (entry == null) return Future.value();
-    _entries.remove(entry);
+    final visible = _entries.remove(entry);
+    _browsers.remove(entry);
     final completion = _close(entry);
     _closing[id] = completion;
-    if (!_disposed) notifyListeners();
+    if (visible && !_disposed) notifyListeners();
     return completion;
   }
 
@@ -89,7 +99,7 @@ class FileWorkspaceTabs extends ChangeNotifier {
 
   Future<void> closeSource(String id) => Future.wait([
     ..._closing.values,
-    ..._entries
+    ..._all
         .where((entry) => entry.sourceSessionId == id)
         .map((entry) => entry.id)
         .toList()
@@ -98,11 +108,11 @@ class FileWorkspaceTabs extends ChangeNotifier {
 
   Future<void> closeAll() => Future.wait([
     ..._closing.values,
-    ..._entries.map((entry) => entry.id).toList().map(close),
+    ..._all.map((entry) => entry.id).toList().map(close),
   ]);
 
   void retainConnections(Map<String, SshConnection> connections) {
-    for (final entry in _entries.toList()) {
+    for (final entry in _all.toList()) {
       if (!identical(
         connections[entry.sourceSessionId],
         entry.controller.connection,

@@ -49,6 +49,14 @@ abstract interface class RemoteFileSystemOperations {
   });
 }
 
+typedef RemoteFileCopier = Future<int> Function(
+  String from,
+  String to, {
+  required int maxBytes,
+  required RemoteFileCancellation cancellation,
+  void Function(int bytes)? onBytes,
+});
+
 /// Hard limits for recursive folder work so an operation can't expand an
 /// unbounded remote tree or stream an unbounded number of bytes.
 class RemoteFileOperationLimits {
@@ -106,7 +114,11 @@ class RemoteFileOperationException implements Exception {
 class RemoteFileCancellation {
   bool _cancelled = false;
   bool get isCancelled => _cancelled;
-  void cancel() => _cancelled = true;
+  void Function()? onCancel;
+  void cancel() {
+    _cancelled = true;
+    onCancel?.call();
+  }
 
   void check() {
     if (_cancelled) {
@@ -344,10 +356,15 @@ class RemoteFileOperations {
     String name, {
     required RemoteFileCancellation cancellation,
     void Function(RemoteFileProgress progress)? onProgress,
+    RemoteFileOperations? source,
+    RemoteFileCopier? copyFile,
+    bool sameFilesystem = true,
   }) async {
     _requireName(name);
     final rootDirectory = plan.rootKind == RemoteTreeEntryKind.directory;
-    if (rootDirectory &&
+    final reader = source ?? this;
+    if (sameFilesystem &&
+        rootDirectory &&
         isSameOrDescendantPath(destinationDirectory, sourcePath)) {
       throw RemoteFileOperationException(
         RemoteFileOperationError.intoItself,
@@ -367,14 +384,14 @@ class RemoteFileOperations {
         final from = _join(sourcePath, entry.relativePath);
         final to = _join(staging, entry.relativePath);
         if (rootDirectory) {
-          await _requireTreeDirectories(sourcePath, entry.relativePath);
+          await reader._requireTreeDirectories(sourcePath, entry.relativePath);
           if (entry.relativePath.isNotEmpty) {
             await _requireTreeDirectories(staging, entry.relativePath);
           }
         }
         if (entry.kind == RemoteTreeEntryKind.directory) {
           // The planned source folder itself must still be a folder.
-          await _requireDirectory(from, entry.relativePath);
+          await reader._requireDirectory(from, entry.relativePath);
           await _fs.createDirectory(to);
           created.add((to, true));
           continue;
@@ -383,7 +400,7 @@ class RemoteFileOperations {
         final cap = min(limits.maxFileBytes, max(0, remaining));
         final int copied;
         try {
-          copied = await _fs.copyRegularFileExclusive(
+          copied = await (copyFile ?? _fs.copyRegularFileExclusive)(
             from,
             to,
             maxBytes: cap,

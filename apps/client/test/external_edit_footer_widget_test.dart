@@ -34,12 +34,13 @@ class _Transport extends Fake
 
 void main() {
   for (final scenario in [
-    (1440.0, TargetPlatform.linux),
+    (1440.0, TargetPlatform.windows),
+    (1024.0, TargetPlatform.macOS),
     (390.0, TargetPlatform.linux),
     (390.0, TargetPlatform.android),
   ]) {
     final (width, target) = scenario;
-    testWidgets('external edit: open, persistent footer, explicit upload and '
+    testWidgets('external edit: open, quiet monitoring, explicit upload and '
         'conflict confirmation at $width $target', (tester) async {
       debugDefaultTargetPlatformOverride = target;
       await tester.binding.setSurfaceSize(Size(width, 700));
@@ -49,9 +50,12 @@ void main() {
       final remote = MemorySftpBytesFs()
         ..files['/srv/a.txt'] = Uint8List.fromList('A\r\n'.codeUnits);
       final platform = MemoryExternalEditPlatform(
-        kind: target == TargetPlatform.android
-            ? ExternalEditPlatformKind.android
-            : ExternalEditPlatformKind.linux,
+        kind: switch (target) {
+          TargetPlatform.windows => ExternalEditPlatformKind.windows,
+          TargetPlatform.macOS => ExternalEditPlatformKind.macos,
+          TargetPlatform.android => ExternalEditPlatformKind.android,
+          _ => ExternalEditPlatformKind.linux,
+        },
       );
       final model = FileWorkspaceController(
         connection: SshConnection(client: _Client(), session: _Session()),
@@ -76,29 +80,43 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.byType(AlertDialog), findsNothing);
           expect(find.textContaining('Opened "a.txt"'), findsNothing);
+        } else if (target == TargetPlatform.windows ||
+            target == TargetPlatform.macOS) {
+          final center = tester.getCenter(find.text('a.txt'));
+          await tester.tapAt(center, kind: PointerDeviceKind.mouse);
+          await tester.pump(const Duration(milliseconds: 60));
+          expect(platform.launches, isEmpty);
+          await tester.tapAt(center, kind: PointerDeviceKind.mouse);
+          await tester.pumpAndSettle();
         } else {
           await tester.tapAt(
             tester.getCenter(find.text('a.txt')),
             buttons: kSecondaryMouseButton,
           );
           await tester.pumpAndSettle();
+          expect(find.text('Download'), findsNothing);
           await tester.tap(
             find.byKey(const ValueKey('file_menu_openExternal')),
           );
           await tester.pumpAndSettle();
         }
         expect(platform.launches, hasLength(1));
+        if (target == TargetPlatform.windows ||
+            target == TargetPlatform.macOS) {
+          expect(platform.launches.single.$2, ExternalEditLaunchMode.open);
+        }
         final item = model.externalEdits.items.single;
         final footer = find.byKey(const ValueKey('file_edit_footer'));
-        expect(footer, findsOneWidget, reason: 'watched file is listed');
-        expect(find.text('Watching for saves'), findsOneWidget);
-        expect(find.text('Stop watching'), findsOneWidget);
+        expect(footer, findsNothing);
+        expect(find.text('Watching for saves'), findsNothing);
+        expect(find.text('Stop watching'), findsNothing);
 
         // An editor save only marks the file; nothing is sent.
         platform.copies.single.save('B\r\n'.codeUnits);
         await tester.pump(const Duration(milliseconds: 500));
         await tester.pumpAndSettle();
         expect(item.status, ExternalEditStatus.changed);
+        expect(footer, findsOneWidget);
         expect(remote.writes, 0);
         expect(find.text('Changed locally — not uploaded'), findsOneWidget);
         for (final key in ['upload', 'ignore', 'keep']) {
@@ -128,6 +146,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(String.fromCharCodes(remote.files['/srv/a.txt']!), 'B\r\n');
         expect(item.status, ExternalEditStatus.watching);
+        expect(footer, findsNothing);
         expect(find.textContaining('Uploaded "a.txt"'), findsOneWidget);
 
         // Keep local stops tracking without uploading.

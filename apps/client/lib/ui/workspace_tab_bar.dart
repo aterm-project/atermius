@@ -9,6 +9,8 @@ import 'app_motion.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'session_workspace.dart';
+import 'remote_file_workspace.dart' show FileTabDropTarget;
+import '../ssh/file_workspace_controller.dart' show FileWorkspaceController;
 import 'window_caption.dart';
 import 'workspace_controls.dart';
 import 'fullscreen_menu.dart';
@@ -28,6 +30,7 @@ class WorkspaceTab {
     this.isConnected = false,
     this.status,
     this.isFile = false,
+    this.fileController,
     this.canDetach = true,
     this.canOpenFiles = true,
     this.canDisconnect = false,
@@ -39,6 +42,7 @@ class WorkspaceTab {
   final bool isHome, isConnected;
   final String? status;
   final bool isFile, canDetach, canOpenFiles;
+  final FileWorkspaceController? fileController;
   final bool canDisconnect;
   final IconData? icon;
 
@@ -581,6 +585,9 @@ class WorkspaceTabBar extends StatelessWidget {
       ),
     );
     Widget content = Builder(builder: tabBody);
+    if (tab.fileController case final controller?) {
+      content = FileTabDropTarget(controller: controller, child: content);
+    }
     if (tab.members.isNotEmpty) {
       content = Tooltip(
         message: tab.members

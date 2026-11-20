@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dartssh2/dartssh2.dart';
@@ -10,6 +11,8 @@ import '../sftp/dart_sftp_text_file_system.dart';
 import '../sftp/remote_file_operations.dart';
 import '../sftp/sftp_text_editor_service.dart';
 import 'ssh_service.dart';
+import 'peer_file_copy.dart';
+import '../domain/models.dart' show HostRecord;
 import '../l10n/l10n.dart';
 
 const localProfileSftpMaxDownloadBytes = 256 * 1024 * 1024;
@@ -236,6 +239,63 @@ final class LocalProfileSftpController {
     );
   }
 
+  /// Binds both ends before copying. A failed peer connection switches the
+  /// remainder of this copy to streaming over the two existing SFTP channels.
+  Future<RemoteFileCopier> copierFrom(
+    LocalProfileSftpController source, {
+    required FileCopyRoute route,
+    required HostRecord? destinationHost,
+    required void Function() onFallback,
+  }) async {
+    final reader = await source._requireTransport();
+    final writer = await _requireTransport();
+    if (reader is! _DartLocalProfileSftpTransport ||
+        writer is! _DartLocalProfileSftpTransport) {
+      throw UnsupportedError(currentL10n.fileManagerOperationUnsupported);
+    }
+    var direct = route == FileCopyRoute.direct;
+    return (
+      from,
+      to, {
+      required maxBytes,
+      required cancellation,
+      onBytes,
+    }) async {
+      if (direct) {
+        try {
+          final bytes = await writer.receiveDirect(
+            reader,
+            source.connection,
+            connection,
+            destinationHost,
+            from,
+            to,
+            maxBytes,
+            cancellation,
+          );
+          onBytes?.call(bytes);
+          return bytes;
+        } on RemoteFileOperationException {
+          rethrow;
+        } catch (_) {
+          cancellation.check();
+          source._ensureOpen();
+          _ensureOpen();
+          direct = false;
+          onFallback();
+        }
+      }
+      return reader._streamFileTo(
+        writer,
+        from,
+        to,
+        maxBytes: maxBytes,
+        cancellation: cancellation,
+        onBytes: onBytes,
+      );
+    };
+  }
+
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
@@ -436,8 +496,24 @@ final class _DartLocalProfileSftpTransport
     required int maxBytes,
     required RemoteFileCancellation cancellation,
     void Function(int bytes)? onBytes,
+  }) => _streamFileTo(
+    this,
+    from,
+    to,
+    maxBytes: maxBytes,
+    cancellation: cancellation,
+    onBytes: onBytes,
+  );
+
+  Future<int> _streamFileTo(
+    _DartLocalProfileSftpTransport target,
+    String from,
+    String to, {
+    required int maxBytes,
+    required RemoteFileCancellation cancellation,
+    void Function(int bytes)? onBytes,
   }) async {
-    if (!supportsSftpExclusiveCreate(_handshake.version)) {
+    if (!supportsSftpExclusiveCreate(target._handshake.version)) {
       throw UnsupportedError(currentL10n.theSftpServerVersionDoesntSupport);
     }
     void requireRegular(SftpFileAttrs attributes) {
@@ -461,9 +537,12 @@ final class _DartLocalProfileSftpTransport
       requireRegular(await _client.stat(from, followLink: false));
       final SftpFile destination;
       try {
-        destination = await _client.open(to, mode: sftpExclusiveCreateMode);
+        destination = await target._client.open(
+          to,
+          mode: sftpExclusiveCreateMode,
+        );
       } on SftpStatusError {
-        if (await lstat(to) != null) {
+        if (await target.lstat(to) != null) {
           throw const RemoteFileOperationException(
             RemoteFileOperationError.destinationExists,
           );
@@ -517,12 +596,98 @@ final class _DartLocalProfileSftpTransport
         if (!complete) {
           try {
             // Only this call's exclusive-created file is removed.
-            await _client.remove(to);
+            await target._client.remove(to);
           } catch (_) {}
         }
       }
     } finally {
       await source.close();
+    }
+  }
+
+  Future<int> receiveDirect(
+    _DartLocalProfileSftpTransport source,
+    SshConnection sender,
+    SshConnection receiver,
+    HostRecord? host,
+    String from,
+    String to,
+    int maxBytes,
+    RemoteFileCancellation cancellation,
+  ) async {
+    final key = receiver.client.verifiedHostKey;
+    if (host == null || key == null) {
+      throw const FormatException('Missing peer endpoint');
+    }
+    final attrs = await source.lstat(from);
+    if (attrs?.mode?.type != SftpFileType.regularFile) {
+      throw const RemoteFileOperationException(
+        RemoteFileOperationError.sourceChanged,
+      );
+    }
+    final size = attrs?.size;
+    if (size == null || size < 0) {
+      throw const FormatException('Missing file size');
+    }
+    if (size > maxBytes) {
+      throw const RemoteFileOperationException(
+        RemoteFileOperationError.fileTooLarge,
+      );
+    }
+    final stage = sftpChildPath(
+      LocalProfileSftpController._parentPath(to),
+      '.atermius-peer-${const Uuid().v4()}',
+    );
+    final payload = sftpChildPath(stage, 'payload');
+    final command = peerFileCopyCommand(
+      from: from,
+      stage: stage,
+      address: host.address,
+      port: host.port,
+      username: receiver.client.username,
+      hostKey: key,
+      size: size,
+    );
+    cancellation.check();
+    await _client.mkdir(
+      stage,
+      SftpFileAttrs(mode: const SftpFileMode.value(0x1c0)),
+    );
+    final exec = SshExecCancellation();
+    cancellation.onCancel = exec.cancel;
+    try {
+      cancellation.check();
+      final result = await sender.executeRemoteCommand(
+        'sh -s',
+        stdinData: utf8.encode(command),
+        cancellation: exec,
+        timeout: const Duration(minutes: 30),
+      );
+      cancellation.check();
+      if (result.exitCode != 0) throw const FormatException('Peer copy failed');
+      final received = await lstat(payload);
+      if (received?.mode?.type != SftpFileType.regularFile ||
+          received?.size != size) {
+        throw const FormatException('Incomplete peer copy');
+      }
+      final mode = attrs?.mode;
+      if (mode != null) {
+        await _client.setStat(
+          payload,
+          SftpFileAttrs(mode: SftpFileMode.value(mode.value & 0x1ff)),
+        );
+      }
+      cancellation.check();
+      await _client.renameNoReplace(payload, to);
+      return size;
+    } finally {
+      cancellation.onCancel = null;
+      try {
+        await _client.remove(payload);
+      } on SftpStatusError catch (_) {}
+      try {
+        await _client.rmdir(stage);
+      } on SftpStatusError catch (_) {}
     }
   }
 

@@ -249,6 +249,13 @@ class SSHTransport {
   /// only latches whether verification ever succeeded, not which key it
   /// succeeded for.
   Uint8List? _verifiedHostkeyFingerprint;
+  Uint8List? _verifiedHostKey;
+
+  /// SSH wire-format public key authenticated during the first exchange.
+  Uint8List? get verifiedHostKey {
+    final key = _verifiedHostKey;
+    return key == null ? null : Uint8List.fromList(key);
+  }
 
   /// Host key type verified during the first key exchange, checked alongside
   /// [_verifiedHostkeyFingerprint] on rekey.
@@ -1928,6 +1935,9 @@ class SSHTransport {
 
     _hostkeyVerified = true;
     _verifiedHostkeyFingerprint = fingerprint;
+    if (!disableHostkeyVerification) {
+      _verifiedHostKey = Uint8List.fromList(hostkey);
+    }
     _verifiedHostkeyType = _hostkeyType;
     _sendNewKeys();
     _applyLocalKeys();

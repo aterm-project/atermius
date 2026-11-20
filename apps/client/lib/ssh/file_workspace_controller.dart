@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as paths;
 
 import '../domain/sftp_entries.dart';
+import '../domain/models.dart' show HostRecord;
+import 'peer_file_copy.dart';
 import '../sftp/external_edit_manager.dart';
 import '../sftp/external_edit_platform.dart';
 import '../sftp/remote_file_operations.dart';
@@ -26,21 +28,23 @@ const fileManagerMaxDroppedFiles = 64;
 
 enum RemoteFileClipboardMode { copy, cut }
 
-/// A copied or cut entry. It lives only inside the [FileWorkspaceController]
-/// that created it (one SFTP session on one exact SSH connection object) and
-/// is cleared when that controller closes, so it can never be pasted into a
-/// different connection, account or host.
+/// Shared only by file tabs in the same open workspace.
+class RemoteFileExchange extends ValueNotifier<RemoteFileClipboard?> {
+  RemoteFileExchange() : super(null);
+}
+
 @immutable
 class RemoteFileClipboard {
   const RemoteFileClipboard._({
-    required this.sessionId,
+    required this.owner,
     required this.path,
     required this.name,
     required this.directory,
     required this.mode,
   });
 
-  final String sessionId;
+  final FileWorkspaceController owner;
+  String get sessionId => owner.sftp.sessionId;
   final String path;
   final String name;
   final bool directory;
@@ -121,16 +125,23 @@ final class FileWorkspaceController extends ChangeNotifier {
     String initialPath = '/',
     LocalProfileSftpTransportFactory? transportFactory,
     this.uploader,
+    this.host,
+    RemoteFileExchange? exchange,
     ExternalEditPlatform? externalEditPlatform,
     this._externalEditFileSystem,
-  }) : _path = _absolutePath('/', initialPath),
+  }) : exchange = exchange ?? RemoteFileExchange(),
+       _path = _absolutePath('/', initialPath),
        _externalEditPlatform =
            externalEditPlatform ?? createDefaultExternalEditPlatform(),
        sftp = LocalProfileSftpController(
          connection: connection,
          transportFactory: transportFactory,
-       );
+       ) {
+    this.exchange.addListener(notifyListeners);
+  }
 
+  final RemoteFileExchange exchange;
+  final HostRecord? host;
   final SshConnection connection;
   final SshTransferProtocol protocol;
   final LocalProfileSftpController sftp;
@@ -148,9 +159,28 @@ final class FileWorkspaceController extends ChangeNotifier {
   Future<void>? _closing;
   int _generation = 0;
   bool get isClosed => _closed;
+  Future<void>? _peerCopyDone;
 
-  RemoteFileClipboard? _clipboard;
-  RemoteFileClipboard? get clipboard => _clipboard;
+  bool sharesFilesystem(FileWorkspaceController other) {
+    if (identical(connection, other.connection)) return true;
+    final endpoint = host;
+    if (endpoint == null ||
+        endpoint.id != other.host?.id ||
+        endpoint.endpoint != other.host?.endpoint ||
+        connection.client.username != other.connection.client.username) {
+      return false;
+    }
+    final key = connection.client.verifiedHostKey;
+    return key != null &&
+        listEquals(key, other.connection.client.verifiedHostKey);
+  }
+
+  RemoteFileClipboard? get clipboard {
+    final clip = exchange.value;
+    return clip?.mode == RemoteFileClipboardMode.cut && clip?.owner != this
+        ? null
+        : clip;
+  }
 
   RemoteFileActivity? _activity;
   RemoteFileActivity? get activity => _activity;
@@ -238,27 +268,31 @@ final class FileWorkspaceController extends ChangeNotifier {
 
   void _setClipboard(SftpName entry, RemoteFileClipboardMode mode) {
     if (_closed) return;
-    _clipboard = RemoteFileClipboard._(
-      sessionId: sftp.sessionId,
+    exchange.value = RemoteFileClipboard._(
+      owner: this,
       path: entryPath(entry),
       name: entry.filename,
       directory: entry.attr.isDirectory == true,
       mode: mode,
     );
-    notifyListeners();
   }
 
   void clearClipboard() {
-    if (_clipboard == null) return;
-    _clipboard = null;
-    if (!_closed) notifyListeners();
+    exchange.value = null;
   }
 
   /// Whether the clipboard can be pasted into [directory] of this tab.
   bool canPasteInto(String directory) {
-    final clip = _clipboard;
+    final clip = clipboard;
     if (clip == null || _closed || busy) return false;
-    if (clip.sessionId != sftp.sessionId) return false;
+    if (clip.owner.isClosed) return false;
+    if (clip.owner != this) {
+      return clip.mode == RemoteFileClipboardMode.copy &&
+          !clip.owner.busy &&
+          !(sharesFilesystem(clip.owner) &&
+              clip.directory &&
+              isSameOrDescendantPath(directory, clip.path));
+    }
     if (clip.directory && isSameOrDescendantPath(directory, clip.path)) {
       return false;
     }
@@ -275,15 +309,17 @@ final class FileWorkspaceController extends ChangeNotifier {
     String directory, {
     required Future<bool> Function(String name) keepBoth,
   }) async {
-    final clip = _clipboard;
-    if (clip == null || !canPasteInto(directory)) return null;
+    final clip = clipboard;
+    if (clip == null || clip.owner != this || !canPasteInto(directory)) {
+      return null;
+    }
     final operations = await sftp.fileOperations();
     var name = clip.name;
     if (await operations.exists(sftpChildPath(directory, name))) {
       if (_closed || !await keepBoth(name) || _closed) return null;
       name = await operations.availableName(directory, name);
     }
-    if (!identical(_clipboard, clip)) return null;
+    if (!identical(clipboard, clip)) return null;
     final String result;
     if (clip.mode == RemoteFileClipboardMode.cut) {
       result = await _runActivity(
@@ -291,7 +327,7 @@ final class FileWorkspaceController extends ChangeNotifier {
         clip.name,
         (_) => operations.move(clip.path, directory, name),
       );
-      if (identical(_clipboard, clip)) clearClipboard();
+      if (identical(clipboard, clip)) clearClipboard();
     } else {
       final plan = await operations.planCopy(clip.path);
       result = await _runActivity(
@@ -311,6 +347,75 @@ final class FileWorkspaceController extends ChangeNotifier {
       await refresh(selectName: paths.posix.basename(result));
     }
     return result;
+  }
+
+  /// Copies from a captured peer path. The destination owns publication and
+  /// both tabs can cancel the same job, including when either session closes.
+  Future<void> copyFrom(
+    FileWorkspaceController source,
+    String sourcePath,
+    String directory, {
+    required FileCopyRoute route,
+    required Future<bool> Function(String name) keepBoth,
+    required void Function() onFallback,
+  }) async {
+    if (!identical(exchange, source.exchange) ||
+        identical(source, this) ||
+        _closed ||
+        busy ||
+        source.isClosed ||
+        source.busy) {
+      return;
+    }
+    final originalName = paths.posix.basename(sourcePath);
+    final writer = await sftp.fileOperations();
+    var name = originalName;
+    if (await writer.exists(sftpChildPath(directory, name))) {
+      if (_closed || source.isClosed || !await keepBoth(name)) return;
+      name = await writer.availableName(directory, name);
+    }
+    if (_closed || busy || source.isClosed || source.busy) return;
+    final result = await _runActivity(
+      RemoteFileActivityKind.copy,
+      originalName,
+      (activity) async {
+        final done = Completer<void>();
+        _peerCopyDone = source._peerCopyDone = done.future;
+        source._activity = activity;
+        source.notifyListeners();
+        try {
+          final reader = await source.sftp.fileOperations();
+          final plan = await reader.planCopy(sourcePath);
+          final same = sharesFilesystem(source);
+          final copier = identical(source.connection, connection)
+              ? null
+              : await sftp.copierFrom(
+                  source.sftp,
+                  route: same ? FileCopyRoute.local : route,
+                  destinationHost: host,
+                  onFallback: onFallback,
+                );
+          return await writer.copy(
+            plan,
+            sourcePath,
+            directory,
+            name,
+            source: reader,
+            sameFilesystem: same,
+            copyFile: copier,
+            cancellation: activity._cancellation,
+            onProgress: (p) => activity._progress(p.done, p.total),
+          );
+        } finally {
+          _peerCopyDone = source._peerCopyDone = null;
+          done.complete();
+          source._finishActivity(activity);
+        }
+      },
+    );
+    if (!_closed && directory == _path) {
+      await refresh(selectName: paths.posix.basename(result));
+    }
   }
 
   /// Moves a listed [entry] of the current folder into [directory] (internal
@@ -334,8 +439,9 @@ final class FileWorkspaceController extends ChangeNotifier {
   ) async {
     final operations = await sftp.fileOperations();
     final target = await operations.rename(parent, entry.filename, newName);
-    final clip = _clipboard;
+    final clip = clipboard;
     if (clip != null &&
+        clip.owner == this &&
         (clip.path == sftpChildPath(parent, entry.filename) ||
             isSameOrDescendantPath(
               clip.path,
@@ -374,8 +480,10 @@ final class FileWorkspaceController extends ChangeNotifier {
         ),
       );
     } finally {
-      final clip = _clipboard;
-      if (clip != null && isSameOrDescendantPath(clip.path, target)) {
+      final clip = clipboard;
+      if (clip != null &&
+          clip.owner == this &&
+          isSameOrDescendantPath(clip.path, target)) {
         clearClipboard();
       }
       if (!_closed && parent == _path) await refresh();
@@ -533,10 +641,16 @@ final class FileWorkspaceController extends ChangeNotifier {
   Future<void> _close() async {
     _closed = true;
     _generation++;
-    _clipboard = null;
+    exchange.removeListener(notifyListeners);
+    if (exchange.value?.owner == this) clearClipboard();
     _activity?.cancel();
     try {
       await _externalEdits?.close();
+      // Give a cancelled transfer its SFTP handles for staging cleanup.
+      await _peerCopyDone?.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {},
+      );
     } finally {
       await sftp.close();
     }

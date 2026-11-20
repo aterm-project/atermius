@@ -16464,7 +16464,7 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get fileEditStop => '監視を停止';
+  String get fileEditStop => '外部編集を終了';
 
   @override
   String get fileEditStatusFailed => 'アップロード失敗 — ローカルの変更は保持されています';
@@ -18743,4 +18743,29 @@ class AppLocalizationsJa extends AppLocalizations {
   String hostSortCurrent(String order) {
     return 'ホストの並べ替え：$order';
   }
+
+  @override
+  String get fileCopyBetweenHosts => 'ホスト間でコピー';
+
+  @override
+  String fileCopyFromTo(String source, String destination) {
+    return 'コピー元 $source\nコピー先 $destination';
+  }
+
+  @override
+  String get fileCopyViaLocal => 'この端末を経由してコピー';
+
+  @override
+  String get fileCopyDirect => 'SSH で直接コピー';
+
+  @override
+  String get fileCopyDirectFallback => 'SSH 接続に失敗した場合は、この端末を経由してコピーします。';
+
+  @override
+  String fileCopyCountdown(int seconds) {
+    return '$seconds 秒後にコピーを開始します。';
+  }
+
+  @override
+  String get fileCopyFallingBack => 'SSH 直接接続に失敗しました。この端末を経由して続行します。';
 }

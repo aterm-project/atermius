@@ -28,7 +28,7 @@ String externalEditErrorText(BuildContext context, Object error) {
   };
 }
 
-/// Persistent footer inside a file tab listing every externally edited file.
+/// Appears when an external edit needs attention.
 /// Changed files offer explicit Upload / Ignore / Keep local; nothing is
 /// uploaded without pressing Upload.
 class ExternalEditFooter extends StatelessWidget {
@@ -45,7 +45,7 @@ class ExternalEditFooter extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: manager,
     builder: (context, _) {
-      final items = manager.items;
+      final items = manager.pending;
       if (items.isEmpty || manager.isClosed) return const SizedBox.shrink();
       final colors = Theme.of(context).colorScheme;
       return Material(
@@ -108,13 +108,13 @@ class _ExternalEditRow extends StatelessWidget {
     final l10n = context.l10n;
     final colors = Theme.of(context).colorScheme;
     final status = item.status;
-    final attention = item.needsAttention;
+    if (!item.needsAttention) return const SizedBox.shrink();
     final problem =
         status == ExternalEditStatus.conflict ||
         status == ExternalEditStatus.failed ||
         status == ExternalEditStatus.rejected;
     final statusText = switch (status) {
-      ExternalEditStatus.watching => l10n.fileEditStatusWatching,
+      ExternalEditStatus.watching => '',
       ExternalEditStatus.changed => l10n.fileEditStatusChanged,
       ExternalEditStatus.uploading => l10n.fileEditStatusUploading,
       ExternalEditStatus.conflict => l10n.fileEditStatusConflict,
@@ -127,41 +127,32 @@ class _ExternalEditRow extends StatelessWidget {
         : '$statusText · ${externalEditErrorText(context, error)}';
     final uploading = status == ExternalEditStatus.uploading;
     final actions = <Widget>[
-      if (attention && status != ExternalEditStatus.rejected)
+      if (status != ExternalEditStatus.rejected)
         FilledButton.tonal(
           key: ValueKey('file_edit_upload_${item.id}'),
           onPressed: item.canUpload ? () => onUpload(item) : null,
           style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
           child: Text(l10n.fileEditUpload),
         ),
-      if (attention)
-        TextButton(
-          key: ValueKey('file_edit_ignore_${item.id}'),
-          onPressed: uploading ? null : () => manager.ignore(item),
-          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-          child: Text(l10n.fileEditIgnore),
-        ),
+      TextButton(
+        key: ValueKey('file_edit_ignore_${item.id}'),
+        onPressed: uploading ? null : () => manager.ignore(item),
+        style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+        child: Text(l10n.fileEditIgnore),
+      ),
       TextButton(
         key: ValueKey('file_edit_keep_${item.id}'),
         onPressed: uploading ? null : () => manager.keepLocal(item),
         style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-        child: Text(attention ? l10n.fileEditKeepLocal : l10n.fileEditStop),
+        child: Text(l10n.fileEditKeepLocal),
       ),
     ];
     final label = Row(
       children: [
         Icon(
-          problem
-              ? Icons.warning_amber_rounded
-              : attention
-              ? Icons.edit_note
-              : Icons.visibility_outlined,
+          problem ? Icons.warning_amber_rounded : Icons.edit_note,
           size: 18,
-          color: problem
-              ? colors.error
-              : attention
-              ? colors.primary
-              : colors.onSurfaceVariant,
+          color: problem ? colors.error : colors.primary,
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -178,7 +169,7 @@ class _ExternalEditRow extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     color: colors.onSurface,
-                    fontWeight: attention ? FontWeight.w600 : null,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 Text(

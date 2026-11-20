@@ -4610,7 +4610,7 @@
   "fileEditStatusChanged": "本地已更改 — 未上传",
   "fileEditTooMany": "最多可同时在外部编辑 {count} 个文件。",
   "fileEditLocalMissing": "本地副本已丢失。未上传任何内容。",
-  "fileEditStop": "停止监视",
+  "fileEditStop": "结束外部编辑",
   "fileEditNotRegular": "只能在外部编辑普通远程文件。",
   "fileEditStatusWatching": "正在监视保存",
   "fileEditIgnore": "忽略",
@@ -5272,5 +5272,12 @@
   "hostSortAddress": "地址",
   "hostSortProtocol": "协议",
   "hostSortFavoritesFirst": "收藏优先",
-  "hostSortCurrent": "主机排序：{order}"
+  "hostSortCurrent": "主机排序：{order}",
+  "fileCopyBetweenHosts": "跨主机复制",
+  "fileCopyFromTo": "从 {source}\n到 {destination}",
+  "fileCopyViaLocal": "通过本机复制",
+  "fileCopyDirect": "通过 SSH 远端直连复制",
+  "fileCopyDirectFallback": "直连失败时将自动通过本机传输。",
+  "fileCopyCountdown": "将在 {seconds} 秒后开始复制。",
+  "fileCopyFallingBack": "SSH 直连失败，已切换为通过本机传输。"
 }

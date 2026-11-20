@@ -75,7 +75,6 @@ import 'session_reconnect_setting.dart';
 import 'ssh_keepalive_setting.dart';
 import 'terminal_scrollback_setting.dart';
 import 'terminal_shortcut_editor.dart';
-import '../domain/sftp_entries.dart';
 import '../domain/snippet_invocation.dart';
 import '../domain/vault_preference.dart';
 import '../domain/workspace_layout.dart';
@@ -90,7 +89,6 @@ import '../terminal/terminal_shortcuts.dart';
 import '../ssh/ssh_service.dart';
 import '../ssh/host_operating_system_probe.dart';
 import '../ssh/host_operating_system_persistence.dart';
-import '../sftp/sftp_text_editor_service.dart';
 import '../sync/sync_repository.dart';
 import '../sync/sync_diagnostics_export.dart';
 import 'app_theme.dart';
@@ -118,7 +116,6 @@ import 'new_window.dart';
 import 'insecure_server_widgets.dart';
 import 'ios_native/ios_mode.dart';
 import 'password_field.dart';
-import 'sftp_text_editor_dialog.dart';
 import '../web_update/web_app_update_factory.dart';
 import '../web_update/web_app_update_monitor.dart';
 import '../l10n/l10n.dart';
@@ -2258,6 +2255,7 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                         id: file.id,
                         title: file.title,
                         isFile: true,
+                        fileController: file.controller,
                         isConnected: true,
                         canDetach: supportsFilesWindows,
                       ),
@@ -3636,7 +3634,7 @@ class _WorkspacePage extends StatelessWidget {
         enableWebCommandSuggestionsForTesting:
             enableWebCommandSuggestionsForTesting,
       ),
-      WorkspacePage.sftp => _SftpPage(app: app),
+      WorkspacePage.sftp => _SftpPage(app: app, fileTabs: fileTabs),
       WorkspacePage.sync => _SyncPage(app: app),
       WorkspacePage.audit => _AuditPage(app: app),
       WorkspacePage.devices => _DevicesPage(app: app),
@@ -12531,65 +12529,27 @@ Future<void> _showSessionScp(
   );
 }
 
-class _SftpPage extends StatefulWidget {
-  const _SftpPage({required this.app});
+class _SftpPage extends StatelessWidget {
+  const _SftpPage({required this.app, required this.fileTabs});
   final AppController app;
-  @override
-  State<_SftpPage> createState() => _SftpPageState();
-}
-
-class _SftpPageState extends State<_SftpPage> {
-  bool _loading = false;
-  String? _error;
-  Future<void> _listingQueue = Future<void>.value();
-  int _latestListRequest = 0;
-  String? _boundSessionId;
-  AppController get app => widget.app;
-
-  @override
-  void initState() {
-    super.initState();
-    _boundSessionId = app.activeTerminalTabId;
-    app.addListener(_handleSessionChanged);
-    if (app.terminalConnection != null) {
-      unawaited(_load(_boundSessionPath, sessionId: _boundSessionId));
-    }
-  }
-
-  String get _boundSessionPath =>
-      app.terminalTabFor(_boundSessionId)?.sftpPath ?? '/';
-
-  @override
-  void dispose() {
-    app.removeListener(_handleSessionChanged);
-    super.dispose();
-  }
-
-  void _handleSessionChanged() {
-    final nextSessionId = app.activeTerminalTabId;
-    if (nextSessionId == _boundSessionId) return;
-    _boundSessionId = nextSessionId;
-    _latestListRequest++;
-    if (!mounted) return;
-    setState(() {
-      _loading = false;
-      _error = null;
-    });
-    if (nextSessionId != null &&
-        app.terminalTabFor(nextSessionId)?.connection != null) {
-      unawaited(
-        _load(
-          app.terminalTabFor(nextSessionId)?.sftpPath ?? '/',
-          sessionId: nextSessionId,
-        ),
-      );
-    }
-  }
+  final FileWorkspaceTabs fileTabs;
 
   @override
   Widget build(BuildContext context) {
-    final connected = app.terminalConnection != null;
-    final sftpEntries = visibleSftpEntries(app.sftpEntries);
+    final tab = app.activeTerminalTab;
+    final host = tab?.host;
+    final connection = tab?.connection;
+    final connected = tab != null && host != null && connection != null;
+    final file = connected
+        ? fileTabs.open(
+            sourceSessionId: tab.id,
+            host: host,
+            connection: connection,
+            protocol: SshTransferProtocol.sftp,
+            initialPath: tab.sftpPath,
+            sidebar: true,
+          )
+        : null;
     return Padding(
       padding: AppDensity.of(context).pagePadding,
       child: Column(
@@ -12598,433 +12558,35 @@ class _SftpPageState extends State<_SftpPage> {
           _PageHeading(
             title: context.l10n.sftpFileBrowser,
             subtitle: connected
-                ? context.l10n.remoteFilesEndpoint('${app.connectedHost?.endpoint}')
+                ? context.l10n.remoteFilesEndpoint(host.endpoint)
                 : context.l10n.connectAnSshHostToBrowse,
-            trailing: connected
-                ? Wrap(
-                    spacing: 8,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _newDirectory,
-                        icon: const Icon(
-                          Icons.create_new_folder_outlined,
-                          size: 17,
-                        ),
-                        label: Text(context.l10n.newFolder2),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _upload,
-                        icon: const Icon(Icons.upload_rounded, size: 17),
-                        label: Text(context.l10n.upload),
-                      ),
-                    ],
-                  )
-                : null,
           ),
           const SizedBox(height: 16),
-          if (!connected)
-            Expanded(
-              child: _EmptyState(
-                icon: Icons.folder_open_outlined,
-                title: context.l10n.noActiveSshSession,
-                body: context.l10n.openTerminalChooseAHostAnd,
-                action: FilledButton.icon(
-                  onPressed: () =>
-                      app.showWorkspacePage(WorkspacePage.terminal),
-                  icon: const Icon(Icons.terminal_rounded),
-                  label: Text(context.l10n.openTerminal2),
-                ),
-              ),
-            )
-          else
-            Expanded(
-              child: Card(
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  children: [
-                    Container(
-                      height: 48,
-                      padding: const EdgeInsets.symmetric(horizontal: 13),
-                      decoration: BoxDecoration(
-                        color: context.palette.surfaceRaised,
-                        border: Border(
-                          bottom: BorderSide(color: context.palette.line),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Semantics(
-                            button: true,
-                            enabled: true,
-                            label: context.l10n.upOneDirectory,
-                            onTap: _up,
-                            child: ExcludeSemantics(
-                              child: IconButton(
-                                tooltip: context.l10n.upOneDirectory,
-                                onPressed: _up,
-                                icon: const Icon(
-                                  Icons.arrow_upward_rounded,
-                                  size: 18,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 7),
-                          Icon(
-                            Icons.folder_open_outlined,
-                            size: 17,
-                            color: context.palette.lime,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Semantics(
-                              label: context.l10n.remotePathSftppath(app.sftpPath),
-                              child: ExcludeSemantics(
-                                child: Text(
-                                  app.sftpPath,
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontSize: 12,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Semantics(
-                            button: true,
-                            enabled: true,
-                            label: context.l10n.goToPath,
-                            onTap: _goToPath,
-                            child: ExcludeSemantics(
-                              child: IconButton(
-                                tooltip: context.l10n.goToPath,
-                                onPressed: _goToPath,
-                                icon: const Icon(
-                                  Icons.drive_file_move_outline,
-                                  size: 18,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Semantics(
-                            button: true,
-                            enabled: true,
-                            label: context.l10n.refresh2,
-                            onTap: () => _load(app.sftpPath),
-                            child: ExcludeSemantics(
-                              child: IconButton(
-                                tooltip: context.l10n.refresh2,
-                                onPressed: () => _load(app.sftpPath),
-                                icon: const Icon(
-                                  Icons.refresh_rounded,
-                                  size: 19,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+          Expanded(
+            child: file == null
+                ? _EmptyState(
+                    icon: Icons.folder_open_outlined,
+                    title: context.l10n.noActiveSshSession,
+                    body: context.l10n.openTerminalChooseAHostAnd,
+                    action: FilledButton.icon(
+                      onPressed: () =>
+                          app.showWorkspacePage(WorkspacePage.terminal),
+                      icon: const Icon(Icons.terminal_rounded),
+                      label: Text(context.l10n.openTerminal2),
                     ),
-                    if (_error != null)
-                      Container(
-                        width: double.infinity,
-                        color: context.palette.red.withValues(alpha: .08),
-                        padding: const EdgeInsets.all(10),
-                        child: Text(
-                          _error!,
-                          style: TextStyle(
-                            color: context.palette.red,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    Expanded(
-                      child: _loading
-                          ? const Center(child: CircularProgressIndicator())
-                          : sftpEntries.isEmpty
-                          ? _EmptyState(
-                              icon: Icons.folder_open_outlined,
-                              title: context.l10n.directoryIsEmpty,
-                              body: context.l10n.uploadAFileOrCreateA,
-                            )
-                          : ListView.separated(
-                              itemCount: sftpEntries.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(height: 1, indent: 56),
-                              itemBuilder: (context, index) {
-                                final item = sftpEntries[index];
-                                final isDirectory = item.attr.isDirectory;
-                                return ListTile(
-                                  leading: Icon(
-                                    isDirectory
-                                        ? Icons.folder_rounded
-                                        : Icons.insert_drive_file_outlined,
-                                    color: isDirectory
-                                        ? context.palette.orange
-                                        : context.palette.muted,
-                                  ),
-                                  title: Text(
-                                    item.filename,
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                  subtitle: Text(
-                                    isDirectory
-                                        ? context.l10n.directory
-                                        : _fileDetails(item),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: context.palette.muted,
-                                    ),
-                                  ),
-                                  onTap: isDirectory
-                                      ? () => _load(
-                                          _remotePath(
-                                            app.sftpPath,
-                                            item.filename,
-                                          ),
-                                        )
-                                      : null,
-                                  trailing: PopupMenuButton<String>(
-                                    popUpAnimationStyle: AppMotion.menuStyle(
-                                      context,
-                                    ),
-                                    tooltip: context.l10n.actionsForFilename(item.filename),
-                                    onSelected: (action) {
-                                      switch (action) {
-                                        case 'download':
-                                          _download(item.filename);
-                                          break;
-                                        case 'edit-text':
-                                          _editText(item.filename);
-                                          break;
-                                        default:
-                                          _delete(item);
-                                          break;
-                                      }
-                                    },
-                                    itemBuilder: (_) => [
-                                      if (!isDirectory)
-                                        appMenuItem(context,
-                                          value: 'download',
-                                          child: Text(context.l10n.download2),
-                                        ),
-                                      if (!isDirectory)
-                                        appMenuItem(context,
-                                          value: 'edit-text',
-                                          child: Text(context.l10n.editText2),
-                                        ),
-                                      appMenuItem(context,
-                                        value: 'delete',
-                                        child: Text(context.l10n.delete2),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
+                  )
+                : Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: RemoteFileWorkspace(
+                      key: ValueKey(file.id),
+                      controller: file.controller,
+                      onDirectoryChanged: (path) => tab!.sftpPath = path,
                     ),
-                    if (_loading) const LinearProgressIndicator(minHeight: 2),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  String _fileDetails(SftpName item) {
-    final size = item.attr.size;
-    if (size == null) return context.l10n.file;
-    return '${NumberFormat.compact().format(size)} bytes';
-  }
-
-  Future<void> _load(String path, {String? sessionId}) {
-    final capturedSessionId = sessionId ?? _boundSessionId;
-    final request = ++_latestListRequest;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    final operation = _listingQueue.catchError((Object _) {}).then((_) async {
-      // SFTP startup loads `/` as soon as this page mounts. Queue subsequent
-      // navigation so an older listing cannot complete last and replace the
-      // destination the user selected.
-      if (!mounted || request != _latestListRequest) return;
-      try {
-        if (capturedSessionId == null) return;
-        await app.listSftp(path, sessionId: capturedSessionId);
-      } catch (error) {
-        if (mounted &&
-            request == _latestListRequest &&
-            capturedSessionId == _boundSessionId) {
-          setState(() => _error = app.friendlyError(error));
-        }
-      }
-    });
-    _listingQueue = operation;
-    return operation.whenComplete(() {
-      if (mounted &&
-          request == _latestListRequest &&
-          capturedSessionId == _boundSessionId) {
-        setState(() => _loading = false);
-      }
-    });
-  }
-
-  Future<void> _up() async {
-    final path = app.sftpPath;
-    if (path == '/') return;
-    final parts = path.split('/')..removeWhere((part) => part.isEmpty);
-    if (parts.isNotEmpty) parts.removeLast();
-    await _load(parts.isEmpty ? '/' : '/${parts.join('/')}');
-  }
-
-  Future<void> _goToPath() async {
-    final path = TextEditingController(text: app.sftpPath);
-    final value = await showAppDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.goToRemotePath),
-        content: TextField(
-          controller: path,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          decoration: InputDecoration(labelText: context.l10n.remotePath2),
-          onSubmitted: (value) => Navigator.pop(context, value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(context.l10n.cancel2),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, path.text),
-            child: Text(context.l10n.go),
+                  ),
           ),
         ],
       ),
     );
-    path.dispose();
-    final destination = value?.trim();
-    if (destination == null || destination.isEmpty) return;
-    await _load(destination);
-  }
-
-  Future<void> _newDirectory() async {
-    final name = TextEditingController();
-    final value = await showAppDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.createRemoteFolder),
-        content: TextField(
-          controller: name,
-          autofocus: true,
-          decoration: InputDecoration(labelText: context.l10n.folderName),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(context.l10n.cancel2),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, name.text),
-            child: Text(context.l10n.create2),
-          ),
-        ],
-      ),
-    );
-    name.dispose();
-    if (value == null) return;
-    try {
-      await app.makeSftpDirectory(value, sessionId: _boundSessionId);
-    } catch (error) {
-      if (mounted) _snack(context, app.friendlyError(error), error: true);
-    }
-  }
-
-  Future<void> _upload() async {
-    try {
-      final id = _boundSessionId;
-      final connection = app.terminalTabFor(id)?.connection;
-      if (connection == null) {
-        await app.uploadSftpFile(sessionId: id);
-      } else {
-        final done = await showSshTransferDialog(
-          context: context,
-          client: connection.client,
-          direction: SshTransferDirection.upload,
-          remotePath: _boundSessionPath,
-          uploadIntoDirectory: true,
-        );
-        if (done == true && mounted && id == _boundSessionId)
-          await _load(_boundSessionPath, sessionId: id);
-      }
-    } catch (error) {
-      if (mounted) _snack(context, app.friendlyError(error), error: true);
-    }
-  }
-
-  Future<void> _download(String name) async {
-    try {
-      final id = _boundSessionId;
-      final connection = app.terminalTabFor(id)?.connection;
-      if (connection == null) {
-        await app.downloadSftpFile(name, sessionId: id);
-      } else {
-        final path = sftpChildPath(_boundSessionPath, name);
-        await showSshTransferDialog(
-          context: context,
-          client: connection.client,
-          direction: SshTransferDirection.download,
-          remotePath: path,
-          suggestedName: name,
-          legacySftpDownload: (remotePath) => app.downloadSftpFile(
-            remotePath.split('/').last,
-            sessionId: id,
-            remotePath: remotePath,
-            maximumBytes: 16 * 1024 * 1024,
-          ),
-        );
-      }
-    } catch (error) {
-      if (mounted) _snack(context, app.friendlyError(error), error: true);
-    }
-  }
-
-  Future<void> _editText(String name) async {
-    SftpTextDocument? document;
-    try {
-      document = await app.openSftpTextFile(name, sessionId: _boundSessionId);
-      if (!mounted) {
-        document.dispose();
-        return;
-      }
-      await showAppDialog<void>(
-        context: context,
-        builder: (_) => SftpTextEditorDialog(app: app, document: document!),
-      );
-    } catch (error) {
-      if (mounted) _snack(context, app.friendlyError(error), error: true);
-      document?.dispose();
-    }
-  }
-
-  Future<void> _delete(SftpName item) async {
-    if (await _confirmDelete(
-          context,
-          item.filename,
-          description: context.l10n.filenameWillBeRemovedFromThe(item.filename),
-        ) !=
-        true) {
-      return;
-    }
-    try {
-      await app.deleteSftpEntry(item, sessionId: _boundSessionId);
-    } catch (error) {
-      if (mounted) _snack(context, app.friendlyError(error), error: true);
-    }
   }
 }
 
@@ -27326,7 +26888,6 @@ class _PublicFingerprintState extends State<_PublicFingerprint> {
   }
 }
 
-String _remotePath(String base, String child) => sftpChildPath(base, child);
 
 void _snack(BuildContext context, String text, {bool error = false}) {
   ScaffoldMessenger.of(context).showSnackBar(
