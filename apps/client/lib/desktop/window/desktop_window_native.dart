@@ -270,6 +270,7 @@ class DesktopWindowBroker {
     socket.add(
       jsonEncode({
         'type': 'init',
+        'windows_system_cursor': session.useWindowsSystemCursor,
         'title': spec.title.substring(0, spec.title.length.clamp(0, 256)),
         'viewport': _rectJson(spec.viewport),
         'cover': _rectJson(spec.coverMonitor),
@@ -296,6 +297,7 @@ class DesktopWindowBroker {
     _socket?.add(
       jsonEncode({
         'type': 'state',
+        'windows_system_cursor': session.useWindowsSystemCursor,
         'state': session.state,
         'error': session.error,
         'follow': spec.viewport == null && session.followsWindowSize,
@@ -715,6 +717,10 @@ class MirroredDesktopSession extends DesktopSession {
       if (message is! String) throw const FormatException();
       final data = jsonDecode(message);
       if (data is! Map<String, dynamic>) throw const FormatException();
+      if (data['type'] == 'init' || data['type'] == 'state') {
+        _follow = data['follow'] == true;
+        useWindowsSystemCursor = data['windows_system_cursor'] == true;
+      }
       switch (data['type']) {
         case 'window_geometry_request':
           if (!_confirmed || _disposedSocket) throw const FormatException();
@@ -728,12 +734,10 @@ class MirroredDesktopSession extends DesktopSession {
           title = data['title'] as String;
           viewport = _rectFrom(data['viewport']);
           coverMonitor = _rectFrom(data['cover']);
-          _follow = data['follow'] == true;
           _initialized.complete();
         case 'state':
           final s = data['state'];
           if (s is! String) throw const FormatException();
-          _follow = data['follow'] == true;
           _clipboardSync = data['clipboard_sync'] == true;
           error = data['error'] as String?;
           if (s == 'disconnected') state = 'disconnected';

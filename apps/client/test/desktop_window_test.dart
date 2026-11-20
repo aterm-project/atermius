@@ -55,11 +55,11 @@ Future<void> _until(bool Function() condition, {String what = 'condition'}) asyn
   }
 }
 
-Future<(DesktopSession, _Fake)> _connected() async {
+Future<(DesktopSession, _Fake)> _connected([HostProtocol protocol = HostProtocol.rdp]) async {
   final fake = _Fake();
   final session = DesktopSession(directConnectionForTesting: (_) => fake);
   await session.connectLocal(
-    const HostRecord(id: 'r', name: 'R', address: 'r', protocol: HostProtocol.rdp),
+    HostRecord(id: 'r', name: 'R', address: 'r', protocol: protocol),
   );
   var acked = 0;
   fake.controller.add(DesktopFrame(64, 48, _solid(64, 48, 10, 20, 30), onConsumed: () => acked++));
@@ -90,12 +90,13 @@ void main() {
   });
 
   test('child mirrors frames and returns validated input; credentials never cross', () async {
-    final (session, fake) = await _connected();
+    final (session, fake) = await _connected(HostProtocol.vnc);
     final broker = await DesktopWindowBroker.bind(
       session: session,
       spec: const DesktopWindowSpec(title: 'Win'),
     );
     final child = await connectDesktopWindow(broker.launch);
+    expect(child.useWindowsSystemCursor, isTrue);
     child.confirmReady();
     expect(await broker.ready, isTrue);
     await _until(() => child.display.size == const Size(64, 48), what: 'snapshot');

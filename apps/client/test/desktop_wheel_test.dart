@@ -80,6 +80,7 @@ Future<_Session> _mount(
   WidgetTester tester, {
   TargetPlatform platform = TargetPlatform.windows,
   double devicePixelRatio = 1,
+  HostProtocol? protocol,
   Rect? viewport,
 }) async {
   tester.view.physicalSize = const Size(800, 640) * devicePixelRatio;
@@ -88,7 +89,7 @@ Future<_Session> _mount(
   addTearDown(tester.view.resetDevicePixelRatio);
   final capture = KeyboardCaptureController();
   KeyboardCaptureController.debugInstance = capture;
-  final session = _Session();
+  final session = _Session()..useWindowsSystemCursor = protocol == HostProtocol.vnc;
   await tester.pumpWidget(
     MaterialApp(
       theme: ThemeData(platform: platform),
@@ -402,6 +403,46 @@ void main() {
   });
 
   group('DesktopView', () {
+    for (final protocol in [HostProtocol.vnc, HostProtocol.rdp]) {
+      testWidgets('Windows ${protocol.name} cursor and mouse delivery', (
+        tester,
+      ) async {
+        final session = await _mount(tester, protocol: protocol);
+        final mouse = TestPointer(1, PointerDeviceKind.mouse);
+        await tester.sendEventToBinding(mouse.hover(_centre));
+        await tester.pump();
+        final surface = find.byKey(const ValueKey('desktop_remote_surface'));
+        final region = find.descendant(
+          of: surface,
+          matching: find.byType(MouseRegion),
+        );
+        final canvas = find.descendant(
+          of: surface,
+          matching: find.byType(CustomPaint),
+        );
+        final nativeCursor = protocol == HostProtocol.vnc;
+        expect(
+          tester.widget<MouseRegion>(region).cursor,
+          nativeCursor ? SystemMouseCursors.basic : SystemMouseCursors.none,
+        );
+        // The default remote cursor is drawn as a path. A server position
+        // update must not make a second arrow appear over the Windows cursor.
+        session.display.movePointer(const Offset(100, 100));
+        await tester.pump();
+        expect(canvas, nativeCursor ? isNot(paints..path()) : (paints..path()));
+
+        session.sent.clear();
+        await tester.sendEventToBinding(mouse.down(_centre));
+        await tester.sendEventToBinding(mouse.move(_centre + const Offset(8, 0)));
+        await tester.sendEventToBinding(mouse.up());
+        expect(session.of('mouse'), [
+          ['mouse', 500, 400, 1],
+          ['mouse', 510, 400, 1],
+          ['mouse', 510, 400, 0],
+        ]);
+      });
+    }
+
     testWidgets('iPad trackpad and mouse send horizontal wheel input', (
       tester,
     ) async {

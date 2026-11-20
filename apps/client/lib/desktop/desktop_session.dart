@@ -232,6 +232,9 @@ class DesktopSession extends ChangeNotifier {
   /// Bumped when the resize policy changes so views re-send their size.
   int displayGeneration = 0;
   HostProtocol? get protocol => _host?.protocol;
+
+  /// A VNC surface on Windows leaves pointer rendering to the operating system.
+  bool useWindowsSystemCursor = false;
   RdpSettings get rdpSettings => _rdp;
   VncSettings get vncSettings => _vnc;
   DesktopLocalScaling get localScaling =>
@@ -426,6 +429,7 @@ class DesktopSession extends ChangeNotifier {
   }
 
   Future<void> connect(ApiClient api, String deviceId, HostRecord host) async {
+    useWindowsSystemCursor = host.protocol == HostProtocol.vnc;
     _reconnectHostId = host.id;
     _reconnect = (latest) => connect(api, deviceId, latest ?? host);
     if (host.jumpHostId != null) {
@@ -560,6 +564,7 @@ class DesktopSession extends ChangeNotifier {
     int? guacdPort,
     bool userStarted = true,
   }) async {
+    useWindowsSystemCursor = host.protocol == HostProtocol.vnc;
     _userStarted = userStarted;
     _reconnectHostId = host.id;
     // A reconnect uses the latest saved revision when one is known; an

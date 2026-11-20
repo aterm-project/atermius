@@ -1211,12 +1211,17 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                         if (mounted) setState(() {});
                       });
                     }
+                    final localVncCursor =
+                        session.useWindowsSystemCursor &&
+                        Theme.of(context).platform == TargetPlatform.windows;
                     return Focus(
                       focusNode: _focus,
                       autofocus: true,
                       onKeyEvent: _key,
                       child: MouseRegion(
-                        cursor: SystemMouseCursors.none,
+                        cursor: localVncCursor
+                            ? SystemMouseCursors.basic
+                            : SystemMouseCursors.none,
                         onEnter: (_) {
                           _capture.update(hovered: true);
                           setState(() => _pointerInside = true);
@@ -1308,7 +1313,8 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                                 session.display,
                                 scale,
                                 offset - origin * scale,
-                                showCursor: _touch.trackpad || _pointerInside,
+                                showCursor: !localVncCursor &&
+                                    (_touch.trackpad || _pointerInside),
                                 clip: viewport == null
                                     ? null
                                     : offset & (size * scale),
