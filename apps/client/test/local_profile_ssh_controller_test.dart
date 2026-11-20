@@ -452,6 +452,67 @@ void main() {
     },
   );
 
+  test(
+    'a temporary jump host routes this connection only; the Host is unchanged',
+    () async {
+      const bastionId = '11111111-1111-4111-8111-111111111111';
+      final bastionCredential = await repository.createCredential(
+        const CredentialRecord(
+          id: '44444444-4444-4444-8444-444444444444',
+          name: 'bastion credential',
+          username: 'bastion-user',
+          kind: AuthKind.password,
+          secret: 'bastion-secret',
+        ),
+      );
+      await repository.createHost(
+        HostRecord(
+          id: bastionId,
+          name: 'Temporary bastion',
+          address: 'bastion.local.test',
+          port: 2201,
+          username: 'fallback-bastion-user',
+          credentialId: bastionCredential.id,
+        ),
+        recordId: bastionId,
+      );
+      final service = createService(
+        fingerprintsByHost: {
+          'bastion.local.test': _fingerprint,
+          host.address: _fingerprint,
+        },
+      );
+      final controller = LocalProfileSshController(
+        repository: repository,
+        serviceForTesting: service.service,
+      );
+      expect(host.jumpHostId, isNull);
+      final connection = await controller.connect(
+        host: host,
+        credential: credential,
+        temporaryJumpHostId: bastionId,
+        askApproval: (_) async => true,
+      );
+      addTearDown(connection.close);
+      expect(service.forwardedTargets.last, (host.address, host.port));
+      expect(service.authenticatedUsernames.first, 'bastion-user');
+      expect(service.authenticatedUsernames.last, 'deploy');
+
+      // Itself as the jump host is a cycle, rejected before any socket.
+      final sockets = service.socketCount;
+      await expectLater(
+        controller.connect(
+          host: host,
+          credential: credential,
+          temporaryJumpHostId: host.id,
+          askApproval: (_) async => true,
+        ),
+        throwsStateError,
+      );
+      expect(service.socketCount, sockets);
+    },
+  );
+
   test('missing Jump Host reference fails before opening a socket', () async {
     final service = createService();
     final controller = LocalProfileSshController(

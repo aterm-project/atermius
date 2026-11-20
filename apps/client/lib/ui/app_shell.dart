@@ -111,6 +111,7 @@ import 'workspace_controls.dart';
 import 'workspace_status_bar.dart';
 import 'session_recovery_overlay.dart';
 import 'connect_progress_view.dart';
+import 'temporary_jump_host_picker.dart';
 import 'transfer_dialog.dart';
 import '../platform/application_windows.dart';
 import 'new_window.dart';
@@ -1799,6 +1800,7 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
           state: tab == null
               ? null
               : terminalStateLabel(context.l10n, tab.state),
+          onEdit: _sessionHostEditAction(context, app, host),
         ),
       );
     }
@@ -1971,6 +1973,7 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                   state: phase == null
                       ? null
                       : terminalStateLabel(context.l10n, phase),
+                  onEdit: _sessionHostEditAction(context, app, host),
                 ),
               ),
         transfer: sshTransferActivity.activeCount == 0
@@ -9833,7 +9836,12 @@ class _TerminalPageState extends State<_TerminalPage> {
           'terminal-properties',
           context.l10n.properties,
           Icons.info_outline,
-          () => showHostProperties(context, tab.host!, state: tab.state),
+          () => showHostProperties(
+            context,
+            tab.host!,
+            state: tab.state,
+            onEdit: _sessionHostEditAction(context, app, tab.host),
+          ),
         ),
       WorkspaceAction(
         'terminal-disconnect',
@@ -9958,11 +9966,37 @@ class _TerminalPageState extends State<_TerminalPage> {
           ? context.l10n.console
           : connectProgressDetail(host),
       canRetry: () => app.canRetryTerminalConnect(id),
+      onEdit: () => console
+          ? null
+          : _sessionHostEditAction(
+              context,
+              app,
+              app.terminalTabFor(id)?.host,
+              retryTabId: id,
+            ),
+      onTemporaryJump: () => app.canUseTemporaryJumpHost(id)
+          ? () => unawaited(_pickTemporaryJumpHost(id))
+          : null,
+      temporaryJumpName: () => app.temporaryJumpHostFor(id)?.name,
       onStop: () => unawaited(app.cancelTerminalConnect(id)),
       onRetry: () => unawaited(app.retryTerminalConnect(id)),
       onClose: () => widget.onWorkspaceClose(id),
       child: child,
     );
+  }
+
+  /// Failed/stopped SSH tab: choose a jump host for this tab only and retry.
+  Future<void> _pickTemporaryJumpHost(String id) async {
+    final target = app.terminalTabFor(id)?.host;
+    if (target == null) return;
+    final choice = await showTemporaryJumpHostPicker(
+      context,
+      target: target,
+      candidates: temporaryJumpHostCandidates(target, app.hosts),
+      currentJumpHostId: app.terminalTabFor(id)?.temporaryJumpHostId,
+    );
+    if (choice == null) return;
+    await app.retryTerminalConnectVia(id, choice.jumpHostId);
   }
 
   Widget _temporarySessionPane(String id) {
@@ -10044,7 +10078,12 @@ return DesktopView(
             'terminal-properties-$id',
             context.l10n.properties,
             Icons.info_outline,
-            () => showHostProperties(context, tab.host!, state: terminalStateLabel(context.l10n, tab.state)),
+            () => showHostProperties(
+              context,
+              tab.host!,
+              state: terminalStateLabel(context.l10n, tab.state),
+              onEdit: _sessionHostEditAction(context, app, tab.host),
+            ),
             enabled: tab.host != null,
           ),
           WorkspaceAction(
@@ -27029,7 +27068,40 @@ void _snack(BuildContext context, String text, {bool error = false}) {
   );
 }
 
-Future<void> _showCloudHostEditor(
+/// Editor entry for the saved Host behind a session, offered wherever the
+/// session shows its connection (failed-connection surface, connection
+/// properties). Null when [host] is not a saved Host of a writable Vault.
+/// After a save, [retryTabId] (still on its initial-connection surface)
+/// connects again with the edited Host.
+VoidCallback? _sessionHostEditAction(
+  BuildContext context,
+  AppController app,
+  HostRecord? host, {
+  String? retryTabId,
+}) {
+  if (host == null ||
+      app.activeVault?.canWrite != true ||
+      app.hosts.every((item) => item.id != host.id)) {
+    return null;
+  }
+  return () => unawaited(() async {
+    final latest = app.hosts.where((item) => item.id == host.id).firstOrNull;
+    if (latest == null || !context.mounted) return;
+    final saved = await _showCloudHostEditor(context, app, existing: latest);
+    if (!saved || retryTabId == null) return;
+    // An attempt still loading was prepared with the Host as it was: stop it
+    // and connect with what was just saved.
+    if (app.terminalTabFor(retryTabId)?.connectProgress.isLoading == true) {
+      await app.cancelTerminalConnect(retryTabId);
+    }
+    if (app.canRetryTerminalConnect(retryTabId)) {
+      await app.retryTerminalConnect(retryTabId);
+    }
+  }());
+}
+
+/// Returns whether the Host was saved.
+Future<bool> _showCloudHostEditor(
   BuildContext context,
   AppController app, {
   HostRecord? existing,
@@ -27091,7 +27163,7 @@ Future<void> _showCloudHostEditor(
       app.session?.accountId != accountId ||
       !identical(app.api, api) ||
       app.vaultSelectionGeneration != selectionGeneration) {
-    return;
+    return false;
   }
   try {
     final original = existing;
@@ -27115,10 +27187,12 @@ Future<void> _showCloudHostEditor(
     } else {
       await app.saveHostFromEditor(original: original, edited: result);
     }
+    return true;
   } catch (error) {
     if (context.mounted) {
       _snack(context, teamVaultErrorText(context, app, error), error: true);
     }
+    return false;
   }
 }
 

@@ -18052,4 +18052,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String teamVaultReceived(String count) {
     return '已有 $count 个团队仓库添加到此设备。';
   }
+
+  @override
+  String get connectProgressTemporaryJump => '临时跳板机';
+
+  @override
+  String connectProgressViaTemporaryJump(String name) {
+    return '经由临时跳板机 $name';
+  }
+
+  @override
+  String get temporaryJumpPickerTitle => '通过临时跳板机连接';
+
+  @override
+  String temporaryJumpPickerHint(String name) {
+    return '仅对此标签页生效，不会修改 $name 已保存的设置。';
+  }
+
+  @override
+  String get temporaryJumpPickerEmpty => '没有可用作跳板机的其他 SSH 主机。';
+
+  @override
+  String get temporaryJumpPickerNoMatch => '没有匹配的主机。';
+
+  @override
+  String get temporaryJumpPickerSavedRoute => '使用已保存的路由（不使用临时跳板机）';
+
+  @override
+  String get temporaryJumpPickerSearch => '搜索主机';
 }

@@ -342,6 +342,11 @@ class TerminalTabSession {
   /// tab has connected; later drops use [recovery] instead.
   final ConnectProgress connectProgress = ConnectProgress();
 
+  /// SSH Host this tab connects through instead of the target's saved Jump
+  /// Host. Chosen from the failed-connection surface, kept only for this tab
+  /// (its retries and reconnects) and never written to the Host record.
+  String? temporaryJumpHostId;
+
   /// Session-log lifecycle row for this SSH tab (sanitized; transcript only
   /// when the user enabled recording before the tab opened).
   SessionLogRecorder? log;
@@ -10325,7 +10330,10 @@ class AppController extends ChangeNotifier {
     final expectedHostIds = <String>{targetHost.id};
     late final List<_ResolvedJumpHop> route;
     try {
-      route = _resolveJumpHostConnection(targetHost);
+      route = _resolveJumpHostConnection(
+        targetHost,
+        temporaryJumpHostId: tab.temporaryJumpHostId,
+      );
     } on Object {
       throw StateError(currentL10n.theSshHostOrJumpHost);
     }
@@ -20942,7 +20950,15 @@ class AppController extends ChangeNotifier {
     await openTerminalTab(host);
   }
 
-  List<_ResolvedJumpHop> _resolveJumpHostConnection(HostRecord host) {
+  /// [temporaryJumpHostId] replaces the target's saved Jump Host for this
+  /// resolution only (a tab's temporary jump host); the record is unchanged.
+  List<_ResolvedJumpHop> _resolveJumpHostConnection(
+    HostRecord host, {
+    String? temporaryJumpHostId,
+  }) {
+    if (temporaryJumpHostId != null) {
+      host = host.copyWith(jumpHostId: temporaryJumpHostId);
+    }
     final hostsById = <String, HostRecord>{
       for (final candidate in hosts) candidate.id: candidate,
       host.id: host,
@@ -21198,6 +21214,29 @@ class AppController extends ChangeNotifier {
         _notifyListenersIfAlive();
       }
     }
+  }
+
+  /// The temporary jump host of a tab, when it is still a saved Host.
+  HostRecord? temporaryJumpHostFor(String id) {
+    final jumpId = _terminalTabs[id]?.temporaryJumpHostId;
+    if (jumpId == null) return null;
+    return hosts.where((host) => host.id == jumpId).firstOrNull;
+  }
+
+  /// Whether the failed/stopped surface of [id] may offer a temporary jump
+  /// host: an SSH tab whose retry is allowed.
+  bool canUseTemporaryJumpHost(String id) =>
+      _terminalTabs[id]?.host?.protocol == HostProtocol.ssh &&
+      canRetryTerminalConnect(id);
+
+  /// Retries [id] through [jumpHostId] (null: the Host's saved route again).
+  /// The choice lives on the tab only; the Host record is not changed.
+  Future<void> retryTerminalConnectVia(String id, String? jumpHostId) async {
+    final tab = _terminalTabs[id];
+    if (tab == null || !canUseTemporaryJumpHost(id)) return;
+    tab.temporaryJumpHostId = jumpHostId;
+    _notifyListenersIfAlive();
+    await retryTerminalConnect(id);
   }
 
   Future<void> reconnectTerminalTab(String id) async {
@@ -21884,7 +21923,11 @@ class AppController extends ChangeNotifier {
     if (credential == null) throw StateError(resolution.connectionError);
     final hostSnapshot = canonicalJson(host.toJson());
     final targetCredentialSnapshot = canonicalJson(credential.toJson());
-    final jumpRoute = _resolveJumpHostConnection(host);
+    final temporaryJumpHostId = reuseTab?.temporaryJumpHostId;
+    final jumpRoute = _resolveJumpHostConnection(
+      host,
+      temporaryJumpHostId: temporaryJumpHostId,
+    );
     final jumpRouteSnapshots = jumpRoute
         .map(
           (hop) => (
@@ -21962,7 +22005,10 @@ class AppController extends ChangeNotifier {
               targetCredentialSnapshot) {
         throw StateError(currentL10n.theTargetHostsSshCredentialChanged);
       }
-      final currentRoute = _resolveJumpHostConnection(currentHost ?? host);
+      final currentRoute = _resolveJumpHostConnection(
+        currentHost ?? host,
+        temporaryJumpHostId: temporaryJumpHostId,
+      );
       if (currentRoute.length != jumpRoute.length) {
         throw StateError(currentL10n.theJumpHostRouteChangedWhile);
       }
@@ -23709,7 +23755,10 @@ class AppController extends ChangeNotifier {
     checkCancellation();
     final requiredEndpoints = <String>{
       endpointKey(host: canonicalizeKnownHost(host.address), port: host.port),
-      for (final hop in _resolveJumpHostConnection(host))
+      for (final hop in _resolveJumpHostConnection(
+        host,
+        temporaryJumpHostId: tab.temporaryJumpHostId,
+      ))
         endpointKey(
           host: canonicalizeKnownHost(hop.host.address),
           port: hop.host.port,
@@ -23812,7 +23861,10 @@ class AppController extends ChangeNotifier {
     final targetFingerprint = await _fingerprintConnectionCredential(
       currentCredential,
     );
-    final jumpRoute = _resolveJumpHostConnection(host);
+    final jumpRoute = _resolveJumpHostConnection(
+      host,
+      temporaryJumpHostId: tab.temporaryJumpHostId,
+    );
     final jumpRouteHostSnapshots = jumpRoute
         .map((hop) => canonicalJson(hop.host.toJson()))
         .toList(growable: false);
@@ -23858,7 +23910,10 @@ class AppController extends ChangeNotifier {
         currentL10n.sshCredentialForHostnameChangedBefore(prepared.hostName),
       );
     }
-    final latestJumpResolution = _resolveJumpHostConnection(latestHost);
+    final latestJumpResolution = _resolveJumpHostConnection(
+      latestHost,
+      temporaryJumpHostId: latestTab.temporaryJumpHostId,
+    );
     if (latestJumpResolution.length != jumpRoute.length ||
         List<String>.generate(
               latestJumpResolution.length,

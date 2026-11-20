@@ -221,6 +221,7 @@ Future<void> showHostProperties(
   BuildContext context,
   HostRecord host, {
   String? state,
+  VoidCallback? onEdit,
 }) => showAppDialog<void>(
   context: context,
   builder: (context) {
@@ -305,6 +306,17 @@ Future<void> showHostProperties(
         ),
       ),
       actions: [
+        if (onEdit != null)
+          TextButton.icon(
+            key: const ValueKey('host_properties_edit'),
+            onPressed: () {
+              AppleHaptics.selection(context);
+              Navigator.pop(context);
+              onEdit();
+            },
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            label: Text(context.l10n.editHost),
+          ),
         TextButton(
           onPressed: () {
             AppleHaptics.selection(context);

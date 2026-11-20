@@ -80,6 +80,7 @@ import '../terminal/session_recovery.dart';
 import '../terminal/connect_progress.dart';
 import 'session_recovery_overlay.dart';
 import 'connect_progress_view.dart';
+import 'temporary_jump_host_picker.dart';
 import '../platform/application_windows.dart';
 import 'paste_safety_dialog.dart';
 import 'session_workspace.dart';
@@ -1368,11 +1369,13 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
     }
   }
 
-  Future<void> _editHost(HostRecord host) async {
+  /// Returns whether the edited Host was saved.
+  Future<bool> _editHost(HostRecord host) async {
     final edited = await _showHostEditor(existing: host, groups: _groups);
-    if (edited == null || !mounted) return;
+    if (edited == null || !mounted) return false;
     final generation = _beginOperation();
-    if (generation < 0) return;
+    if (generation < 0) return false;
+    var saved = false;
     try {
       final repository = _repository;
       final baseRevision = host.revisionId;
@@ -1380,7 +1383,8 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
         throw StateError(context.l10n.localHostRevisionIsMissing);
       }
       await repository.updateHost(host: edited, baseRevisionId: baseRevision);
-      if (!_isCurrentOperation(generation)) return;
+      saved = true;
+      if (!_isCurrentOperation(generation)) return saved;
       if (!await _reloadHosts(generation)) {
         _showMessage(currentL10n.theHostWasUpdatedButThe);
       } else if (mounted && isIosPhone(context)) {
@@ -1402,6 +1406,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
     } finally {
       _finishOperation(generation);
     }
+    return saved;
   }
 
   /// Live SSH sessions of [host] in this window. Forwards run on exactly one
@@ -1953,6 +1958,48 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
     }
   }
 
+  /// Editor entry for the saved Host behind [session]; null for consoles and
+  /// Hosts that are no longer saved. With [retry], a tab still on its
+  /// initial-connection surface connects again with the edited Host.
+  VoidCallback? _localSessionEditAction(
+    _LocalTerminalSession session, {
+    bool retry = false,
+  }) {
+    if (session.isConsoleTab ||
+        _busy ||
+        _hosts.every((host) => host.id != session.host.id)) {
+      return null;
+    }
+    return () => unawaited(() async {
+      final latest = _hosts
+          .where((host) => host.id == session.host.id)
+          .firstOrNull;
+      if (latest == null) return;
+      final saved = await _editHost(latest);
+      if (!saved || !retry || !mounted) return;
+      // An attempt still loading was started with the Host as it was.
+      if (session.progress.isLoading) await _stopLocalConnect(session);
+      if (mounted && _canRetryLocalSession(session)) {
+        await _retryLocalSession(session);
+      }
+    }());
+  }
+
+  /// Failed/stopped SSH tab: choose a jump host for this tab only and retry.
+  Future<void> _pickLocalTemporaryJumpHost(
+    _LocalTerminalSession session,
+  ) async {
+    final choice = await showTemporaryJumpHostPicker(
+      context,
+      target: session.host,
+      candidates: temporaryJumpHostCandidates(session.host, _hosts),
+      currentJumpHostId: session.temporaryJumpHostId,
+    );
+    if (choice == null || !mounted || !_canRetryLocalSession(session)) return;
+    setState(() => session.temporaryJumpHostId = choice.jumpHostId);
+    await _retryLocalSession(session);
+  }
+
   Widget _withLocalConnectProgress(
     _LocalTerminalSession session,
     Widget child,
@@ -1964,6 +2011,19 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
         ? context.l10n.console
         : connectProgressDetail(session.host),
     canRetry: () => _canRetryLocalSession(session),
+    onEdit: () => _localSessionEditAction(session, retry: true),
+    onTemporaryJump: () =>
+        !session.isConsoleTab &&
+            session.host.protocol == HostProtocol.ssh &&
+            _canRetryLocalSession(session)
+        ? () => unawaited(_pickLocalTemporaryJumpHost(session))
+        : null,
+    temporaryJumpName: () => session.temporaryJumpHostId == null
+        ? null
+        : _hosts
+              .where((host) => host.id == session.temporaryJumpHostId)
+              .firstOrNull
+              ?.name,
     onStop: () => unawaited(_stopLocalConnect(session)),
     onRetry: () => unawaited(_retryLocalSession(session)),
     onClose: () => _closeTerminalTab(session.id),
@@ -2374,7 +2434,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
     // Sanitized lifecycle row: categories only, never credential material.
     SessionLogRecorder? log = _sessionLogs?.begin(
       host: host,
-      viaJump: host.jumpHostId != null,
+      viaJump: (session.temporaryJumpHostId ?? host.jumpHostId) != null,
     );
     try {
       final credential = await repository.resolveCredentialForHost(host);
@@ -2393,6 +2453,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
         host: host,
         credential: credential,
         cancellation: cancellation,
+        temporaryJumpHostId: session.temporaryJumpHostId,
         askApproval: (request) async {
           if (!attemptCurrent()) return false;
           advance(ConnectStage.awaitingUser);
@@ -3372,6 +3433,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
           context,
           session.host,
           state: session.connected.value ? context.l10n.connected : context.l10n.connectionClosed,
+          onEdit: _localSessionEditAction(session),
         ),
       );
     }
@@ -7939,6 +8001,10 @@ class _LocalTerminalSession {
 
   /// Initial-connection surface (loading / failed / stopped) of this tab.
   final ConnectProgress progress = ConnectProgress();
+
+  /// SSH Host this tab connects through instead of the target's saved Jump
+  /// Host; chosen on the failed-connection surface, never saved to the Host.
+  String? temporaryJumpHostId;
 
   /// Cancels the sockets of the SSH attempt in flight (stop loading/close).
   SshConnectCancellation? sshCancellation;

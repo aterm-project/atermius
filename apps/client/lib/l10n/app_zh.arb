@@ -5337,5 +5337,27 @@
   "teamVaultAccess": "访问权限…",
   "teamVaultOpen": "打开",
   "teamVaultSaveTo": "保存到",
-  "teamVaultReceived": "已有 {count} 个团队仓库添加到此设备。"
+  "teamVaultReceived": "已有 {count} 个团队仓库添加到此设备。",
+  "connectProgressTemporaryJump": "临时跳板机",
+  "connectProgressViaTemporaryJump": "经由临时跳板机 {name}",
+  "@connectProgressViaTemporaryJump": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryJumpPickerTitle": "通过临时跳板机连接",
+  "temporaryJumpPickerHint": "仅对此标签页生效，不会修改 {name} 已保存的设置。",
+  "@temporaryJumpPickerHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryJumpPickerEmpty": "没有可用作跳板机的其他 SSH 主机。",
+  "temporaryJumpPickerNoMatch": "没有匹配的主机。",
+  "temporaryJumpPickerSavedRoute": "使用已保存的路由（不使用临时跳板机）",
+  "temporaryJumpPickerSearch": "搜索主机"
 }

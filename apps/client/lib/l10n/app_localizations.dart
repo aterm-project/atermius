@@ -31851,6 +31851,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} team Vault(s) were added to this device.'**
   String teamVaultReceived(String count);
+
+  /// No description provided for @connectProgressTemporaryJump.
+  ///
+  /// In en, this message translates to:
+  /// **'Temporary jump host'**
+  String get connectProgressTemporaryJump;
+
+  /// No description provided for @connectProgressViaTemporaryJump.
+  ///
+  /// In en, this message translates to:
+  /// **'Via temporary jump host {name}'**
+  String connectProgressViaTemporaryJump(String name);
+
+  /// No description provided for @temporaryJumpPickerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect through a temporary jump host'**
+  String get temporaryJumpPickerTitle;
+
+  /// No description provided for @temporaryJumpPickerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for this tab only. The saved settings of {name} are not changed.'**
+  String temporaryJumpPickerHint(String name);
+
+  /// No description provided for @temporaryJumpPickerEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No other SSH host can be used as a jump host.'**
+  String get temporaryJumpPickerEmpty;
+
+  /// No description provided for @temporaryJumpPickerNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching hosts.'**
+  String get temporaryJumpPickerNoMatch;
+
+  /// No description provided for @temporaryJumpPickerSavedRoute.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the saved route (no temporary jump host)'**
+  String get temporaryJumpPickerSavedRoute;
+
+  /// No description provided for @temporaryJumpPickerSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search hosts'**
+  String get temporaryJumpPickerSearch;
 }
 
 class _AppLocalizationsDelegate

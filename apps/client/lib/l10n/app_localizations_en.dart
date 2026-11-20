@@ -20133,4 +20133,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String teamVaultReceived(String count) {
     return '$count team Vault(s) were added to this device.';
   }
+
+  @override
+  String get connectProgressTemporaryJump => 'Temporary jump host';
+
+  @override
+  String connectProgressViaTemporaryJump(String name) {
+    return 'Via temporary jump host $name';
+  }
+
+  @override
+  String get temporaryJumpPickerTitle =>
+      'Connect through a temporary jump host';
+
+  @override
+  String temporaryJumpPickerHint(String name) {
+    return 'Used for this tab only. The saved settings of $name are not changed.';
+  }
+
+  @override
+  String get temporaryJumpPickerEmpty =>
+      'No other SSH host can be used as a jump host.';
+
+  @override
+  String get temporaryJumpPickerNoMatch => 'No matching hosts.';
+
+  @override
+  String get temporaryJumpPickerSavedRoute =>
+      'Use the saved route (no temporary jump host)';
+
+  @override
+  String get temporaryJumpPickerSearch => 'Search hosts';
 }

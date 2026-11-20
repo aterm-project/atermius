@@ -21,7 +21,21 @@ class ConnectProgressView extends StatelessWidget {
     required this.onClose,
     this.detail,
     this.canRetry,
+    this.onEdit,
+    this.onTemporaryJump,
+    this.temporaryJumpName,
   });
+
+  /// Opens the editor of the target Host; shown in every phase. Null when the
+  /// tab has no editable saved Host (console, read-only Vault).
+  final VoidCallback? Function()? onEdit;
+
+  /// Lets the user pick a temporary jump host and retries through it; shown
+  /// once the attempt failed or was stopped. Null for non-SSH tabs.
+  final VoidCallback? Function()? onTemporaryJump;
+
+  /// Name of the temporary jump host this tab currently connects through.
+  final String? Function()? temporaryJumpName;
 
   final ConnectProgress progress;
 
@@ -57,6 +71,9 @@ class ConnectProgressView extends StatelessWidget {
               title: title,
               detail: detail,
               canRetry: canRetry?.call() ?? true,
+              onEdit: onEdit?.call(),
+              onTemporaryJump: onTemporaryJump?.call(),
+              temporaryJumpName: temporaryJumpName?.call(),
               onStop: onStop,
               onRetry: onRetry,
               onClose: onClose,
@@ -77,12 +94,17 @@ class ConnectProgressPane extends StatelessWidget {
     required this.onClose,
     this.detail,
     this.canRetry = true,
+    this.onEdit,
+    this.onTemporaryJump,
+    this.temporaryJumpName,
   });
 
   final ConnectProgress progress;
   final String title;
   final String? detail;
   final bool canRetry;
+  final VoidCallback? onEdit, onTemporaryJump;
+  final String? temporaryJumpName;
   final VoidCallback onStop, onRetry, onClose;
 
   static String stageLabel(AppLocalizations l10n, ConnectStage stage) =>
@@ -146,6 +168,10 @@ class ConnectProgressPane extends StatelessWidget {
   }) {
     final stop = loading ? onStop : null;
     final retry = !loading && canRetry ? onRetry : null;
+    // Offered once an attempt ended: retry through another SSH Host without
+    // changing the saved Host.
+    final jump = !loading && canRetry ? onTemporaryJump : null;
+    final edit = onEdit;
     final controls = compact
         ? <Widget>[
             IconButton.outlined(
@@ -166,6 +192,20 @@ class ConnectProgressPane extends StatelessWidget {
               onPressed: onClose,
               icon: const Icon(Icons.close_rounded),
             ),
+            if (jump != null)
+              IconButton(
+                key: const ValueKey('connect_progress_temporary_jump'),
+                tooltip: l10n.connectProgressTemporaryJump,
+                onPressed: jump,
+                icon: const Icon(Icons.alt_route_rounded),
+              ),
+            if (edit != null)
+              IconButton(
+                key: const ValueKey('connect_progress_edit'),
+                tooltip: l10n.editHost,
+                onPressed: edit,
+                icon: const Icon(Icons.edit_outlined),
+              ),
           ]
         : <Widget>[
             OutlinedButton.icon(
@@ -186,6 +226,20 @@ class ConnectProgressPane extends StatelessWidget {
               icon: const Icon(Icons.close_rounded, size: 18),
               label: Text(l10n.connectProgressClose),
             ),
+            if (jump != null)
+              OutlinedButton.icon(
+                key: const ValueKey('connect_progress_temporary_jump'),
+                onPressed: jump,
+                icon: const Icon(Icons.alt_route_rounded, size: 18),
+                label: Text(l10n.connectProgressTemporaryJump),
+              ),
+            if (edit != null)
+              OutlinedButton.icon(
+                key: const ValueKey('connect_progress_edit'),
+                onPressed: edit,
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: Text(l10n.editHost),
+              ),
           ];
     final info = Column(
       mainAxisSize: MainAxisSize.min,
@@ -214,6 +268,17 @@ class ConnectProgressPane extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             detail!,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: palette.muted, fontSize: 12),
+          ),
+        ],
+        if (temporaryJumpName != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            l10n.connectProgressViaTemporaryJump(temporaryJumpName!),
+            key: const ValueKey('connect_progress_via_jump'),
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,

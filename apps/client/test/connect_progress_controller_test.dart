@@ -95,6 +95,78 @@ void main() {
     }
   });
 
+  test('a failed tab retries through a temporary jump host without changing '
+      'the saved Host, and can go back to the saved route', () async {
+    final fixture = await _Fixture.create();
+    final app = fixture.app..hosts.add(_jump);
+    try {
+      final opening = app.openTerminalTab(_host);
+      final tab = app.activeTerminalTab!;
+      final first = await fixture.nextAttempt();
+      expect(first.jumpHops, isEmpty);
+      // Not offered while the attempt is still loading.
+      expect(app.canUseTemporaryJumpHost(tab.id), isFalse);
+      first.result.completeError(StateError('connection refused'));
+      await expectLater(opening, throwsStateError);
+      expect(app.canUseTemporaryJumpHost(tab.id), isTrue);
+
+      final viaJump = app.retryTerminalConnectVia(tab.id, _jump.id);
+      final second = await fixture.nextAttempt();
+      expect(second.host.id, _host.id);
+      expect(second.host.jumpHostId, isNull);
+      expect(second.jumpHops.map((hop) => hop.host.id), [_jump.id]);
+      expect(app.temporaryJumpHostFor(tab.id)?.id, _jump.id);
+      expect(tab.connectProgress.phase, ConnectPhase.loading);
+      second.result.completeError(StateError('still refused'));
+      await viaJump;
+      expect(tab.connectProgress.phase, ConnectPhase.failed);
+      // Nothing was written to the saved Host.
+      expect(app.hosts.firstWhere((host) => host.id == _host.id).jumpHostId,
+          isNull);
+
+      // A plain retry keeps the tab's temporary jump host.
+      final again = app.retryTerminalConnect(tab.id);
+      final third = await fixture.nextAttempt();
+      expect(third.jumpHops.map((hop) => hop.host.id), [_jump.id]);
+      third.result.completeError(StateError('still refused'));
+      await again;
+
+      // Back to the saved (direct) route.
+      final direct = app.retryTerminalConnectVia(tab.id, null);
+      final fourth = await fixture.nextAttempt();
+      expect(fourth.jumpHops, isEmpty);
+      expect(app.temporaryJumpHostFor(tab.id), isNull);
+      fourth.result.complete(_Connection());
+      await direct;
+      expect(tab.state, 'connected');
+      expect(app.terminalTabs, [tab]);
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
+  test('a temporary jump host that would loop back to the target fails in '
+      'the same surface without a connection attempt', () async {
+    final fixture = await _Fixture.create();
+    // The candidate itself is reached through the target.
+    final app = fixture.app..hosts.add(_jump.copyWith(jumpHostId: _host.id));
+    try {
+      final opening = app.openTerminalTab(_host);
+      final tab = app.activeTerminalTab!;
+      final first = await fixture.nextAttempt();
+      first.result.completeError(StateError('connection refused'));
+      await expectLater(opening, throwsStateError);
+
+      await app.retryTerminalConnectVia(tab.id, _jump.id);
+      expect(fixture.attempts, hasLength(1));
+      expect(tab.connectProgress.phase, ConnectPhase.failed);
+      expect(tab.connectProgress.error, isNot(contains('connection refused')));
+      expect(app.canUseTemporaryJumpHost(tab.id), isTrue);
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
   test(
     'retry reuses the original tab with exactly one new connection per '
     'attempt; late success and failure of stopped attempts change nothing',
@@ -394,6 +466,14 @@ void main() {
   });
 }
 
+const _jump = HostRecord(
+  id: 'host-jump',
+  name: 'Bastion',
+  address: 'bastion.example.test',
+  username: 'tester',
+  credentialId: 'credential-progress',
+);
+
 Future<void> _settle() async {
   for (var i = 0; i < 5; i++) {
     await Future<void>.delayed(Duration.zero);
@@ -408,7 +488,14 @@ Future<void> _until(bool Function() condition) async {
 }
 
 class _Attempt {
-  _Attempt(this.host, this.credential, this.cancellation, this.verifyHostKey);
+  _Attempt(
+    this.host,
+    this.credential,
+    this.cancellation,
+    this.verifyHostKey,
+    this.jumpHops,
+  );
+  final List<SshJumpHop> jumpHops;
   final HostRecord host;
   final CredentialRecord credential;
   final SshConnectCancellation cancellation;
@@ -457,6 +544,7 @@ class _Fixture {
                     credential,
                     cancellation,
                     verifyHostKey,
+                    jumpHops,
                   );
                   attempts.add(attempt);
                   return attempt.result.future;

@@ -122,11 +122,13 @@ final class LocalProfileSshController {
     required LocalKnownHostApprovalPrompt askApproval,
     void Function()? onApprovalStored,
     SshConnectCancellation? cancellation,
+    String? temporaryJumpHostId,
   }) => _withVerifiedRoute(
     host: host,
     askApproval: askApproval,
     onApprovalStored: onApprovalStored,
     cancellation: cancellation,
+    temporaryJumpHostId: temporaryJumpHostId,
     connect: (hops, verify) => _service.connect(
       host: host,
       credential: credential,
@@ -166,13 +168,17 @@ final class LocalProfileSshController {
       Future<bool> Function(HostRecord, String, String),
     )
     connect,
+    String? temporaryJumpHostId,
   }) async {
     if (kIsWeb) {
       throw UnsupportedError(
         'Local profiles cannot open SSH in a browser without the server Relay.',
       );
     }
-    final jumpRoute = await _resolveJumpHostRoute(host);
+    final jumpRoute = await _resolveJumpHostRoute(
+      host,
+      temporaryJumpHostId: temporaryJumpHostId,
+    );
     final trustControllers = <String, LocalKnownHostTrustController>{};
     LocalKnownHostTrustController trustFor(HostRecord routeHost) =>
         trustControllers.putIfAbsent(
@@ -254,11 +260,13 @@ final class LocalProfileSshController {
   }
 
   Future<List<_ResolvedLocalJumpHop>> _resolveJumpHostRoute(
-    HostRecord target,
-  ) async {
+    HostRecord target, {
+    String? temporaryJumpHostId,
+  }) async {
     final reverseRoute = <_ResolvedLocalJumpHop>[];
     final seenHostIds = <String>{target.id};
-    var nextHostId = target.jumpHostId;
+    // A tab's temporary jump host replaces the saved one for this route only.
+    var nextHostId = temporaryJumpHostId ?? target.jumpHostId;
     while (nextHostId != null) {
       if (!seenHostIds.add(nextHostId)) {
         throw StateError('Local SSH Jump Host route contains a cycle.');

@@ -16810,5 +16810,27 @@
         "type": "String"
       }
     }
-  }
+  },
+  "connectProgressTemporaryJump": "Temporary jump host",
+  "connectProgressViaTemporaryJump": "Via temporary jump host {name}",
+  "@connectProgressViaTemporaryJump": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryJumpPickerTitle": "Connect through a temporary jump host",
+  "temporaryJumpPickerHint": "Used for this tab only. The saved settings of {name} are not changed.",
+  "@temporaryJumpPickerHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryJumpPickerEmpty": "No other SSH host can be used as a jump host.",
+  "temporaryJumpPickerNoMatch": "No matching hosts.",
+  "temporaryJumpPickerSavedRoute": "Use the saved route (no temporary jump host)",
+  "temporaryJumpPickerSearch": "Search hosts"
 }

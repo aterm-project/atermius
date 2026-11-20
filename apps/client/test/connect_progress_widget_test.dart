@@ -10,7 +10,9 @@ import 'package:aterm_client/storage/secure_store.dart';
 import 'package:aterm_client/terminal/connect_progress.dart';
 import 'package:aterm_client/ui/app_shell.dart';
 import 'package:aterm_client/ui/app_theme.dart';
+import 'package:aterm_client/l10n/app_localizations.dart';
 import 'package:aterm_client/ui/connect_progress_view.dart';
+import 'package:aterm_client/ui/temporary_jump_host_picker.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -164,6 +166,130 @@ void main() {
       }
     });
   }
+
+  for (final width in [120.0, 520.0]) {
+    testWidgets('edit is offered in every phase and the temporary jump host '
+        'only once the attempt ended (width $width)', (tester) async {
+      final progress = ConnectProgress();
+      final attempt = progress.begin();
+      var edits = 0, jumps = 0;
+      String? via;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Center(
+            child: SizedBox(
+              width: width,
+              height: 360,
+              child: ConnectProgressView(
+                progress: progress,
+                title: 'Target',
+                detail: 'SSH · tester@progress.example.test:22',
+                onStop: progress.cancel,
+                onRetry: () => progress.begin(),
+                onClose: () {},
+                onEdit: () => () => edits++,
+                onTemporaryJump: () => () => jumps++,
+                temporaryJumpName: () => via,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      _expectNoOverflow(tester);
+      const edit = ValueKey('connect_progress_edit');
+      const jump = ValueKey('connect_progress_temporary_jump');
+      expect(find.byKey(edit), findsOneWidget);
+      expect(find.byKey(jump), findsNothing);
+      await tester.tap(find.byKey(edit));
+      expect(edits, 1);
+
+      via = 'Bastion';
+      progress.fail(attempt, 'Refused');
+      await tester.pump();
+      _expectNoOverflow(tester);
+      expect(find.byKey(const ValueKey('connect_progress_via_jump')),
+          findsOneWidget);
+      await tester.tap(find.byKey(jump));
+      await tester.tap(find.byKey(edit));
+      expect((edits, jumps), (2, 1));
+    });
+  }
+
+  testWidgets('the temporary jump host picker lists eligible SSH hosts only '
+      'and returns the choice', (tester) async {
+    const target = HostRecord(
+      id: 'target',
+      name: 'Target',
+      address: 'target.example.test',
+      username: 'tester',
+    );
+    const bastion = HostRecord(
+      id: 'bastion',
+      name: 'Bastion',
+      address: 'bastion.example.test',
+      username: 'tester',
+    );
+    final hosts = [
+      target,
+      bastion,
+      // Reached through the target: would loop.
+      const HostRecord(
+        id: 'loop',
+        name: 'Loop',
+        address: 'loop.example.test',
+        username: 'tester',
+        jumpHostId: 'target',
+      ),
+      const HostRecord(
+        id: 'desktop',
+        name: 'Desktop',
+        address: 'desktop.example.test',
+        username: 'tester',
+        protocol: HostProtocol.rdp,
+        port: 3389,
+      ),
+    ];
+    final candidates = temporaryJumpHostCandidates(target, hosts);
+    expect(candidates.map((host) => host.id), ['bastion']);
+
+    TemporaryJumpChoice? choice;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async => choice = await showTemporaryJumpHostPicker(
+              context,
+              target: target,
+              candidates: candidates,
+              currentJumpHostId: 'bastion',
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('temporary_jump_option_bastion')),
+        findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('temporary_jump_saved_route')));
+    await tester.pumpAndSettle();
+    expect(choice, (jumpHostId: null));
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('temporary_jump_option_bastion')));
+    await tester.pumpAndSettle();
+    expect(choice, (jumpHostId: 'bastion'));
+  });
 
   testWidgets('a narrow split pane keeps all three controls tappable', (
     tester,

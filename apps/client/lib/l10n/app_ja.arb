@@ -5337,5 +5337,27 @@
   "teamVaultAccess": "アクセス…",
   "teamVaultOpen": "開く",
   "teamVaultSaveTo": "保存先",
-  "teamVaultReceived": "{count} 件のチーム Vault がこのデバイスに追加されました。"
+  "teamVaultReceived": "{count} 件のチーム Vault がこのデバイスに追加されました。",
+  "connectProgressTemporaryJump": "一時的な踏み台ホスト",
+  "connectProgressViaTemporaryJump": "一時的な踏み台ホスト {name} を経由",
+  "@connectProgressViaTemporaryJump": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryJumpPickerTitle": "一時的な踏み台ホスト経由で接続",
+  "temporaryJumpPickerHint": "このタブにのみ適用されます。{name} の保存済み設定は変更されません。",
+  "@temporaryJumpPickerHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryJumpPickerEmpty": "踏み台として使用できる他の SSH ホストがありません。",
+  "temporaryJumpPickerNoMatch": "一致するホストがありません。",
+  "temporaryJumpPickerSavedRoute": "保存済みの経路を使用（一時的な踏み台なし）",
+  "temporaryJumpPickerSearch": "ホストを検索"
 }

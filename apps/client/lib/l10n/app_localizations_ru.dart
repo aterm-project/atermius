@@ -20198,4 +20198,35 @@ class AppLocalizationsRu extends AppLocalizations {
   String teamVaultReceived(String count) {
     return 'Командных сейфов добавлено на это устройство: $count.';
   }
+
+  @override
+  String get connectProgressTemporaryJump => 'Временный промежуточный хост';
+
+  @override
+  String connectProgressViaTemporaryJump(String name) {
+    return 'Через временный промежуточный хост $name';
+  }
+
+  @override
+  String get temporaryJumpPickerTitle =>
+      'Подключение через временный промежуточный хост';
+
+  @override
+  String temporaryJumpPickerHint(String name) {
+    return 'Действует только для этой вкладки. Сохранённые настройки $name не изменяются.';
+  }
+
+  @override
+  String get temporaryJumpPickerEmpty =>
+      'Нет других SSH-хостов, которые можно использовать как промежуточные.';
+
+  @override
+  String get temporaryJumpPickerNoMatch => 'Подходящих хостов нет.';
+
+  @override
+  String get temporaryJumpPickerSavedRoute =>
+      'Использовать сохранённый маршрут (без временного хоста)';
+
+  @override
+  String get temporaryJumpPickerSearch => 'Поиск хостов';
 }

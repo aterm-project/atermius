@@ -5337,5 +5337,27 @@
   "teamVaultAccess": "Доступ…",
   "teamVaultOpen": "Открыть",
   "teamVaultSaveTo": "Сохранить в",
-  "teamVaultReceived": "Командных сейфов добавлено на это устройство: {count}."
+  "teamVaultReceived": "Командных сейфов добавлено на это устройство: {count}.",
+  "connectProgressTemporaryJump": "Временный промежуточный хост",
+  "connectProgressViaTemporaryJump": "Через временный промежуточный хост {name}",
+  "@connectProgressViaTemporaryJump": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryJumpPickerTitle": "Подключение через временный промежуточный хост",
+  "temporaryJumpPickerHint": "Действует только для этой вкладки. Сохранённые настройки {name} не изменяются.",
+  "@temporaryJumpPickerHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "temporaryJumpPickerEmpty": "Нет других SSH-хостов, которые можно использовать как промежуточные.",
+  "temporaryJumpPickerNoMatch": "Подходящих хостов нет.",
+  "temporaryJumpPickerSavedRoute": "Использовать сохранённый маршрут (без временного хоста)",
+  "temporaryJumpPickerSearch": "Поиск хостов"
 }

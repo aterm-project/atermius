@@ -18985,4 +18985,32 @@ class AppLocalizationsJa extends AppLocalizations {
   String teamVaultReceived(String count) {
     return '$count 件のチーム Vault がこのデバイスに追加されました。';
   }
+
+  @override
+  String get connectProgressTemporaryJump => '一時的な踏み台ホスト';
+
+  @override
+  String connectProgressViaTemporaryJump(String name) {
+    return '一時的な踏み台ホスト $name を経由';
+  }
+
+  @override
+  String get temporaryJumpPickerTitle => '一時的な踏み台ホスト経由で接続';
+
+  @override
+  String temporaryJumpPickerHint(String name) {
+    return 'このタブにのみ適用されます。$name の保存済み設定は変更されません。';
+  }
+
+  @override
+  String get temporaryJumpPickerEmpty => '踏み台として使用できる他の SSH ホストがありません。';
+
+  @override
+  String get temporaryJumpPickerNoMatch => '一致するホストがありません。';
+
+  @override
+  String get temporaryJumpPickerSavedRoute => '保存済みの経路を使用（一時的な踏み台なし）';
+
+  @override
+  String get temporaryJumpPickerSearch => 'ホストを検索';
 }
