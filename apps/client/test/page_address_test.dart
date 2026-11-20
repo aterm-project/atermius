@@ -109,6 +109,34 @@ void main() {
     expect(bar.path, '/hosts');
   });
 
+  test('/terminal with no session open lands on the hosts', () async {
+    final app = await workspace();
+    final bar = _FakeBar('/terminal');
+    PageAddressBinding(app, bar).attach();
+    expect(app.page, WorkspacePage.hosts);
+    // Rewritten in place: Back must not return to the empty terminal page.
+    expect(bar.entries, ['/hosts']);
+
+    // The app's own navigation still opens the page (a connect, the menu).
+    app.showWorkspacePage(WorkspacePage.terminal);
+    expect(app.page, WorkspacePage.terminal);
+    expect(bar.entries, ['/hosts', '/terminal']);
+
+    // Back to it with still nothing open: the hosts again.
+    app.showWorkspacePage(WorkspacePage.snippets);
+    bar.back();
+    expect(app.page, WorkspacePage.hosts);
+    expect(bar.entries, ['/hosts', '/hosts', '/snippets']);
+  });
+
+  test('/terminal stays when something is open there', () async {
+    final app = await workspace();
+    final bar = _FakeBar('/terminal');
+    PageAddressBinding(app, bar, hasFileTabs: () => true).attach();
+    expect(app.page, WorkspacePage.terminal);
+    expect(bar.entries, ['/terminal']);
+  });
+
   test('the bare address is rewritten, not stacked', () async {
     final app = await workspace();
     final bar = _FakeBar('/');

@@ -119,6 +119,7 @@ class PageAddressBinding {
     this.adminSection,
     this.openAdminSection,
     this.adminHome,
+    this.hasFileTabs,
   });
 
   final AppController app;
@@ -126,6 +127,10 @@ class PageAddressBinding {
   final ValueListenable<String?>? adminSection;
   final bool Function(String section)? openAdminSection;
   final String? adminHome;
+
+  /// Whether file tabs are open on the terminal page; they are not the
+  /// controller's to know.
+  final bool Function()? hasFileTabs;
   bool _attached = false;
 
   /// The section an address asked for, until the console shows it. Until
@@ -168,6 +173,24 @@ class PageAddressBinding {
     return pagePath(app.page, section: section == adminHome ? null : section);
   }
 
+  /// What an address stands for. `/terminal` with nothing open there (no
+  /// session tab, no staged workspace, no file tab) stands for the host list:
+  /// an empty terminal page is no place to land on from a link, a reload or
+  /// Back. Only addresses are read this way; the app's own navigation (a
+  /// connect, the Terminal item of the menu) is never redirected, so opening
+  /// a session cannot be sent back to the hosts.
+  PageLocation? _landing(String path) {
+    final location = locationForPath(path);
+    if (location?.page != WorkspacePage.terminal ||
+        app.visibleTerminalTabs.any((tab) => !tab.closed) ||
+        app.activeSavedWorkspaceId != null ||
+        (hasFileTabs?.call() ?? false)) {
+      return location;
+    }
+    bar.replace(pagePath(WorkspacePage.hosts));
+    return const PageLocation(WorkspacePage.hosts);
+  }
+
   /// Opens what [location] names. False when the account may not see it.
   bool _open(PageLocation location) {
     if (!app.canShowWorkspacePage(location.page)) return false;
@@ -187,7 +210,7 @@ class PageAddressBinding {
     if (!_workspaceOpen) return;
     if (bar.linkPending) {
       bar.linkPending = false;
-      final linked = locationForPath(bar.path);
+      final linked = _landing(bar.path);
       if (linked != null) {
         final wasOpen = linked.page == app.page;
         if (!_open(linked)) {
@@ -220,7 +243,7 @@ class PageAddressBinding {
 
   void _followAddress() {
     if (!_workspaceOpen) return;
-    final location = locationForPath(bar.path);
+    final location = _landing(bar.path);
     if (location == null) return;
     if (!_open(location)) bar.replace(pagePath(app.page));
   }

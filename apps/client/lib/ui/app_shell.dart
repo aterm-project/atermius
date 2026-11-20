@@ -355,6 +355,7 @@ class _AppShellState extends State<AppShell> {
         adminSection: AdminPanel.shownSection,
         adminHome: _adminHomeSection,
         openAdminSection: _requestAdminSection,
+        hasFileTabs: () => _fileTabs.entries.isNotEmpty,
       );
       // After the frame: following a link notifies listeners.
       WidgetsBinding.instance.addPostFrameCallback((_) {
