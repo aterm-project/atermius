@@ -18,6 +18,7 @@ import 'app_density.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import 'ios_native/ios_native.dart';
+import 'jump_host_picker.dart';
 import 'password_field.dart';
 import '../l10n/l10n.dart';
 import '../telnet/telnet_ui.dart';
@@ -299,14 +300,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
   Widget build(BuildContext context) {
     if (isIosPhone(context)) return _buildIos(context);
     final canEdit = widget.canEdit;
-    final hostsById = {for (final host in widget.hosts) host.id: host};
-    final eligibleJumpHosts = widget.hosts
-        .where((host) => _isEligibleJumpHost(host, hostsById))
-        .toList(growable: false);
-    final hasEligibleJumpHost = eligibleJumpHosts.any(
-      (host) => host.id == _jumpHostId,
-    );
-    final unavailableJumpHost = _jumpHostId != null && !hasEligibleJumpHost;
+    final eligibleJumpHosts = jumpHostCandidates(widget.hosts, targetId: widget.existing?.id);
     final density = AppDensity.of(context);
     final fieldGap = SizedBox(height: density.space4 + density.space1);
     return Dialog(
@@ -612,48 +606,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
                         ),
                         fieldGap,
                         if (_protocol != HostProtocol.telnet)
-                          DropdownButtonFormField<String?>(
-                            key: ValueKey('${widget.keyPrefix}_jump_host'),
-                            initialValue: _jumpHostId,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              labelText: context.l10n.jumpHost,
-                              helperText: unavailableJumpHost
-                                  ? context.l10n.thisSavedJumpHostIsUnavailable
-                                  : context.l10n.routeThroughUpTo8Hosts,
-                            ),
-                            items: [
-                              DropdownMenuItem<String?>(
-                                value: null,
-                                child: Text(context.l10n.directConnection),
-                              ),
-                              if (unavailableJumpHost)
-                                DropdownMenuItem<String?>(
-                                  value: _jumpHostId,
-                                  enabled: false,
-                                  child: Text(context.l10n.unavailableJumpHost),
-                                ),
-                              ...eligibleJumpHosts.map(
-                                (host) => DropdownMenuItem<String?>(
-                                  value: host.id,
-                                  child: Semantics(
-                                    container: true,
-                                    identifier:
-                                        'ssh-jump-host-option-${host.id}',
-                                    label: '${host.name} · ${host.endpoint}',
-                                    child: ExcludeSemantics(
-                                      child: Text(
-                                        '${host.name} · ${host.endpoint}',
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                            onChanged: canEdit
-                                ? (value) => setState(() => _jumpHostId = value)
-                                : null,
-                          ),
+                          _jumpHostField(eligibleJumpHosts),
                         if (_groupId != null || widget.groups.isNotEmpty) ...[
                           fieldGap,
                           DropdownButtonFormField<String?>(
@@ -738,27 +691,61 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
     );
   }
 
-  bool _isEligibleJumpHost(
-    HostRecord candidate,
-    Map<String, HostRecord> hostsById,
-  ) {
-    final currentHostId = widget.existing?.id;
-    if (candidate.protocol != HostProtocol.ssh || candidate.id == currentHostId)
-      return false;
-
-    final seen = <String>{?currentHostId};
-    var host = candidate;
-    var routeLength = 1;
-    while (true) {
-      if (!seen.add(host.id)) return false;
-      final jumpHostId = host.jumpHostId;
-      if (jumpHostId == null) return true;
-      if (routeLength == maxJumpHostHops) return false;
-      final next = hostsById[jumpHostId];
-      if (next == null || next.protocol != HostProtocol.ssh) return false;
-      host = next;
-      routeLength++;
+  Widget _jumpHostField(List<HostRecord> eligible) {
+    final l10n = context.l10n;
+    final selected = eligible.where((host) => host.id == _jumpHostId).firstOrNull;
+    final unavailable = _jumpHostId != null && selected == null;
+    final fallback = unavailable ? l10n.unavailableJumpHost : l10n.directConnection;
+    final prefix = '${widget.keyPrefix}_jump_host';
+    Future<void> choose() async {
+      final choice = await showJumpHostPicker(
+        context,
+        keyPrefix: prefix,
+        candidates: eligible,
+        selectedId: _jumpHostId,
+        groups: widget.groups,
+      );
+      if (!mounted || !widget.canEdit || choice == null) return;
+      setState(() {
+        _jumpHostId = choice.jumpHostId;
+        _lastKnownIosDirty = _hasIosUnsavedChanges();
+      });
     }
+
+    if (isIosPhone(context)) {
+      return IosListRow(
+        key: ValueKey(prefix),
+        title: Text(l10n.jumpHost),
+        value: selected?.name ?? fallback,
+        enabled: widget.canEdit,
+        accessory: IosRowAccessory.chevron,
+        onTap: widget.canEdit ? choose : null,
+      );
+    }
+    final label = selected == null ? fallback : '${selected.name} · ${selected.endpoint}';
+    final hint = unavailable ? l10n.thisSavedJumpHostIsUnavailable : l10n.routeThroughUpTo8Hosts;
+    return Semantics(
+      key: ValueKey(prefix),
+      button: true,
+      enabled: widget.canEdit,
+      label: l10n.jumpHost,
+      value: label,
+      hint: hint,
+      excludeSemantics: true,
+      onTap: widget.canEdit ? choose : null,
+      child: InkWell(
+        onTap: widget.canEdit ? choose : null,
+        child: InputDecorator(
+          decoration: InputDecoration(
+            enabled: widget.canEdit,
+            labelText: l10n.jumpHost,
+            helperText: hint,
+            suffixIcon: const Icon(Icons.arrow_drop_down),
+          ),
+          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      ),
+    );
   }
 
   List<DropdownMenuItem<String>> _sourceItems(BuildContext context) {

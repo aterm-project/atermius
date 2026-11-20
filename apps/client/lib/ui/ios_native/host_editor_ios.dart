@@ -50,10 +50,7 @@ extension _HostEditorPanelIos on _HostEditorPanelState {
     final prefix = widget.keyPrefix;
     final lang = Localizations.localeOf(context).languageCode;
 
-    final hostsById = {for (final host in widget.hosts) host.id: host};
-    final eligibleJumpHosts = widget.hosts
-        .where((host) => _isEligibleJumpHost(host, hostsById))
-        .toList(growable: false);
+    final eligibleJumpHosts = jumpHostCandidates(widget.hosts, targetId: widget.existing?.id);
     final hasEligibleJumpHost = eligibleJumpHosts.any(
       (host) => host.id == _jumpHostId,
     );
@@ -350,33 +347,7 @@ extension _HostEditorPanelIos on _HostEditorPanelState {
             ),
             if (_iosAdvancedExpanded) ...[
               if (_protocol != HostProtocol.telnet)
-                IosPickerRow<String>(
-                  rowKey: ValueKey('${prefix}_jump_host'),
-                  label: l10n.jumpHost,
-                  value: unavailableJumpHost
-                      ? '__unavailable_jump_host__'
-                      : (_jumpHostId ?? _kIosNoneSelection),
-                  placeholder: unavailableJumpHost
-                      ? l10n.unavailableJumpHost
-                      : l10n.directConnection,
-                  enabled: canEdit,
-                  options: [
-                    IosPickerOption<String>(
-                      value: _kIosNoneSelection,
-                      label: l10n.directConnection,
-                    ),
-                    for (final host in eligibleJumpHosts)
-                      IosPickerOption<String>(
-                        value: host.id,
-                        label: host.name,
-                        subtitle: host.endpoint,
-                      ),
-                  ],
-                  onChanged: (value) => _iosSetState(() {
-                    _jumpHostId = value == _kIosNoneSelection ? null : value;
-                    _lastKnownIosDirty = _hasIosUnsavedChanges();
-                  }),
-                ),
+                _jumpHostField(eligibleJumpHosts),
               IosTextFieldRow(
                 fieldKey: ValueKey('${prefix}_tags'),
                 label: l10n.tags,

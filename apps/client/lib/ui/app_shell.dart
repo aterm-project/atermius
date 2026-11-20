@@ -9997,6 +9997,7 @@ class _TerminalPageState extends State<_TerminalPage> {
       context,
       target: target,
       candidates: temporaryJumpHostCandidates(target, app.hosts),
+      groups: app.groups,
       currentJumpHostId: app.terminalTabFor(id)?.temporaryJumpHostId,
     );
     if (choice == null) return;

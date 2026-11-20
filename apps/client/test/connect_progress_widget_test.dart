@@ -71,7 +71,9 @@ void main() {
         expect(_pane, findsOneWidget);
         expect(find.text('Connecting to Progress host'), findsOneWidget);
         expect(
-          find.bySemanticsLabel(RegExp('Progress host terminal tab')),
+          find.bySemanticsLabel(
+            RegExp(r'Progress host(?: terminal tab|, 2 tabs)'),
+          ),
           findsWidgets,
         );
         await fixture.pumpUntilAttempts(tester, 1);

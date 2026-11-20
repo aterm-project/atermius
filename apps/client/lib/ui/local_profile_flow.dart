@@ -1993,6 +1993,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
       context,
       target: session.host,
       candidates: temporaryJumpHostCandidates(session.host, _hosts),
+      groups: _groups.map((entry) => entry.group),
       currentJumpHostId: session.temporaryJumpHostId,
     );
     if (choice == null || !mounted || !_canRetryLocalSession(session)) return;
