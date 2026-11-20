@@ -18768,4 +18768,165 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get fileCopyFallingBack => 'SSH 直接接続に失敗しました。この端末を経由して続行します。';
+
+  @override
+  String teamVaultNameWithOrg(String org, String name) {
+    return '$name · チーム $org';
+  }
+
+  @override
+  String get teamVaultPutMenu => 'Vault に入れる…';
+
+  @override
+  String teamVaultPutTitle(String name) {
+    return '$name を Vault に入れる';
+  }
+
+  @override
+  String teamVaultPutTitleMany(String count) {
+    return '$count 台のホストを Vault に入れる';
+  }
+
+  @override
+  String get teamVaultTarget => '移動先の Vault';
+
+  @override
+  String get teamVaultNew => 'チーム Vault を作成';
+
+  @override
+  String get teamVaultNoTargets =>
+      '書き込める Vault がほかにありません。先にチーム Vault を作成してください。';
+
+  @override
+  String get teamVaultPersonal => '個人 Vault';
+
+  @override
+  String teamVaultTeamOf(String org) {
+    return 'チーム Vault · $org';
+  }
+
+  @override
+  String get teamVaultModeMove => '移動';
+
+  @override
+  String get teamVaultModeCopy => 'コピー';
+
+  @override
+  String teamVaultModeMoveHelp(String source) {
+    return '移動先の Vault でコピーの同期が完了すると、ホストは $source から削除されます。使用している認証情報と踏み台ホストはコピーされ、$source にも残ります。';
+  }
+
+  @override
+  String teamVaultModeCopyHelp(String source) {
+    return '独立したコピーを作成します。ホストは $source にも残り、以後の編集は互いに反映されません。';
+  }
+
+  @override
+  String teamVaultMovePinned(String names) {
+    return 'コピーのみ可能です：$names が踏み台ホストとして使用しています。';
+  }
+
+  @override
+  String get teamVaultAlsoCopied => '一緒にコピーされるもの：';
+
+  @override
+  String get teamVaultVisibleNotice =>
+      '移動先の Vault にアクセスできる全員が、これらのホストに接続し、保存されたログイン情報を使用できます。';
+
+  @override
+  String teamVaultTransferDone(String count, String vault) {
+    return '$count 台のホストを $vault に入れました。';
+  }
+
+  @override
+  String get teamVaultErrorCopiedNotRemoved =>
+      'ホストは移動先の Vault にコピーされましたが、元のホストを削除できませんでした。不要な場合はここで削除してください。';
+
+  @override
+  String get teamVaultErrorTargetReadOnly => 'この Vault にはホストを追加できません。';
+
+  @override
+  String get teamVaultErrorSourceReadOnly =>
+      'この Vault は読み取り専用のため、ホストはコピーのみ可能で移動はできません。';
+
+  @override
+  String get teamVaultErrorMoveBlocked =>
+      'ほかのホストが選択したホストを経由して接続しています。コピーにするか、まとめて移動してください。';
+
+  @override
+  String get teamVaultErrorNotSynced =>
+      'ホストは移動先の Vault に書き込まれましたが、まだ同期されていません。何も削除していません。同期してから移動先を確認してください。';
+
+  @override
+  String get teamVaultErrorOtherOrganization => 'この Vault はすでに別の組織に属しています。';
+
+  @override
+  String get teamVaultNewTitle => 'チーム Vault を作成';
+
+  @override
+  String get teamVaultNewHelp =>
+      'チーム Vault は組織に属する暗号化された Vault です。入れたホストは、アクセスを許可したチームやメンバーが利用できます。';
+
+  @override
+  String get teamVaultName => 'Vault 名';
+
+  @override
+  String get teamVaultOrganization => '組織';
+
+  @override
+  String get teamVaultNoManagedOrg =>
+      'チーム Vault を作成できるのは組織の所有者または管理者のみです。先に組織を作成するか、管理者にしてもらってください。';
+
+  @override
+  String get teamVaultAccessHeading => '利用できるメンバー';
+
+  @override
+  String get teamVaultAccessHelp =>
+      'チームまたは個々のメンバーの役割を選択します。各メンバーは、次の手順であなたがデバイスを確認した後に Vault の鍵を受け取ります。';
+
+  @override
+  String get teamVaultNoAccess => 'アクセスなし';
+
+  @override
+  String get teamVaultNobodyYet => 'この組織にはまだほかのメンバーやチームがいません。アクセスは後から許可できます。';
+
+  @override
+  String get teamVaultCreate => '作成';
+
+  @override
+  String get teamVaultCreatedHelp =>
+      'チーム Vault を作成しました。下で各メンバーのデバイスを確認して鍵を渡してください。デバイス未登録のメンバーはサインイン後に表示されます。';
+
+  @override
+  String teamVaultAccessTitle(String name) {
+    return 'アクセス · $name';
+  }
+
+  @override
+  String get teamVaultsHeading => 'チーム Vault';
+
+  @override
+  String get teamVaultsEmpty =>
+      'この組織にはまだ利用できるチーム Vault がありません。所有者がアクセスを許可しデバイスを確認すると、ここに表示されます。';
+
+  @override
+  String get teamVaultsEmptyManager =>
+      'チーム Vault はまだありません。作成してから、ホストのメニューでホストを入れてください。';
+
+  @override
+  String get teamVaultCurrent => '現在開いています';
+
+  @override
+  String get teamVaultAccess => 'アクセス…';
+
+  @override
+  String get teamVaultOpen => '開く';
+
+  @override
+  String get teamVaultSaveTo => '保存先';
+
+  @override
+  String teamVaultReceived(String count) {
+    return '$count 件のチーム Vault がこのデバイスに追加されました。';
+  }
 }

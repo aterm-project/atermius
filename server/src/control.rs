@@ -757,13 +757,19 @@ pub async fn list_vaults(
         return Ok(Json(repository.list_vaults(&user).await?));
     }
     let rows = sqlx::query(&format!(
-        "SELECT v.vault_id,CASE WHEN vm.role='editor' AND EXISTS(SELECT 1 FROM cloud_member_restrictions cr WHERE cr.vault_id=vm.vault_id AND cr.user_id=vm.user_id AND cr.max_role='viewer') THEN 'viewer' ELSE vm.role END AS role,v.active_epoch,v.membership_version,v.required_record_schema,v.name_envelope,v.state,dr.requested_at,dr.purge_after,{} AS admin_visible FROM vaults v JOIN vault_members vm ON vm.vault_id=v.vault_id LEFT JOIN vault_deletion_requests dr ON dr.vault_id=v.vault_id AND dr.cancelled_at IS NULL AND dr.purged_at IS NULL WHERE vm.user_id=? AND vm.state='active' AND NOT EXISTS(SELECT 1 FROM cloud_member_restrictions cr WHERE cr.vault_id=vm.vault_id AND cr.user_id=vm.user_id AND cr.max_role='none') AND v.state IN ('active','deleting') ORDER BY v.created_at",
+        "SELECT v.vault_id,CASE WHEN vm.role='editor' AND EXISTS(SELECT 1 FROM cloud_member_restrictions cr WHERE cr.vault_id=vm.vault_id AND cr.user_id=vm.user_id AND cr.max_role='viewer') THEN 'viewer' ELSE vm.role END AS role,v.active_epoch,v.membership_version,v.required_record_schema,v.name_envelope,v.state,dr.requested_at,dr.purge_after,{} AS admin_visible,co.org_id AS org_id,co.name AS org_name FROM vaults v JOIN vault_members vm ON vm.vault_id=v.vault_id LEFT JOIN vault_deletion_requests dr ON dr.vault_id=v.vault_id AND dr.cancelled_at IS NULL AND dr.purged_at IS NULL LEFT JOIN cloud_vault_orgs vo ON vo.vault_id=v.vault_id LEFT JOIN cloud_organizations co ON co.org_id=vo.org_id WHERE vm.user_id=? AND vm.state='active' AND NOT EXISTS(SELECT 1 FROM cloud_member_restrictions cr WHERE cr.vault_id=vm.vault_id AND cr.user_id=vm.user_id AND cr.max_role='none') AND v.state IN ('active','deleting') ORDER BY v.created_at",
         crate::credential_visibility::vault_admin_visible_sql("v.vault_id")
     ))
     .bind(&user.user_id)
     .fetch_all(&state.db)
     .await
     .map_err(ApiError::internal)?;
+    // The organization a Vault is attached to is reported only while the
+    // organizations feature is ready. Every listed Vault is one the caller is
+    // an active member of (members restricted to 'none' are filtered above),
+    // and the name comes from the live organization row, so the name of a
+    // removed organization is never returned.
+    let organizations_ready = crate::cloud::organizations_ready(&state);
     let mut vaults = Vec::new();
     for r in rows {
         let id: String = r.get("vault_id");
@@ -779,6 +785,15 @@ pub async fn list_vaults(
         // Credential visibility v1: true when an escrow key exists and an
         // active member of this Vault is administrator visible.
         entry["admin_visible"] = json!(r.get::<i64, _>("admin_visible") != 0);
+        if organizations_ready {
+            entry["organization"] = match (
+                r.get::<Option<String>, _>("org_id"),
+                r.get::<Option<String>, _>("org_name"),
+            ) {
+                (Some(org_id), Some(name)) => json!({"org_id": org_id, "name": name}),
+                _ => Value::Null,
+            };
+        }
         entry["name_envelope"] = r
             .get::<Option<String>, _>("name_envelope")
             .and_then(|value| serde_json::from_str::<Value>(&value).ok())

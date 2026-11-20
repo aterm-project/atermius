@@ -1352,6 +1352,51 @@ class AppController extends ChangeNotifier {
   final Map<String, String> _revisionIds = {};
   final Set<String> pendingKnownHostRecordIds = {};
   final Map<String, String> _knownNames = {};
+
+  /// Vault ID -> organization it is attached to (team Vaults), from the
+  /// latest `GET /vaults` answer of this session.
+  Map<String, ({String id, String name})> _vaultOrganizations = const {};
+
+  /// The organization a Vault belongs to, or null for a personal Vault (or
+  /// a server that does not report it).
+  ({String id, String name})? vaultOrganization(String vaultId) =>
+      _vaultOrganizations[vaultId];
+
+  void _rememberVaultOrganizations(
+    Iterable<VaultDescriptor> remote, {
+    bool notify = true,
+  }) {
+    final next = <String, ({String id, String name})>{
+      for (final vault in remote)
+        if (vault.organizationId != null)
+          vault.id: (
+            id: vault.organizationId!,
+            name: vault.organizationName ?? '',
+          ),
+    };
+    final same =
+        next.length == _vaultOrganizations.length &&
+        next.entries.every((e) => _vaultOrganizations[e.key] == e.value);
+    if (same) return;
+    _vaultOrganizations = next;
+    if (notify) notifyListeners();
+  }
+
+  /// Re-reads which Vaults are attached to an organization. Best effort:
+  /// labels keep their last value when the request fails or the session
+  /// changed meanwhile.
+  Future<void> refreshVaultOrganizations() async {
+    final client = api;
+    final auth = authScopeToken;
+    if (client == null || client.accessToken == null) return;
+    try {
+      final remote = await client.vaults();
+      if (!identical(api, client) || authScopeToken != auth) return;
+      _rememberVaultOrganizations(remote);
+    } on Object {
+      // Keep the cached mapping.
+    }
+  }
   Future<void>? _recoverySyncFuture;
   bool _recoverySyncRequested = false;
   _PendingFullAccountRecovery? _pendingFullAccountRecovery;
@@ -5359,6 +5404,7 @@ class AppController extends ChangeNotifier {
         requireCurrentLoad: requireCurrentLoad,
       );
       requireCurrentLoad();
+      _rememberVaultOrganizations(listed, notify: false);
       for (final vault in listed) {
         final signerCacheScope = signerCacheInstance == null
             ? null
@@ -20611,6 +20657,7 @@ class AppController extends ChangeNotifier {
   Future<void> refreshVaultLifecycle() async {
     _assertEditsAllowed();
     final remoteVaults = await _requireApi().vaults();
+    _rememberVaultOrganizations(remoteVaults, notify: false);
     final remoteById = {for (final vault in remoteVaults) vault.id: vault};
     final updated = <VaultDescriptor>[];
     final currentDescriptors = _vaultDescriptors.isEmpty && activeVault != null
@@ -24094,6 +24141,7 @@ class AppController extends ChangeNotifier {
     _defaultWorkspaceAppliedForVault = false;
     _resetDefaultSectionConflictRepair();
     _knownNames.clear();
+    _vaultOrganizations = const {};
     _revisionIds.clear();
     hosts.clear();
     _jumpHostRouteIssues.clear();
@@ -24288,6 +24336,7 @@ class AppController extends ChangeNotifier {
     _sessionCredentialsAdoptedAt = null;
     page = WorkspacePage.hosts;
     _knownNames.clear();
+    _vaultOrganizations = const {};
     _revisionIds.clear();
     hosts.clear();
     _jumpHostRouteIssues.clear();
@@ -24498,6 +24547,7 @@ class AppController extends ChangeNotifier {
     identity?.dispose();
     identity = null;
     _knownNames.clear();
+    _vaultOrganizations = const {};
     _clearVaultWorkspaceProjection();
     sftpEntries = [];
     selectedHost = null;

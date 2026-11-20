@@ -203,3 +203,112 @@ remapForSharingVault(HostSharePlan plan, String Function() newId) {
   ];
   return (hosts: hosts, credentials: credentials);
 }
+
+/// Hosts outside the selection that jump through a selected Host. Moving the
+/// selection out of the source Vault would leave them without their jump
+/// Host, so a move is refused while this is not empty (a copy is fine).
+List<HostRecord> hostsPinnedByJumpUsers({
+  required List<HostRecord> selected,
+  required List<HostRecord> vaultHosts,
+}) {
+  final ids = selected.map((h) => h.id).toSet();
+  return [
+    for (final host in vaultHosts)
+      if (!ids.contains(host.id) &&
+          host.jumpHostId != null &&
+          ids.contains(host.jumpHostId))
+        host,
+  ];
+}
+
+bool _sameCredentialContent(CredentialRecord a, CredentialRecord b) {
+  Map<String, Object?> body(CredentialRecord c) => {...c.toJson()}
+    ..remove('id')
+    ..remove('_manifest');
+  final left = body(a), right = body(b);
+  if (left.length != right.length) return false;
+  for (final entry in left.entries) {
+    if ('${entry.value}' != '${right[entry.key]}') return false;
+  }
+  return true;
+}
+
+/// Copies for an EXISTING target Vault (a team Vault the user can write).
+///
+/// Unlike [remapForSharingVault] this reuses what the target already has, so
+/// that putting Hosts into the same team Vault one after another does not
+/// pile up duplicates: a credential with identical content is referenced
+/// instead of copied, a jump Host with the same endpoint and user is reused,
+/// and a Host keeps its group when the target has a group of the same name.
+({List<HostRecord> hosts, List<CredentialRecord> credentials})
+remapForVaultTransfer(
+  HostSharePlan plan,
+  String Function() newId, {
+  required List<GroupRecord> sourceGroups,
+  required List<HostRecord> targetHosts,
+  required List<CredentialRecord> targetCredentials,
+  required List<GroupRecord> targetGroups,
+}) {
+  final credentialIds = <String, String>{};
+  final credentials = <CredentialRecord>[];
+  for (final credential in plan.credentials) {
+    final existing = targetCredentials
+        .where((c) => _sameCredentialContent(c, credential))
+        .firstOrNull;
+    if (existing != null) {
+      credentialIds[credential.id] = existing.id;
+      continue;
+    }
+    final id = newId();
+    credentialIds[credential.id] = id;
+    credentials.add(
+      CredentialRecord.fromJson({...credential.toJson(), 'id': id}),
+    );
+  }
+  final hostIds = <String, String>{};
+  final reusedJumpHosts = <String>{};
+  for (final jump in plan.jumpHosts) {
+    final existing = targetHosts
+        .where(
+          (h) =>
+              h.protocol == jump.protocol &&
+              h.address == jump.address &&
+              h.port == jump.port &&
+              h.username == jump.username,
+        )
+        .firstOrNull;
+    if (existing != null) {
+      hostIds[jump.id] = existing.id;
+      reusedJumpHosts.add(jump.id);
+    } else {
+      hostIds[jump.id] = newId();
+    }
+  }
+  for (final host in plan.selected) {
+    hostIds[host.id] = newId();
+  }
+  final sourceGroupNames = {for (final g in sourceGroups) g.id: g.name};
+  String? targetGroup(String? sourceGroupId) {
+    final name = sourceGroupNames[sourceGroupId];
+    if (name == null) return null;
+    return targetGroups.where((g) => g.name == name).firstOrNull?.id;
+  }
+
+  final hosts = [
+    for (final host in plan.copyOrder)
+      if (!reusedJumpHosts.contains(host.id))
+        HostRecord.fromJson({
+          ...host.toJson(),
+          'id': hostIds[host.id],
+          'group_id': targetGroup(host.groupId),
+          'jump_host_id': host.jumpHostId == null
+              ? null
+              : hostIds[host.jumpHostId],
+          'credential_id': host.credentialId == null
+              ? null
+              : credentialIds[host.credentialId],
+          'is_favorite': false,
+        }),
+  ];
+  return (hosts: hosts, credentials: credentials);
+}

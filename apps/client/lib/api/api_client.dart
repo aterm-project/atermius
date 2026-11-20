@@ -512,7 +512,15 @@ class VaultDescriptor {
     this.canCancel = false,
     this.canWrite = true,
     this.adminVisible = false,
+    this.organizationId,
+    this.organizationName,
   });
+
+  /// Organization this Vault is attached to (a team Vault), as reported by
+  /// `GET /vaults`. Only set on descriptors parsed from that answer; the
+  /// controller keeps the current mapping (`AppController.vaultOrganization`).
+  final String? organizationId;
+  final String? organizationName;
 
   final String id;
   final String role;
@@ -556,6 +564,14 @@ class VaultDescriptor {
         json['can_write'] as bool? ??
         (json['status'] == null || json['status'] == 'active'),
     adminVisible: json['admin_visible'] as bool? ?? false,
+    organizationId: switch (json['organization']) {
+      {'org_id': final String id} => id,
+      _ => null,
+    },
+    organizationName: switch (json['organization']) {
+      {'name': final String name} => name,
+      _ => null,
+    },
   );
 
   VaultDescriptor withLifecycleFrom(VaultDescriptor remote) => VaultDescriptor(

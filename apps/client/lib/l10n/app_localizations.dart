@@ -31503,6 +31503,264 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Direct SSH failed. Continuing through this device.'**
   String get fileCopyFallingBack;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'{name} · team {org}'**
+  String teamVaultNameWithOrg(String org, String name);
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Put in Vault…'**
+  String get teamVaultPutMenu;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Put {name} in a Vault'**
+  String teamVaultPutTitle(String name);
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Put {count} Hosts in a Vault'**
+  String teamVaultPutTitleMany(String count);
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Target Vault'**
+  String get teamVaultTarget;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'New team Vault'**
+  String get teamVaultNew;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'There is no other Vault you can write to. Create a team Vault first.'**
+  String get teamVaultNoTargets;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Personal Vault'**
+  String get teamVaultPersonal;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Team Vault · {org}'**
+  String teamVaultTeamOf(String org);
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Move'**
+  String get teamVaultModeMove;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get teamVaultModeCopy;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'The Host is removed from {source} once its copy in the target Vault is synchronized. Credentials and jump Hosts it uses are copied and also stay in {source}.'**
+  String teamVaultModeMoveHelp(String source);
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'A separate copy is created; the Host also stays in {source}. Later edits to one are not applied to the other.'**
+  String teamVaultModeCopyHelp(String source);
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Can only be copied: {names} still connect through it as a jump Host.'**
+  String teamVaultMovePinned(String names);
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Copied along with it:'**
+  String get teamVaultAlsoCopied;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone with access to the target Vault can connect to these Hosts and use the logins saved with them.'**
+  String get teamVaultVisibleNotice;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'{count} Host(s) are now in {vault}.'**
+  String teamVaultTransferDone(String count, String vault);
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'The Hosts were copied to the target Vault, but the originals could not be removed. Delete them here if they are no longer needed.'**
+  String get teamVaultErrorCopiedNotRemoved;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'You cannot add Hosts to that Vault.'**
+  String get teamVaultErrorTargetReadOnly;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'This Vault is read-only for you, so Hosts can be copied but not moved out of it.'**
+  String get teamVaultErrorSourceReadOnly;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Other Hosts still connect through a selected Host. Copy it instead, or move them together.'**
+  String get teamVaultErrorMoveBlocked;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'The Hosts were written to the target Vault but are not synchronized yet. Nothing was removed; synchronize and check the target Vault.'**
+  String get teamVaultErrorNotSynced;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'This Vault already belongs to another organization.'**
+  String get teamVaultErrorOtherOrganization;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'New team Vault'**
+  String get teamVaultNewTitle;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'A team Vault is an encrypted Vault that belongs to an organization. Hosts you put in it are available to the teams and members you grant access to.'**
+  String get teamVaultNewHelp;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Vault name'**
+  String get teamVaultName;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Organization'**
+  String get teamVaultOrganization;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Only an owner or administrator of an organization can create a team Vault. Create an organization first, or ask to be made an administrator.'**
+  String get teamVaultNoManagedOrg;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Who can use it'**
+  String get teamVaultAccessHeading;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a role for teams or individual members. Each person receives the Vault key only after you confirm their device in the next step.'**
+  String get teamVaultAccessHelp;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'No access'**
+  String get teamVaultNoAccess;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'This organization has no other members or teams yet. You can grant access later.'**
+  String get teamVaultNobodyYet;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get teamVaultCreate;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'The team Vault was created. Confirm each member\'s device below to deliver the key; members without a registered device appear once they sign in.'**
+  String get teamVaultCreatedHelp;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Access · {name}'**
+  String teamVaultAccessTitle(String name);
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Team Vaults'**
+  String get teamVaultsHeading;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'You have no team Vault in this organization yet. One appears here after its owner grants you access and confirms your device.'**
+  String get teamVaultsEmpty;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'No team Vault yet. Create one, then put Hosts in it from the Host menu.'**
+  String get teamVaultsEmptyManager;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'open now'**
+  String get teamVaultCurrent;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Access…'**
+  String get teamVaultAccess;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get teamVaultOpen;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'Save to'**
+  String get teamVaultSaveTo;
+
+  /// Team Vaults (Vault attached to an organization; put Hosts in a Vault).
+  ///
+  /// In en, this message translates to:
+  /// **'{count} team Vault(s) were added to this device.'**
+  String teamVaultReceived(String count);
 }
 
 class _AppLocalizationsDelegate

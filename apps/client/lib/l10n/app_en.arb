@@ -16538,5 +16538,233 @@
         "type": "int"
       }
     }
+  },
+  "teamVaultNameWithOrg": "{name} · team {org}",
+  "@teamVaultNameWithOrg": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault).",
+    "placeholders": {
+      "org": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "teamVaultPutMenu": "Put in Vault…",
+  "@teamVaultPutMenu": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultPutTitle": "Put {name} in a Vault",
+  "@teamVaultPutTitle": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "teamVaultPutTitleMany": "Put {count} Hosts in a Vault",
+  "@teamVaultPutTitleMany": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault).",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "teamVaultTarget": "Target Vault",
+  "@teamVaultTarget": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultNew": "New team Vault",
+  "@teamVaultNew": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultNoTargets": "There is no other Vault you can write to. Create a team Vault first.",
+  "@teamVaultNoTargets": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultPersonal": "Personal Vault",
+  "@teamVaultPersonal": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultTeamOf": "Team Vault · {org}",
+  "@teamVaultTeamOf": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault).",
+    "placeholders": {
+      "org": {
+        "type": "String"
+      }
+    }
+  },
+  "teamVaultModeMove": "Move",
+  "@teamVaultModeMove": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultModeCopy": "Copy",
+  "@teamVaultModeCopy": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultModeMoveHelp": "The Host is removed from {source} once its copy in the target Vault is synchronized. Credentials and jump Hosts it uses are copied and also stay in {source}.",
+  "@teamVaultModeMoveHelp": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault).",
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "teamVaultModeCopyHelp": "A separate copy is created; the Host also stays in {source}. Later edits to one are not applied to the other.",
+  "@teamVaultModeCopyHelp": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault).",
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "teamVaultMovePinned": "Can only be copied: {names} still connect through it as a jump Host.",
+  "@teamVaultMovePinned": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault).",
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "teamVaultAlsoCopied": "Copied along with it:",
+  "@teamVaultAlsoCopied": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultVisibleNotice": "Everyone with access to the target Vault can connect to these Hosts and use the logins saved with them.",
+  "@teamVaultVisibleNotice": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultTransferDone": "{count} Host(s) are now in {vault}.",
+  "@teamVaultTransferDone": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault).",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "vault": {
+        "type": "String"
+      }
+    }
+  },
+  "teamVaultErrorCopiedNotRemoved": "The Hosts were copied to the target Vault, but the originals could not be removed. Delete them here if they are no longer needed.",
+  "@teamVaultErrorCopiedNotRemoved": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultErrorTargetReadOnly": "You cannot add Hosts to that Vault.",
+  "@teamVaultErrorTargetReadOnly": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultErrorSourceReadOnly": "This Vault is read-only for you, so Hosts can be copied but not moved out of it.",
+  "@teamVaultErrorSourceReadOnly": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultErrorMoveBlocked": "Other Hosts still connect through a selected Host. Copy it instead, or move them together.",
+  "@teamVaultErrorMoveBlocked": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultErrorNotSynced": "The Hosts were written to the target Vault but are not synchronized yet. Nothing was removed; synchronize and check the target Vault.",
+  "@teamVaultErrorNotSynced": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultErrorOtherOrganization": "This Vault already belongs to another organization.",
+  "@teamVaultErrorOtherOrganization": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultNewTitle": "New team Vault",
+  "@teamVaultNewTitle": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultNewHelp": "A team Vault is an encrypted Vault that belongs to an organization. Hosts you put in it are available to the teams and members you grant access to.",
+  "@teamVaultNewHelp": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultName": "Vault name",
+  "@teamVaultName": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultOrganization": "Organization",
+  "@teamVaultOrganization": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultNoManagedOrg": "Only an owner or administrator of an organization can create a team Vault. Create an organization first, or ask to be made an administrator.",
+  "@teamVaultNoManagedOrg": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultAccessHeading": "Who can use it",
+  "@teamVaultAccessHeading": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultAccessHelp": "Choose a role for teams or individual members. Each person receives the Vault key only after you confirm their device in the next step.",
+  "@teamVaultAccessHelp": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultNoAccess": "No access",
+  "@teamVaultNoAccess": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultNobodyYet": "This organization has no other members or teams yet. You can grant access later.",
+  "@teamVaultNobodyYet": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultCreate": "Create",
+  "@teamVaultCreate": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultCreatedHelp": "The team Vault was created. Confirm each member's device below to deliver the key; members without a registered device appear once they sign in.",
+  "@teamVaultCreatedHelp": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultAccessTitle": "Access · {name}",
+  "@teamVaultAccessTitle": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault).",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "teamVaultsHeading": "Team Vaults",
+  "@teamVaultsHeading": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultsEmpty": "You have no team Vault in this organization yet. One appears here after its owner grants you access and confirms your device.",
+  "@teamVaultsEmpty": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultsEmptyManager": "No team Vault yet. Create one, then put Hosts in it from the Host menu.",
+  "@teamVaultsEmptyManager": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultCurrent": "open now",
+  "@teamVaultCurrent": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultAccess": "Access…",
+  "@teamVaultAccess": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultOpen": "Open",
+  "@teamVaultOpen": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultSaveTo": "Save to",
+  "@teamVaultSaveTo": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault)."
+  },
+  "teamVaultReceived": "{count} team Vault(s) were added to this device.",
+  "@teamVaultReceived": {
+    "description": "Team Vaults (Vault attached to an organization; put Hosts in a Vault).",
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
   }
 }

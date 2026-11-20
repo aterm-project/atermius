@@ -17847,4 +17847,156 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get fileCopyFallingBack => 'SSH 直连失败，已切换为通过本机传输。';
+
+  @override
+  String teamVaultNameWithOrg(String org, String name) {
+    return '$name · 团队 $org';
+  }
+
+  @override
+  String get teamVaultPutMenu => '放入仓库…';
+
+  @override
+  String teamVaultPutTitle(String name) {
+    return '将 $name 放入仓库';
+  }
+
+  @override
+  String teamVaultPutTitleMany(String count) {
+    return '将 $count 台主机放入仓库';
+  }
+
+  @override
+  String get teamVaultTarget => '目标仓库';
+
+  @override
+  String get teamVaultNew => '新建团队仓库';
+
+  @override
+  String get teamVaultNoTargets => '没有其他可写入的仓库。请先新建一个团队仓库。';
+
+  @override
+  String get teamVaultPersonal => '个人仓库';
+
+  @override
+  String teamVaultTeamOf(String org) {
+    return '团队仓库 · $org';
+  }
+
+  @override
+  String get teamVaultModeMove => '移动';
+
+  @override
+  String get teamVaultModeCopy => '复制';
+
+  @override
+  String teamVaultModeMoveHelp(String source) {
+    return '目标仓库中的副本同步完成后，主机会从 $source 中移除。它用到的凭据和跳板主机会一并复制，同时仍保留在 $source 中。';
+  }
+
+  @override
+  String teamVaultModeCopyHelp(String source) {
+    return '创建一份独立副本，主机仍保留在 $source 中。之后对其中一份的修改不会同步到另一份。';
+  }
+
+  @override
+  String teamVaultMovePinned(String names) {
+    return '只能复制：$names 仍把它用作跳板主机。';
+  }
+
+  @override
+  String get teamVaultAlsoCopied => '将一并复制：';
+
+  @override
+  String get teamVaultVisibleNotice => '所有能访问目标仓库的成员都可以连接这些主机，并使用随主机保存的登录信息。';
+
+  @override
+  String teamVaultTransferDone(String count, String vault) {
+    return '$count 台主机已放入 $vault。';
+  }
+
+  @override
+  String get teamVaultErrorCopiedNotRemoved =>
+      '主机已复制到目标仓库，但原主机未能移除。如不再需要，请在此处手动删除。';
+
+  @override
+  String get teamVaultErrorTargetReadOnly => '你无法向该仓库添加主机。';
+
+  @override
+  String get teamVaultErrorSourceReadOnly => '当前仓库对你是只读的，主机只能复制，不能移出。';
+
+  @override
+  String get teamVaultErrorMoveBlocked => '仍有其他主机通过所选主机跳转。请改为复制，或将它们一起移动。';
+
+  @override
+  String get teamVaultErrorNotSynced => '主机已写入目标仓库但尚未同步完成。未移除任何内容；请同步后检查目标仓库。';
+
+  @override
+  String get teamVaultErrorOtherOrganization => '该仓库已属于其他组织。';
+
+  @override
+  String get teamVaultNewTitle => '新建团队仓库';
+
+  @override
+  String get teamVaultNewHelp => '团队仓库是归属于组织的加密仓库。放入其中的主机，可供你授权的团队和成员使用。';
+
+  @override
+  String get teamVaultName => '仓库名称';
+
+  @override
+  String get teamVaultOrganization => '组织';
+
+  @override
+  String get teamVaultNoManagedOrg =>
+      '只有组织的所有者或管理员可以新建团队仓库。请先创建组织，或请对方将你设为管理员。';
+
+  @override
+  String get teamVaultAccessHeading => '谁可以使用';
+
+  @override
+  String get teamVaultAccessHelp => '为团队或单个成员选择角色。每位成员都要在下一步由你确认其设备后，才会收到仓库密钥。';
+
+  @override
+  String get teamVaultNoAccess => '不授权';
+
+  @override
+  String get teamVaultNobodyYet => '该组织还没有其他成员或团队，可以稍后再授权。';
+
+  @override
+  String get teamVaultCreate => '创建';
+
+  @override
+  String get teamVaultCreatedHelp =>
+      '团队仓库已创建。请在下方逐一确认成员设备以交付密钥；尚未登记设备的成员会在登录后出现。';
+
+  @override
+  String teamVaultAccessTitle(String name) {
+    return '访问权限 · $name';
+  }
+
+  @override
+  String get teamVaultsHeading => '团队仓库';
+
+  @override
+  String get teamVaultsEmpty => '你在该组织中还没有团队仓库。仓库所有者授权并确认你的设备后，会显示在这里。';
+
+  @override
+  String get teamVaultsEmptyManager => '还没有团队仓库。新建一个，然后从主机菜单把主机放进去。';
+
+  @override
+  String get teamVaultCurrent => '当前打开';
+
+  @override
+  String get teamVaultAccess => '访问权限…';
+
+  @override
+  String get teamVaultOpen => '打开';
+
+  @override
+  String get teamVaultSaveTo => '保存到';
+
+  @override
+  String teamVaultReceived(String count) {
+    return '已有 $count 个团队仓库添加到此设备。';
+  }
 }

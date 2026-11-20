@@ -13,6 +13,25 @@ Atermius cloud access. Design background: `docs/cloud-collaboration-design/`
 | Share Hosts with members/teams | Encrypted Vaults stay the unit. "Share only this Host" creates a dedicated sharing Vault with a copy of the selected Host and the dependencies the owner approves. Grants are *desired* access; the Vault key reaches a recipient only after the Vault owner confirms the recipient's device fingerprint (existing signed invitation, token sealed to the device). | grants, membership metadata; never Vault keys or Host records |
 | Temporary browser links | `/s/<slug>#s1.<secret>` (secret only in the fragment). Guests connect through the server's **trusted gateway** (guacd) to an owner-selected SSH or RDP Host. | link metadata; **the gateway can open the sealed Host login and see the session** |
 
+### Team Vaults
+
+A team Vault is an ordinary encrypted Vault attached to an organization
+(`PUT /api/v1/vaults/{id}/organization`) with grants for its teams or members.
+Nothing about key handling changes: grants are desired access and the owner
+still confirms every recipient device before a key is delivered. `GET
+/api/v1/vaults` reports `organization: {org_id, name}` for attached Vaults
+(`null` when unattached; the key is absent when organizations are disabled
+and on PostgreSQL), which is what clients use to label team Vaults. Any
+member of the Vault sees that organization name, including a direct member
+who is not in the organization.
+
+"Put in Vault…" is a client-side copy between two Vaults the user can write:
+the selected Hosts and their dependencies are re-encrypted under the target
+Vault key, the client waits until the target has no pending writes, and only
+then (for a move) deletes the originals from the source Vault. If the source
+cannot be re-selected at that point the copies stay and the user is told the
+originals were kept. The server never sees Host records in either Vault.
+
 ### Trust model of temporary links (not end-to-end encrypted)
 
 When an owner creates a link, the Host's login is sealed (`crypto_box_seal`)

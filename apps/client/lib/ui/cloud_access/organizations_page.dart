@@ -12,6 +12,7 @@ import '../../credential_visibility/sensitive_clipboard.dart';
 import '../../l10n/l10n.dart';
 import '../app_theme.dart';
 import 'cloud_access_common.dart';
+import 'team_vaults.dart';
 
 /// Extracts a join token from a pasted `…/join#o1.<token>` link or raw token.
 String? parseOrgJoinToken(String input) {
@@ -57,6 +58,23 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
       unawaited(_inspect());
     }
     unawaited(_load());
+    unawaited(_receiveTeamVaults());
+  }
+
+  /// Opening this page picks up team Vault keys that owners delivered to
+  /// this device meanwhile, so a member does not have to look for the
+  /// "check" button. Quiet unless something actually arrived.
+  Future<void> _receiveTeamVaults() async {
+    try {
+      await service.publishDeviceCard();
+      final count = await service.acceptDeliveries();
+      await service.app.refreshVaultOrganizations();
+      if (mounted && count > 0) {
+        setState(() => notice = context.l10n.teamVaultReceived('$count'));
+      }
+    } catch (_) {
+      // Best effort; the explicit check below reports errors.
+    }
   }
 
   @override
@@ -138,6 +156,7 @@ class _OrganizationsPageState extends State<OrganizationsPage> {
     try {
       await service.publishDeviceCard();
       final count = await service.acceptDeliveries();
+      await service.app.refreshVaultOrganizations();
       if (mounted)
         setState(
           () => notice = context.l10n.cloudAccessDeliveriesAccepted(count),
@@ -335,6 +354,7 @@ class _OrganizationDetailPageState extends State<OrganizationDetailPage> {
   Future<void> _load() async {
     try {
       final detail = await service.api.org(widget.orgId);
+      unawaited(service.app.refreshVaultOrganizations());
       var invites = const <Map<String, dynamic>>[];
       if (detail['role'] == 'owner' || detail['role'] == 'admin') {
         invites =
@@ -688,6 +708,13 @@ class _OrganizationDetailPageState extends State<OrganizationDetailPage> {
                             : null,
                       ),
                   ],
+                ),
+                OrganizationTeamVaultsSection(
+                  service: service,
+                  orgId: widget.orgId,
+                  manager: manager,
+                  onOpened: () =>
+                      Navigator.of(context).popUntil((route) => route.isFirst),
                 ),
                 if (manager)
                   CloudAccessSection(

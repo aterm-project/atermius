@@ -1006,6 +1006,43 @@ async fn organizations_invitations_teams_and_grants_never_distribute_keys() {
     assert_eq!((status, value["error"]["code"].as_str()), (StatusCode::CONFLICT, Some("ORG_LAST_OWNER")));
 }
 
+#[tokio::test]
+async fn vault_list_reports_the_attached_organization() {
+    let world = World::with(|_| {}).await;
+    let alice = world.account("alice@example.test").await;
+    let (status, org) = world.bearer(&alice, Method::POST, "/api/v1/orgs", Some(json!({"name": "Ops"}))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let org_id = org["org_id"].as_str().unwrap().to_owned();
+    let attached = world.vault(&alice, &[]).await;
+    let plain = world.vault(&alice, &[]).await;
+    let (status, _) = world.bearer(&alice, Method::PUT, &format!("/api/v1/vaults/{attached}/organization"), Some(json!({"org_id": org_id}))).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let entry = |list: &Value, vault: &str| list["vaults"].as_array().unwrap().iter().find(|v| v["vault_id"] == vault).cloned().unwrap();
+    let (status, list) = world.bearer(&alice, Method::GET, "/api/v1/vaults", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(entry(&list, &attached)["organization"], json!({"org_id": org_id, "name": "Ops"}));
+    // An unattached Vault (and every other Vault of the caller) names none.
+    let unattached = entry(&list, &plain);
+    assert!(unattached.as_object().unwrap().contains_key("organization"));
+    assert!(unattached["organization"].is_null());
+    assert_eq!(list["vaults"].as_array().unwrap().iter().filter(|v| !v["organization"].is_null()).count(), 1);
+
+    let (status, _) = world.bearer(&alice, Method::DELETE, &format!("/api/v1/vaults/{attached}/organization"), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, list) = world.bearer(&alice, Method::GET, "/api/v1/vaults", None).await;
+    assert!(entry(&list, &attached)["organization"].is_null());
+
+    // With organizations disabled the field is not reported at all.
+    let world = World::with(|config| config.organizations_enabled = false).await;
+    let alice = world.account("alice@example.test").await;
+    world.vault(&alice, &[]).await;
+    let (status, list) = world.bearer(&alice, Method::GET, "/api/v1/vaults", None).await;
+    assert_eq!(status, StatusCode::OK);
+    let vaults = list["vaults"].as_array().unwrap();
+    assert!(!vaults.is_empty() && vaults.iter().all(|v| !v.as_object().unwrap().contains_key("organization")));
+}
+
 #[test]
 fn postgres_runtime_never_allows_cloud_routes() {
     for (method, path) in [

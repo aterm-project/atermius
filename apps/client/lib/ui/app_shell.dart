@@ -3,6 +3,7 @@ import 'host_sort_menu.dart';
 import 'terminal_font_zoom.dart';
 import 'cloud_access/organizations_page.dart' show CloudAccessAccountCard;
 import 'cloud_access/share_host_dialog.dart' show showCloudShareDialog;
+import 'cloud_access/team_vaults.dart';
 import '../cloud/cloud_access_service.dart' show CloudAccessService;
 import 'app_menu.dart';
 import '../desktop/desktop_keyboard_mode.dart';
@@ -3465,9 +3466,9 @@ List<WorkspaceAction> _cloudFunctionsActions(
       credentialVisibilityVaultMenuLabel(
         currentL10n,
         vault,
-        currentL10n.vaultVaultname(app.vaultNameFor(vault.id)),
+        currentL10n.vaultVaultname(teamVaultDisplayName(app, vault.id)),
       ),
-      Icons.folder_outlined,
+      teamVaultIcon(app, vault.id),
       () => app.selectVault(vault.id),
     ),
   WorkspaceAction('cloud-lock', currentL10n.lockWorkspace, Icons.lock_outline, app.lock),
@@ -4040,6 +4041,13 @@ class _HostsPageState extends State<_HostsPage> {
                                   host: host,
                                 )
                               : null,
+                          onPutInVault: _putInVaultAvailable(app)
+                              ? () => showPutHostsInVaultDialog(
+                                  context,
+                                  app: app,
+                                  hosts: [host],
+                                )
+                              : null,
                         ),
                       ),
                     )
@@ -4119,6 +4127,12 @@ class _HostsPageState extends State<_HostsPage> {
     } finally {
       _connectingHosts.remove(host.id);
     }
+  }
+
+  bool _putInVaultAvailable(AppController app) {
+    final service = CloudAccessService(app);
+    return service.transferTargets.isNotEmpty ||
+        service.organizationsAvailable;
   }
 
   bool _cloudShareAvailable(AppController app) {
@@ -5389,6 +5403,7 @@ class _HostCard extends StatelessWidget {
     required this.onFavorite,
     required this.onAttachments,
     this.onShare,
+    this.onPutInVault,
   });
   final HostRecord host;
   final bool compact;
@@ -5408,6 +5423,10 @@ class _HostCard extends StatelessWidget {
 
   /// Cloud access "Share…" (null when the server offers no sharing).
   final VoidCallback? onShare;
+
+  /// "Put in Vault…": copy or move the Host into another (team) Vault. Null
+  /// when there is neither another Vault nor a way to create a team Vault.
+  final VoidCallback? onPutInVault;
 
   @override
   Widget build(BuildContext context) {
@@ -5474,6 +5493,13 @@ class _HostCard extends StatelessWidget {
                 context.l10n.cloudAccessShareMenu,
                 Icons.ios_share,
                 onShare!,
+              ),
+            if (onPutInVault != null)
+              WorkspaceAction(
+                'host-put-in-vault-${host.id}',
+                context.l10n.teamVaultPutMenu,
+                Icons.drive_file_move_outlined,
+                onPutInVault!,
               ),
             WorkspaceAction(
               'host-delete-${host.id}',
@@ -5626,6 +5652,13 @@ class _HostCard extends StatelessWidget {
                               context.l10n.cloudAccessShareMenu,
                               Icons.ios_share,
                               onShare!,
+                            ),
+                          if (onPutInVault != null)
+                            WorkspaceAction(
+                              'host-put-in-vault-${host.id}',
+                              context.l10n.teamVaultPutMenu,
+                              Icons.drive_file_move_outlined,
+                              onPutInVault!,
                             ),
                           WorkspaceAction(
                             'host-delete-${host.id}',
@@ -16103,7 +16136,7 @@ class _SettingsPage extends StatelessWidget {
                   ...app.vaults.map(
                     (vault) => VaultLifecycleTile(
                       vault: vault,
-                      displayName: app.vaultNameFor(vault.id),
+                      displayName: teamVaultDisplayName(app, vault.id),
                       isCurrent: vault.id == app.currentVaultId,
                       busy: app.vaultLifecycleBusy,
                       onOpen: vault.id == app.currentVaultId
@@ -26907,6 +26940,26 @@ Future<void> _showCloudHostEditor(
   // Exact scope the editor (its groups/hosts/keychain/permissions) belongs to.
   final vaultId = app.activeVault?.id, accountId = app.session?.accountId;
   final api = app.api, selectionGeneration = app.vaultSelectionGeneration;
+  // A NEW Host can be saved straight into another Vault the user can write
+  // (a team Vault); the editor still works on this Vault's groups and
+  // keychain, and what the Host needs is copied along on save.
+  final cloudAccess = CloudAccessService(app);
+  final saveVault = ValueNotifier<String>(vaultId ?? '');
+  final saveVaultChoices = existing != null || vaultId == null
+      ? const <HostSaveVaultChoice>[]
+      : [
+          HostSaveVaultChoice(
+            id: vaultId,
+            label: teamVaultDisplayName(app, vaultId),
+            icon: teamVaultIcon(app, vaultId),
+          ),
+          for (final vault in cloudAccess.transferTargets)
+            HostSaveVaultChoice(
+              id: vault.id,
+              label: teamVaultDisplayName(app, vault.id),
+              icon: teamVaultIcon(app, vault.id),
+            ),
+        ];
   final result = await showHostEditorPanel(
     context,
     existing: existing,
@@ -26928,7 +26981,11 @@ Future<void> _showCloudHostEditor(
     ],
     onValidate: app.validateHostReferences,
     canEdit: app.activeVault?.canWrite == true,
+    saveVault: saveVault,
+    saveVaultChoices: saveVaultChoices,
   );
+  final saveVaultId = saveVault.value;
+  saveVault.dispose();
   // Never save into a scope other than the one the editor opened for. Same
   // IDs can survive a server/session change or a Vault A->B->A reselection.
   if (result == null ||
@@ -26940,13 +26997,30 @@ Future<void> _showCloudHostEditor(
   }
   try {
     final original = existing;
-    if (original == null) {
+    if (original == null && saveVaultId != vaultId && saveVaultId.isNotEmpty) {
+      await cloudAccess.transferHostsToVault(
+        cloudAccess.planShare([result]),
+        saveVaultId,
+        move: false,
+      );
+      if (context.mounted) {
+        _snack(
+          context,
+          context.l10n.teamVaultTransferDone(
+            '1',
+            teamVaultDisplayName(app, saveVaultId),
+          ),
+        );
+      }
+    } else if (original == null) {
       await app.saveHost(result);
     } else {
       await app.saveHostFromEditor(original: original, edited: result);
     }
   } catch (error) {
-    if (context.mounted) _snack(context, app.friendlyError(error), error: true);
+    if (context.mounted) {
+      _snack(context, teamVaultErrorText(context, app, error), error: true);
+    }
   }
 }
 

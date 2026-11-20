@@ -2486,7 +2486,7 @@ paths:
   /vaults:
     get:
       summary: List accessible vaults and device key envelopes
-      description: Includes active and deleting vaults for current active members. Each item includes role, status, required_record_schema, requested_at, purge_after, can_cancel, and can_write. In the SQLite runtime each item also has admin_visible (true when a credential escrow key exists and an active member account is admin_visible; clients show an administrator-visible badge). During deletion grace the encrypted vault is read-only and remains available for export. `required_record_schema` is raised atomically to 2 when a schema-2 record or conflict commits and never decreases.
+      description: Includes active and deleting vaults for current active members. Each item includes role, status, required_record_schema, requested_at, purge_after, can_cancel, and can_write. In the SQLite runtime each item also has admin_visible (true when a credential escrow key exists and an active member account is admin_visible; clients show an administrator-visible badge). In the SQLite runtime, while organizations are enabled, each item also has `organization`: `{org_id, name}` of the cloud organization the Vault is attached to, or null when it is attached to none; the field is absent when organizations are disabled and in the PostgreSQL runtime. During deletion grace the encrypted vault is read-only and remains available for export. `required_record_schema` is raised atomically to 2 when a schema-2 record or conflict commits and never decreases.
       responses: {'200': {description: Vault lifecycle state, required_record_schema, and key envelopes}}
     post:
       summary: Create a client-keyed vault

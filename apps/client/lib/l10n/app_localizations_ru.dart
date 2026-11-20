@@ -19977,4 +19977,168 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get fileCopyFallingBack =>
       'Прямое соединение SSH не удалось. Копирование продолжится через это устройство.';
+
+  @override
+  String teamVaultNameWithOrg(String org, String name) {
+    return '$name · команда $org';
+  }
+
+  @override
+  String get teamVaultPutMenu => 'Поместить в сейф…';
+
+  @override
+  String teamVaultPutTitle(String name) {
+    return 'Поместить $name в сейф';
+  }
+
+  @override
+  String teamVaultPutTitleMany(String count) {
+    return 'Поместить хосты ($count) в сейф';
+  }
+
+  @override
+  String get teamVaultTarget => 'Целевой сейф';
+
+  @override
+  String get teamVaultNew => 'Новый командный сейф';
+
+  @override
+  String get teamVaultNoTargets =>
+      'Нет другого сейфа, доступного для записи. Сначала создайте командный сейф.';
+
+  @override
+  String get teamVaultPersonal => 'Личный сейф';
+
+  @override
+  String teamVaultTeamOf(String org) {
+    return 'Командный сейф · $org';
+  }
+
+  @override
+  String get teamVaultModeMove => 'Переместить';
+
+  @override
+  String get teamVaultModeCopy => 'Копировать';
+
+  @override
+  String teamVaultModeMoveHelp(String source) {
+    return 'Хост будет удалён из $source после синхронизации его копии в целевом сейфе. Используемые им учётные данные и промежуточные хосты копируются и остаются в $source.';
+  }
+
+  @override
+  String teamVaultModeCopyHelp(String source) {
+    return 'Создаётся отдельная копия; хост остаётся и в $source. Дальнейшие изменения одной копии не переносятся на другую.';
+  }
+
+  @override
+  String teamVaultMovePinned(String names) {
+    return 'Возможна только копия: $names по-прежнему подключаются через него.';
+  }
+
+  @override
+  String get teamVaultAlsoCopied => 'Вместе с ним копируются:';
+
+  @override
+  String get teamVaultVisibleNotice =>
+      'Все, у кого есть доступ к целевому сейфу, смогут подключаться к этим хостам и использовать сохранённые с ними данные входа.';
+
+  @override
+  String teamVaultTransferDone(String count, String vault) {
+    return 'Хостов перенесено в $vault: $count.';
+  }
+
+  @override
+  String get teamVaultErrorCopiedNotRemoved =>
+      'Хосты скопированы в целевой сейф, но исходные удалить не удалось. Удалите их здесь, если они больше не нужны.';
+
+  @override
+  String get teamVaultErrorTargetReadOnly =>
+      'Вы не можете добавлять хосты в этот сейф.';
+
+  @override
+  String get teamVaultErrorSourceReadOnly =>
+      'Этот сейф доступен вам только для чтения: хосты можно копировать, но не перемещать.';
+
+  @override
+  String get teamVaultErrorMoveBlocked =>
+      'Другие хосты по-прежнему подключаются через выбранный. Скопируйте его или переместите их вместе.';
+
+  @override
+  String get teamVaultErrorNotSynced =>
+      'Хосты записаны в целевой сейф, но ещё не синхронизированы. Ничего не удалено; выполните синхронизацию и проверьте целевой сейф.';
+
+  @override
+  String get teamVaultErrorOtherOrganization =>
+      'Этот сейф уже принадлежит другой организации.';
+
+  @override
+  String get teamVaultNewTitle => 'Новый командный сейф';
+
+  @override
+  String get teamVaultNewHelp =>
+      'Командный сейф — зашифрованный сейф организации. Помещённые в него хосты доступны командам и участникам, которым вы дали доступ.';
+
+  @override
+  String get teamVaultName => 'Название сейфа';
+
+  @override
+  String get teamVaultOrganization => 'Организация';
+
+  @override
+  String get teamVaultNoManagedOrg =>
+      'Создать командный сейф может только владелец или администратор организации. Сначала создайте организацию или попросите назначить вас администратором.';
+
+  @override
+  String get teamVaultAccessHeading => 'Кто может пользоваться';
+
+  @override
+  String get teamVaultAccessHelp =>
+      'Выберите роль для команд или отдельных участников. Ключ сейфа каждый получит только после того, как вы подтвердите его устройство на следующем шаге.';
+
+  @override
+  String get teamVaultNoAccess => 'Нет доступа';
+
+  @override
+  String get teamVaultNobodyYet =>
+      'В организации пока нет других участников или команд. Доступ можно выдать позже.';
+
+  @override
+  String get teamVaultCreate => 'Создать';
+
+  @override
+  String get teamVaultCreatedHelp =>
+      'Командный сейф создан. Подтвердите ниже устройство каждого участника, чтобы передать ключ; участники без зарегистрированного устройства появятся после входа.';
+
+  @override
+  String teamVaultAccessTitle(String name) {
+    return 'Доступ · $name';
+  }
+
+  @override
+  String get teamVaultsHeading => 'Командные сейфы';
+
+  @override
+  String get teamVaultsEmpty =>
+      'В этой организации у вас пока нет командных сейфов. Сейф появится здесь, когда владелец даст доступ и подтвердит ваше устройство.';
+
+  @override
+  String get teamVaultsEmptyManager =>
+      'Командных сейфов пока нет. Создайте сейф и поместите в него хосты через меню хоста.';
+
+  @override
+  String get teamVaultCurrent => 'открыт сейчас';
+
+  @override
+  String get teamVaultAccess => 'Доступ…';
+
+  @override
+  String get teamVaultOpen => 'Открыть';
+
+  @override
+  String get teamVaultSaveTo => 'Сохранить в';
+
+  @override
+  String teamVaultReceived(String count) {
+    return 'Командных сейфов добавлено на это устройство: $count.';
+  }
 }

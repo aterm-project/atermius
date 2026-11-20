@@ -158,7 +158,11 @@ class CloudAccessService {
   /// Throws unless the session is still exactly [scope]'s account, device,
   /// server and client; with [active], [scope]'s Vault must also be the
   /// selected, writable, owner Vault.
-  void verifyScope(OwnerScope scope, {bool active = false}) {
+  void verifyScope(
+    OwnerScope scope, {
+    bool active = false,
+    bool requireOwner = true,
+  }) {
     if (app.authScopeToken != scope.authToken ||
         app.account?.accountId != scope.accountId ||
         app.identity?.deviceId != scope.deviceId ||
@@ -173,7 +177,7 @@ class CloudAccessService {
           app.vaultSelectionToken != scope.selection ||
           vault?.id != scope.vaultId)
         throw const CloudAccessException('selection_superseded');
-      if (vault?.role != 'owner')
+      if (requireOwner && vault?.role != 'owner')
         throw const CloudAccessException('owner_required');
     }
   }
@@ -182,24 +186,31 @@ class CloudAccessService {
 
   /// Selects [vaultId] for a Vault-bound controller operation and binds the
   /// scope to that selection (a no-op or superseded selection fails).
-  Future<String?> _enterVault(OwnerScope scope) async {
+  Future<String?> _enterVault(
+    OwnerScope scope, {
+    bool requireOwner = true,
+  }) async {
     verifyScope(scope);
     final previous = app.activeVault?.id;
     final selection = await app.selectVaultForOperation(scope.vaultId);
     if (selection == null)
       throw const CloudAccessException('selection_superseded');
     scope.selection = selection;
-    verifyScope(scope, active: true);
+    verifyScope(scope, active: true, requireOwner: requireOwner);
     return previous;
   }
 
   /// Returns to [previous] only if no selection was requested since this
   /// operation's own selection (select-away-and-back included) in the same
   /// session; never overrides a newer user choice.
-  Future<void> _leaveVault(OwnerScope scope, String? previous) async {
+  Future<void> _leaveVault(
+    OwnerScope scope,
+    String? previous, {
+    bool requireOwner = true,
+  }) async {
     if (previous == null || previous == scope.vaultId) return;
     try {
-      verifyScope(scope, active: true);
+      verifyScope(scope, active: true, requireOwner: requireOwner);
     } on CloudAccessException {
       return;
     }
@@ -595,6 +606,197 @@ class CloudAccessService {
       }, inScope: () => verifyScope(target, active: true));
     } finally {
       await _leaveVault(target, source.vaultId);
+    }
+  }
+
+  // Team Vaults ---------------------------------------------------------------
+
+  /// Vaults other than the selected one that this account can put records
+  /// into (active and writable: owner or editor).
+  List<VaultDescriptor> get transferTargets => [
+    for (final vault in app.vaults)
+      if (vault.id != app.activeVault?.id &&
+          vault.status == 'active' &&
+          vault.canWrite &&
+          vault.role != 'viewer')
+        vault,
+  ];
+
+  /// Hosts that still jump through one of [hosts]; a move is refused while
+  /// any exist.
+  List<HostRecord> movePinnedBy(List<HostRecord> hosts) =>
+      hostsPinnedByJumpUsers(selected: hosts, vaultHosts: app.hosts);
+
+  /// Creates an empty Vault owned by this account, attaches it to [orgId]
+  /// and records the desired [grants]. Members still receive the Vault key
+  /// only after the owner confirms their device (key distribution); nothing
+  /// here hands a key to anyone. The previously selected Vault stays
+  /// selected unless the user chose another meanwhile.
+  Future<String> createTeamVault({
+    required String name,
+    required String orgId,
+    List<({String type, String id, String role})> grants = const [],
+  }) async {
+    if (!organizationsAvailable)
+      throw const CloudAccessException('organizations_unavailable');
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) throw const CloudAccessException('name_required');
+    final source = captureScope(vaultId: app.activeVault?.id ?? '');
+    final previous = app.activeVault?.id;
+    verifyScope(source);
+    final created = await _controllerStep(
+      () => app.createVaultInScope(trimmed),
+    );
+    final target = captureScope(vaultId: created.vaultId);
+    target.selection = created.selection;
+    try {
+      return await _afterCommit(() async {
+        await _checkpoint('team_vault_created');
+        verifyScope(source);
+        await _api(source).attachVault(created.vaultId, orgId);
+        for (final grant in grants) {
+          verifyScope(source);
+          final current = await _api(source).grants(created.vaultId);
+          verifyScope(source);
+          await _api(source).setGrant(
+            created.vaultId,
+            grant.type,
+            grant.id,
+            grant.role,
+            current['grants_revision'] as int,
+          );
+        }
+        verifyScope(source);
+        // The Vault list carries the organization of each Vault; refresh it
+        // so the new Vault shows up as a team Vault right away.
+        await app.refreshVaultOrganizations();
+        return created.vaultId;
+      }, inScope: () => verifyScope(source));
+    } finally {
+      await _leaveVault(target, previous);
+    }
+  }
+
+  /// Copies the planned Hosts (with the dependencies of [plan]) from the
+  /// selected Vault into [targetVaultId], an existing Vault this account can
+  /// write, and with [move] removes the selected Hosts from the source once
+  /// the copies are confirmed synchronized.
+  ///
+  /// Order matters for honesty: the originals are deleted only after the
+  /// target reports no pending writes. If the source can no longer be
+  /// re-selected at that point, the copies stay and the error says the
+  /// originals were kept (`transfer_copied_not_removed`). Jump Hosts and
+  /// credentials are never deleted from the source; other Hosts may use them.
+  ///
+  /// A Host that only exists as an unsaved draft (new Host saved straight
+  /// into a team Vault) is transferred the same way with `move: false`.
+  Future<void> transferHostsToVault(
+    HostSharePlan plan,
+    String targetVaultId, {
+    required bool move,
+  }) async {
+    if (!plan.canProceed)
+      throw const CloudAccessException('share_plan_blocked');
+    final source = captureScope();
+    if (plan.sourceVaultId != null && plan.sourceVaultId != source.vaultId) {
+      throw const CloudAccessException('selection_superseded');
+    }
+    if (targetVaultId == source.vaultId)
+      throw const CloudAccessException('transfer_same_vault');
+    final descriptor = app.vaults
+        .where((vault) => vault.id == targetVaultId)
+        .firstOrNull;
+    if (descriptor == null ||
+        descriptor.status != 'active' ||
+        !descriptor.canWrite ||
+        descriptor.role == 'viewer') {
+      throw const CloudAccessException('transfer_target_read_only');
+    }
+    if (move) {
+      if (app.activeVault?.canWrite != true)
+        throw const CloudAccessException('transfer_source_read_only');
+      if (movePinnedBy(plan.selected).isNotEmpty)
+        throw const CloudAccessException('transfer_move_blocked');
+    }
+    verifyScope(source, active: true, requireOwner: false);
+    final sourceGroups = List.of(app.groups);
+    final known = List.of(plan.knownHosts);
+    final target = captureScope(vaultId: targetVaultId);
+    final previous = await _enterVault(target, requireOwner: false);
+    try {
+      Future<Object> settled() async {
+        await app.waitForMembershipRefresh();
+        verifyScope(target, active: true, requireOwner: false);
+        final current = app.recordWriteScope;
+        if (current == null)
+          throw const CloudAccessException('selection_superseded');
+        return current;
+      }
+
+      await settled();
+      final copies = remapForVaultTransfer(
+        plan,
+        _uuid.v4,
+        sourceGroups: sourceGroups,
+        targetHosts: List.of(app.hosts),
+        targetCredentials: List.of(app.credentials),
+        targetGroups: List.of(app.groups),
+      );
+      for (final credential in copies.credentials) {
+        await app.createCredentialInScope(credential, scope: await settled());
+      }
+      for (final host in copies.hosts) {
+        await app.createHostInScope(host, scope: await settled());
+      }
+      for (final key in known) {
+        await settled();
+        final already = app.knownHosts.any(
+          (k) =>
+              k.state == KnownHostState.trusted &&
+              k.host == key.host &&
+              k.port == key.port &&
+              k.algorithm == key.algorithm &&
+              k.fingerprint == key.fingerprint,
+        );
+        if (already) continue;
+        await app.approveKnownHost(
+          host: key.host,
+          port: key.port,
+          algorithm: key.algorithm,
+          fingerprint: key.fingerprint,
+          approvalSource: KnownHostApprovalSource.outOfBandFingerprint,
+        );
+      }
+      await _checkpoint('transfer_copies_written');
+      verifyScope(target, active: true, requireOwner: false);
+      await app.synchronize();
+      await app.refreshSyncStatus();
+      await settled();
+      if (app.pendingCount != 0)
+        throw const CloudAccessException('sharing_vault_not_synced');
+    } finally {
+      await _leaveVault(target, previous, requireOwner: false);
+    }
+    if (!move) return;
+    // The copies are safe on the server. Remove the originals only from the
+    // very Vault they came from, in the same session.
+    try {
+      verifyScope(source);
+      final back = captureScope(vaultId: source.vaultId);
+      await _enterVault(back, requireOwner: false);
+      await app.waitForMembershipRefresh();
+      verifyScope(back, active: true, requireOwner: false);
+      for (final host in plan.selected) {
+        final current = app.hosts.where((h) => h.id == host.id).firstOrNull;
+        if (current == null) continue;
+        verifyScope(back, active: true, requireOwner: false);
+        await app.deleteHost(current);
+      }
+      verifyScope(back, active: true, requireOwner: false);
+      await app.synchronize();
+      await app.refreshSyncStatus();
+    } catch (_) {
+      throw const CloudAccessException('transfer_copied_not_removed');
     }
   }
 

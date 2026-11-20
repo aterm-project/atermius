@@ -27,6 +27,18 @@ const _uuid = Uuid();
 
 /// One selectable Keychain credential (public facts only) for a Host.
 @immutable
+/// A Vault a new Host can be saved into ("Save to").
+class HostSaveVaultChoice {
+  const HostSaveVaultChoice({
+    required this.id,
+    required this.label,
+    this.icon = Icons.folder_outlined,
+  });
+  final String id;
+  final String label;
+  final IconData icon;
+}
+
 class HostKeychainChoice {
   const HostKeychainChoice({required this.id, required this.label});
   final String id;
@@ -50,6 +62,8 @@ Future<HostRecord?> showHostEditorPanel(
   String? Function(HostRecord)? onValidate,
   bool canEdit = true,
   String keyPrefix = 'host_editor',
+  ValueNotifier<String>? saveVault,
+  List<HostSaveVaultChoice> saveVaultChoices = const [],
 }) => showAppDialog<HostRecord>(
   context: context,
   motion: AppDialogMotion.sideSheet,
@@ -65,6 +79,8 @@ Future<HostRecord?> showHostEditorPanel(
     onValidate: onValidate,
     canEdit: canEdit,
     keyPrefix: keyPrefix,
+    saveVault: saveVault,
+    saveVaultChoices: saveVaultChoices,
   ),
 );
 
@@ -83,7 +99,15 @@ class HostEditorPanel extends StatefulWidget {
     this.canEdit = true,
     this.keyPrefix = 'host_editor',
     this.rdpFeaturesForTesting,
+    this.saveVault,
+    this.saveVaultChoices = const [],
   });
+
+  /// For a NEW Host: the Vault to save into, chosen from [saveVaultChoices]
+  /// (shown only when there is more than one). The caller reads the value
+  /// after the editor returns.
+  final ValueNotifier<String>? saveVault;
+  final List<HostSaveVaultChoice> saveVaultChoices;
   final List<GroupRecord> groups;
   final List<HostRecord> hosts;
 
@@ -319,6 +343,42 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (widget.existing == null &&
+                            widget.saveVault != null &&
+                            widget.saveVaultChoices.length > 1) ...[
+                          DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            key: ValueKey('${widget.keyPrefix}_save_vault'),
+                            initialValue: widget.saveVault!.value,
+                            decoration: InputDecoration(
+                              labelText: context.l10n.teamVaultSaveTo,
+                            ),
+                            items: [
+                              for (final choice in widget.saveVaultChoices)
+                                DropdownMenuItem(
+                                  value: choice.id,
+                                  child: Row(
+                                    children: [
+                                      Icon(choice.icon, size: 18),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          choice.label,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                widget.saveVault!.value = value;
+                              }
+                            },
+                          ),
+                          SizedBox(height: density.space4),
+                        ],
                         DropdownButtonFormField<HostProtocol>(
                           isExpanded: true,
                           key: ValueKey('${widget.keyPrefix}_protocol'),

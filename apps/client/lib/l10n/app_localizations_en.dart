@@ -19912,4 +19912,168 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get fileCopyFallingBack =>
       'Direct SSH failed. Continuing through this device.';
+
+  @override
+  String teamVaultNameWithOrg(String org, String name) {
+    return '$name · team $org';
+  }
+
+  @override
+  String get teamVaultPutMenu => 'Put in Vault…';
+
+  @override
+  String teamVaultPutTitle(String name) {
+    return 'Put $name in a Vault';
+  }
+
+  @override
+  String teamVaultPutTitleMany(String count) {
+    return 'Put $count Hosts in a Vault';
+  }
+
+  @override
+  String get teamVaultTarget => 'Target Vault';
+
+  @override
+  String get teamVaultNew => 'New team Vault';
+
+  @override
+  String get teamVaultNoTargets =>
+      'There is no other Vault you can write to. Create a team Vault first.';
+
+  @override
+  String get teamVaultPersonal => 'Personal Vault';
+
+  @override
+  String teamVaultTeamOf(String org) {
+    return 'Team Vault · $org';
+  }
+
+  @override
+  String get teamVaultModeMove => 'Move';
+
+  @override
+  String get teamVaultModeCopy => 'Copy';
+
+  @override
+  String teamVaultModeMoveHelp(String source) {
+    return 'The Host is removed from $source once its copy in the target Vault is synchronized. Credentials and jump Hosts it uses are copied and also stay in $source.';
+  }
+
+  @override
+  String teamVaultModeCopyHelp(String source) {
+    return 'A separate copy is created; the Host also stays in $source. Later edits to one are not applied to the other.';
+  }
+
+  @override
+  String teamVaultMovePinned(String names) {
+    return 'Can only be copied: $names still connect through it as a jump Host.';
+  }
+
+  @override
+  String get teamVaultAlsoCopied => 'Copied along with it:';
+
+  @override
+  String get teamVaultVisibleNotice =>
+      'Everyone with access to the target Vault can connect to these Hosts and use the logins saved with them.';
+
+  @override
+  String teamVaultTransferDone(String count, String vault) {
+    return '$count Host(s) are now in $vault.';
+  }
+
+  @override
+  String get teamVaultErrorCopiedNotRemoved =>
+      'The Hosts were copied to the target Vault, but the originals could not be removed. Delete them here if they are no longer needed.';
+
+  @override
+  String get teamVaultErrorTargetReadOnly =>
+      'You cannot add Hosts to that Vault.';
+
+  @override
+  String get teamVaultErrorSourceReadOnly =>
+      'This Vault is read-only for you, so Hosts can be copied but not moved out of it.';
+
+  @override
+  String get teamVaultErrorMoveBlocked =>
+      'Other Hosts still connect through a selected Host. Copy it instead, or move them together.';
+
+  @override
+  String get teamVaultErrorNotSynced =>
+      'The Hosts were written to the target Vault but are not synchronized yet. Nothing was removed; synchronize and check the target Vault.';
+
+  @override
+  String get teamVaultErrorOtherOrganization =>
+      'This Vault already belongs to another organization.';
+
+  @override
+  String get teamVaultNewTitle => 'New team Vault';
+
+  @override
+  String get teamVaultNewHelp =>
+      'A team Vault is an encrypted Vault that belongs to an organization. Hosts you put in it are available to the teams and members you grant access to.';
+
+  @override
+  String get teamVaultName => 'Vault name';
+
+  @override
+  String get teamVaultOrganization => 'Organization';
+
+  @override
+  String get teamVaultNoManagedOrg =>
+      'Only an owner or administrator of an organization can create a team Vault. Create an organization first, or ask to be made an administrator.';
+
+  @override
+  String get teamVaultAccessHeading => 'Who can use it';
+
+  @override
+  String get teamVaultAccessHelp =>
+      'Choose a role for teams or individual members. Each person receives the Vault key only after you confirm their device in the next step.';
+
+  @override
+  String get teamVaultNoAccess => 'No access';
+
+  @override
+  String get teamVaultNobodyYet =>
+      'This organization has no other members or teams yet. You can grant access later.';
+
+  @override
+  String get teamVaultCreate => 'Create';
+
+  @override
+  String get teamVaultCreatedHelp =>
+      'The team Vault was created. Confirm each member\'s device below to deliver the key; members without a registered device appear once they sign in.';
+
+  @override
+  String teamVaultAccessTitle(String name) {
+    return 'Access · $name';
+  }
+
+  @override
+  String get teamVaultsHeading => 'Team Vaults';
+
+  @override
+  String get teamVaultsEmpty =>
+      'You have no team Vault in this organization yet. One appears here after its owner grants you access and confirms your device.';
+
+  @override
+  String get teamVaultsEmptyManager =>
+      'No team Vault yet. Create one, then put Hosts in it from the Host menu.';
+
+  @override
+  String get teamVaultCurrent => 'open now';
+
+  @override
+  String get teamVaultAccess => 'Access…';
+
+  @override
+  String get teamVaultOpen => 'Open';
+
+  @override
+  String get teamVaultSaveTo => 'Save to';
+
+  @override
+  String teamVaultReceived(String count) {
+    return '$count team Vault(s) were added to this device.';
+  }
 }
