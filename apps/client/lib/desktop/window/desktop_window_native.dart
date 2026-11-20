@@ -27,7 +27,9 @@ import '../desktop_wheel.dart';
 const _origin = 'atermius://desktop-window';
 const _protocol = 'atermius-desktop-v1';
 const _capabilityEnv = 'ATERMIUS_DESKTOP_WINDOW_CAPABILITY';
-const _maxInputBytes = 70 * 1024;
+// Each input byte can occupy six ASCII bytes in a JSON string (\u0001).
+// The session enforces its UTF-8 text limit after decoding the envelope.
+const _maxInputBytes = 6 * desktopClipboardMaxBytes + 128;
 const _maxOutstandingBytes = 96 * 1024 * 1024;
 const _maxOutstandingFrames = 6;
 const _frameHeader = 32;
@@ -739,10 +741,8 @@ class MirroredDesktopSession extends DesktopSession {
         case 'clipboard':
           final text = data['text'];
           if (text is! String) throw const FormatException();
+          // The parent handles the system clipboard for every window.
           display.clipboard = text;
-          // Already on this device's clipboard (the parent wrote it): only
-          // remembered, so focusing this window does not send it back.
-          unawaited(clipboardSync.remoteChanged(text));
         case 'notice':
           final text = data['text'];
           if (text is String) onNotice?.call(text);

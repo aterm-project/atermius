@@ -402,6 +402,25 @@ void main() {
   });
 
   group('DesktopView', () {
+    testWidgets('iPad trackpad and mouse send horizontal wheel input', (
+      tester,
+    ) async {
+      final session = await _mount(tester, platform: TargetPlatform.iOS);
+      final touchpad = TestPointer(7, PointerDeviceKind.trackpad);
+      await tester.sendEventToBinding(touchpad.panZoomStart(_centre));
+      await tester.sendEventToBinding(
+        touchpad.panZoomUpdate(_centre, pan: const Offset(25, -25)),
+      );
+      await tester.sendEventToBinding(touchpad.panZoomEnd());
+      expect(session.turns.single.sublist(3), [-30, -30]);
+
+      final mouse = TestPointer(8, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(mouse.hover(_centre));
+      session.sent.clear();
+      await tester.sendEventToBinding(mouse.scroll(const Offset(40, 0)));
+      expect(session.turns.single.sublist(3), [120, 0]);
+    });
+
     testWidgets('a two-finger pan scrolls in proportion, on both axes', (
       tester,
     ) async {
@@ -777,34 +796,30 @@ void main() {
       ]);
     });
 
-    for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
-      testWidgets('$platform keeps its wheel and ignores touchpad gestures', (
-        tester,
-      ) async {
-        final session = await _mount(tester, platform: platform);
-        final mouse = TestPointer(3, PointerDeviceKind.mouse);
-        await tester.sendEventToBinding(mouse.hover(_centre));
-        session.sent.clear();
-        // One vertical notch per event whatever the delta, as before.
-        await tester.sendEventToBinding(mouse.scroll(const Offset(0, 300)));
-        await tester.sendEventToBinding(mouse.scroll(const Offset(0, -5)));
-        await tester.sendEventToBinding(mouse.scale(2));
-        expect(session.sent, [
-          ['mouse', 500, 400, 16],
-          ['mouse', 500, 400, 0],
-          ['mouse', 500, 400, 8],
-          ['mouse', 500, 400, 0],
-        ]);
-        session.sent.clear();
-        final touchpad = TestPointer(7, PointerDeviceKind.trackpad);
-        await tester.sendEventToBinding(touchpad.panZoomStart(_centre));
-        await tester.sendEventToBinding(
-          touchpad.panZoomUpdate(_centre, pan: const Offset(80, 200), scale: 2),
-        );
-        await tester.sendEventToBinding(touchpad.panZoomEnd());
-        expect(session.sent, isEmpty);
-      });
-    }
+    testWidgets('Android keeps its discrete wheel handling', (tester) async {
+      final session = await _mount(tester, platform: TargetPlatform.android);
+      final mouse = TestPointer(3, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(mouse.hover(_centre));
+      session.sent.clear();
+      // One vertical notch per event whatever the delta, as before.
+      await tester.sendEventToBinding(mouse.scroll(const Offset(0, 300)));
+      await tester.sendEventToBinding(mouse.scroll(const Offset(0, -5)));
+      await tester.sendEventToBinding(mouse.scale(2));
+      expect(session.sent, [
+        ['mouse', 500, 400, 16],
+        ['mouse', 500, 400, 0],
+        ['mouse', 500, 400, 8],
+        ['mouse', 500, 400, 0],
+      ]);
+      session.sent.clear();
+      final touchpad = TestPointer(7, PointerDeviceKind.trackpad);
+      await tester.sendEventToBinding(touchpad.panZoomStart(_centre));
+      await tester.sendEventToBinding(
+        touchpad.panZoomUpdate(_centre, pan: const Offset(80, 200), scale: 2),
+      );
+      await tester.sendEventToBinding(touchpad.panZoomEnd());
+      expect(session.sent, isEmpty);
+    });
   });
 
   group('transports', () {

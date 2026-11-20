@@ -46,7 +46,15 @@ void main() {
           name: 'This Browser',
           status: 'active',
           createdAt: '2026-09-01T12:34:00Z',
-        ),
+        )..addAll({
+          'signed_in': true,
+          'activity': {
+            'platform': 'web',
+            'user_agent': 'Browser UA',
+            'last_ip': '198.51.100.10',
+            'ip_history': ['198.51.100.9', '2001:db8::1'],
+          },
+        }),
         _device(
           _activeDeviceId,
           name: 'Active Laptop',
@@ -84,6 +92,13 @@ void main() {
         expect(find.textContaining('Created ·'), findsNWidgets(3));
         expect(find.textContaining('Revoked ·'), findsOneWidget);
         expect(find.bySemanticsLabel('Current device'), findsOneWidget);
+        expect(find.text('Browser UA'), findsOneWidget);
+        expect(find.text('Last IP · 198.51.100.10'), findsOneWidget);
+        expect(
+          find.text('Previous IPs · 198.51.100.9, 2001:db8::1'),
+          findsOneWidget,
+        );
+        expect(find.byTooltip('Sign out device'), findsNothing);
         expect(find.byTooltip('Revoke device'), findsOneWidget);
         expect(find.text('Old Tablet'), findsOneWidget);
       } finally {
@@ -425,6 +440,33 @@ void main() {
     }
   });
 
+  testWidgets('sign out shows the reported name and preserves device trust', (
+    tester,
+  ) async {
+    final harness = await _makeHarness(signedIn: true);
+    try {
+      await _pumpDevices(tester, harness.app);
+      expect(find.text('Work PC'), findsOneWidget);
+      await tester.tap(find.byTooltip('Sign out device'));
+      await tester.pumpAndSettle();
+      expect(find.text('Sign out this device?'), findsOneWidget);
+      await tester.tap(find.text('Sign out device'));
+      await tester.pumpAndSettle();
+
+      expect(
+        harness.requests.first.url.path,
+        '/api/v1/devices/$_activeDeviceId/sign-out',
+      );
+      expect(find.text('Signed out'), findsOneWidget);
+      expect(find.byTooltip('Sign out device'), findsNothing);
+      expect(find.byTooltip('Revoke device'), findsOneWidget);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await harness.dispose();
+      await tester.binding.setSurfaceSize(null);
+    }
+  });
+
   testWidgets('failed device refresh is surfaced without a Web error', (
     tester,
   ) async {
@@ -565,7 +607,10 @@ Map<String, dynamic> _signedRedactionReport(
   };
 }
 
-Future<_DeviceHarness> _makeHarness({bool rejectDeviceRead = false}) async {
+Future<_DeviceHarness> _makeHarness({
+  bool rejectDeviceRead = false,
+  bool signedIn = false,
+}) async {
   final sodium = await SodiumSumoInit.init();
   final database = ClientDatabase.forTesting(NativeDatabase.memory());
   final serverDevices = [
@@ -576,6 +621,12 @@ Future<_DeviceHarness> _makeHarness({bool rejectDeviceRead = false}) async {
       createdAt: '2026-09-02T12:34:00Z',
     ),
   ];
+  if (signedIn) {
+    serverDevices.single.addAll({
+      'signed_in': true,
+      'activity': {'platform': 'windows', 'device_name': 'Work PC'},
+    });
+  }
   final requests = <http.Request>[];
   final api = ApiClient(
     baseUrl: 'https://devices.example.test',
@@ -590,6 +641,11 @@ Future<_DeviceHarness> _makeHarness({bool rejectDeviceRead = false}) async {
           createdAt: '2026-09-02T12:34:00Z',
           revokedAt: '2026-09-28T15:00:00Z',
         );
+        return http.Response('{}', 200);
+      }
+      if (request.method == 'POST' &&
+          request.url.path == '/api/v1/devices/$_activeDeviceId/sign-out') {
+        serverDevices[0] = {...serverDevices[0], 'signed_in': false};
         return http.Response('{}', 200);
       }
       if (request.method == 'GET' && request.url.path == '/api/v1/devices') {

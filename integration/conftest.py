@@ -99,8 +99,9 @@ class ApiClient:
         json_body: Any = None,
         raw_body: bytes | None = None,
         content_type: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Response:
-        headers = {"Accept": "application/json"}
+        headers = {"Accept": "application/json", **(extra_headers or {})}
         body = raw_body
         if json_body is not None:
             body = json.dumps(json_body, separators=(",", ":"), ensure_ascii=False).encode("utf-8")

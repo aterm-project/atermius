@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart' show CupertinoTextField, OverlayVisibilityMode;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -404,7 +405,9 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
                                   _protocol = value;
                                   if (value != HostProtocol.ssh) {
                                     _kind = AuthKind.password;
-                                    _jumpHostId = null;
+                                    if (value == HostProtocol.telnet) {
+                                      _jumpHostId = null;
+                                    }
                                   }
                                 })
                               : null,
@@ -598,13 +601,17 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
                               // Direct desktops (Android VNC/RDP, Windows) have
                               // no gateway; the gateway notice stays for web
                               // and gateway-routed clients.
+                              : _jumpHostId != null
+                              ? (kIsWeb
+                                    ? context.l10n.desktopJumpNativeRequired
+                                    : context.l10n.desktopJumpTunnelHint)
                               : DesktopSession.supportsDirect(_protocol)
                               ? context.l10n.directDesktopSignInHint
                               : context.l10n.signInDetailsAreStoredEncrypted,
                           style: const TextStyle(fontSize: 12),
                         ),
                         fieldGap,
-                        if (_protocol == HostProtocol.ssh)
+                        if (_protocol != HostProtocol.telnet)
                           DropdownButtonFormField<String?>(
                             key: ValueKey('${widget.keyPrefix}_jump_host'),
                             initialValue: _jumpHostId,
@@ -748,7 +755,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
       if (jumpHostId == null) return true;
       if (routeLength == maxJumpHostHops) return false;
       final next = hostsById[jumpHostId];
-      if (next == null) return false;
+      if (next == null || next.protocol != HostProtocol.ssh) return false;
       host = next;
       routeLength++;
     }

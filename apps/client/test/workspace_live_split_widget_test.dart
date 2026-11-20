@@ -429,4 +429,3 @@ class _UnsupportedPortForwardPlatform implements SshPortForwardPlatform {
     SshPortForwardProfile profile,
   ) => throw UnsupportedError('Port forwarding is not used by this test.');
 }
-

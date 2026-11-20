@@ -10,6 +10,7 @@ import 'mcp_service.dart';
 /// the lifecycle never sees tokens, policy or workspace data.
 abstract interface class McpLifecycleTarget implements Listenable {
   bool get running;
+  bool get starting;
   Uri? get endpoint;
 
   /// Stops listening and revokes the current token.
@@ -22,6 +23,8 @@ class McpServiceLifecycleTarget implements McpLifecycleTarget {
 
   @override
   bool get running => service.running;
+  @override
+  bool get starting => service.starting;
   @override
   Uri? get endpoint => service.endpoint;
   @override
@@ -53,7 +56,9 @@ enum McpBackgroundMode {
   foregroundOnly,
 }
 
-/// Binds the MCP listener lifetime to Android's process lifecycle.
+/// Binds the MCP listener lifetime to the mobile app lifecycle.
+///
+/// On iOS, hiding the app revokes an active listener or a pending start.
 ///
 /// * Listener starts (explicit user action, app visible) -> foreground
 ///   service lease with an ongoing notification and Stop action.
@@ -75,6 +80,7 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
     McpForegroundText Function()? text,
     WidgetsBinding? binding,
     String Function()? newLeaseId,
+    this.foregroundOnly = false,
   }) : channel = channel ?? McpForegroundChannel(),
        _text = text ?? (() => const McpForegroundText()),
        _binding = binding ?? WidgetsBinding.instance,
@@ -92,8 +98,7 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
   /// needs none (desktop/Web) or it has not been installed.
   static McpListenerLifecycle? get installed => _installed;
 
-  /// Production entry point (see SERVICE_HOOKS.patch). Idempotent; a no-op
-  /// on platforms without an Android foreground-service requirement.
+  /// Installs the mobile lifecycle guard once for the application.
   static McpListenerLifecycle? install(
     McpService service, {
     McpForegroundText Function()? text,
@@ -102,11 +107,13 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
     return _installed ??= McpListenerLifecycle(
       target: McpServiceLifecycleTarget(service),
       text: text,
+      foregroundOnly: mcpForegroundOnly,
     );
   }
 
   final McpLifecycleTarget target;
   final McpForegroundChannel channel;
+  final bool foregroundOnly;
   final McpForegroundText Function() _text;
   final WidgetsBinding _binding;
   final String Function() _newLeaseId;
@@ -150,6 +157,12 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
 
   void _targetChanged() {
     if (_disposed) return;
+    if (foregroundOnly &&
+        _inBackground &&
+        (target.starting || target.running)) {
+      unawaited(_revoke('background_unprotected'));
+      return;
+    }
     final port = target.running ? target.endpoint?.port : null;
     if (port != null) {
       if (_lease != null && _leasePort == port) return;
@@ -182,6 +195,10 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
       if (grant.active) unawaited(_stopNative(id));
       return;
     }
+    if (foregroundOnly && !grant.active) {
+      await _revoke('background_unprotected');
+      return;
+    }
     if (!grant.active) {
       // A timed-out request may still start natively later; release it.
       unawaited(_stopNative(id));
@@ -196,14 +213,15 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
     // The service runs, but without a displayable notification background
     // access would be invisible and unstoppable from the shade: keep the
     // lease (so a later grant can restore protection) but stay foreground-only.
+    final hasNotifications = !foregroundOnly && grant.notifications;
     _set(
-      grant.notifications
+      hasNotifications
           ? McpBackgroundMode.protected
           : McpBackgroundMode.foregroundOnly,
-      notifications: grant.notifications,
+      notifications: hasNotifications,
       service: true,
     );
-    if (!grant.notifications && _inBackground) {
+    if (!hasNotifications && _inBackground) {
       await _revoke('background_unprotected');
     }
   }
@@ -233,7 +251,7 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
     if (native && id != null) unawaited(_stopNative(id));
     // Stop even without a lease: a running listener must never outlive the
     // reason for revocation.
-    if (target.running) await target.stop();
+    if (target.running || target.starting) await target.stop();
   }
 
   void _onEvent(McpForegroundEvent event) {
@@ -249,7 +267,11 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
   void _notificationsChanged(bool visible) {
     // While starting, the grant reply carries the authoritative value; the
     // native side only reports changes for an acknowledged lease.
-    if (!_serviceActive || _mode == McpBackgroundMode.starting) return;
+    if (foregroundOnly ||
+        !_serviceActive ||
+        _mode == McpBackgroundMode.starting) {
+      return;
+    }
     if (!visible) {
       if (_mode != McpBackgroundMode.protected) {
         _set(_mode, notifications: false);
@@ -274,10 +296,13 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appState = state;
-    if (_disposed || !target.running) return;
+    if (_disposed || (!target.running && !(foregroundOnly && target.starting))) {
+      return;
+    }
     if (state == AppLifecycleState.detached) {
       unawaited(_revoke('detached'));
-    } else if (_inBackground && _mode == McpBackgroundMode.foregroundOnly) {
+    } else if (_inBackground &&
+        (foregroundOnly || _mode == McpBackgroundMode.foregroundOnly)) {
       unawaited(_revoke('background_unprotected'));
     }
     // `starting` is resolved in _requestGrant once the native answer arrives.

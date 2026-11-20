@@ -10,7 +10,7 @@ class RdpStorageRoot {
   final bool primary;
 }
 
-enum RdpStorageIssue { permission, unavailable, picker }
+enum RdpStorageIssue { permission, unavailable, picker, iosFolder }
 
 class RdpStorageException implements Exception {
   const RdpStorageException(this.issue, [this.name = '']);
@@ -22,6 +22,7 @@ class RdpStorageException implements Exception {
       name,
     ),
     RdpStorageIssue.picker => currentL10n.rdpStoragePickerFailed,
+    RdpStorageIssue.iosFolder => currentL10n.rdpStorageIosFolderRequired,
   };
   @override
   String toString() => message;

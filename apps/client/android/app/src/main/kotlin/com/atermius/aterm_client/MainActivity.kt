@@ -24,6 +24,7 @@ class MainActivity : FlutterActivity() {
     private var rdpStorage: RdpStorageAccess? = null
     private var externalFileOpener: ExternalFileOpener? = null
     private var keyboardCapture: KeyboardCapture? = null
+    private var clipboardBridge: ClipboardBridge? = null
     private var windowFocused = false
     private var topResumed = false
 
@@ -96,10 +97,24 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "atermius/device_info")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "name") {
+                    val name = runCatching {
+                        android.provider.Settings.Global.getString(contentResolver, "device_name")
+                    }.getOrNull()
+                    result.success(name?.takeIf { it.isNotBlank() } ?: android.os.Build.MODEL)
+                } else {
+                    result.notImplemented()
+                }
+            }
         loadRdpEngine()
         rdpStorage = RdpStorageAccess(this, flutterEngine.dartExecutor.binaryMessenger)
         externalFileOpener = ExternalFileOpener(this, flutterEngine.dartExecutor.binaryMessenger)
         keyboardCapture = KeyboardCapture(this, flutterEngine.dartExecutor.binaryMessenger, firstWindow())
+        clipboardBridge = ClipboardBridge(this, flutterEngine.dartExecutor.binaryMessenger).also {
+            it.focusChanged(windowFocused)
+        }
         fullscreenChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "atermius/fullscreen").also { channel ->
             channel.setMethodCallHandler { call, result ->
@@ -223,6 +238,7 @@ class MainActivity : FlutterActivity() {
         super.onWindowFocusChanged(hasFocus)
         windowFocused = hasFocus
         updateFirstWindow()
+        clipboardBridge?.focusChanged(hasFocus)
         if (hasFocus && fullscreenRequested) applyFullscreen(true)
     }
 
@@ -279,6 +295,8 @@ class MainActivity : FlutterActivity() {
         // Ends any capture and Samsung Meta key request with the engine (onDestroy).
         keyboardCapture?.close()
         keyboardCapture = null
+        clipboardBridge?.close()
+        clipboardBridge = null
         externalFileOpener?.close()
         externalFileOpener = null
         rdpStorage?.close()

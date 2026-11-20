@@ -49,6 +49,24 @@ Future<void> press(WidgetTester tester, String key) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   useAppLocaleFixture('en');
+  test('iOS accepts app folders and rejects paths outside Documents', () async {
+    final temp = await Directory.systemTemp.createTemp('atermius-ios-rdp-');
+    addTearDown(() => temp.delete(recursive: true));
+    final root = await Directory('${temp.path}/Documents').create();
+    final inside = await Directory('${root.path}/Exports').create();
+    final outside = await Directory('${temp.path}/DocumentsOther').create();
+    expect(await rdpFolderWithin(root, root), isTrue);
+    expect(await rdpFolderWithin(root, inside), isTrue);
+    expect(await rdpFolderWithin(root, outside), isFalse);
+    expect(
+      await rdpFolderWithin(root, Directory('${root.path}/Missing')),
+      isFalse,
+    );
+    if (!Platform.isWindows) {
+      final link = await Link('${root.path}/Outside').create(outside.path);
+      expect(await rdpFolderWithin(root, Directory(link.path)), isFalse);
+    }
+  });
   test(
     'drive preflight accepts an existing directory without creating files',
     () async {

@@ -477,7 +477,7 @@ Cloud Vault synchronization is strictly optional and designed for users who run 
    - 借助 `GlobalKey` 锚定 `TerminalView` 树并在折叠/分屏切换（`shortestSide < 600` ⇄ `>= 600`）时保持活跃 SSH 连接不断流、历史缓冲区零丢失，同时补全非对称水平 `SafeArea` 避让；
    - `archive_appstore.sh` Step 3c 增加清理未剥离的 `Flutter.framework/{Headers,Modules}` 目录，确保 Release IPA 重签洁净。
 2. **原生 AI 预留接口与在线 SSH 只读小工具**：
-   - 预留无网络端口的进程内原生 MCP 网关（`McpService.createNativeGateway` / `McpNativeBridge` 与 `MethodChannel('atermius/mcp_native')`，iOS `AtermiusNativeMcpBridge.shared`），复用逐机权限策略与锁屏撤销且完全遵守 iOS 不开放本地 HTTP 监听端口规范；
+   - 进程内原生 MCP 网关（`McpService.createNativeGateway`、`McpNativeBridge`、`atermius/mcp_native` 和 `AtermiusNativeMcpBridge.shared`）复用逐机权限与锁屏撤销。外部客户端可在设置中显式启用前台 HTTP 监听，应用进入后台时撤销令牌。详见 [MCP 接入](MCP.md)。
    - 新增 4 项只读在线 SSH 诊断工具（`ssh_system_overview`、`ssh_network_probe`、`ssh_process_snapshot`、`ssh_service_logs`）及客户端弹窗 `showSshLiveToolsSheet`。
 3. **生图 AI 赋能 + 32 张四语高精度海报与 API 自动发布**：
    - 配合 `scripts/build_appstore_posters.py --bg-dir <AI_BG_DIR>` 将 5 张 3D 液态玻璃工作室背景与来自真实 `iPhone 16 Pro Max` (`1320×2868`) / `iPad Pro 13-inch (M4)` (`2064×2752`) 模拟器的 RFC 5737 脱敏截图合成为 32 张 24-bit RGB 无 Alpha 通道高清海报；

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
 
 import '../l10n/l10n.dart';
+import 'responsive_layout.dart';
 import 'session_workspace.dart';
 
 /// Runtime-only text magnification, shared by a terminal and its keybar.
@@ -23,8 +24,7 @@ class TerminalFontZoom extends StatefulWidget {
   static const minScale = 0.5;
   static const maxScale = 3.0;
 
-  static bool get enabled =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  static bool get enabled => !kIsWeb && isTouchPlatform(defaultTargetPlatform);
 
   static ValueNotifier<double> scaleFor(Terminal terminal) =>
       _scales[terminal] ??= ValueNotifier(1.0);

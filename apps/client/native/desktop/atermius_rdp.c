@@ -16,6 +16,7 @@
 #include <freerdp/input.h>
 #include <freerdp/client/cmdline.h>
 #include <freerdp/client/disp.h>
+#include <freerdp/transport_io.h>
 #if defined(ATERMIUS_RDP_NATIVE_TOUCH)
 #include <freerdp/client/rdpei.h>
 #endif
@@ -104,6 +105,7 @@ API int aterm_rdp_set_home(const char* dir) {
 #define FEATURE_CAMERA (1u << 8)
 #define FEATURE_USB (1u << 9)
 #define FEATURE_NATIVE_TOUCH (1u << 10)
+#define FEATURE_SSH_TUNNEL (1u << 11)
 
 #define MAX_DESKTOP_SIDE 8192u
 #define MAX_DESKTOP_PIXELS (8192u * 4096u)
@@ -161,7 +163,7 @@ typedef struct {
 } MonitorConfig;
 
 typedef struct {
-  UINT32 width, height, scale;
+  UINT32 width, height, scale, ssh_tunnel_port;
   BOOL dynamic_resolution, clipboard, clipboard_files, microphone, smartcards, cameras;
   UINT32 audio;     // 0 local, 1 remote, 2 off
   UINT32 printers;  // 0 off, 1 named default, 2 all
@@ -176,6 +178,8 @@ typedef struct {
 
 typedef struct {
   rdpContext context;
+  pTCPConnect tcp_connect;
+  UINT32 ssh_tunnel_port;
   UINT32 revision, clipboard_revision, files_revision;
   UINT32 buttons;
   BOOL connected, pin_set, disp_ready, certificate_rejected;
@@ -197,7 +201,8 @@ typedef struct {
   UINT32 local_files_len;
   BYTE* remote_files;  // CLIPRDR_FILELIST the server offers
   UINT32 remote_files_len;
-  UINT32 remote_text_id, remote_files_id, pending_format, queued_files_request;
+  UINT32 pending_format, queued_text_format, queued_files_format;
+  BOOL pending_format_stale;
   AtermEvent *events_head, *events_tail;
   UINT32 event_bytes, event_count;
   INT32 dirty_x0, dirty_y0, dirty_x1, dirty_y1;
@@ -312,6 +317,14 @@ static BOOL resize_desktop(rdpContext* c) {
   a->dirty_x0 = 0; a->dirty_y0 = 0; a->dirty_x1 = (INT32)w; a->dirty_y1 = (INT32)h;
   return TRUE;
 }
+// Only the TCP dial goes to loopback. TLS verification and CredSSP keep the
+// desktop's actual hostname and port, even when it only resolves on the bastion.
+static int connect_ssh_tunnel(rdpContext* context, rdpSettings* settings,
+                              const char* hostname, int port, DWORD timeout) {
+  AtermContext* c = (AtermContext*)context;
+  (void)hostname; (void)port;
+  return c->tcp_connect(context, settings, "127.0.0.1", (int)c->ssh_tunnel_port, timeout);
+}
 static int verify_certificate(freerdp* instance, const BYTE* pem, size_t length,
                               const char* host, UINT16 port, DWORD flags) {
   AtermContext* c = (AtermContext*)instance->context;
@@ -375,6 +388,13 @@ static void free_events(AtermContext* c) {
 }
 
 // ---- clipboard (MS-RDPECLIP) --------------------------------------------
+// Data responses carry no request ID. Finish any outstanding request before
+// asking for the newest clipboard's formats, even when the format ID repeats.
+static void replace_remote_formats(AtermContext* c) {
+  c->pending_format_stale = c->pending_format != 0;
+  c->queued_text_format = c->queued_files_format = 0;
+}
+
 static UINT send_local_format_list(AtermContext* c) {
   CLIPRDR_FORMAT formats[1] = {0};
   CLIPRDR_FORMAT_LIST list = {0};
@@ -387,7 +407,9 @@ static UINT send_local_format_list(AtermContext* c) {
     list.numFormats = 1;
   }
   list.formats = formats;
-  return c->clip->ClientFormatList(c->clip, &list);
+  UINT rc = c->clip->ClientFormatList(c->clip, &list);
+  if (rc == CHANNEL_RC_OK && list.numFormats) replace_remote_formats(c);
+  return rc;
 }
 static UINT clip_ready(CliprdrClientContext* clip, const CLIPRDR_MONITOR_READY* ready) {
   (void)ready;
@@ -427,47 +449,48 @@ static UINT clip_server_caps(CliprdrClientContext* clip, const CLIPRDR_CAPABILIT
   LeaveCriticalSection(&c->lock);
   return CHANNEL_RC_OK;
 }
-static UINT request_format(AtermContext* c, UINT32 id) {
+static UINT request_next_format(AtermContext* c) {
+  if (c->pending_format) return CHANNEL_RC_OK;
+  UINT32* next = c->queued_text_format ? &c->queued_text_format : &c->queued_files_format;
+  if (!*next) return CHANNEL_RC_OK;
   CLIPRDR_FORMAT_DATA_REQUEST request = {0};
-  request.requestedFormatId = id;
-  c->pending_format = id;
-  return c->clip->ClientFormatDataRequest(c->clip, &request);
+  request.requestedFormatId = c->pending_format = *next;
+  *next = 0;
+  UINT rc = c->clip->ClientFormatDataRequest(c->clip, &request);
+  if (rc != CHANNEL_RC_OK) c->pending_format = 0;
+  return rc;
 }
 static UINT clip_formats(CliprdrClientContext* clip, const CLIPRDR_FORMAT_LIST* list) {
   AtermContext* c = (AtermContext*)clip->custom;
   CLIPRDR_FORMAT_LIST_RESPONSE response = {0}; response.common.msgFlags = CB_RESPONSE_OK;
-  UINT rc = clip->ClientFormatListResponse(clip, &response);
-  if (rc != CHANNEL_RC_OK) return rc;
   EnterCriticalSection(&c->lock);
-  c->remote_text_id = 0; c->remote_files_id = 0; c->queued_files_request = 0;
+  UINT rc = clip->ClientFormatListResponse(clip, &response);
+  if (rc != CHANNEL_RC_OK) {
+    LeaveCriticalSection(&c->lock);
+    return rc;
+  }
+  replace_remote_formats(c);
   for (UINT32 i = 0; i < list->numFormats; i++) {
     const CLIPRDR_FORMAT* f = &list->formats[i];
-    if (f->formatId == CF_UNICODETEXT) c->remote_text_id = CF_UNICODETEXT;
+    if (f->formatId == CF_UNICODETEXT) c->queued_text_format = CF_UNICODETEXT;
     else if (c->files_enabled && f->formatName &&
              strcmp(f->formatName, FILE_GROUP_DESCRIPTOR_W) == 0)
-      c->remote_files_id = f->formatId;
+      c->queued_files_format = f->formatId;
   }
   // A new remote list replaces the previous remote files immediately.
   if (c->remote_files) { free(c->remote_files); c->remote_files = NULL; }
   c->remote_files_len = 0;
   c->files_revision++;
-  if (c->remote_text_id) {
-    c->queued_files_request = c->remote_files_id;
-    rc = request_format(c, c->remote_text_id);
-  } else if (c->remote_files_id) {
-    rc = request_format(c, c->remote_files_id);
-  } else {
-    c->pending_format = 0;
-  }
+  rc = request_next_format(c);
   LeaveCriticalSection(&c->lock);
   return rc;
 }
 static UINT clip_data(CliprdrClientContext* clip, const CLIPRDR_FORMAT_DATA_RESPONSE* data) {
   AtermContext* c = (AtermContext*)clip->custom;
-  UINT rc = CHANNEL_RC_OK;
   EnterCriticalSection(&c->lock);
-  const UINT32 format = c->pending_format;
+  const UINT32 format = c->pending_format_stale ? 0 : c->pending_format;
   c->pending_format = 0;
+  c->pending_format_stale = FALSE;
   const BOOL ok = (data->common.msgFlags & CB_RESPONSE_OK) &&
                   (!data->common.dataLen || data->requestedFormatData);
   if (ok && format == CF_UNICODETEXT && data->common.dataLen <= 131074 &&
@@ -481,7 +504,7 @@ static UINT clip_data(CliprdrClientContext* clip, const CLIPRDR_FORMAT_DATA_RESP
       }
     }
     c->clipboard_revision++;
-  } else if (ok && format && format == c->remote_files_id && data->common.dataLen >= 4) {
+  } else if (ok && format && format != CF_UNICODETEXT && data->common.dataLen >= 4) {
     UINT32 items = 0;
     memcpy(&items, data->requestedFormatData, 4);  // little-endian on all targets
     if (items <= MAX_FILELIST_ITEMS &&
@@ -495,11 +518,7 @@ static UINT clip_data(CliprdrClientContext* clip, const CLIPRDR_FORMAT_DATA_RESP
       c->files_revision++;
     }
   }
-  if (c->queued_files_request) {
-    const UINT32 next = c->queued_files_request;
-    c->queued_files_request = 0;
-    rc = request_format(c, next);
-  }
+  UINT rc = request_next_format(c);
   LeaveCriticalSection(&c->lock);
   return rc;
 }
@@ -620,6 +639,8 @@ static void channel_disconnected(void* ctx, const ChannelDisconnectedEventArgs* 
     EnterCriticalSection(&c->lock);
     c->clip = NULL;
     c->clipboard_ready = FALSE;
+    c->pending_format = 0;
+    replace_remote_formats(c);
     LeaveCriticalSection(&c->lock);
   }
 }
@@ -716,6 +737,9 @@ static BOOL parse_config(const char* text, AtermConfig* cfg) {
     const char* k = line; const char* v = eq + 1;
     UINT32 u = 0;
     if (strcmp(k, "version") == 0) { if (strcmp(v, "1") != 0) return FALSE; versioned = TRUE; }
+    else if (strcmp(k, "ssh_tunnel_port") == 0) {
+      if (cfg->ssh_tunnel_port || !parse_u32(v, 1, 65535, &cfg->ssh_tunnel_port)) return FALSE;
+    }
     else if (strcmp(k, "width") == 0) { if (!parse_u32(v, 200, MAX_DESKTOP_SIDE, &cfg->width)) return FALSE; }
     else if (strcmp(k, "height") == 0) { if (!parse_u32(v, 200, MAX_DESKTOP_SIDE, &cfg->height)) return FALSE; }
     else if (strcmp(k, "scale") == 0) { if (!parse_u32(v, 100, 500, &cfg->scale)) return FALSE; }
@@ -825,7 +849,7 @@ static BOOL apply_monitors(rdpSettings* s, const AtermConfig* cfg) {
 }
 
 API UINT32 aterm_rdp_features(void) {
-  UINT32 bits = FEATURE_CONFIG_V1 | FEATURE_FILE_CLIPBOARD;
+  UINT32 bits = FEATURE_CONFIG_V1 | FEATURE_FILE_CLIPBOARD | FEATURE_SSH_TUNNEL;
 #if defined(ATERMIUS_RDP_DEVICES)
   bits |= FEATURE_DRIVE;
 #endif
@@ -901,6 +925,16 @@ API void* aterm_rdp_create_ex(const char* host, int port, const char* user,
   #define NUM(k,v) if (!freerdp_settings_set_uint32(s, FreeRDP_##k, v)) goto fail
   #define BOOLVAL(k,v) if (!freerdp_settings_set_bool(s, FreeRDP_##k, v)) goto fail
   STR(ServerHostname, host); NUM(ServerPort, (UINT32)port);
+  if (cfg.ssh_tunnel_port) {
+    const rdpTransportIo* defaults = freerdp_get_io_callbacks(&c->context);
+    if (!defaults || !defaults->TCPConnect) goto fail;
+    rdpTransportIo io = *defaults;
+    c->ssh_tunnel_port = cfg.ssh_tunnel_port;
+    c->tcp_connect = io.TCPConnect;
+    io.TCPConnect = connect_ssh_tunnel;
+    if (!freerdp_set_io_callbacks(&c->context, &io)) goto fail;
+    NUM(ProxyType, PROXY_TYPE_IGNORE);
+  }
 #if defined(__ANDROID__) || defined(__APPLE__)
   // Connect straight to the Host through OS routing/VPN. FreeRDP would
   // otherwise adopt http(s)_proxy from the process environment.

@@ -8,6 +8,7 @@ import 'package:aterm_client/desktop/rdp_features.dart';
 import 'package:aterm_client/desktop/rdp_local_drives.dart';
 import 'package:aterm_client/desktop/rdp_settings.dart';
 import 'package:aterm_client/domain/models.dart';
+import 'package:aterm_client/ssh/ssh_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/rdp_local_volumes_fake.dart';
@@ -128,6 +129,144 @@ void main() {
       },
     );
   }
+  for (final protocol in [HostProtocol.rdp, HostProtocol.vnc]) {
+    test('$protocol recreates a temporary forward on reconnect', () async {
+      final desktop = HostRecord(
+        id: 'host',
+        name: 'Internal',
+        address: 'internal.example',
+        protocol: protocol,
+        jumpHostId: 'bastion',
+      );
+      final opened = <HostRecord>[],
+          endpoints = <HostRecord>[],
+          closed = <int>[];
+      final transports = <_Connection>[];
+      final session = DesktopSession(
+        openSshTunnel: (host, cancellation) async {
+          opened.add(host);
+          final port = 49000 + opened.length;
+          return DesktopSshTunnel(
+            port,
+            () async => closed.add(port),
+            Completer<String?>().future,
+          );
+        },
+        directConnectionForTesting: (endpoint) {
+          endpoints.add(endpoint);
+          return (transports..add(_Connection())).last;
+        },
+      );
+      try {
+        await session.connectLocal(desktop);
+        transports.single.controller.addError(StateError('Disconnected'));
+        await Future<void>.delayed(Duration.zero);
+        await session.reconnect(host: desktop.copyWith(jumpHostId: 'second'));
+        expect(opened.map((host) => host.jumpHostId), ['bastion', 'second']);
+        expect(
+          opened.map((host) => host.address),
+          everyElement('internal.example'),
+        );
+        expect(endpoints.map((host) => host.endpoint), [
+          '127.0.0.1:49001',
+          '127.0.0.1:49002',
+        ]);
+        expect(closed, [49001]);
+      } finally {
+        await session.close();
+        session.dispose();
+      }
+      expect(closed, [49001, 49002]);
+    });
+  }
+
+  test(
+    'an ended jump route fails the session with its forwarding error',
+    () async {
+      final ended = Completer<String?>();
+      final connection = _Connection();
+      final session = DesktopSession(
+        openSshTunnel: (_, _) async =>
+            DesktopSshTunnel(49999, () async {}, ended.future),
+        directConnectionForTesting: (_) => connection,
+      );
+      await session.connectLocal(
+        const HostRecord(
+          id: 'host',
+          name: 'Private',
+          address: 'desktop',
+          protocol: HostProtocol.vnc,
+          jumpHostId: 'jump',
+        ),
+      );
+      ended.complete('Forwarding denied');
+      await Future<void>.delayed(Duration.zero);
+      expect(session.state, 'disconnected');
+      expect(session.error, 'Forwarding denied');
+      await session.close();
+      expect(connection.closed, 1);
+      session.dispose();
+    },
+  );
+
+  test(
+    'closing during SSH setup disposes a late listener and never dials',
+    () async {
+      final pending = Completer<DesktopSshTunnel>();
+      late SshConnectCancellation token;
+      var released = false;
+      final session = DesktopSession(
+        openSshTunnel: (_, cancellation) {
+          token = cancellation;
+          return pending.future;
+        },
+        directConnectionForTesting: (_) =>
+            throw TestFailure('unexpected connection'),
+      );
+      final opening = session.connectLocal(
+        const HostRecord(
+          id: 'host',
+          name: 'Private',
+          address: 'desktop',
+          protocol: HostProtocol.vnc,
+          jumpHostId: 'jump',
+        ),
+      );
+      await session.close();
+      expect(token.isCancelled, isTrue);
+      pending.complete(
+        DesktopSshTunnel(
+          49999,
+          () async => released = true,
+          Completer<String?>().future,
+        ),
+      );
+      await opening;
+      expect(released, isTrue);
+      session.dispose();
+    },
+  );
+
+  test('failed SSH setup never dials the desktop directly', () async {
+    final session = DesktopSession(
+      openSshTunnel: (_, _) async => throw StateError('unreachable jump host'),
+      directConnectionForTesting: (_) =>
+          throw TestFailure('unexpected connection'),
+    );
+    await session.connectLocal(
+      const HostRecord(
+        id: 'host',
+        name: 'Private',
+        address: 'desktop',
+        protocol: HostProtocol.vnc,
+        jumpHostId: 'jump',
+      ),
+    );
+    expect(session.state, 'disconnected');
+    expect(session.error, 'unreachable jump host');
+    await session.close();
+    session.dispose();
+  });
   test(
     'scope removal and disposal prohibit reopening a desktop connection',
     () async {

@@ -8253,8 +8253,32 @@ abstract class AppLocalizations {
   /// No description provided for @remoteDesktopsUsePasswordLoginWithout.
   ///
   /// In en, this message translates to:
-  /// **'Remote desktops use password login without SSH routes or forwards'**
+  /// **'Remote desktops use password login. Configure saved SSH forwarding rules on an SSH host.'**
   String get remoteDesktopsUsePasswordLoginWithout;
+
+  /// No description provided for @desktopJumpTunnelHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting opens a temporary local port through the selected SSH jump host. Closing the session releases it.'**
+  String get desktopJumpTunnelHint;
+
+  /// No description provided for @desktopJumpNativeRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Open this host in the native app to use its SSH jump host.'**
+  String get desktopJumpNativeRequired;
+
+  /// No description provided for @desktopJumpUpdateEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'Update the native RDP engine to connect through an SSH jump host.'**
+  String get desktopJumpUpdateEngine;
+
+  /// No description provided for @desktopJumpFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the temporary SSH forward to the remote desktop.'**
+  String get desktopJumpFailed;
 
   /// No description provided for @remoteForwardingTargetsMustUseThis.
   ///
@@ -9735,6 +9759,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Account devices'**
   String get accountDevices;
+
+  /// No description provided for @browserDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Browser'**
+  String get browserDevice;
+
+  /// No description provided for @browserLastIp.
+  ///
+  /// In en, this message translates to:
+  /// **'Last IP · {ip}'**
+  String browserLastIp(String ip);
+
+  /// No description provided for @browserPreviousIps.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous IPs · {ips}'**
+  String browserPreviousIps(String ips);
+
+  /// No description provided for @signOutDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out device'**
+  String get signOutDevice;
+
+  /// No description provided for @signOutDeviceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out this device?'**
+  String get signOutDeviceTitle;
+
+  /// No description provided for @signOutDeviceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Signing out {name} ends its current sessions and disconnects its workspace.'**
+  String signOutDeviceDescription(String name);
+
+  /// No description provided for @deviceSignedOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Device signed out.'**
+  String get deviceSignedOut;
+
+  /// No description provided for @deviceSignedInStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in'**
+  String get deviceSignedInStatus;
 
   /// No description provided for @accountInvitationCreated.
   ///
@@ -20865,6 +20937,12 @@ abstract class AppLocalizations {
   /// **'List view'**
   String get listView;
 
+  /// No description provided for @showWorkspaceTabStrip.
+  ///
+  /// In en, this message translates to:
+  /// **'Show horizontal tabs'**
+  String get showWorkspaceTabStrip;
+
   /// No description provided for @afterCreatingALocalProfileYou.
   ///
   /// In en, this message translates to:
@@ -22726,7 +22804,7 @@ abstract class AppLocalizations {
   /// No description provided for @theBrowserAndMobileAppsDont.
   ///
   /// In en, this message translates to:
-  /// **'This version of Atermius doesn\'t provide a local MCP listener. Enable it after opening the workspace in the Windows, Linux, macOS or Android app.'**
+  /// **'This version of Atermius doesn\'t provide a local MCP listener. Open the workspace in the Windows, Linux, macOS, Android or iOS app to enable it.'**
   String get theBrowserAndMobileAppsDont;
 
   /// No description provided for @portMustBe102465535.
@@ -29259,6 +29337,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'To map a disk or folder, allow Atermius to access files in Android Settings, then try again.'**
   String get rdpStoragePermissionRequired;
+
+  /// No description provided for @rdpStorageIosFolderRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the Atermius folder or one of its subfolders under On My iPhone or On My iPad in Files.'**
+  String get rdpStorageIosFolderRequired;
+
+  /// No description provided for @iosPushTokenUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Apple Push Notifications did not provide a device token. Try again when the device is online and the app is signed for push notifications.'**
+  String get iosPushTokenUnavailable;
 
   /// No description provided for @rdpStoragePickerFailed.
   ///

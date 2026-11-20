@@ -188,7 +188,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   if (message == WM_DPICHANGED) {
     taskbar_identity_.UpdateIcons(hwnd, LOWORD(wparam));
   }
-  if (clipboard_bridge_) clipboard_bridge_->HandleMessage(message);
+  if (clipboard_bridge_) clipboard_bridge_->HandleMessage(message, wparam);
   if (touchpad_gestures_ &&
       (message == WM_INPUT || message == WM_SETTINGCHANGE ||
        message == WM_INPUT_DEVICE_CHANGE || message == WM_ACTIVATE)) {

@@ -72,6 +72,7 @@ from conftest import ROOT, SigningKey, b64url, initial_vault, jcs, redact_secret
 
 
 POSTGRES_MIGRATIONS = ROOT / "server" / "migrations" / "postgres"
+PG_CURRENT_SCHEMA_VERSION = 41
 PG_ACCEPTANCE_TIMEOUT_SECONDS = 45
 PG_NOTIFICATION_FAST_WAKE_SECONDS = 1.5
 PG_NOTIFICATION_NO_EVENT_SECONDS = 2.25
@@ -26152,7 +26153,7 @@ def test_pg_http_admin_backup_jobs_are_shared_private_and_restore_sources_are_lo
     schema_version = pg_http_world.database_connection.execute(
         "SELECT schema_version FROM atermius_instance_schema WHERE singleton=1"
     ).fetchone()[0]
-    _require(schema_version == 38, "the PostgreSQL archive schema marker must match migration 0038")
+    _require(schema_version == PG_CURRENT_SCHEMA_VERSION, "the archive must use the current PostgreSQL schema")
 
     capabilities = pg_http_world.clients[0].request(
         "GET", "/api/v1/admin/jobs?limit=10&offset=0", token=admin.access_token
@@ -26321,7 +26322,7 @@ def test_pg_http_admin_backup_jobs_are_shared_private_and_restore_sources_are_lo
         status_response.status == 200
         and isinstance(last_attempt, dict)
         and last_attempt.get("result") == "succeeded"
-        and last_attempt.get("migration_version") == 38
+        and last_attempt.get("migration_version") == PG_CURRENT_SCHEMA_VERSION
         and isinstance(last_attempt.get("archive_bytes"), int)
         and last_attempt["archive_bytes"] > 0
         and last_attempt.get("failure_category") is None,
@@ -29777,7 +29778,7 @@ def test_pg_http_admin_backup_schedule_is_shared_durable_and_admin_only(
     _require(
         scheduled_run.get("scheduled_for") == due_iso
         and scheduled_run.get("result_code") == "completed"
-        and scheduled_run.get("migration_version") == 38
+        and scheduled_run.get("migration_version") == PG_CURRENT_SCHEMA_VERSION
         and isinstance(scheduled_run.get("archive_bytes"), int)
         and scheduled_run["archive_bytes"] > 0
         and set(scheduled_run)

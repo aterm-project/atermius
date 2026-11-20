@@ -10,9 +10,14 @@ import 'rdp_storage_stub.dart' if (dart.library.io) 'rdp_storage_io.dart';
 Future<String?> pickRdpRedirectFolder() async {
   if (kIsWeb) return null;
   await requestRdpStorageAccess();
-  return FilePicker.platform.getDirectoryPath(
-    dialogTitle: currentL10n.addFolder,
-  );
+  return pickLocalRdpFolder(currentL10n.addFolder);
+}
+
+Future<String?> pickLocalRdpFolder(String title) async {
+  if (kIsWeb) return null;
+  final folder = await FilePicker.platform.getDirectoryPath(dialogTitle: title);
+  if (folder != null) await validateIosRdpFolder(folder);
+  return folder;
 }
 
 bool get rdpDiskPickerAvailable =>
@@ -26,8 +31,9 @@ Future<String?> pickRdpRedirectDisk(BuildContext context) async {
   await requestRdpStorageAccess();
   final roots = await localRdpStorageRoots();
   if (!context.mounted) return null;
-  if (roots.isEmpty)
+  if (roots.isEmpty) {
     throw const RdpStorageException(RdpStorageIssue.unavailable);
+  }
   return showDialog<String>(
     context: context,
     builder: (context) => SimpleDialog(

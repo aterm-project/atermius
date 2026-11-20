@@ -183,8 +183,8 @@ class McpNativeGateway {
 
 /// 绑定 `atermius/mcp_native` [MethodChannel] 的平台原生桥接宿主。
 ///
-/// 保持无端口监听架构（iOS / iPadOS 不开任何 HTTP 端口，严格兼容审核与沙盒规则），
-/// 供 Apple Intelligence / App Intents 及桌面端原生 AI 模块安全复用受控工具能力。
+/// 供 Apple Intelligence、App Intents 和桌面原生 AI 模块在进程内复用 MCP 工具，
+/// 无需启动外部客户端使用的 HTTP 监听器。
 class McpNativeBridge {
   McpNativeBridge({
     required this.service,

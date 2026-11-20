@@ -519,8 +519,7 @@ return currentL10n.usernameIsRequired;
       return currentL10n.telnetHostSettingsInvalid;
     }
     if (protocol != HostProtocol.ssh &&
-        (jumpHostId != null ||
-            portForwardProfiles.isNotEmpty ||
+        (portForwardProfiles.isNotEmpty ||
             authKind != AuthKind.password ||
             credentialId != null)) {
       return currentL10n.remoteDesktopsUsePasswordLoginWithout;

@@ -171,6 +171,23 @@ void main() {
     expect(notices, [currentL10n.desktopClipboardSecretSkipped]);
     expect(fake.pasted, ['from window']);
 
+    // The parent tab can replace an offer without the server echoing it.
+    clipboard.copy('from window');
+    await child.clipboardSync.localMayHaveChanged();
+    await _until(() => fake.pasted.length == 2, what: 'first window offer');
+    clipboard.copy('from tab');
+    await session.clipboardSync.localMayHaveChanged();
+    clipboard.copy('from window');
+    await child.clipboardSync.localMayHaveChanged();
+    await _until(() => fake.pasted.length == 4, what: 'repeated window offer');
+    expect(fake.pasted.last, 'from window');
+
+    // JSON escapes can expand valid text beyond the raw clipboard byte limit.
+    final escaped = '\u0001' * 65536;
+    child.paste(escaped);
+    await _until(() => fake.pasted.last == escaped, what: 'escaped clipboard');
+    expect(child.clipboardSyncActive, isTrue);
+
     await broker.close();
     await _until(() => child.state == 'disconnected', what: 'revocation');
     expect(child.clipboardSyncActive, isFalse);

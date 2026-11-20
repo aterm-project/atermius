@@ -2289,7 +2289,15 @@ paths:
         '403': {description: INSTANCE_ADMIN_REQUIRED}
         '410': {description: AUDIT_CURSOR_EXPIRED after an instance-generation change}
   /devices:
-    get: {summary: List caller devices, description: Each device includes the caller's user_id so clients can bind enrollment approvals to the authenticated account. `capability_report` is null when the device has never submitted a signed report., responses: {'200': {description: Device list with public keys, status, timestamps, name, and signed capability reports where available}}}
+    get:
+      summary: List caller devices
+      description: >-
+        Each device includes the caller's user_id so clients can bind enrollment approvals to the authenticated account.
+        `signed_in` indicates that an active device has at least one unrevoked session with time remaining on its refresh token.
+        `activity` is null before the first report. A browser activity object contains `platform`, `user_agent`,
+        `last_ip` and `ip_history` (up to ten distinct previous IPs in most-recent-first order).
+        A native activity object contains `platform` and `device_name`. `capability_report` is null before the first signed report.
+      responses: {'200': {description: Account device directory}}
     post:
       summary: Register device approved by current device
       requestBody:
@@ -2329,6 +2337,22 @@ paths:
                     - {type: 'null'}
                   description: Optional report signed by the candidate device. Mandatory when an active membership has required_record_schema 2.
       responses: {'200': {description: Device}, '409': {description: VAULT_DELETION_PENDING if any active member vault is in deletion grace}}
+  /devices/activity:
+    put:
+      summary: Report activity for the authenticated device
+      description: For browsers the server reads User-Agent and the connection IP from the request. Device activity is keyed by the authenticated device ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [platform]
+              additionalProperties: false
+              properties:
+                platform: {type: string, enum: [web, windows, macos, ios, android, linux]}
+                device_name: {type: string, maxLength: 120, description: Reported operating-system name for native clients}
+      responses: {'200': {description: Activity recorded}, '401': {description: AUTH_REQUIRED}}
   /devices/capabilities:
     put:
       summary: Publish the authenticated device's signed client capability report
@@ -2483,6 +2507,26 @@ paths:
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses: {'200': {description: Revoked device}}
+  /devices/{id}/sign-out:
+    post:
+      summary: End all current sessions on another device belonging to the caller
+      description: The device remains trusted and can sign in again.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Current sessions signed out
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [device_id, signed_out_sessions]
+                properties:
+                  device_id: {type: string, format: uuid}
+                  signed_out_sessions: {type: integer, minimum: 0}
+        '400': {description: CURRENT_DEVICE}
+        '401': {description: AUTH_REQUIRED}
+        '404': {description: Device does not belong to the caller}
   /vaults:
     get:
       summary: List accessible vaults and device key envelopes

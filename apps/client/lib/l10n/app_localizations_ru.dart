@@ -5501,7 +5501,23 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get remoteDesktopsUsePasswordLoginWithout =>
-      'Удалённые рабочие столы используют вход по паролю без SSH-маршрутов и переадресации';
+      'Для входа на удалённый рабочий стол используется пароль. Сохранённые правила перенаправления SSH задаются на SSH-хосте.';
+
+  @override
+  String get desktopJumpTunnelHint =>
+      'При подключении открывается временный локальный порт через выбранный промежуточный SSH-хост. При закрытии сеанса порт освобождается.';
+
+  @override
+  String get desktopJumpNativeRequired =>
+      'Откройте этот хост в нативном приложении, чтобы использовать промежуточный SSH-хост.';
+
+  @override
+  String get desktopJumpUpdateEngine =>
+      'Обновите нативный движок RDP для подключения через промежуточный SSH-хост.';
+
+  @override
+  String get desktopJumpFailed =>
+      'Не удалось открыть временное перенаправление SSH к удалённому рабочему столу.';
 
   @override
   String get remoteForwardingTargetsMustUseThis =>
@@ -6466,6 +6482,36 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get accountDevices => 'Устройства учётной записи';
+
+  @override
+  String get browserDevice => 'Браузер';
+
+  @override
+  String browserLastIp(String ip) {
+    return 'Последний IP · $ip';
+  }
+
+  @override
+  String browserPreviousIps(String ips) {
+    return 'Предыдущие IP · $ips';
+  }
+
+  @override
+  String get signOutDevice => 'Завершить сеанс устройства';
+
+  @override
+  String get signOutDeviceTitle => 'Завершить сеансы этого устройства?';
+
+  @override
+  String signOutDeviceDescription(String name) {
+    return 'Сеансы устройства «$name» завершатся, и оно отключится от рабочего пространства.';
+  }
+
+  @override
+  String get deviceSignedOut => 'Сеансы устройства завершены.';
+
+  @override
+  String get deviceSignedInStatus => 'Вход выполнен';
 
   @override
   String get accountInvitationCreated => 'Приглашение в учётную запись создано';
@@ -13370,6 +13416,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get listView => 'Список';
 
   @override
+  String get showWorkspaceTabStrip => 'Показать горизонтальные вкладки';
+
+  @override
   String get afterCreatingALocalProfileYou =>
       'Создав локальный профиль, вы сможете хранить хосты и учётные данные в зашифрованном виде на этом устройстве.';
 
@@ -14519,7 +14568,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get theBrowserAndMobileAppsDont =>
-      'В этой версии Atermius локальный MCP-слушатель недоступен. Включите его, открыв рабочее пространство в приложении для Windows, Linux, macOS или Android.';
+      'В этой версии Atermius локальный MCP-слушатель недоступен. Включите его, открыв рабочее пространство в приложении для Windows, Linux, macOS, Android или iOS.';
 
   @override
   String get portMustBe102465535 => 'Порт должен быть в диапазоне 1024–65535.';
@@ -18577,6 +18626,14 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get rdpStoragePermissionRequired =>
       'Для перенаправления диска или папки разрешите Atermius доступ к файлам в настройках Android и повторите попытку.';
+
+  @override
+  String get rdpStorageIosFolderRequired =>
+      'В приложении «Файлы» откройте «На iPhone» или «На iPad» и выберите папку Atermius или одну из её подпапок.';
+
+  @override
+  String get iosPushTokenUnavailable =>
+      'Служба уведомлений Apple не выдала токен устройства. Подключите устройство к сети и проверьте, что приложение подписано с правом на push-уведомления, затем повторите попытку.';
 
   @override
   String get rdpStoragePickerFailed =>

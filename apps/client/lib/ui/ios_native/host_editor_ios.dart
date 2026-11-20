@@ -73,12 +73,14 @@ extension _HostEditorPanelIos on _HostEditorPanelState {
         ? l10n.loginDetailsBelongToThisHost
         : _protocol == HostProtocol.telnet
         ? l10n.telnetLoginInteractiveHint
+        : _jumpHostId != null
+        ? (kIsWeb ? l10n.desktopJumpNativeRequired : l10n.desktopJumpTunnelHint)
         : DesktopSession.supportsDirect(_protocol)
         ? l10n.directDesktopSignInHint
         : l10n.signInDetailsAreStoredEncrypted;
 
     final advancedSummaryParts = <String>[
-      if (_protocol == HostProtocol.ssh && _jumpHostId != null)
+      if (_jumpHostId != null)
         eligibleJumpHosts
                 .where((h) => h.id == _jumpHostId)
                 .firstOrNull
@@ -152,7 +154,7 @@ extension _HostEditorPanelIos on _HostEditorPanelState {
                 _protocol = value;
                 if (value != HostProtocol.ssh) {
                   _kind = AuthKind.password;
-                  _jumpHostId = null;
+                  if (value == HostProtocol.telnet) _jumpHostId = null;
                 }
                 _lastKnownIosDirty = _hasIosUnsavedChanges();
               }),
@@ -320,7 +322,7 @@ extension _HostEditorPanelIos on _HostEditorPanelState {
 
         // 4. 高级折叠区（跳板机、标签、桌面协议扩展）
         IosListSection(
-          footer: _iosAdvancedExpanded && _protocol == HostProtocol.ssh
+          footer: _iosAdvancedExpanded && _protocol != HostProtocol.telnet
               ? (unavailableJumpHost
                     ? l10n.thisSavedJumpHostIsUnavailable
                     : l10n.routeThroughUpTo8Hosts)
@@ -347,7 +349,7 @@ extension _HostEditorPanelIos on _HostEditorPanelState {
               ),
             ),
             if (_iosAdvancedExpanded) ...[
-              if (_protocol == HostProtocol.ssh)
+              if (_protocol != HostProtocol.telnet)
                 IosPickerRow<String>(
                   rowKey: ValueKey('${prefix}_jump_host'),
                   label: l10n.jumpHost,
@@ -393,34 +395,40 @@ extension _HostEditorPanelIos on _HostEditorPanelState {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(IosMetrics.rowPaddingH),
-                  child: RdpSettingsEditor(
-                    keyPrefix: prefix,
-                    initial: _rdpSettings,
-                    unreadable:
-                        widget.existing != null &&
-                        RdpSettings.unreadable(widget.existing!),
-                    features: rdpEngineFeatures(),
-                    pickFolder: pickRdpRedirectFolder,
-                    pickDisk: rdpDiskPickerAvailable
-                        ? pickRdpRedirectDisk
-                        : null,
-                    onChanged: (value) => _iosSetState(() {
-                      _rdpSettings = value;
-                      _lastKnownIosDirty = _hasIosUnsavedChanges();
-                    }),
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: RdpSettingsEditor(
+                      keyPrefix: prefix,
+                      initial: _rdpSettings,
+                      unreadable:
+                          widget.existing != null &&
+                          RdpSettings.unreadable(widget.existing!),
+                      features: rdpEngineFeatures(),
+                      pickFolder: pickRdpRedirectFolder,
+                      pickDisk: rdpDiskPickerAvailable
+                          ? pickRdpRedirectDisk
+                          : null,
+                      onChanged: (value) => _iosSetState(() {
+                        _rdpSettings = value;
+                        _lastKnownIosDirty = _hasIosUnsavedChanges();
+                      }),
+                    ),
                   ),
                 ),
               ],
               if (_protocol == HostProtocol.vnc)
                 Padding(
                   padding: const EdgeInsets.all(IosMetrics.rowPaddingH),
-                  child: VncSettingsEditor(
-                    keyPrefix: prefix,
-                    initial: _vncSettings,
-                    onChanged: (value) => _iosSetState(() {
-                      _vncSettings = value;
-                      _lastKnownIosDirty = _hasIosUnsavedChanges();
-                    }),
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: VncSettingsEditor(
+                      keyPrefix: prefix,
+                      initial: _vncSettings,
+                      onChanged: (value) => _iosSetState(() {
+                        _vncSettings = value;
+                        _lastKnownIosDirty = _hasIosUnsavedChanges();
+                      }),
+                    ),
                   ),
                 ),
             ],

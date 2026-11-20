@@ -17,7 +17,7 @@ const desktopClipboardMaxBytes = 65536;
 /// * Remote → local: text the remote copies is written to this device's
 ///   clipboard (never empty text, at most [maxBytes]).
 /// * Local → remote: when the desktop gains focus, the app returns to the
-///   foreground or (Android) the clip changes while Atermius is focused,
+///   foreground or (Windows/Android) the clip changes while Atermius is focused,
 ///   [localMayHaveChanged] offers local text that differs from the last
 ///   synced text to the remote.
 ///
@@ -66,7 +66,7 @@ class DesktopClipboardSync {
   static Future<void> _noWait() async {}
 
   String? _synced, _rejected;
-  int? _seenStamp;
+  int? _seenStamp, _syncedStamp;
   bool _refused = false;
   final _reported = <String>{};
   Future<void> _tail = Future.value();
@@ -81,15 +81,23 @@ class DesktopClipboardSync {
     _synced = null;
     _rejected = null;
     _seenStamp = null;
+    _syncedStamp = null;
     _refused = false;
     _reported.clear();
   }
 
   /// The user's explicit paste sent [text]; it is not offered again.
-  void sent(String text) => _synced = text;
+  void sent(String text) {
+    _synced = text;
+    _syncedStamp = null;
+    _seenStamp = null;
+  }
 
   /// The user copied remote [text] to this device by hand.
-  void copiedLocally(String text) => _synced = text;
+  void copiedLocally(String text, {int? stamp}) {
+    _synced = text;
+    _syncedStamp = _seenStamp = stamp;
+  }
 
   /// The remote refused text (its clipboard channel is off). Automatic
   /// local → remote stops until the next connection; one notice says why.
@@ -100,13 +108,7 @@ class DesktopClipboardSync {
 
   Future<void> remoteChanged(String text) => _serial(() async {
     final generation = _generation;
-    if (text.isEmpty || text == _synced) return;
-    if (!writesLocal) {
-      // Remembered only, so this window does not offer it back.
-      _synced = text;
-      return;
-    }
-    if (!active()) return;
+    if (text.isEmpty || !writesLocal || !active()) return;
     if (_tooLarge(text)) {
       _noticeOnce(
         'remote-large:${text.hashCode}',
@@ -114,15 +116,24 @@ class DesktopClipboardSync {
       );
       return;
     }
-    if (!await clipboard.writeText(text)) {
+    // The same remote text can be copied again after the local clip was
+    // replaced in another window, or by a clip we do not share.
+    if (text == _synced && _syncedStamp != null) {
+      final state = await clipboard.state();
+      if (generation != _generation ||
+          !active() ||
+          state?.stamp == _syncedStamp) {
+        return;
+      }
+    }
+    final result = await clipboard.writeText(text);
+    if (generation != _generation || !active()) return;
+    if (!result.written) {
       _noticeOnce('write-failed', currentL10n.desktopClipboardWriteFailed);
       return;
     }
-    if (generation != _generation || !active()) return;
-    _synced = text;
-    // Our own write changed the clip; it needs no read.
-    final stamp = (await clipboard.state())?.stamp;
-    if (generation == _generation && stamp != null) _seenStamp = stamp;
+    // A separate state() call could already describe someone else's copy.
+    copiedLocally(text, stamp: result.stamp);
   });
 
   Future<void> localMayHaveChanged() {
@@ -205,16 +216,23 @@ class DesktopClipboardSync {
         return;
       case LocalClipboardStatus.text:
         _seenStamp = stamp;
-        _offer(read.text ?? '', flagged: read.sensitive);
+        _offer(read.text ?? '', flagged: read.sensitive, stamp: stamp);
     }
   }
 
   void _offer(
     String text, {
     required bool flagged,
+    int? stamp,
     void Function(String)? notice,
   }) {
-    if (text.isEmpty || text == _synced || text == _rejected) return;
+    // The parent sees offers from all windows. Only it can tell whether
+    // the remote still has a value that this window offered previously.
+    if (writesLocal && text == _synced) {
+      _syncedStamp = stamp;
+      return;
+    }
+    if (text.isEmpty || text == _rejected) return;
     if (flagged || _isSecret(text)) {
       _noticeOnce(
         'secret:${text.hashCode}',
@@ -234,6 +252,7 @@ class DesktopClipboardSync {
     try {
       send(text);
       _synced = text;
+      _syncedStamp = stamp;
       _rejected = null;
     } on FormatException catch (error) {
       // Offered again only after the local text changes. Every offer here

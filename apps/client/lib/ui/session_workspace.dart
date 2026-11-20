@@ -1116,6 +1116,7 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
       },
       child: Semantics(
         key: ValueKey('session-pane-${widget.sessionId}'),
+        container: true,
         label: widget.label,
         hint: _hasActions ? context.l10n.paneActionsTapTheWhiteHandle : null,
         child: MouseRegion(

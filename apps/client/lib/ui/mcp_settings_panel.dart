@@ -148,6 +148,17 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
     }
   }
 
+  Map<McpBindMode, String> _bindLabels(AppLocalizations l10n) => {
+    McpBindMode.loopback: l10n.mcpListenLoopback,
+    McpBindMode.lan: l10n.mcpListenLan,
+    McpBindMode.custom: l10n.mcpListenCustom,
+  };
+
+  void _selectBindMode(McpBindMode mode) => setState(() {
+    _bindMode = mode;
+    _error = null;
+  });
+
   @override
   void didUpdateWidget(McpSettingsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -347,13 +358,16 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
     final hairline = IosMetrics.hairline(context);
     final ready = service.permissionsReady && !service.permissionsLoading;
     final defaultMode = ready ? service.defaultAccess : McpAccessMode.denied;
-    final endpoint = service.endpoint;
+    final canConfigure = !service.running && !service.starting;
     final canToggle =
         !service.starting && (service.running || service.workspaceReady);
 
     Widget separator([double start = IosMetrics.rowPaddingH]) => Padding(
       padding: EdgeInsetsDirectional.only(start: start),
-      child: SizedBox(height: hairline, child: ColoredBox(color: colors.separator)),
+      child: SizedBox(
+        height: hairline,
+        child: ColoredBox(color: colors.separator),
+      ),
     );
 
     if (!service.supported) {
@@ -437,17 +451,45 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             ),
           ),
           separator(),
+          IosPickerRow<McpBindMode>(
+            rowKey: const ValueKey('mcp_bind'),
+            label: l10n.mcpListenScope,
+            options: [
+              for (final label in _bindLabels(l10n).entries)
+                IosPickerOption(value: label.key, label: label.value),
+            ],
+            value: _bindMode,
+            enabled: canConfigure,
+            onChanged: _selectBindMode,
+          ),
+          if (_bindMode == McpBindMode.custom) ...[
+            separator(),
+            IosTextFieldRow(
+              fieldKey: const ValueKey('mcp_bind_address'),
+              label: l10n.mcpListenAddress,
+              placeholder: '192.168.1.20',
+              controller: _address,
+              enabled: canConfigure,
+              keyboardType: TextInputType.visiblePassword,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F:.]')),
+                LengthLimitingTextInputFormatter(45),
+              ],
+              textInputAction: TextInputAction.next,
+            ),
+          ],
+          separator(),
           IosTextFieldRow(
             fieldKey: const ValueKey('mcp_port'),
             label: l10n.localListeningPort,
             labelWidth: 132,
             controller: _port,
-            enabled: !service.running && !service.starting,
+            enabled: canConfigure,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             textInputAction: TextInputAction.done,
           ),
-          if (endpoint != null) ...[
+          for (final (index, url) in service.endpoints.indexed) ...[
             separator(),
             Padding(
               padding: const EdgeInsets.symmetric(
@@ -455,8 +497,10 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 vertical: 10,
               ),
               child: SelectableText(
-                endpoint.toString(),
-                key: const ValueKey('mcp_endpoint'),
+                url.toString(),
+                key: index == 0
+                    ? const ValueKey('mcp_endpoint')
+                    : ValueKey('mcp_endpoint_$index'),
                 style: IosType.mono.copyWith(color: colors.label),
               ),
             ),
@@ -485,17 +529,44 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
               children: [
                 Text(
                   l10n.letExternalAiUseTheHosts,
-                  style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+                  style: IosType.footnote.copyWith(
+                    color: colors.secondaryLabel,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   l10n.readOnlyModeCanStillRead,
-                  style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+                  style: IosType.footnote.copyWith(
+                    color: colors.secondaryLabel,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  l10n.listensOn127001,
-                  style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+                  (service.running ? service.bind.mode : _bindMode) ==
+                          McpBindMode.loopback
+                      ? l10n.listensOn127001
+                      : l10n.mcpListenTokenNote,
+                  style: IosType.footnote.copyWith(
+                    color: colors.secondaryLabel,
+                  ),
+                ),
+                if ((service.running ? service.bind : _chosenBind)?.exposed ??
+                    _bindMode != McpBindMode.loopback) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.mcpListenExposedWarning,
+                    key: const ValueKey('mcp_bind_warning'),
+                    style: IosType.footnote.copyWith(
+                      color: colors.secondaryLabel,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Text(
+                  l10n.mcpAndroidForegroundOnly,
+                  style: IosType.footnote.copyWith(
+                    color: colors.secondaryLabel,
+                  ),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
@@ -544,7 +615,10 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
 
     Widget separator([double start = IosMetrics.rowPaddingH]) => Padding(
       padding: EdgeInsetsDirectional.only(start: start),
-      child: SizedBox(height: hairline, child: ColoredBox(color: colors.separator)),
+      child: SizedBox(
+        height: hairline,
+        child: ColoredBox(color: colors.separator),
+      ),
     );
 
     return SettingsCard(
@@ -571,7 +645,9 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 const SizedBox(height: 6),
                 Text(
                   l10n.mcpMachineAccessDescription,
-                  style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+                  style: IosType.footnote.copyWith(
+                    color: colors.secondaryLabel,
+                  ),
                 ),
                 if (loading)
                   Padding(
@@ -623,7 +699,9 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 const SizedBox(height: 2),
                 Text(
                   l10n.mcpDefaultAccessDescription,
-                  style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+                  style: IosType.footnote.copyWith(
+                    color: colors.secondaryLabel,
+                  ),
                 ),
               ],
             ),
@@ -840,7 +918,9 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             ),
           ),
           KeyedSubtree(
-            key: ValueKey('mcp_host_choice_${id}_${override?.name}_$_resetEpoch'),
+            key: ValueKey(
+              'mcp_host_choice_${id}_${override?.name}_$_resetEpoch',
+            ),
             child: Semantics(
               label: l10n.mcpHostAccessFor(name),
               child: IosPickerRow<_HostChoice>(
@@ -946,7 +1026,9 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 const SizedBox(height: 4),
                 Text(
                   context.l10n.onlyTheLast50ToolNames,
-                  style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+                  style: IosType.footnote.copyWith(
+                    color: colors.secondaryLabel,
+                  ),
                 ),
                 if (entries.isEmpty) ...[
                   const SizedBox(height: 10),
@@ -1032,7 +1114,9 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
               ),
             ),
             if (McpListenerLifecycle.installed case final lifecycle?
-                when service.running && identical(service, McpService.instance))
+                when service.running &&
+                    identical(service, McpService.instance) &&
+                    Theme.of(context).platform == TargetPlatform.android)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
@@ -1057,21 +1141,16 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final (mode, label) in [
-                  (McpBindMode.loopback, l10n.mcpListenLoopback),
-                  (McpBindMode.lan, l10n.mcpListenLan),
-                  (McpBindMode.custom, l10n.mcpListenCustom),
-                ])
+                for (final MapEntry(key: mode, value: label) in _bindLabels(
+                  l10n,
+                ).entries)
                   ChoiceChip(
                     key: ValueKey('mcp_bind_${mode.code}'),
                     label: Text(label),
                     selected: _bindMode == mode,
                     onSelected: service.running || service.starting
                         ? null
-                        : (_) => setState(() {
-                            _bindMode = mode;
-                            _error = null;
-                          }),
+                        : (_) => _selectBindMode(mode),
                   ),
               ],
             ),
@@ -1210,6 +1289,13 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                   fontSize: 12,
                   height: 1.5,
                 ),
+              ),
+            ],
+            if (Theme.of(context).platform == TargetPlatform.iOS) ...[
+              const SizedBox(height: 8),
+              Text(
+                l10n.mcpAndroidForegroundOnly,
+                style: TextStyle(color: context.palette.muted, fontSize: 12),
               ),
             ],
           ],

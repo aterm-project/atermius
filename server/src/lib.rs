@@ -23,6 +23,7 @@ mod database;
 mod database_encryption;
 #[cfg(test)]
 mod database_encryption_tests;
+mod device_activity;
 mod device_capabilities;
 mod error;
 mod instance_identity;
@@ -246,6 +247,7 @@ pub struct AppState {
     pub relay_connections: Arc<Mutex<HashMap<String, usize>>>,
     pub relay_connection_slots: Arc<Semaphore>,
     pub object_completion_slots: Arc<Semaphore>,
+    pub(crate) device_trusted_proxies: Arc<Vec<IpNet>>,
     pub notification_connections: Arc<Mutex<HashMap<String, usize>>>,
     pub notification_connection_slots: Arc<Semaphore>,
     pub notification_query_slots: Arc<Semaphore>,
@@ -941,6 +943,7 @@ pub(crate) async fn open_state_with_restore_policy(
     )
     .await?;
     Ok(AppState {
+        device_trusted_proxies: Arc::new(device_activity::trusted_proxies_from_env()),
         sync_repository,
         pg_sync_only: pg_sync_pool.is_some(),
         pg_sync_auth,
@@ -1380,6 +1383,11 @@ pub async fn router(state: AppState) -> Router {
             put(redaction_capabilities::put_device_redaction_capability_report),
         )
         .route("/api/v1/devices/{id}/revoke", post(auth::revoke_device))
+        .route("/api/v1/devices/activity", put(device_activity::report))
+        .route(
+            "/api/v1/devices/{id}/sign-out",
+            post(device_activity::sign_out),
+        )
         .route(
             "/api/v1/vaults",
             get(control::list_vaults).post(control::create_vault),
@@ -1712,8 +1720,13 @@ fn pg_sync_route_is_supported(method: &Method, path: &str) -> bool {
     if path == "/api/v1/relay/tickets" {
         return method == Method::POST;
     }
-    if path == "/api/v1/devices/redaction-capabilities" {
+    if path == "/api/v1/devices/redaction-capabilities" || path == "/api/v1/devices/activity" {
         return method == Method::PUT;
+    }
+    if let Some(suffix) = path.strip_prefix("/api/v1/devices/") {
+        if let Some(device_id) = suffix.strip_suffix("/sign-out") {
+            return method == Method::POST && !device_id.is_empty() && !device_id.contains('/');
+        }
     }
     if path == "/relay/v1/connect" || path == "/desktop/v1/connect" {
         return method == Method::GET;
@@ -2043,6 +2056,8 @@ mod pg_sync_scope_tests {
             (Method::POST, "/api/v1/devices"),
             (Method::PUT, "/api/v1/devices/capabilities"),
             (Method::PUT, "/api/v1/devices/redaction-capabilities"),
+            (Method::PUT, "/api/v1/devices/activity"),
+            (Method::POST, "/api/v1/devices/device-id/sign-out"),
             (Method::POST, "/api/v1/devices/device-id/revoke"),
             (Method::POST, "/api/v1/notifications/tickets"),
             (Method::GET, "/api/v1/notifications"),
@@ -2987,6 +3002,7 @@ async fn instance_info(
                 ]
             };
             c.push("password_device_enrollment");
+            c.push("device_activity");
             c.push("workspace_agent_admin_v1");
             if !state.pg_sync_only
                 && state.config.relay_enabled

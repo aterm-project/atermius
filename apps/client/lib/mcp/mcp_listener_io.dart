@@ -9,11 +9,15 @@ import 'mcp_bind.dart';
 import 'mcp_listener_contract.dart';
 import 'mcp_protocol.dart';
 
-/// Platforms with a supported local listener. iOS and other targets have no
-/// background execution model compatible with a local MCP server.
+/// Platforms with a supported local listener. iOS listens in the foreground.
 @visibleForTesting
-bool mcpListenerPlatformSupported(String operatingSystem) =>
-    const {'windows', 'linux', 'macos', 'android'}.contains(operatingSystem);
+bool mcpListenerPlatformSupported(String operatingSystem) => const {
+  'windows',
+  'linux',
+  'macos',
+  'android',
+  'ios',
+}.contains(operatingSystem);
 
 bool get supported => mcpListenerPlatformSupported(Platform.operatingSystem);
 

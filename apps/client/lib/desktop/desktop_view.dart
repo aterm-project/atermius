@@ -28,6 +28,8 @@ import 'desktop_resolution.dart';
 import 'desktop_resolution_dialog.dart';
 import 'desktop_session.dart';
 import 'desktop_wheel.dart';
+import 'rdp_folder_picker.dart';
+import 'rdp_storage.dart';
 import 'touchpad_gestures.dart';
 import 'local/local_desktop.dart';
 import '../l10n/l10n.dart';
@@ -71,6 +73,8 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
   bool get _mobilePlatform =>
       Theme.of(context).platform == TargetPlatform.android ||
       Theme.of(context).platform == TargetPlatform.iOS;
+  bool get _useLegacyWheel =>
+      Theme.of(context).platform == TargetPlatform.android;
   void _sendMouse(Offset point, int buttons) {
     _buttons = buttons;
     session.display.movePointer(point);
@@ -99,8 +103,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     if (identical(source, _clipboardSource)) return;
     unawaited(_clipboardChanges?.cancel());
     _clipboardSource = source;
-    // Android: the clip changed while Atermius has window focus (for
-    // example copied in the keyboard's clipboard).
+    // Windows and Android notify us while the desktop is in front.
     _clipboardChanges = source.changes.listen((_) {
       if (_focus.hasFocus) _localClipboardMayHaveChanged();
     });
@@ -349,10 +352,19 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
   }
 
   Future<void> _saveRemoteFiles() async {
-    final folder = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: context.l10n.saveRemoteClipboardFiles,
-    );
-    if (folder != null && mounted) session.saveRemoteFiles(folder);
+    final source = session;
+    try {
+      final folder = await pickLocalRdpFolder(
+        context.l10n.saveRemoteClipboardFiles,
+      );
+      if (folder != null && mounted && identical(session, source)) {
+        source.saveRemoteFiles(folder);
+      }
+    } on RdpStorageException catch (error) {
+      _showNotice(error.message);
+    } on PlatformException {
+      if (mounted) _showNotice(context.l10n.rdpStoragePickerFailed);
+    }
   }
 
   void _certificateChanged() {
@@ -902,10 +914,14 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
           final text = session.display.clipboard;
           if (text.isEmpty) {
             _showNotice(context.l10n.desktopRemoteClipboardEmpty);
-          } else if (await session.deviceClipboard.writeText(text)) {
-            session.clipboardSync.copiedLocally(text);
-          } else if (mounted) {
-            _showNotice(context.l10n.desktopClipboardWriteFailed);
+          } else {
+            final receiver = session;
+            final result = await receiver.deviceClipboard.writeText(text);
+            if (result.written) {
+              receiver.clipboardSync.copiedLocally(text, stamp: result.stamp);
+            } else if (mounted) {
+              _showNotice(context.l10n.desktopClipboardWriteFailed);
+            }
           }
         } else if (value == 'send_copied_files') {
           await _sendCopiedFiles();
@@ -1225,9 +1241,9 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                                 GestureBinding.instance.pointerSignalResolver;
                             if (e is PointerScrollEvent) {
                               signals.register(e, (_) {
-                                if (_mobilePlatform) {
-                                  // Android and iOS: one vertical notch per
-                                  // event, as before.
+                                if (_useLegacyWheel) {
+                                  // Android's discrete wheel events use one
+                                  // vertical notch per event.
                                   mouse(
                                     e,
                                     wheel: e.scrollDelta.dy < 0 ? 8 : 16,
@@ -1247,9 +1263,9 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                                 );
                               });
                             } else if (e is PointerScaleEvent &&
-                                !_mobilePlatform) {
-                              // A browser reports a touchpad pinch as scale
-                              // signals, which have no end.
+                                !_useLegacyWheel) {
+                              // iPadOS and browsers can deliver scale signals
+                              // without a corresponding end event.
                               signals.register(
                                 e,
                                 (_) => _zoom(
@@ -1261,16 +1277,16 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                             }
                           },
                           // Touchpad gestures (Windows precision touchpads,
-                          // macOS and Linux touchpads): two fingers scroll,
+                          // Apple and Linux touchpads): two fingers scroll,
                           // a pinch zooms. Taps and pointer movement arrive
                           // as mouse events above.
                           onPointerPanZoomStart: (_) {
-                            if (_mobilePlatform) return;
+                            if (_useLegacyWheel) return;
                             _endWheel(session);
                             _touchpad.start();
                           },
                           onPointerPanZoomUpdate: (e) {
-                            if (_mobilePlatform) return;
+                            if (_useLegacyWheel) return;
                             final step = _touchpad.update(
                               e.pan,
                               e.scale,
@@ -1283,7 +1299,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                             _zoom(point, step.zoom, hold: true);
                           },
                           onPointerPanZoomEnd: (_) {
-                            if (!_mobilePlatform) _endWheel(session);
+                            if (!_useLegacyWheel) _endWheel(session);
                           },
                           child: ClipRect(
                             child: CustomPaint(

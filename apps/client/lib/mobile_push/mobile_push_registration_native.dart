@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 
+import '../l10n/l10n.dart';
 import 'mobile_push_registration.dart';
 
 const _apiKey = String.fromEnvironment('ATERMIUS_FCM_API_KEY');
@@ -78,6 +79,16 @@ class NativeMobilePushRegistration implements MobilePushRegistration {
       provisional: false,
     );
     if (!_authorized(settings.authorizationStatus)) return null;
+    if (Platform.isIOS) {
+      // APNs registration finishes independently of the permission prompt.
+      // FlutterFire requires the Apple token before it can request FCM's.
+      for (var attempt = 0; attempt < 10; attempt++) {
+        final token = await _preferredToken(messaging);
+        if (token != null) return token;
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+      throw StateError(currentL10n.iosPushTokenUnavailable);
+    }
     return _preferredToken(messaging);
   }
 
@@ -111,7 +122,12 @@ class NativeMobilePushRegistration implements MobilePushRegistration {
   @override
   Future<String?> getFcmFallbackToken() async {
     if (!supported || !configured) return null;
-    return (await _messaging()).getToken();
+    final messaging = await _messaging();
+    if (Platform.isIOS &&
+        (await messaging.getAPNSToken())?.isNotEmpty != true) {
+      return null;
+    }
+    return messaging.getToken();
   }
 
   @override
@@ -152,6 +168,7 @@ class NativeMobilePushRegistration implements MobilePushRegistration {
           value: apnsToken,
         );
       }
+      if (refreshedFcmToken == null) return null;
     }
     final fcmToken = refreshedFcmToken ?? await messaging.getToken();
     if (fcmToken == null || fcmToken.isEmpty) return null;

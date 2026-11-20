@@ -2443,8 +2443,51 @@ pub async fn list_devices(
     if let Some(repository) = state.pg_account_reads.as_ref() {
         return Ok(Json(repository.list_devices(&user).await?));
     }
-    let rows=sqlx::query("SELECT d.device_id,d.name,d.signing_public_key,d.encryption_public_key,d.status,d.created_at,d.revoked_at,r.revision AS cap_revision,r.user_id AS cap_account_id,r.device_id AS cap_device_id,r.max_record_schema AS cap_max_record_schema,r.host_attachment_manifest_versions AS cap_attachment_versions,r.max_attachment_bytes AS cap_max_attachment_bytes,r.signature AS cap_signature FROM devices d LEFT JOIN device_capability_reports r ON r.device_id=d.device_id AND r.user_id=d.user_id WHERE d.user_id=? ORDER BY d.created_at").bind(&user.user_id).fetch_all(&state.db).await.map_err(ApiError::internal)?;
-    let devices:Vec<Value>=rows.into_iter().map(|r|json!({"device_id":r.get::<String,_>("device_id"),"user_id":user.user_id,"name":r.get::<String,_>("name"),"signing_public_key":r.get::<String,_>("signing_public_key"),"encryption_public_key":r.get::<String,_>("encryption_public_key"),"status":r.get::<String,_>("status"),"created_at":r.get::<String,_>("created_at"),"revoked_at":r.get::<Option<String>,_>("revoked_at"),"capability_report":crate::device_capabilities::report_from_row(&r)})).collect();
+    let mut tx = state.db.begin().await.map_err(ApiError::internal)?;
+    crate::require_active_session_device_read_tx(&mut tx, &user).await?;
+    let rows = sqlx::query(
+        "SELECT d.device_id,d.name,d.signing_public_key,d.encryption_public_key,d.status,d.created_at,d.revoked_at, \
+                r.revision AS cap_revision,r.user_id AS cap_account_id,r.device_id AS cap_device_id, \
+                r.max_record_schema AS cap_max_record_schema,r.host_attachment_manifest_versions AS cap_attachment_versions, \
+                r.max_attachment_bytes AS cap_max_attachment_bytes,r.signature AS cap_signature, \
+                a.platform,a.device_name,a.user_agent,a.browser_ips, \
+                d.status='active' AND EXISTS(SELECT 1 FROM sessions s WHERE s.user_id=d.user_id \
+                   AND s.device_id=d.device_id AND s.revoked_at IS NULL \
+                   AND julianday(s.refresh_expires_at)>julianday('now')) AS signed_in \
+         FROM devices d LEFT JOIN device_capability_reports r ON r.device_id=d.device_id AND r.user_id=d.user_id \
+         LEFT JOIN device_activity a ON a.device_id=d.device_id WHERE d.user_id=? \
+         ORDER BY signed_in DESC,d.created_at,d.device_id",
+    )
+    .bind(&user.user_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(ApiError::internal)?;
+    let mut devices = Vec::with_capacity(rows.len());
+    for row in rows {
+        let ips = row.get::<Option<String>, _>("browser_ips");
+        let ips = ips
+            .as_deref()
+            .map(serde_json::from_str::<Vec<String>>)
+            .transpose()
+            .map_err(ApiError::internal)?;
+        devices.push(json!({
+            "device_id": row.get::<String, _>("device_id"),
+            "user_id": user.user_id,
+            "name": row.get::<String, _>("name"),
+            "signing_public_key": row.get::<String, _>("signing_public_key"),
+            "encryption_public_key": row.get::<String, _>("encryption_public_key"),
+            "status": row.get::<String, _>("status"),
+            "created_at": row.get::<String, _>("created_at"),
+            "revoked_at": row.get::<Option<String>, _>("revoked_at"),
+            "signed_in": row.get::<bool, _>("signed_in"),
+            "activity": crate::device_activity::activity_value(
+                row.get("platform"), row.get("device_name"), row.get("user_agent"),
+                ips.as_deref().unwrap_or_default(),
+            ),
+            "capability_report": crate::device_capabilities::report_from_row(&row),
+        }));
+    }
+    tx.commit().await.map_err(ApiError::internal)?;
     Ok(Json(json!({"devices":devices})))
 }
 

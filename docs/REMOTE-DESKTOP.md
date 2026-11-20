@@ -13,7 +13,9 @@
 | 临时访客 SSH/RDP | 单独的可信分享网关，要求 SQLite、HTTPS、胶囊与链接策略 |
 | 本机 Shell / 串口 Console | 桌面操作系统和相应 Shell/设备；浏览器不能创建系统进程或串口 |
 
-添加主机时选择协议并检查端口，默认 SSH/RDP/VNC 分别为 22/3389/5900；保留自定义端口。密码、证书指纹及协议设置随主机加密保存。SSH 跳板、转发、tmux 和 SSH 文件管理不是 RDP/VNC 设置。
+添加主机时选择协议并检查端口，默认 SSH/RDP/VNC 分别为 22/3389/5900；保留自定义端口。密码、证书指纹及协议设置随主机加密保存。
+
+在原生客户端，新建或编辑 RDP/VNC 主机时填写远程桌面的实际地址、端口和登录凭据，然后在「跳板主机」（iOS 位于「高级选项」）选择一台已保存的 SSH 主机。点击连接后，客户端使用跳板机自己的 SSH 凭据验证每一跳，在本机 `127.0.0.1` 自动分配临时 TCP 端口并打开远程桌面。最后一跳需要允许 TCP 转发，并能访问目标地址。原生 RDP 需要随本版本构建的引擎，证书仍按远程桌面的实际主机校验。关闭会话会释放监听端口，重新连接会自动建立新隧道。网页版可保存此设置，使用跳板连接时需打开原生客户端。
 
 ## 证书与登录
 
@@ -31,7 +33,7 @@ Windows 原生引擎提供文本/文件剪贴板与可用资源重定向的设�
 
 ## Android 直接连接
 
-Android 上 RDP/VNC 只走直接连接，在会话标签和分屏内显示：VNC 由应用内 RFB 实现连接目标地址；RDP 由 APK 内引擎连接。连接使用系统路由和当前 VPN，不绑定特定网络，也不读取进程环境中的 HTTP(S) 代理；VPN 阻断目标时连接照常失败。任何模式（含已登录账户）都不会回退到本机 `127.0.0.1:4822` 或服务端桌面网关。未打包引擎的 APK 中，RDP 明确报告“无法启动 RDP 引擎”。
+Android 上 RDP/VNC 使用应用内引擎，可直连或通过所选 SSH 跳板连接，在会话标签和分屏内显示：VNC 由应用内 RFB 实现连接目标地址；RDP 由 APK 内引擎连接。连接使用系统路由和当前 VPN，不绑定特定网络，也不读取进程环境中的 HTTP(S) 代理；VPN 阻断目标时连接照常失败。任何模式（含已登录账户）都不会回退到本机 `127.0.0.1:4822` 或服务端桌面网关。未打包引擎的 APK 中，RDP 明确报告“无法启动 RDP 引擎”。
 
 证书流程与 Windows 相同：首次或变化的证书显示 SHA-256，用户确认保存后按该指纹重连。Android 引擎不读取系统 CA 库，CA 签发证书同样需要确认指纹。引擎包含 RDPDR 磁盘重定向：默认映射本机已挂载的内部存储和 SD 卡/USB 存储卷，可按主机关闭，也可另加文件夹；需要“所有文件访问权限”，未授权时跳过这些存储卷并提示，连接照常进行，详见[存储映射](#storage-mappings-and-direct-touch)。不提供打印机、智能卡、音频、摄像头、USB 重定向，相关选项按引擎能力禁用；文本剪贴板与显示调整保留。引擎的 FreeRDP 配置目录位于应用私有目录。WinPR 需要 JavaVM，`MainActivity` 启动时以 `System.loadLibrary` 加载引擎以运行其 `JNI_OnLoad`；未注册 JavaVM 时引擎拒绝创建连接，RDP 报告不可用而不会使应用退出。
 
@@ -94,11 +96,11 @@ Minimizing the window never changes the remote resolution: a session that follow
 
 最小化窗口不会改变远程分辨率：跟随窗口大小的会话保持原有尺寸，只有窗口恢复后大小确实变了才会重新调整。
 
-On Windows, macOS, Linux and the web, touchpad gestures over an RDP or VNC desktop are sent to the remote computer, in tabs, split panes, detached windows and monitor windows alike. Sliding two fingers scrolls vertically and horizontally by as much as the fingers moved, in the direction set on this computer, and a pinch zooms the way Windows reports a touchpad pinch to applications: Ctrl held with the wheel, so browsers and Office zoom. A gesture is either a scroll or a pinch for its whole length, and the Ctrl of a pinch is released when the gesture ends or the desktop loses the focus. Mouse wheels turn by the amount the device reports instead of one notch per event, and tilt or horizontal wheels scroll sideways. Direct RDP forwards fractions of a notch; VNC, gateway sessions and an RDP engine from an older installation scroll once per full notch, and gateway sessions and such an older engine have no horizontal scrolling. Moving the pointer, tapping and the two-finger tap arrive as mouse input as before. Android and iOS keep their own touch scrolling.
+On Windows, macOS, Linux, iPadOS and the web, touchpad gestures over an RDP or VNC desktop are sent to the remote computer, in tabs, split panes, detached windows and monitor windows alike. Sliding two fingers scrolls vertically and horizontally by as much as the fingers moved, in the direction set on this computer, and a pinch zooms the way Windows reports a touchpad pinch to applications: Ctrl held with the wheel, so browsers and Office zoom. A gesture is either a scroll or a pinch for its whole length, and the Ctrl of a pinch is released when the gesture ends or the desktop loses the focus. Mouse wheels turn by the amount the device reports instead of one notch per event, and tilt or horizontal wheels scroll sideways. Direct RDP forwards fractions of a notch; VNC, gateway sessions and an RDP engine from an older installation scroll once per full notch, and gateway sessions and such an older engine have no horizontal scrolling. Moving the pointer, tapping and the two-finger tap arrive as mouse input as before. On Android and iOS, scrolling with fingers on the screen still uses the touch controls.
 
 Three- and four-finger gestures normally stay with this computer: Windows performs them itself and an application cannot take them away. On Windows with a precision touchpad, Atermius sends a gesture to the remote computer instead when this computer is set to do nothing with it: in Windows Settings > Bluetooth & devices > Touchpad, set "Three-finger gestures" and "Four-finger gestures" (swipes) and their taps to "Nothing". While an RDP or VNC desktop has the keyboard focus and the pointer is over it, the gestures then become the shortcuts they stand for on Windows: three or four fingers up open Task view (Win+Tab) and down show the desktop (Win+D); three fingers left or right switch apps (Alt stays held while the fingers are down, and moving further steps through the switcher with Tab or Shift+Tab); four fingers left or right switch virtual desktops (Ctrl+Win+Right or Left, the desktops follow the fingers); a three-finger tap opens search (Win+S) and a four-finger tap the notification or quick settings panel (Win+A). A gesture whose local setting is anything else is left to this computer, so nothing happens twice. This does not depend on the "Full keyboard mapping" setting. macOS and Linux keep these gestures to themselves.
 
-在 Windows、macOS、Linux 和网页版上，触控板手势会发送到 RDP 或 VNC 远程电脑，标签、分屏、独立窗口和按显示器拆分的窗口都一样。双指滑动可上下、左右滚动，滚动量跟随手指移动的距离，方向沿用本机的设置；双指捏合按 Windows 向应用程序报告触控板捏合的方式缩放：按住 Ctrl 加滚轮，因此浏览器和 Office 都能缩放。一次手势从头到尾要么是滚动、要么是捏合；捏合时按下的 Ctrl 在手势结束或桌面失去焦点时松开。鼠标滚轮按设备报告的幅度滚动，不再每次固定一格，倾斜滚轮或横向滚轮可左右滚动。直连 RDP 能发送不足一格的滚动量；VNC、网关会话以及旧安装留下的 RDP 引擎每满一格滚动一次，其中网关会话和旧引擎不支持横向滚动。移动指针、轻点和双指轻点仍按鼠标输入处理。Android 和 iOS 仍使用各自的触摸滚动。
+在 Windows、macOS、Linux、iPadOS 和网页版上，触控板手势会发送到 RDP 或 VNC 远程电脑，标签、分屏、独立窗口和按显示器拆分的窗口都一样。双指滑动可上下、左右滚动，滚动量跟随手指移动的距离，方向沿用本机的设置；双指捏合按 Windows 向应用程序报告触控板捏合的方式缩放：按住 Ctrl 加滚轮，因此浏览器和 Office 都能缩放。一次手势从头到尾要么是滚动、要么是捏合；捏合时按下的 Ctrl 在手势结束或桌面失去焦点时松开。鼠标滚轮按设备报告的幅度滚动，不再每次固定一格，倾斜滚轮或横向滚轮可左右滚动。直连 RDP 能发送不足一格的滚动量；VNC、网关会话以及旧安装留下的 RDP 引擎每满一格滚动一次，其中网关会话和旧引擎不支持横向滚动。移动指针、轻点和双指轻点仍按鼠标输入处理。在 Android 和 iOS 上，直接用手指触屏时仍使用触控滚动。
 
 三指、四指手势默认由本机系统处理：Windows 自己执行这些手势，应用程序无法把它们拿走。在带精确式触控板的 Windows 上，只要本机被设置成不处理某个手势，Atermius 就把它发给远程电脑：在 Windows 设置 > 蓝牙和其他设备 > 触摸板里，把「三指手势」「四指手势」的轻扫和点击都设为「无」。之后当 RDP 或 VNC 桌面拥有键盘焦点且指针在其上方时，这些手势会变成它们在 Windows 上对应的快捷键：三指或四指上滑打开任务视图（Win+Tab），下滑显示桌面（Win+D）；三指左右滑动切换应用（手指按住期间保持 Alt，继续滑动用 Tab 或 Shift+Tab 在切换器里前进后退）；四指左右滑动切换虚拟桌面（Ctrl+Win+右/左，桌面跟随手指方向）；三指点击打开搜索（Win+S），四指点击打开通知或快速设置面板（Win+A）。本机设置为其他动作的手势仍留给本机，不会两边同时触发。这与「键盘全面映射」设置无关。macOS 和 Linux 上这些手势仍由系统处理。
 
@@ -108,6 +110,10 @@ On Windows and Android, RDP maps this device's local disks by default. Each Host
 
 - Windows: fixed, removable, optical and RAM disks that are ready. Network drives are excluded. Each drive is named by its letter and appears on the server as `\\tsclient\C`.
 - Android: mounted internal storage and SD card/USB volumes. They require the system All files access permission. Without it they are skipped with a notice and the connection proceeds; connecting never opens Settings automatically.
+
+On iPhone and iPad, use **Add disk** to map the Atermius folder or **Add folder** to select a subfolder in **Files → On My iPhone/iPad → Atermius**. Remote clipboard files can be saved in the same location. iCloud Drive and third-party Files locations require coordinated access through iOS APIs. [Apple directory access](https://developer.apple.com/documentation/uikit/providing-access-to-directories)
+
+在 iPhone 和 iPad 上，可用「添加磁盘」映射 Atermius 文件夹，或用「添加文件夹」在「文件 → 我的 iPhone/iPad → Atermius」中选择子文件夹。远程剪贴板文件也可保存到这里。iCloud Drive 和第三方 Files 位置需要通过 iOS API 协调访问。[Apple 目录访问说明](https://developer.apple.com/documentation/uikit/providing-access-to-directories)
 
 A volume that is missing at connect time, such as a removed USB drive or a card reader without media, is skipped with a notice and does not stop the connection. Add disk and Add folder in RDP options still add explicit mappings to a Host. On Android, adding one first opens the system All files access setting, because the native RDP drive channel needs live filesystem access rather than a copied document URI. Explicitly added folders that are missing, blocked by revoked permission or synchronized from another operating system are reported before connecting. A Host stores at most 8 folders, which keeps it readable by earlier versions that share the synchronized settings; a connection carries at most 32 mappings, Host folders and local disks together. A new mapping's path is limited to 259 UTF-8 bytes because FreeRDP's drive channel truncates longer paths; a longer path saved by an earlier version keeps the Host's settings readable and is skipped with a notice when connecting. On Windows the app turns off the system "There is no disk in the drive" dialog for its process, so a card reader or optical drive whose media is removed during a session only fails the remote file operation. Restore connection reconnects with the latest saved Host settings, so changes to mappings or to the switch apply on the next reconnect.
 

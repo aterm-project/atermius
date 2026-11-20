@@ -6143,6 +6143,12 @@ class ApiClient {
   Future<void> revokeDevice(String deviceId) async =>
       post('/api/v1/devices/${Uri.encodeComponent(deviceId)}/revoke');
 
+  Future<void> reportDeviceActivity(Map<String, Object?> activity) async =>
+      put('/api/v1/devices/activity', activity);
+
+  Future<void> signOutDevice(String deviceId) async =>
+      post('/api/v1/devices/${Uri.encodeComponent(deviceId)}/sign-out');
+
   Future<List<VaultDescriptor>> vaults() async => _list(
     await get('/api/v1/vaults'),
     'vaults',

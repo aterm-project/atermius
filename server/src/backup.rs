@@ -161,7 +161,7 @@ struct SourceFile {
     memory: Option<Zeroizing<Vec<u8>>>,
 }
 
-pub(crate) const PG_BACKUP_SCHEMA_VERSION: i64 = 40;
+pub(crate) const PG_BACKUP_SCHEMA_VERSION: i64 = 41;
 const MIN_SUPPORTED_PG_ARCHIVE_SCHEMA_VERSION: i64 = 25;
 const PG_BACKUP_SCHEDULE_MIGRATION: &str =
     include_str!("../migrations/postgres/0026_instance_backup_schedule.sql");
@@ -191,6 +191,8 @@ const PG_REPLICA_RESTORE_MIGRATION: &str =
     include_str!("../migrations/postgres/0038_replica_restore_sources.sql");
 const PG_PASSWORD_KEYRING_MIGRATION: &str =
     include_str!("../migrations/postgres/0040_password_keyring.sql");
+const PG_DEVICE_ACTIVITY_MIGRATION: &str =
+    include_str!("../migrations/postgres/0041_device_activity.sql");
 const PG_PUSH_DELIVERY_DAILY_MIGRATION: &str =
     include_str!("../migrations/postgres/0039_mobile_push_delivery_daily.sql");
 const PG_RESTORE_CONTROL_SCHEMA: &str = "atermius_restore_control";
@@ -2603,6 +2605,16 @@ async fn upgrade_restored_postgres_archive(
     if marker_after_push == 39 {
         let migration = format!(
             "BEGIN; SET LOCAL search_path TO {quoted_schema}; {PG_PASSWORD_KEYRING_MIGRATION}; COMMIT;"
+        );
+        sqlx::raw_sql(&migration).execute(pool).await.map_err(ApiError::internal)?;
+    }
+    let marker_after_password_keyring: i64 = sqlx::query_scalar(&marker_sql)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::internal)?;
+    if marker_after_password_keyring == 40 {
+        let migration = format!(
+            "BEGIN; SET LOCAL search_path TO {quoted_schema}; {PG_DEVICE_ACTIVITY_MIGRATION}; COMMIT;"
         );
         sqlx::raw_sql(&migration).execute(pool).await.map_err(ApiError::internal)?;
     }
@@ -8073,7 +8085,8 @@ mod tests {
         assert!(supported_pg_archive_schema_version(39));
         assert!(!supported_pg_archive_schema_version(24));
         assert!(supported_pg_archive_schema_version(40));
-        assert!(!supported_pg_archive_schema_version(41));
+        assert!(supported_pg_archive_schema_version(41));
+        assert!(!supported_pg_archive_schema_version(42));
     }
 
     #[test]
@@ -8088,7 +8101,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires ATERMIUS_TEST_PG_URL naming a disposable PostgreSQL database"]
-    async fn postgres_restore_upgrades_schema_25_through_40_targets_with_bundled_migrations() {
+    async fn postgres_restore_upgrades_older_archives_with_bundled_migrations() {
         use std::str::FromStr;
 
         use sqlx::{Connection, PgConnection, postgres::PgConnectOptions, postgres::PgPoolOptions};
@@ -8108,7 +8121,7 @@ mod tests {
         let migration_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations/postgres");
         for archive_version in [
             25_u32, 26_u32, 27_u32, 28_u32, 29_u32, 30_u32, 31_u32, 32_u32, 33_u32, 34_u32, 35_u32,
-            36_u32, 37_u32, 38_u32, 39_u32,
+            36_u32, 37_u32, 38_u32, 39_u32, 40_u32,
         ] {
             let schema = format!(
                 "atermius_restore_v{archive_version}_{}",
@@ -13158,7 +13171,7 @@ mod tests {
     async fn offline_restore_removes_stale_plaintext_stages_of_interrupted_runs() {
         let root = temp_root();
         let backup_key_path = root.join("backup.key");
-        write_backup_key(&backup_key_path);
+        let backup_key = write_backup_key(&backup_key_path);
         let database_key = root.join("database.key");
         write_database_key(&database_key, 0x3c);
         let plain_source = root.join("plain-source");
@@ -13177,8 +13190,7 @@ mod tests {
         // What a killed run leaves: the plaintext extraction (and a partial
         // encrypted export) in a private stage.
         let stale = stage(Uuid::new_v4());
-        create_private_dir(&stale).unwrap();
-        fs::copy(plain_source.join("atermius.db"), stale.join("atermius.db")).unwrap();
+        extract_archive(&plain_archive, &backup_key, &stale);
         fs::write(stale.join(".atermius.db.encrypting"), b"partial").unwrap();
         assert!(tree_contains(&stale, ENCRYPTION_CANARY.as_bytes()));
         // A stage still locked by a concurrent restore.

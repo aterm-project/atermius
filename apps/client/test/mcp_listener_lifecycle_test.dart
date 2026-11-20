@@ -14,6 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _Target extends ChangeNotifier implements McpLifecycleTarget {
   bool _running = false;
+  @override
+  bool starting = false;
   int port = 8765;
   int stops = 0;
 
@@ -26,6 +28,7 @@ class _Target extends ChangeNotifier implements McpLifecycleTarget {
   void startListening([int? next]) {
     if (next != null) port = next;
     _running = true;
+    starting = false;
     notifyListeners();
   }
 
@@ -33,6 +36,7 @@ class _Target extends ChangeNotifier implements McpLifecycleTarget {
   Future<void> stop() async {
     stops++;
     _running = false;
+    starting = false;
     notifyListeners();
   }
 }
@@ -101,6 +105,60 @@ void main() {
     messenger.setMockMethodCallHandler(methodChannel, null);
     lifecycleState(AppLifecycleState.resumed);
   });
+
+  void useForegroundOnly() {
+    lifecycle.dispose();
+    lifecycle = McpListenerLifecycle(
+      target: target,
+      channel: channel,
+      binding: binding,
+      newLeaseId: nextLease,
+      foregroundOnly: true,
+    );
+  }
+
+  test(
+    'iOS revokes both a pending start and a running listener on hide',
+    () async {
+      useForegroundOnly();
+      target.starting = true;
+      lifecycleState(AppLifecycleState.hidden);
+      expect(target.starting, isFalse);
+      expect(target.stops, 1);
+      expect(calls, isEmpty);
+
+      lifecycleState(AppLifecycleState.resumed);
+      final grant = Completer<Object?>();
+      native = (call) async => call.method == 'start' ? grant.future : null;
+      target.startListening();
+      expect(lifecycle.mode, McpBackgroundMode.starting);
+      lifecycleState(AppLifecycleState.hidden);
+      expect(target.running, isFalse);
+      expect(target.stops, 2);
+      expect(lifecycle.lastRevocation, 'background_unprotected');
+      grant.complete({'active': true, 'notifications': false});
+      await settle();
+      lifecycleState(AppLifecycleState.resumed);
+      expect(lifecycle.mode, McpBackgroundMode.inactive);
+      expect(calls.where((call) => call.method == 'start'), hasLength(1));
+    },
+  );
+
+  test(
+    'iOS stays foreground-only, including after a native revocation',
+    () async {
+      useForegroundOnly();
+      target.startListening();
+      await settle();
+      expect(lifecycle.mode, McpBackgroundMode.foregroundOnly);
+      await fromNative('revoked', {
+        'leaseId': (calls.first.arguments as Map)['leaseId'],
+        'reason': 'background_unprotected',
+      });
+      expect(target.running, isFalse);
+      expect(lifecycle.lastRevocation, 'background_unprotected');
+    },
+  );
 
   test(
     'listening starts a visible lease without any secret on the channel',

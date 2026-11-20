@@ -1583,6 +1583,7 @@ class LocalHostRepository {
             await _requireActiveJumpHost(
               hostId: id,
               jumpHostId: draft.jumpHostId,
+              protocol: draft.protocol,
               identity: identity,
               vaultKey: vaultKey,
             );
@@ -2951,6 +2952,7 @@ class LocalHostRepository {
       await _requireActiveJumpHost(
         hostId: host.id,
         jumpHostId: host.jumpHostId,
+        protocol: host.protocol,
         identity: identity,
         vaultKey: vaultKey,
       );
@@ -3394,6 +3396,7 @@ class LocalHostRepository {
   Future<void> _requireActiveJumpHost({
     required String hostId,
     required String? jumpHostId,
+    required HostProtocol protocol,
     required DeviceIdentity identity,
     required Uint8List vaultKey,
   }) async {
@@ -3401,7 +3404,12 @@ class LocalHostRepository {
     final routes = <String, String?>{};
     for (final row in await _listRows()) {
       final host = await _decryptHostRow(row, identity, vaultKey);
-      if (host != null) routes[host.id] = host.jumpHostId;
+      if (host == null) continue;
+      if ((host.id == jumpHostId && host.protocol != HostProtocol.ssh) ||
+          (host.jumpHostId == hostId && protocol != HostProtocol.ssh)) {
+        throw const FormatException('The Jump Host must use SSH.');
+      }
+      routes[host.id] = host.jumpHostId;
     }
     routes[hostId] = jumpHostId;
     if (jumpHostId != null && !routes.containsKey(jumpHostId)) {

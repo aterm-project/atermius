@@ -5,6 +5,8 @@ import 'dart:isolate';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:win32/win32.dart';
 
 import 'rdp_settings.dart';
@@ -79,6 +81,28 @@ Future<List<RdpStorageRoot>> localRdpStorageRoots() async {
   return const [];
 }
 
+Future<void> validateIosRdpFolder(String folder) async {
+  if (!Platform.isIOS) return;
+  final documents = await getApplicationDocumentsDirectory();
+  if (!await rdpFolderWithin(documents, Directory(folder))) {
+    throw const RdpStorageException(RdpStorageIssue.iosFolder);
+  }
+}
+
+// FreeRDP uses POSIX paths. iOS Files providers outside the app's Documents
+// folder require UIDocumentPicker grants and coordinated file access.
+@visibleForTesting
+Future<bool> rdpFolderWithin(Directory root, Directory folder) async {
+  try {
+    final base = await root.resolveSymbolicLinks();
+    final selected = await folder.resolveSymbolicLinks();
+    return (path.equals(base, selected) || path.isWithin(base, selected)) &&
+        await folder.exists();
+  } on FileSystemException {
+    return false;
+  }
+}
+
 /// Fail before the handshake if a synced path belongs to another device, its
 /// disk was removed, or Android storage access was revoked. No test files are
 /// created and no unrelated directories are enumerated.
@@ -111,6 +135,7 @@ Future<void> validateRdpDriveConfig(String config) async {
               .timeout(const Duration(seconds: 5), onTimeout: () => false)) {
         throw RdpStorageException(RdpStorageIssue.unavailable, drive.name);
       }
+      await validateIosRdpFolder(drive.path);
     }),
   );
 }

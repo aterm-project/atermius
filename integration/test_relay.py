@@ -170,6 +170,8 @@ class _RelayWorld:
     account_id: str
     device_id: str
     access_token: str
+    username: str
+    login_verifier: str
     signer: SigningKey
     base_url: str
 
@@ -228,6 +230,7 @@ def relay_world(tmp_path: Path, request: pytest.FixtureRequest):
             "ATERMIUS_RELAY_ALLOW_CIDRS": f"{target_address}/32,100.100.100.200/32",
             "ATERMIUS_RELAY_ALLOW_PORTS": str(echo.port),
             "ATERMIUS_PUBLIC_ORIGIN": base_url,
+            "ATERMIUS_DEVICE_TRUSTED_PROXIES": "127.0.0.1/32",
             "CARGO_TERM_COLOR": "never",
         }
     )
@@ -318,6 +321,8 @@ def relay_world(tmp_path: Path, request: pytest.FixtureRequest):
         account_id=account_id,
         device_id=device_id,
         access_token=access_token,
+        username=registration["username"],
+        login_verifier=registration["login_verifier"],
         signer=signer,
         base_url=base_url,
     )
@@ -495,6 +500,94 @@ def _echo_bytes(ws: _WebSocket, expected: bytes) -> None:
         assert opcode == 0x2, "Relay must return target TCP bytes as WebSocket binary frames"
         received.extend(chunk)
     assert bytes(received) == expected, "Relay changed, truncated, or duplicated binary TCP bytes"
+
+
+def test_sign_out_device_disconnects_relay_and_preserves_device_trust(
+    relay_world: _RelayWorld, tmp_path: Path
+) -> None:
+    world = relay_world
+    api = world.api
+    device_id = str(uuid.uuid4())
+    signing_key = SigningKey(tmp_path, "device-activity")
+    registration = _new_account_registration(
+        world.account_id,
+        world.username,
+        device_id,
+        base64.urlsafe_b64encode(os.urandom(32)).decode("ascii").rstrip("="),
+        signing_key,
+    )
+    credentials = {"username": world.username, "login_verifier": world.login_verifier}
+    enrolled = api.request(
+        "POST", "/api/v1/auth/password-device",
+        json_body={**credentials, "device": registration["device"]},
+    )
+    assert enrolled.status == 200
+    target = enrolled.json()
+    second_session = api.request(
+        "POST", "/api/v1/auth/login", json_body={**credentials, "device_id": device_id}
+    )
+    assert second_session.status == 200
+    browser_token = world.access_token
+    for last_octet in [*range(1, 14), 10, 10]:
+        result = api.request(
+            "PUT", "/api/v1/devices/activity", token=browser_token,
+            json_body={"platform": "web"},
+            extra_headers={
+                "User-Agent": "Test browser",
+                "X-Forwarded-For": f"192.0.2.1, 198.51.100.{last_octet}",
+            },
+        )
+        assert result.status == 200
+    native_report = api.request(
+        "PUT", "/api/v1/devices/activity", token=target["access_token"],
+        json_body={"platform": "windows", "device_name": "Work PC"},
+    )
+    assert native_report.status == 200
+
+    def devices() -> dict:
+        response = api.request("GET", "/api/v1/devices", token=browser_token)
+        assert response.status == 200
+        return {row["device_id"]: row for row in response.json()["devices"]}
+
+    rows = devices()
+    assert len(rows) == 2
+    assert rows[world.device_id]["activity"] == {
+        "platform": "web", "user_agent": "Test browser", "last_ip": "198.51.100.10",
+        "ip_history": [f"198.51.100.{n}" for n in (13, 12, 11, 9, 8, 7, 6, 5, 4, 3)],
+    }
+    assert rows[device_id]["activity"] == {"platform": "windows", "device_name": "Work PC"}
+    assert rows[device_id]["signed_in"]
+    for invalid_target, expected in [(world.device_id, 400), (uuid.uuid4(), 404)]:
+        denied = api.request("POST", f"/api/v1/devices/{invalid_target}/sign-out", token=browser_token)
+        assert denied.status == expected
+
+    relay_ticket = api.request("POST", "/api/v1/relay/tickets", token=target["access_token"], json_body={
+        "device_id": device_id, "target_host": world.echo.address, "target_port": world.echo.port,
+    })
+    assert relay_ticket.status == 200
+    status, _, ws = _websocket_handshake(world.base_url, world.base_url)
+    assert status == 101 and ws is not None
+    endpoint = f"/api/v1/devices/{device_id}/sign-out"
+    try:
+        _send_ticket(ws, relay_ticket.json()["ticket"])
+        _echo_bytes(ws, b"workspace connected")
+        reply = api.request("POST", endpoint, token=browser_token)
+        assert reply.status == 200 and reply.json()["signed_out_sessions"] == 2
+        assert world.echo.wait_closed(1, timeout=4), "remote sign-out must close the live TCP relay"
+    finally:
+        ws.close()
+
+    for session in (target, second_session.json()):
+        assert api.request("GET", "/api/v1/me", token=session["access_token"]).status == 401
+        denied_refresh = api.request(
+            "POST", "/api/v1/auth/refresh", json_body={"refresh_token": session["refresh_token"]},
+        )
+        assert denied_refresh.status == 401
+    assert api.request("POST", endpoint, token=browser_token).json()["signed_out_sessions"] == 0
+    row = devices()[device_id]
+    assert row["status"] == "active" and row["signed_in"] is False
+    login = api.request("POST", "/api/v1/auth/login", json_body={**credentials, "device_id": device_id})
+    assert login.status == 200 and devices()[device_id]["signed_in"]
 
 
 def test_relay_ticket_target_origin_binary_replay_revoke_and_disconnect(relay_world: _RelayWorld) -> None:

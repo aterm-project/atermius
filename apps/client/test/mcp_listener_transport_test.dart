@@ -118,11 +118,11 @@ void main() {
   });
   tearDown(() => listener.close());
 
-  test('Android is a listener platform; iOS and others are not', () {
-    for (final os in ['android', 'windows', 'linux', 'macos']) {
+  test('desktop and mobile native platforms support listeners', () {
+    for (final os in ['android', 'ios', 'windows', 'linux', 'macos']) {
       expect(io.mcpListenerPlatformSupported(os), isTrue, reason: os);
     }
-    for (final os in ['ios', 'fuchsia', '']) {
+    for (final os in ['fuchsia', '']) {
       expect(io.mcpListenerPlatformSupported(os), isFalse, reason: os);
     }
   });

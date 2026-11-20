@@ -13,6 +13,8 @@ import '../api/server_transport.dart';
 import '../domain/host_operating_system.dart';
 import '../domain/models.dart';
 import '../platform/local_clipboard.dart';
+import '../ssh/ssh_service.dart';
+import '../ssh/port_forward_runtime_contract.dart';
 import '../ssh/ssh_transport.dart' as transport;
 import 'desktop_clipboard_sync.dart';
 import 'desktop_display.dart';
@@ -45,6 +47,7 @@ class DesktopSession extends ChangeNotifier {
     this.reconnectAllowed,
     this.onUserReconnect,
     this.latestHost,
+    this.openSshTunnel,
     this.localDrives,
     this.localClipboard,
   });
@@ -53,6 +56,11 @@ class DesktopSession extends ChangeNotifier {
   /// the caller cannot tell. "Restore connection" and recovery use it, so
   /// settings saved after the first connect (such as disk mappings) apply.
   final HostRecord? Function(String id)? latestHost;
+
+  final Future<DesktopSshTunnel> Function(HostRecord, SshConnectCancellation)?
+  openSshTunnel;
+  SshConnectCancellation? _tunnelCancellation;
+  DesktopSshTunnel? _tunnel;
 
   /// Device-local "Map local disks" choices and this device's volumes;
   /// [RdpLocalDrivesController.instance] when null.
@@ -385,6 +393,7 @@ class DesktopSession extends ChangeNotifier {
       if (saved.id != request.host.id ||
           saved.address != request.host.address ||
           saved.port != request.host.port ||
+          saved.jumpHostId != request.host.jumpHostId ||
           saved.protocol != HostProtocol.rdp ||
           saved.rdpCertificateSha256 != request.sha256) {
         throw StateError(currentL10n.theHostSettingsChangedReconnect);
@@ -419,6 +428,14 @@ class DesktopSession extends ChangeNotifier {
   Future<void> connect(ApiClient api, String deviceId, HostRecord host) async {
     _reconnectHostId = host.id;
     _reconnect = (latest) => connect(api, deviceId, latest ?? host);
+    if (host.jumpHostId != null) {
+      if (kIsWeb) {
+        _fail(currentL10n.desktopJumpNativeRequired);
+        return;
+      }
+      await connectLocal(host);
+      return;
+    }
     try {
       if (host.protocol.isTerminal || host.validate() != null)
         throw const FormatException('Invalid desktop Host');
@@ -549,30 +566,87 @@ class DesktopSession extends ChangeNotifier {
     // in-session display change of the same Host still carries over below.
     _reconnect = (latest) =>
         connectLocal(latest ?? _host ?? host, guacdPort: guacdPort);
-    // An explicit port remains available to the gateway integration tests and
-    // existing Linux installations. Native UI sessions use direct transports.
+    if (_closed) return;
+    if (host.protocol.isTerminal || host.validate() != null) {
+      _fail(currentL10n.invalidRemoteDesktopHostSettings);
+      return;
+    }
+    final attempt = ++_directAttempt;
+    try {
+      await _startLocal(host, attempt, guacdPort);
+    } catch (_) {
+      if (!_closed && attempt == _directAttempt) {
+        _fail(currentL10n.theRemoteDesktopConnectionFailed);
+      }
+    }
+  }
+
+  Future<void> _startLocal(HostRecord host, int attempt, int? gatewayPort) async {
     if (directConnectionForTesting == null &&
-        guacdPort == null &&
+        gatewayPort == null &&
         host.protocol == HostProtocol.rdp &&
         !bundledRdpAvailable) {
-      // Android cannot host a local guacd: RDP there uses only the engine
-      // packaged in the APK, and an APK without it reports that plainly.
       if (!kIsWeb &&
           (defaultTargetPlatform == TargetPlatform.android ||
               defaultTargetPlatform == TargetPlatform.iOS)) {
         _fail(currentL10n.couldntStartTheRdpEngineCheck);
         return;
       }
-      await _connectLocalGateway(host, 4822);
-      return;
+      gatewayPort = 4822;
     }
-    if (guacdPort == null) {
-      if (_closed) return;
-      if (host.protocol.isTerminal || host.validate() != null) {
-        _fail(currentL10n.invalidRemoteDesktopHostSettings);
+    var endpoint = host;
+    if (host.jumpHostId != null) {
+      final open = openSshTunnel;
+      if (open == null || kIsWeb) {
+        _fail(currentL10n.desktopJumpNativeRequired);
         return;
       }
-      final attempt = ++_directAttempt;
+      if (host.protocol == HostProtocol.rdp &&
+          gatewayPort == null &&
+          directConnectionForTesting == null &&
+          !rdpEngineFeatures().has(RdpFeatures.sshTunnel)) {
+        _fail(currentL10n.desktopJumpUpdateEngine);
+        return;
+      }
+      // Certificate approval reconnects the same target through the existing
+      // listener. A full session reconnect has already disposed of the route.
+      var tunnel = _tunnel;
+      if (tunnel == null) {
+        final cancellation = _tunnelCancellation = SshConnectCancellation();
+        try {
+          tunnel = await open(host, cancellation);
+          if (_closed ||
+              attempt != _directAttempt ||
+              cancellation.isCancelled) {
+            await tunnel.close();
+            return;
+          }
+          _tunnel = tunnel;
+          final opened = tunnel;
+          unawaited(
+            opened.ended.then((reason) {
+              if (!_closed && identical(_tunnel, opened)) {
+                _fail(reason ?? currentL10n.desktopJumpFailed);
+              }
+            }),
+          );
+        } catch (e) {
+          if (!_closed && attempt == _directAttempt) {
+            _fail(
+              sshConnectionFriendlyError(e) ??
+                  (e is StateError
+                      ? e.message
+                      : e is SshPortForwardException
+                      ? e.message
+                      : currentL10n.desktopJumpFailed),
+            );
+          }
+          return;
+        }
+      }
+      endpoint = host.copyWith(address: '127.0.0.1', port: tunnel.port);
+    }
+    if (gatewayPort == null) {
       // Redirection/security settings always come from the Host being
       // connected (the latest saved revision). Only an in-session display
       // choice survives a reconnect of the same Host (for example after
@@ -618,18 +692,22 @@ class DesktopSession extends ChangeNotifier {
           );
           // Closed or superseded while local disks were listed.
           if (built == null) return;
-          if (!testing) config = built;
+          if (!testing) {
+            config = host.jumpHostId == null
+                ? built
+                : '${built}ssh_tunnel_port=${endpoint.port}\n';
+          }
         } on FormatException catch (e) {
           _fail(currentL10n.invalidRdpOptionsMessage(e.message));
           return;
         }
       }
       _direct =
-          directConnectionForTesting?.call(host) ??
+          directConnectionForTesting?.call(endpoint) ??
           (host.protocol == HostProtocol.vnc
               ? RfbConnection.connect(
-                  host.address,
-                  host.port,
+                  endpoint.address,
+                  endpoint.port,
                   host.login?.password ?? '',
                 )
               : RdpConnection.connect(
@@ -791,7 +869,7 @@ class DesktopSession extends ChangeNotifier {
       );
       return;
     }
-    await _connectLocalGateway(host, guacdPort);
+    await _connectLocalGateway(endpoint, gatewayPort);
   }
 
   Future<void> _paintDirect() async {
@@ -1140,6 +1218,12 @@ class DesktopSession extends ChangeNotifier {
     _pendingFrames.clear();
     remoteFiles = null;
     transfer = null;
+    final tunnel = _tunnel;
+    final cancellation = _tunnelCancellation;
+    _tunnel = null;
+    _tunnelCancellation = null;
+    await tunnel?.close();
+    await cancellation?.cancel();
     await _directSubscription?.cancel();
     await _direct?.close();
     _setupTimeout?.cancel();

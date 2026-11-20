@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:aterm_client/crypto/vault_crypto.dart';
 import 'package:aterm_client/attachments/attachment_file_saver.dart';
 import 'package:aterm_client/domain/models.dart';
+import 'package:aterm_client/desktop/desktop_session.dart';
+import 'package:aterm_client/desktop/rdp_certificate_persistence.dart';
 import 'package:aterm_client/ssh/local_profile_ssh_controller.dart';
 import 'package:aterm_client/ssh/local_profile_sftp_controller.dart';
 import 'package:aterm_client/ssh/ssh_service.dart';
@@ -145,6 +147,7 @@ UsePAM no
 UseDNS no
 AllowTcpForwarding yes
 GatewayPorts no
+MaxSessions ${index < 2 ? 0 : 10}
 PermitTTY yes
 Subsystem sftp internal-sftp
 AllowAgentForwarding no
@@ -384,6 +387,132 @@ LogLevel VERBOSE
         // Each deeper unknown key aborts the current route after the preceding
         // hop authenticates. Approval always retries from the first bastion.
         expect(acceptedCounts, [3, 2, 1]);
+
+        // MaxSessions=0 on both bastions allows forwarding but forbids shells.
+        // Exercise a saved VNC host through the same path as a LocalVault tab.
+        final vnc = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        final viewer = vnc.first;
+        final desktopHost = await repository.createHost(
+          HostRecord(
+            id: ids.v4(),
+            name: 'Private desktop',
+            address: '127.0.0.1',
+            port: vnc.port,
+            protocol: HostProtocol.vnc,
+            jumpHostId: middle.id,
+          ),
+        );
+        late int listenerPort;
+        final desktop = DesktopSession(
+          openSshTunnel: (host, cancellation) async {
+            final tunnel = await controller.openDesktopTunnel(
+              host: host,
+              cancellation: cancellation,
+              askApproval: (_) async => false,
+            );
+            listenerPort = tunnel.port;
+            return tunnel;
+          },
+        );
+        Socket? peer;
+        try {
+          await desktop.connectLocal(
+            (await repository.getHost(desktopHost.id))!,
+          );
+          peer = await viewer.timeout(const Duration(seconds: 5));
+          final response = StreamIterator<int>(peer.expand((chunk) => chunk));
+          peer.add(ascii.encode('RFB 003.008\n'));
+          for (final byte in ascii.encode('RFB 003.008\n')) {
+            expect(await response.moveNext().timeout(const Duration(seconds: 5)), isTrue);
+            expect(response.current, byte);
+          }
+          final frame = desktop.frameUpdates.first;
+          final init = ByteData(24)..setUint16(0, 1)..setUint16(2, 1);
+          final update = ByteData(16)
+            ..setUint16(2, 1)
+            ..setUint16(8, 1)
+            ..setUint16(10, 1);
+          peer.add([
+            1, 1, 0, 0, 0, 0, // One security type (None), authentication OK.
+            ...init.buffer.asUint8List(),
+            ...update.buffer.asUint8List(), 12, 34, 56, 0,
+          ]);
+          final painted = await frame.timeout(const Duration(seconds: 5));
+          expect(painted.bgra, [12, 34, 56, 255]);
+          await response.cancel();
+          expect(directEndpoints.last, ('127.0.0.1', bastion.port));
+          expect(listenerPort, isNot(vnc.port));
+        } finally {
+          await desktop.close();
+          desktop.dispose();
+          peer?.destroy();
+          await vnc.close();
+        }
+        expect(await _canConnect(listenerPort), isFalse);
+
+        // Optional native-engine acceptance against a loopback XRDP fixture.
+        final rdpPort = Platform.environment['ATERMIUS_TEST_JUMP_RDP_PORT'];
+        if (rdpPort != null) {
+          final pin = Platform.environment['ATERMIUS_TEST_JUMP_RDP_SHA256']!;
+          final rdpHost = await repository.createHost(
+            HostRecord(
+              id: ids.v4(),
+              name: 'Private RDP',
+              address: 'localhost',
+              port: int.parse(rdpPort),
+              protocol: HostProtocol.rdp,
+              jumpHostId: middle.id,
+            ),
+          );
+          final session = DesktopSession(
+            openSshTunnel: (host, cancellation) => controller.openDesktopTunnel(
+              host: host,
+              cancellation: cancellation,
+              askApproval: (_) async => false,
+            ),
+            saveRdpCertificate: (host, digest) =>
+                RdpCertificatePersistence.saveLocal(
+                  repository: repository,
+                  reviewed: host,
+                  pin: digest,
+                  isCurrent: () => true,
+                ),
+          );
+          Future<void> waitForState(String wanted) async {
+            final done = Completer<void>();
+            void check() {
+              if (done.isCompleted) return;
+              if (session.state == wanted) done.complete();
+              if (session.state == 'disconnected')
+                done.completeError(StateError('${session.error}'));
+            }
+
+            session.addListener(check);
+            try {
+              check();
+              await done.future.timeout(const Duration(seconds: 20));
+            } finally {
+              session.removeListener(check);
+            }
+          }
+
+          try {
+            await session.connectLocal(rdpHost);
+            await waitForState('certificate');
+            final request = session.certificateRequest!;
+            expect(request.host.endpoint, rdpHost.endpoint);
+            expect(request.sha256, pin);
+            expect(await session.trustCertificate(request), isTrue);
+            await waitForState('connected');
+            expect(
+              (await repository.getHost(rdpHost.id))?.rdpCertificateSha256,
+              pin,
+            );
+          } finally {
+            await session.close();
+            session.dispose();
+          }
+        }
       } finally {
         if (filePickerOverridden) {
           if (originalFilePicker != null) {

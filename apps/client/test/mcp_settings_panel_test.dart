@@ -280,6 +280,33 @@ void main() {
       expect(find.byKey(const ValueKey('mcp_bind_warning')), findsOneWidget);
     });
 
+    testWidgets('iPhone shows restored LAN scope and offers all addresses', (
+      tester,
+    ) async {
+      final service = _FakeMcpService()..isRunning = false;
+      final store = MemoryMcpListenSettingsStore();
+      await store.write(
+        const McpListenSettings(port: 9100, bind: McpBind.lan()).encode(),
+      );
+      await _pump(
+        tester,
+        service,
+        size: const Size(390, 844),
+        platform: TargetPlatform.iOS,
+        listenStore: store,
+      );
+      expect(find.byKey(const ValueKey('mcp_bind')), findsOneWidget);
+      expect(find.byKey(const ValueKey('mcp_bind_warning')), findsOneWidget);
+      expect(service.starts, 0);
+      await tapKey(tester, 'mcp_toggle');
+      expect(service.currentBind, const McpBind.lan());
+      expect(find.text('http://192.168.1.20:9100/mcp'), findsOneWidget);
+      expect(find.text('http://127.0.0.1:9100/mcp'), findsOneWidget);
+      await tapKey(tester, 'mcp_toggle');
+      expect(service.stopCalls, 1);
+      expect(find.byKey(const ValueKey('mcp_endpoint')), findsNothing);
+    });
+
     testWidgets('a specific IP must be an address before anything starts', (
       tester,
     ) async {

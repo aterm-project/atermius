@@ -122,6 +122,50 @@ final class LocalProfileSshController {
     required LocalKnownHostApprovalPrompt askApproval,
     void Function()? onApprovalStored,
     SshConnectCancellation? cancellation,
+  }) => _withVerifiedRoute(
+    host: host,
+    askApproval: askApproval,
+    onApprovalStored: onApprovalStored,
+    cancellation: cancellation,
+    connect: (hops, verify) => _service.connect(
+      host: host,
+      credential: credential,
+      jumpHops: hops,
+      knownHostDecisionScope: repository.knownHostDecisionScope,
+      verifyHostKey: (algorithm, fingerprint) =>
+          verify(host, algorithm, fingerprint),
+      cancellation: cancellation,
+    ),
+  );
+
+  Future<DesktopSshTunnel> openDesktopTunnel({
+    required HostRecord host,
+    required LocalKnownHostApprovalPrompt askApproval,
+    required SshConnectCancellation cancellation,
+    void Function()? onApprovalStored,
+  }) => _withVerifiedRoute(
+    host: host,
+    askApproval: askApproval,
+    onApprovalStored: onApprovalStored,
+    cancellation: cancellation,
+    connect: (hops, _) => _service.openDesktopTunnel(
+      desktop: host,
+      jumpHops: hops,
+      knownHostDecisionScope: repository.knownHostDecisionScope,
+      cancellation: cancellation,
+    ),
+  );
+
+  Future<T> _withVerifiedRoute<T>({
+    required HostRecord host,
+    required LocalKnownHostApprovalPrompt askApproval,
+    required void Function()? onApprovalStored,
+    required SshConnectCancellation? cancellation,
+    required Future<T> Function(
+      List<SshJumpHop>,
+      Future<bool> Function(HostRecord, String, String),
+    )
+    connect,
   }) async {
     if (kIsWeb) {
       throw UnsupportedError(
@@ -176,15 +220,7 @@ final class LocalProfileSshController {
         throw const SshConnectCancelledException();
       }
       try {
-        return await _service.connect(
-          host: host,
-          credential: credential,
-          jumpHops: sshJumpHops,
-          knownHostDecisionScope: repository.knownHostDecisionScope,
-          verifyHostKey: (algorithm, fingerprint) =>
-              verify(host, algorithm, fingerprint),
-          cancellation: cancellation,
-        );
+        return await connect(sshJumpHops, verify);
       } on Object {
         final trust = pendingTrust;
         final request = trust?.pendingRequest;
@@ -200,7 +236,9 @@ final class LocalProfileSshController {
             status != LocalKnownHostTrustStatus.revoked) {
           rethrow;
         }
-        if (!await askApproval(request)) {
+        if (cancellation?.isCancelled == true ||
+            !await askApproval(request) ||
+            cancellation?.isCancelled == true) {
           throw const SshHostKeyVerificationException(
             SshHostKeyFailure.rejected,
           );
@@ -231,6 +269,9 @@ final class LocalProfileSshController {
       final jumpHost = await repository.getHost(nextHostId);
       if (jumpHost == null) {
         throw StateError('Local SSH Jump Host reference is unavailable.');
+      }
+      if (jumpHost.protocol != HostProtocol.ssh) {
+        throw StateError('The Jump Host must use SSH.');
       }
       final credential = await repository.resolveCredentialForHost(jumpHost);
       if (credential == null) {

@@ -8,7 +8,7 @@ import 'mcp_foreground_platform_stub.dart'
 
 export 'mcp_foreground_platform_stub.dart'
     if (dart.library.io) 'mcp_foreground_platform_io.dart'
-    show needsMcpForegroundService;
+    show mcpForegroundOnly, needsMcpForegroundService;
 
 /// User-visible strings for the Android MCP notification. Callers should pass
 /// localized values; the defaults keep the notification meaningful when no
@@ -107,6 +107,7 @@ class McpForegroundChannel {
     'timeout',
     'service_destroyed',
     'replaced',
+    'background_unprotected',
   };
 
   Stream<McpForegroundEvent> get events {

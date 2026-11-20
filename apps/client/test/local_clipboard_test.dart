@@ -133,7 +133,7 @@ void main() {
       (await clipboard.readText(maxBytes: 100)).status,
       LocalClipboardStatus.tooLarge,
     );
-    expect(await clipboard.writeText('written'), isTrue);
+    expect((await clipboard.writeText('written')).written, isTrue);
     expect(flutterClipboard, 'written');
     expect(await clipboard.state(), isNull);
     expect(clipboard.readsQuietly, isTrue);
@@ -167,6 +167,31 @@ void main() {
     expect(changes, 1);
     await subscription.cancel();
   });
+
+  test(
+    'Windows retries a busy write and returns the native write stamp',
+    () async {
+      final clipboard = SystemLocalClipboard(
+        channel: channel,
+        platform: TargetPlatform.windows,
+        bridge: true,
+      );
+      var attempts = 0;
+      bridge((call) {
+        expect(call.method, 'write');
+        expect(call.arguments, '中文 😀\r\nline two');
+        return ++attempts == 1
+            ? {'status': 'busy'}
+            : {'status': 'written', 'stamp': 23};
+      });
+      expect(await clipboard.writeText('中文 😀\r\nline two'), (
+        written: true,
+        stamp: 23,
+      ));
+      expect(attempts, 2);
+      expect(flutterClipboard, isNull);
+    },
+  );
 
   test('reads that would prompt the user are not automatic', () {
     for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {

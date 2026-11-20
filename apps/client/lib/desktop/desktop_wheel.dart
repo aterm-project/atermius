@@ -90,13 +90,13 @@ class DesktopWheelScale {
       case TargetPlatform.linux:
         return const DesktopWheelScale(wheelNotch: 53, panNotch: 53);
       case TargetPlatform.macOS:
+      case TargetPlatform.iOS:
         return const DesktopWheelScale(
           wheelNotch: 40,
           panNotch: 100,
           clickIsNotch: true,
         );
       case TargetPlatform.android:
-      case TargetPlatform.iOS:
       case TargetPlatform.fuchsia:
         return const DesktopWheelScale(wheelNotch: 100, panNotch: 100);
     }

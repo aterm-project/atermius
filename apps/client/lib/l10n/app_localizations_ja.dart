@@ -5098,7 +5098,22 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get remoteDesktopsUsePasswordLoginWithout =>
-      'リモートデスクトップはパスワードでサインインし、SSH の経路や転送は使用しません';
+      'リモートデスクトップにはパスワードでサインインします。保存する SSH 転送ルールは SSH ホストに設定してください。';
+
+  @override
+  String get desktopJumpTunnelHint =>
+      '接続時に、選択した SSH 踏み台ホスト経由で一時的なローカルポートを開きます。セッションを閉じると解放されます。';
+
+  @override
+  String get desktopJumpNativeRequired =>
+      '選択した SSH 踏み台ホストを使用するには、ネイティブアプリでこのホストを開いてください。';
+
+  @override
+  String get desktopJumpUpdateEngine =>
+      'SSH 踏み台ホスト経由で接続するには、ネイティブ RDP エンジンを更新してください。';
+
+  @override
+  String get desktopJumpFailed => 'リモートデスクトップへの一時的な SSH 転送を開始できませんでした。';
 
   @override
   String get remoteForwardingTargetsMustUseThis =>
@@ -5994,6 +6009,36 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get accountDevices => 'アカウントのデバイス';
+
+  @override
+  String get browserDevice => 'ブラウザー';
+
+  @override
+  String browserLastIp(String ip) {
+    return '最新の IP · $ip';
+  }
+
+  @override
+  String browserPreviousIps(String ips) {
+    return '過去の IP · $ips';
+  }
+
+  @override
+  String get signOutDevice => 'デバイスをサインアウト';
+
+  @override
+  String get signOutDeviceTitle => 'このデバイスをサインアウトしますか？';
+
+  @override
+  String signOutDeviceDescription(String name) {
+    return '$name をサインアウトすると、現在のセッションが終了し、ワークスペースから切断されます。';
+  }
+
+  @override
+  String get deviceSignedOut => 'デバイスをサインアウトしました。';
+
+  @override
+  String get deviceSignedInStatus => 'サインイン中';
 
   @override
   String get accountInvitationCreated => 'アカウントの招待を作成しました';
@@ -12521,6 +12566,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get listView => 'リスト表示';
 
   @override
+  String get showWorkspaceTabStrip => 'タブを横に表示';
+
+  @override
   String get afterCreatingALocalProfileYou =>
       'ローカルプロファイルを作成すると、ホストとサインイン用の認証情報をこのデバイスに暗号化して保存できます。';
 
@@ -13613,7 +13661,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get theBrowserAndMobileAppsDont =>
-      'このバージョンの Atermius ではローカルの MCP リスナーを利用できません。Windows、Linux、macOS、Android のアプリでワークスペースを開いてから有効にしてください。';
+      'このバージョンの Atermius ではローカルの MCP リスナーを利用できません。Windows、Linux、macOS、Android、iOS のアプリでワークスペースを開いてから有効にしてください。';
 
   @override
   String get portMustBe102465535 => 'ポートの範囲は 1024〜65535 です。';
@@ -17446,6 +17494,14 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get rdpStoragePermissionRequired =>
       'ドライブまたはフォルダーを共有するには、Android 設定で Atermius のファイルアクセスを許可してから再試行してください。';
+
+  @override
+  String get rdpStorageIosFolderRequired =>
+      '「ファイル」の「このiPhone内」または「このiPad内」で、Atermius フォルダかその中のフォルダを選択してください。';
+
+  @override
+  String get iosPushTokenUnavailable =>
+      'Apple プッシュ通知のデバイストークンを取得できませんでした。端末をネットに接続し、通知の権限付きで署名されたアプリで再試行してください。';
 
   @override
   String get rdpStoragePickerFailed =>

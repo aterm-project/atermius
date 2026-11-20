@@ -79,11 +79,16 @@ impl PgAccountReadsRepository {
                     r.user_id AS cap_account_id,r.device_id AS cap_device_id,\
                     r.max_record_schema AS cap_max_record_schema,\
                     r.host_attachment_manifest_versions::text AS cap_attachment_versions,\
-                    r.max_attachment_bytes AS cap_max_attachment_bytes,r.signature AS cap_signature \
+                    r.max_attachment_bytes AS cap_max_attachment_bytes,r.signature AS cap_signature, \
+                    a.platform,a.device_name,a.user_agent,a.browser_ips, \
+                    d.status='active' AND EXISTS(SELECT 1 FROM sessions s WHERE s.user_id=d.user_id \
+                      AND s.device_id=d.device_id AND s.revoked_at IS NULL \
+                      AND s.refresh_expires_at>CURRENT_TIMESTAMP) AS signed_in \
              FROM devices d \
              LEFT JOIN device_capability_reports r ON r.device_id=d.device_id AND r.user_id=d.user_id \
+             LEFT JOIN device_activity a ON a.device_id=d.device_id \
              WHERE d.user_id=$1 \
-             ORDER BY d.created_at,d.device_id",
+             ORDER BY signed_in DESC,d.created_at,d.device_id",
         )
         .bind(&user.user_id)
         .fetch_all(&mut *tx)
@@ -93,6 +98,13 @@ impl PgAccountReadsRepository {
         let mut devices = Vec::with_capacity(rows.len());
         for row in rows {
             let capability_report = capability_report_from_row(&row)?;
+            let ips: Option<Vec<String>> = row.try_get("browser_ips").map_err(ApiError::internal)?;
+            let activity = crate::device_activity::activity_value(
+                row.try_get("platform").map_err(ApiError::internal)?,
+                row.try_get("device_name").map_err(ApiError::internal)?,
+                row.try_get("user_agent").map_err(ApiError::internal)?,
+                ips.as_deref().unwrap_or_default(),
+            );
             devices.push(json!({
                 "device_id": row.try_get::<String, _>("device_id").map_err(ApiError::internal)?,
                 "user_id": user.user_id,
@@ -102,6 +114,8 @@ impl PgAccountReadsRepository {
                 "status": row.try_get::<String, _>("status").map_err(ApiError::internal)?,
                 "created_at": format_timestamp(row.try_get("created_at").map_err(ApiError::internal)?),
                 "revoked_at": row.try_get::<Option<DateTime<Utc>>, _>("revoked_at").map_err(ApiError::internal)?.map(format_timestamp),
+                "signed_in": row.try_get::<bool, _>("signed_in").map_err(ApiError::internal)?,
+                "activity": activity,
                 "capability_report": capability_report,
             }));
         }

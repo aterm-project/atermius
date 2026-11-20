@@ -2191,6 +2191,43 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
         reconnectAllowed: current,
         onUserReconnect: () => HostSortController.instance.requested(
             localHostSortScope(profile!.record.profileId), [host.id]),
+        openSshTunnel: (target, cancellation) async {
+          bool active() =>
+              current() &&
+              !cancellation.isCancelled &&
+              !tab._closed &&
+              !_storageRecoveryRequired;
+          if (!active()) throw const SshConnectCancelledException();
+          final ssh =
+              widget.sshControllerFactory?.call(repository) ??
+              LocalProfileSshController(repository: repository);
+          Completer<void>? approvalStored;
+          try {
+            final tunnel = await ssh.openDesktopTunnel(
+              host: target,
+              cancellation: cancellation,
+              askApproval: (request) async {
+                if (!active()) return false;
+                final stored = approvalStored = Completer<void>();
+                return await _reviewLocalHostKey(
+                      request,
+                      isCurrent: active,
+                      repository: repository,
+                      session: tab,
+                      stored: stored.future,
+                    ) &&
+                    active();
+              },
+              onApprovalStored: () => approvalStored?.complete(),
+            );
+            if (active()) return tunnel;
+            await tunnel.close();
+            throw const SshConnectCancelledException();
+          } finally {
+            final stored = approvalStored;
+            if (stored != null && !stored.isCompleted) stored.complete();
+          }
+        },
         // "Restore connection" in the view resolves the Host saved now.
         latestHost: (id) => _hosts.where((h) => h.id == id).firstOrNull,
         saveRdpCertificate: (reviewed, pin) async {

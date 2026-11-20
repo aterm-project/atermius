@@ -19,6 +19,7 @@ class RdpCertificatePersistence {
         current.protocol != HostProtocol.rdp ||
         current.address != reviewed.address ||
         current.port != reviewed.port ||
+        current.jumpHostId != reviewed.jumpHostId ||
         current.username != reviewed.username ||
         (current.rdpCertificateSha256 != reviewed.rdpCertificateSha256 &&
             current.rdpCertificateSha256 != pin)) {
@@ -84,7 +85,8 @@ class DesktopDisplayPersistence {
         current.id != updated.id ||
         current.protocol != updated.protocol ||
         current.address != updated.address ||
-        current.port != updated.port) {
+        current.port != updated.port ||
+        current.jumpHostId != updated.jumpHostId) {
       throw StateError(currentL10n.theHostChangedTheResolutionSetting);
     }
     final Map<String, Object?>? manifest;

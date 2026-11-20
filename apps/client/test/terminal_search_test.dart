@@ -723,4 +723,3 @@ class _RecordingConnection implements SshConnection {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
-

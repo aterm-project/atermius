@@ -64,6 +64,7 @@ const MIGRATIONS: &[&str] = &[
     "0038_replica_restore_sources.sql",
     "0039_mobile_push_delivery_daily.sql",
     "0040_password_keyring.sql",
+    "0041_device_activity.sql",
 ];
 
 struct TestDatabase {
@@ -134,7 +135,7 @@ impl TestDatabase {
         }
         assert_eq!(
             MIGRATIONS.len(),
-            40,
+            41,
             "runtime must be tested at current schema"
         );
 
@@ -597,7 +598,7 @@ async fn http_route_rejects_incomplete_epoch_set_then_commits_exact_enrollment()
         .expect("bind local ephemeral HTTP port");
     let address = listener.local_addr().expect("read local HTTP address");
     let server = tokio::spawn(async move {
-        axum::serve(listener, app)
+        axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
             .await
             .expect("serve the complete Axum router");
     });
@@ -795,6 +796,51 @@ async fn http_route_rejects_incomplete_epoch_set_then_commits_exact_enrollment()
     );
     assert_eq!(audits[0].try_get::<String, _>("result").unwrap(), "success");
     assert_eq!(audits[0].try_get::<String, _>("source").unwrap(), "api");
+
+    let target_access = "pg-http-device-activity-target-token-0123456789";
+    sqlx::query(
+        "INSERT INTO sessions(session_id,user_id,device_id,access_hash,refresh_hash, \
+         access_expires_at,refresh_expires_at) \
+         VALUES($1,$2,$3,$4,$5,CURRENT_TIMESTAMP+INTERVAL '1 hour',CURRENT_TIMESTAMP+INTERVAL '30 days')",
+    )
+    .bind(Uuid::new_v4().to_string())
+    .bind(&account_id)
+    .bind(&target_device_id)
+    .bind(access_hash(target_access))
+    .bind(Uuid::new_v4().to_string())
+    .execute(&database.pool)
+    .await
+    .unwrap();
+    let activity = format!("{base_url}/api/v1/devices/activity");
+    for agent in ["Old browser UA", "New browser UA"] {
+        let reply = client.put(&activity).bearer_auth(target_access)
+            .header("User-Agent", agent)
+            .header("X-Forwarded-For", "198.51.100.12")
+            .json(&json!({"platform": "web"})).send().await.unwrap();
+        assert_eq!(reply.status(), 200);
+    }
+    let list = format!("{base_url}/api/v1/devices");
+    let reply = client.get(&list).bearer_auth(access_token).send().await.unwrap();
+    let rows: Value = reply.error_for_status().unwrap().json().await.unwrap();
+    let target = rows["devices"].as_array().unwrap().iter()
+        .find(|row| row["device_id"] == target_device_id).unwrap();
+    assert_eq!(target["activity"], json!({
+        "platform": "web", "user_agent": "New browser UA", "last_ip": "127.0.0.1", "ip_history": [],
+    }));
+    assert_eq!(target["signed_in"], true);
+
+    let reply = client.post(format!("{list}/{target_device_id}/sign-out"))
+        .bearer_auth(access_token).send().await.unwrap();
+    let signed_out: Value = reply.error_for_status().unwrap().json().await.unwrap();
+    assert_eq!(signed_out["signed_out_sessions"], 1);
+    assert_eq!(client.put(&activity).bearer_auth(target_access)
+        .json(&json!({"platform": "web"})).send().await.unwrap().status(), 401);
+    let reply = client.get(&list).bearer_auth(access_token).send().await.unwrap();
+    let rows: Value = reply.error_for_status().unwrap().json().await.unwrap();
+    let target = rows["devices"].as_array().unwrap().iter()
+        .find(|row| row["device_id"] == target_device_id).unwrap();
+    assert_eq!(target["status"], "active");
+    assert_eq!(target["signed_in"], false);
 
     server.abort();
     let _ = server.await;

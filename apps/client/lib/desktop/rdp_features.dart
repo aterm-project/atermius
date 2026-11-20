@@ -15,6 +15,7 @@ class RdpFeatures {
   static const camera = 1 << 8;
   static const usb = 1 << 9;
   static const nativeTouch = 1 << 10;
+  static const sshTunnel = 1 << 11;
 
   final int bits;
   bool has(int flag) => bits & configV1 != 0 && bits & flag == flag;

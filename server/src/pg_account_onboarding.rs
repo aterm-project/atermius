@@ -117,6 +117,14 @@ impl PgAccountOnboardingRepository {
             .await
     }
 
+    pub(crate) async fn sign_out_device(
+        &self,
+        user: &auth::AuthUser,
+        target_device_id: &str,
+    ) -> Result<u64, ApiError> {
+        self.device_lifecycle.sign_out_device(user, target_device_id).await
+    }
+
     /// Revokes one active device and all of its sessions atomically.
     pub(crate) async fn revoke_device(
         &self,

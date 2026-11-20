@@ -132,7 +132,7 @@ class _SshConnectAttempt {
   final List<_SshConnectResource> _resources = <_SshConnectResource>[];
   final Completer<void> _cancelled = Completer<void>();
   bool _stopped = false;
-  bool _closed = false;
+  Future<void>? _closing;
   bool _detached = false;
 
   bool get isCancelled => _stopped || cancellation.isCancelled;
@@ -200,13 +200,13 @@ class _SshConnectAttempt {
     return closeAll();
   }
 
-  Future<void> closeAll() async {
+  Future<void> closeAll() => _closing ??= _closeAll();
+
+  Future<void> _closeAll() async {
     if (!_stopped) {
       _stopped = true;
       if (!_cancelled.isCompleted) _cancelled.complete();
     }
-    if (_closed) return;
-    _closed = true;
     for (var index = _resources.length - 1; index >= 0; index--) {
       await _resources[index].close();
     }
@@ -967,6 +967,18 @@ Future<void> _closeQuietly(Future<void> Function() close) async {
   }
 }
 
+/// Loopback listener for one desktop connection. The SSH route and listener
+/// have the same lifetime, including cancellation during setup.
+class DesktopSshTunnel {
+  const DesktopSshTunnel(this.port, this.close, this.ended);
+
+  final int port;
+  final Future<void> Function() close;
+
+  /// Completes when the SSH route stops, with the forwarding error if available.
+  final Future<String?> ended;
+}
+
 class SshService {
   SshService({
     required this.api,
@@ -1014,11 +1026,6 @@ class SshService {
     if (host.protocol != HostProtocol.ssh) {
       throw ArgumentError('SSH connections require an SSH Host.');
     }
-    if ((_knownHostDecisionLock == null) != (knownHostDecisionScope == null)) {
-      throw ArgumentError(
-        'KnownHost decision lock and Vault scope must be supplied together.',
-      );
-    }
     final route = List<SshJumpHop>.of(jumpHops);
     if (jumpHost != null ||
         jumpCredential != null ||
@@ -1057,6 +1064,151 @@ class SshService {
       }
     }
 
+    return _withAuthenticatedRoute(
+      [
+        ...route,
+        SshJumpHop(
+          host: host,
+          credential: credential,
+          verifyHostKey: verifyHostKey,
+        ),
+      ],
+      cancellation: cancellation,
+      knownHostDecisionScope: knownHostDecisionScope,
+      onUserInfoRequest: onUserInfoRequest,
+      finish: (targetClient, attempt, keepalive, jumpClients, health, policy) async {
+        final session = await attempt.acquire<SSHSession>(
+          () => targetClient
+              .shell(pty: const SSHPtyConfig(width: 100, height: 30))
+              .onError((error, stackTrace) {
+                if (error is TimeoutException) {
+                  Error.throwWithStackTrace(
+                    const SshStageException(SshFailureStage.session),
+                    stackTrace,
+                  );
+                }
+                Error.throwWithStackTrace(
+                  error ?? StateError('SSH shell request failed.'),
+                  stackTrace,
+                );
+              }),
+          (session) async => session.close(),
+          timeout: const Duration(seconds: 20),
+          timeoutError: const SshStageException(SshFailureStage.session),
+        );
+        final connection = SshConnection(
+          client: targetClient,
+          session: session,
+          jumpClients: jumpClients,
+          health: health,
+        );
+        connection._connectAttempt = attempt;
+        connection._adoptKeepalive(keepalive);
+        connection.startLongSessionMaintenance(rekeyInterval: policy.rekeyInterval);
+        _pendingConnectOwnership[connection] = attempt;
+        // Standalone callers do not have a tab lifecycle to transfer ownership
+        // to. AppController supplies a token and transfers after attachment.
+        if (cancellation == null) transferSshConnectOwnership(connection);
+        return connection;
+      },
+    );
+  }
+
+  /// Authenticate only the SSH hops. Forwarding-only bastions need neither a
+  /// shell nor permission to allocate a PTY.
+  Future<DesktopSshTunnel> openDesktopTunnel({
+    required HostRecord desktop,
+    required List<SshJumpHop> jumpHops,
+    required SshConnectCancellation cancellation,
+    KnownHostDecisionScope? knownHostDecisionScope,
+    SshKeyboardInteractiveHandler? onUserInfoRequest,
+  }) {
+    final seen = {desktop.id};
+    if (desktop.protocol.isTerminal ||
+        jumpHops.isEmpty ||
+        jumpHops.length > maxJumpHostHops ||
+        desktop.jumpHostId != jumpHops.last.host.id ||
+        jumpHops.any(
+          (hop) =>
+              hop.host.protocol != HostProtocol.ssh || !seen.add(hop.host.id),
+        )) {
+      throw StateError(currentL10n.theJumpHostMustUseThe);
+    }
+    final platform = createSshPortForwardPlatform();
+    if (!platform.isSupported)
+      throw UnsupportedError(platform.unsupportedReason!);
+    return _withAuthenticatedRoute(
+      jumpHops,
+      cancellation: cancellation,
+      knownHostDecisionScope: knownHostDecisionScope,
+      onUserInfoRequest: onUserInfoRequest,
+      finish: (client, attempt, keepalive, _, health, _) async {
+        final listener = await attempt.acquire(
+          () => platform.start(
+            client,
+            SshPortForwardProfile(
+              id: desktop.id,
+              name: desktop.protocol.label,
+              type: SshPortForwardType.local,
+              bindAddress: '127.0.0.1',
+              bindPort: 0,
+              destinationAddress: desktop.address,
+              destinationPort: desktop.port,
+            ),
+          ),
+          (listener) => listener.close(),
+        );
+        final ended = Completer<String?>();
+        Future<void> close() async {
+          if (!ended.isCompleted) ended.complete(listener.lastConnectionError);
+          attempt.transferOwnership();
+          health.markClosed();
+          try {
+            await attempt.closeAll();
+          } finally {
+            keepalive.release();
+          }
+        }
+
+        listener.onChanged = () {
+          if (listener.isClosed || listener.lastConnectionError != null) {
+            unawaited(close());
+          }
+        };
+        keepalive.update(
+          SshKeepaliveKind.connected,
+          onUserDisconnect: () => unawaited(close()),
+        );
+        unawaited(
+          client.done.then<void>(
+            (_) => close(),
+            onError: (Object _) => close(),
+          ),
+        );
+        return DesktopSshTunnel(listener.listeningPort, close, ended.future);
+      },
+    );
+  }
+
+  Future<T> _withAuthenticatedRoute<T>(
+    List<SshJumpHop> route, {
+    required SshConnectCancellation? cancellation,
+    required KnownHostDecisionScope? knownHostDecisionScope,
+    required SshKeyboardInteractiveHandler? onUserInfoRequest,
+    required Future<T> Function(
+      SSHClient,
+      _SshConnectAttempt,
+      SshKeepaliveHold,
+      List<SSHClient>,
+      SshConnectionHealth,
+      SshKeepalivePolicy,
+    ) finish,
+  }) async {
+    if ((_knownHostDecisionLock == null) != (knownHostDecisionScope == null)) {
+      throw ArgumentError(
+        'KnownHost decision lock and Vault scope must be supplied together.',
+      );
+    }
     final keepaliveRegistry =
         _backgroundKeepalive ?? SshBackgroundKeepalive.instance;
     // A recovery attempt that began before the notification's Disconnect all
@@ -1079,18 +1231,12 @@ class SshService {
       maxMissedThreshold: keepalivePolicy.maxMissed,
     );
     try {
-      final firstSocket = await _connectSocket(
-        route.isEmpty ? host : route.first.host,
-        attempt,
-      );
+      var socket = await _connectSocket(route.first.host, attempt);
       final jumpClients = <SSHClient>[];
-      final jumpChannels = <SSHSocket>[];
-      SSHClient? targetClient;
-      var currentSocket = firstSocket;
       for (var index = 0; index < route.length; index++) {
         final hop = route[index];
-        final jumpClient = await _createAndAuthenticate(
-          socket: currentSocket,
+        final client = await _createAndAuthenticate(
+          socket: socket,
           host: hop.host,
           credential: hop.credential,
           verifyHostKey: hop.verifyHostKey,
@@ -1099,71 +1245,19 @@ class SshService {
           knownHostDecisionScope: knownHostDecisionScope,
           keepalivePolicy: keepalivePolicy,
           health: health,
-          isJumpHop: true,
+          isJumpHop: index < route.length - 1,
         );
-        jumpClients.add(jumpClient);
-        final nextHost = index + 1 < route.length
-            ? route[index + 1].host
-            : host;
-        final nextSocket = await _openForwardedSocket(
-          jumpClient,
-          nextHost,
+        if (index == route.length - 1) {
+          return await finish(client, attempt, keepalive, jumpClients, health, keepalivePolicy);
+        }
+        jumpClients.add(client);
+        socket = await _openForwardedSocket(
+          client,
+          route[index + 1].host,
           attempt,
         );
-        jumpChannels.add(nextSocket);
-        currentSocket = nextSocket;
       }
-
-      targetClient = await _createAndAuthenticate(
-        socket: route.isEmpty ? firstSocket : jumpChannels.last,
-        host: host,
-        credential: credential,
-        verifyHostKey: verifyHostKey,
-        onUserInfoRequest: onUserInfoRequest,
-        attempt: attempt,
-        knownHostDecisionScope: knownHostDecisionScope,
-        keepalivePolicy: keepalivePolicy,
-        health: health,
-        isJumpHop: false,
-      );
-      final shellClient = targetClient;
-      final session = await attempt.acquire<SSHSession>(
-        () => shellClient
-            .shell(pty: const SSHPtyConfig(width: 100, height: 30))
-            .onError((error, stackTrace) {
-              if (error is TimeoutException) {
-                Error.throwWithStackTrace(
-                  const SshStageException(SshFailureStage.session),
-                  stackTrace,
-                );
-              }
-              Error.throwWithStackTrace(
-                error ?? StateError('SSH shell request failed.'),
-                stackTrace,
-              );
-            }),
-        (session) async => session.close(),
-        timeout: const Duration(seconds: 20),
-        timeoutError: const SshStageException(SshFailureStage.session),
-      );
-      final connection = SshConnection(
-        client: targetClient,
-        session: session,
-        jumpChannels: jumpChannels,
-        jumpClients: jumpClients,
-        initialJumpSocket: route.isEmpty ? null : firstSocket,
-        health: health,
-      );
-      connection._connectAttempt = attempt;
-      connection._adoptKeepalive(keepalive);
-      connection.startLongSessionMaintenance(
-        rekeyInterval: keepalivePolicy.rekeyInterval,
-      );
-      _pendingConnectOwnership[connection] = attempt;
-      // Standalone callers do not have a tab lifecycle to transfer ownership
-      // to. AppController supplies a token and transfers after attachment.
-      if (cancellation == null) transferSshConnectOwnership(connection);
-      return connection;
+      throw StateError('Empty SSH route');
     } catch (error) {
       health.markClosed();
       keepalive.release();

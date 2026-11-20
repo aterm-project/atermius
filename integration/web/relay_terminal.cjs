@@ -946,15 +946,15 @@ async function safeTerminalRouteInputDiagnostics(
   page,
   { activeHostName = null, inactiveHostName = null } = {},
 ) {
-  const routeHeading = page.getByText('Terminal workspace', { exact: true });
+  const pane = terminalPane(page);
   const terminalInput = page.getByRole('textbox', {
     name: 'SSH terminal input',
     exact: true,
   });
-  const [routeHeadingCount, routeHeadingVisible, inputCount, inputVisible,
+  const [paneCount, paneVisible, inputCount, inputVisible,
     inputFocusedAttribute, activeTabCount, inactiveTabCount] = await Promise.all([
-    routeHeading.count().catch(() => null),
-    routeHeading.isVisible().catch(() => false),
+    pane.count().catch(() => null),
+    pane.isVisible().catch(() => false),
     terminalInput.count().catch(() => null),
     terminalInput.isVisible().catch(() => false),
     terminalInput.getAttribute('aria-focused').catch(() => null),
@@ -966,8 +966,8 @@ async function safeTerminalRouteInputDiagnostics(
     }).count().catch(() => null),
   ]);
   return {
-    routeHeadingCount,
-    routeHeadingVisible,
+    paneCount,
+    paneVisible,
     activeTabCount,
     inactiveTabCount,
     terminalInputSemanticCount: inputCount,
@@ -987,8 +987,8 @@ async function waitForTerminalRouteInputReady(
   let evidence = null;
   while (Date.now() < deadline) {
     evidence = await safeTerminalRouteInputDiagnostics(page, expected);
-    const routeReady = evidence.routeHeadingVisible &&
-      evidence.routeHeadingCount === 1;
+    const routeReady = evidence.paneVisible &&
+      evidence.paneCount === 1;
     const activeTabReady = expected.activeHostName == null ||
       evidence.activeTabCount === 1;
     const inactiveTabReady = expected.inactiveHostName == null ||
@@ -1359,26 +1359,30 @@ async function waitForRelaySocketQuiet(page, socket, quietMs = 500, timeoutMs = 
   return false;
 }
 
-async function focusActiveTerminalForInput(
-  page,
-  user,
-  address,
-  expectedTerminalState = {},
-) {
+function terminalPane(page) {
+  // The pane is the accessible group containing its action handle.
+  return page.getByRole('switch', { name: /^Pane actions/ })
+    .locator('xpath=ancestor::*[@role="group"][1]');
+}
+
+async function inlineTerminalBounds(page, endpoint) {
+  const pane = terminalPane(page);
+  await pane.waitFor({ state: 'visible' });
+  const box = await pane.boundingBox();
+  const viewport = page.viewportSize();
+  assertThat(box && viewport && Math.abs(box.x) <= 1 &&
+    Math.abs(box.width - viewport.width) <= 1,
+  'single terminal pane must span the workspace');
+  assertThat(await page.getByText(endpoint, { exact: true }).count() === 0,
+    'terminal pane repeated the session endpoint');
+  return box;
+}
+
+async function focusActiveTerminalForInput(page, expectedTerminalState = {}) {
   await waitForTerminalRouteInputReady(page, expectedTerminalState, 10000);
-  const header = page.getByText(`${user}@${address}`, { exact: true }).first();
-  await header.waitFor({ state: 'visible', timeout: 15000 });
-  const headerBox = await header.boundingBox();
-  const viewport = page.viewportSize() || { width: 1440, height: 1000 };
-  assertThat(headerBox, 'active terminal header was not measurable');
-  const top = Math.ceil(headerBox.y + headerBox.height + 8);
-  const width = Math.max(0, Math.round(viewport.width - headerBox.x - 16));
-  const height = Math.max(0, Math.round(viewport.height - top - 48));
-  assertThat(width > 100 && height > 100, 'active terminal surface has no usable bounds');
-  await page.mouse.click(
-    Math.round(headerBox.x + width / 2),
-    Math.round(top + height / 2),
-  );
+  const box = await terminalPane(page).boundingBox();
+  assertThat(box, 'active terminal surface was not measurable');
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForTimeout(300);
   const routeInputAfterClick = await safeTerminalRouteInputDiagnostics(
     page,
@@ -1399,7 +1403,7 @@ async function focusActiveTerminalForInput(
     terminalInputSemanticsFocused,
     ...focusState,
   }));
-  assertThat(routeInputAfterClick.routeHeadingVisible &&
+  assertThat(routeInputAfterClick.paneVisible &&
     routeInputAfterClick.terminalInputSemanticCount === 1 &&
     routeInputAfterClick.terminalInputSemanticVisible,
   'terminal command blocked because the route or SSH terminal input semantics disappeared after surface focus');
@@ -1411,23 +1415,19 @@ async function focusActiveTerminalForInput(
 
 async function sendCommandToActiveTerminal(
   page,
-  user,
-  address,
   command,
   expectedTerminalState = {},
 ) {
-  await focusActiveTerminalForInput(page, user, address, expectedTerminalState);
+  await focusActiveTerminalForInput(page, expectedTerminalState);
   await page.keyboard.type(command, { delay: 5 });
   await page.keyboard.press('Enter');
 }
 
 async function pasteClipboardToActiveTerminal(
   page,
-  user,
-  address,
   expectedTerminalState = {},
 ) {
-  await focusActiveTerminalForInput(page, user, address, expectedTerminalState);
+  await focusActiveTerminalForInput(page, expectedTerminalState);
   await page.keyboard.press('Control+V');
 }
 
@@ -1472,7 +1472,7 @@ function terminalFingerprintErrorCode(error, sampleEvidence) {
   if (message === 'terminal surface did not display changed output') {
     return 'unchanged';
   }
-  if (message === 'active terminal header was not measurable' ||
+  if (message === 'active terminal surface was not measurable' ||
       message === 'active terminal surface has no usable screenshot bounds') {
     return 'bounds';
   }
@@ -1484,8 +1484,6 @@ function terminalFingerprintErrorCode(error, sampleEvidence) {
 
 async function stableTerminalVisualFingerprint(
   page,
-  user,
-  address,
   timeoutMs = 6000,
   differentFromFingerprint = null,
   anchorText = null,
@@ -1511,31 +1509,17 @@ async function stableTerminalVisualFingerprint(
     'Shared terminal · read only',
     'Shared terminal · host-approved control',
   ].includes(anchorText);
-  const header = collaborationDialog
-    ? page.getByRole('dialog').last()
-    : page.getByText(anchorText || `${user}@${address}`, {
-      exact: true,
-    }).first();
-  await header.waitFor({ state: 'visible', timeout: 15000 });
-  const headerBox = await header.boundingBox();
-  const viewport = page.viewportSize() || { width: 1440, height: 1000 };
-  assertThat(headerBox, 'active terminal header was not measurable');
-  const clip = collaborationDialog
-    ? {
-      x: Math.max(0, Math.round(headerBox.x + 12)),
-      y: Math.max(0, Math.round(headerBox.y + 48)),
-      width: Math.max(0, Math.round(headerBox.width - 24)),
-      height: Math.max(0, Math.round(headerBox.height - 96)),
-    }
-    : (() => {
-      const top = Math.ceil(headerBox.y + headerBox.height + 8);
-      return {
-        x: Math.max(0, Math.round(headerBox.x)),
-        y: Math.max(0, top),
-        width: Math.max(0, Math.round(viewport.width - headerBox.x - 16)),
-        height: Math.max(0, Math.round(viewport.height - top - 48)),
-      };
-    })();
+  const surface = collaborationDialog ? page.getByRole('dialog').last() : terminalPane(page);
+  await surface.waitFor({ state: 'visible', timeout: 15000 });
+  const box = await surface.boundingBox();
+  assertThat(box, 'active terminal surface was not measurable');
+  // Clip the observer toolbar and the pane handle out of the pixel comparison.
+  const clip = {
+    x: box.x + 12,
+    y: box.y + 48,
+    width: box.width - 24,
+    height: box.height - 96,
+  };
   assertThat(clip.width > 100 && clip.height > 100,
     'active terminal surface has no usable screenshot bounds');
   const deadline = Date.now() + timeoutMs;
@@ -9071,7 +9055,7 @@ async function main() {
       const firstOutputBaseline = firstRelaySocket.receivedFrames.length;
       const shellMarkerPath = path.join(remoteRoot, keyboardInteractiveShellMarker);
       safeRunStage = 'keyboard-interactive authenticated shell marker';
-      await sendCommandToActiveTerminal(page, user, address,
+      await sendCommandToActiveTerminal(page,
         `printf '%s\\n' '${keyboardInteractiveShellMarker}' > /tmp/remote/${keyboardInteractiveShellMarker}; printf '%s\\n' '${keyboardInteractiveShellMarker}'`,
         { activeHostName: kbdHostName });
       assertThat(await waitForRemoteMarker(shellMarkerPath,
@@ -9822,7 +9806,7 @@ async function main() {
       safeRunStage = 'focused two-hop shell marker and Relay frame IO';
       const marker = `WEB_RELAY_MULTIHOP_${RUN_ID.replaceAll('-', '').toUpperCase()}`;
       const markerPath = path.join(multiHopRemoteRoot, marker);
-      await sendCommandToActiveTerminal(routePage, user, targetAddress,
+      await sendCommandToActiveTerminal(routePage,
         `printf '%s\\n' '${marker}' > /tmp/remote/${marker}`, {
           activeHostName: multiHopHostName,
         });
@@ -10649,7 +10633,7 @@ async function main() {
       safeRunStage = `focused ${routeLabel} shell command and destination check`;
       const marker = `WEB_RELAY_${routeDepth}HOP_${RUN_ID.replaceAll('-', '').toUpperCase()}`;
       const markerPath = path.join(multiHopRemoteRoot, marker);
-      await sendCommandToActiveTerminal(routePage, user, targetAddress,
+      await sendCommandToActiveTerminal(routePage,
         `printf '%s\\n' '${marker}' > /tmp/remote/${marker}`, {
           activeHostName: routeHostName,
         });
@@ -11080,7 +11064,7 @@ async function main() {
       const terminalOutcome = await waitForTerminalConnectionOrTrust(page, hostName, 100000);
       assertThat(terminalOutcome === 'connected',
         `relay SSH terminal ended in ${terminalOutcome} state before CONNECTED`);
-      await waitText(page, `${user}@${targetAddress}`);
+      await inlineTerminalBounds(page, `${user}@${targetAddress}`);
     } catch (error) {
       const diagnostic = await relayFailureDiagnostic({
         ...relayDiagnosticInputs,
@@ -12511,7 +12495,7 @@ async function main() {
       safeRunStage = 'Profile B observer terminal stable fingerprint baseline';
       const observerFingerprintBeforeOutput =
         await stableTerminalVisualFingerprint(
-          secondPage, user, targetAddress, 6000, null,
+          secondPage, 6000, null,
           'Shared terminal · read only',
         );
 
@@ -12519,7 +12503,7 @@ async function main() {
       const hostFramesBeforeOutput = hostCollaborationSocket.sentFrames.length;
       const observerFramesBeforeOutput =
         observerCollaborationSocket.receivedFrames.length;
-      await sendCommandToActiveTerminal(page, user, targetAddress,
+      await sendCommandToActiveTerminal(page,
         `printf '%s\\n' '${terminalShareMarker}'`, {
           activeHostName: hostName,
         });
@@ -12546,7 +12530,7 @@ async function main() {
       safeRunStage = 'Profile B observer terminal stable fingerprint updated';
       const observerFingerprintAfterOutput =
         await stableTerminalVisualFingerprint(
-          secondPage, user, targetAddress, 10000,
+          secondPage, 10000,
           observerFingerprintBeforeOutput,
           'Shared terminal · read only',
         );
@@ -12586,7 +12570,7 @@ async function main() {
         `WEB_TERMINAL_GAP_${RUN_ID.replaceAll('-', '').toUpperCase()}`;
       terminalCollaborationPrivacy.markers.push(outputWhileObserverWasAway);
       safeRunStage = 'Profile A sends output while Profile B is disconnected';
-      await sendCommandToActiveTerminal(page, user, targetAddress,
+      await sendCommandToActiveTerminal(page,
         `printf '%s\\n' '${outputWhileObserverWasAway}'`, {
           activeHostName: hostName,
         });
@@ -12641,7 +12625,7 @@ async function main() {
       const receivedBeforeAfterRejoin =
         observerCollaborationSocket.receivedFrames.length;
       safeRunStage = 'Profile A sends fresh output after observer rejoin';
-      await sendCommandToActiveTerminal(page, user, targetAddress,
+      await sendCommandToActiveTerminal(page,
         `printf '%s\\n' '${afterRejoinMarker}'`, {
           activeHostName: hostName,
         });
@@ -12840,16 +12824,16 @@ async function main() {
       terminalCollaborationPrivacy.markers.push(postStopMarker);
       safeRunStage = 'Profile A post-stop terminal stable fingerprint baseline';
       const hostFingerprintBeforePostStop =
-        await stableTerminalVisualFingerprint(page, user, targetAddress);
+        await stableTerminalVisualFingerprint(page);
       safeRunStage = 'Profile A sends output after observer shutdown';
-      await sendCommandToActiveTerminal(page, user, targetAddress,
+      await sendCommandToActiveTerminal(page,
         `printf '%s\\n' '${postStopMarker}'`, {
           activeHostName: hostName,
         });
       safeRunStage = 'Profile A post-stop terminal stable fingerprint updated';
       const hostFingerprintAfterPostStop =
         await stableTerminalVisualFingerprint(
-          page, user, targetAddress, 10000, hostFingerprintBeforePostStop,
+          page, 10000, hostFingerprintBeforePostStop,
         );
       assertThat(hostFingerprintAfterPostStop !== hostFingerprintBeforePostStop,
         'Profile A terminal viewport did not paint output after observer shutdown');
@@ -13489,7 +13473,7 @@ async function main() {
       const observerReceivedBeforeInput = observerSocketForV2?.receivedFrames.length ?? 0;
       const observerFingerprintBeforeInput =
         await stableTerminalVisualFingerprint(
-          secondPage, user, targetAddress, 6000, null,
+          secondPage, 6000, null,
           'Shared terminal · host-approved control',
         );
 
@@ -13596,7 +13580,7 @@ async function main() {
       let observerOutputFingerprint;
       try {
         observerOutputFingerprint = await stableTerminalVisualFingerprint(
-          secondPage, user, targetAddress, 10000, observerFingerprintBeforeInput,
+          secondPage, 10000, observerFingerprintBeforeInput,
           'Shared terminal · host-approved control',
         );
       } catch (error) {
@@ -13680,13 +13664,13 @@ async function main() {
       terminalCollaborationPrivacy.markers.push(afterRevokeMarker);
       const observerFramesAfterRevoke = observerSocketForV2.receivedFrames.length;
       const hostFingerprintBeforeRevokeOutput =
-        await stableTerminalVisualFingerprint(page, user, targetAddress);
+        await stableTerminalVisualFingerprint(page);
       const observerFingerprintBeforeRevokeOutput =
         await stableTerminalVisualFingerprint(
-          secondPage, user, targetAddress, 6000, null,
+          secondPage, 6000, null,
           'Shared terminal · read only',
         );
-      await sendCommandToActiveTerminal(page, user, targetAddress,
+      await sendCommandToActiveTerminal(page,
         `printf '%s\\n' '${afterRevokeMarker}'`, { activeHostName: hostName });
       const observerPostRevokeDeadline = Date.now() + 10000;
       while (Date.now() < observerPostRevokeDeadline &&
@@ -13695,11 +13679,11 @@ async function main() {
       }
       const hostFingerprintAfterRevokeOutput =
         await stableTerminalVisualFingerprint(
-          page, user, targetAddress, 10000, hostFingerprintBeforeRevokeOutput,
+          page, 10000, hostFingerprintBeforeRevokeOutput,
         );
       const observerFingerprintAfterRevokeOutput =
         await stableTerminalVisualFingerprint(
-          secondPage, user, targetAddress, 10000,
+          secondPage, 10000,
           observerFingerprintBeforeRevokeOutput,
           'Shared terminal · read only',
         );
@@ -13953,7 +13937,6 @@ async function main() {
     const remoteMarkerPath = '/tmp/remote/shell-marker';
     const shellCommand = `i=0; while [ "$i" -lt 80 ]; do i=$((i+1)); printf 'SCROLL_${markerValue}_%s\\n' "$i"; done; printf '%s\\n' '${markerValue}' > '${remoteMarkerPath}'; printf '%s\\n' '${markerValue}'; printf '\\033[?25l'`;
     safeRunStage = 'relay SSH shell-marker execution';
-    let headerBox = null;
     let terminalRect = null;
     let terminalPoint = null;
     const terminalInteraction = {};
@@ -13964,20 +13947,7 @@ async function main() {
     const firstOutputFrameBaseline = firstRelaySocket.receivedFrames.length;
     let markerObserved = false;
     try {
-      const header = page.getByText(`${user}@${targetAddress}`, { exact: true }).first();
-      headerBox = await header.boundingBox();
-      assertThat(headerBox, 'connected terminal header is not visible');
-      const viewport = await page.evaluate(() => ({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      }));
-      const terminalTop = Math.ceil(headerBox.y + headerBox.height + 8);
-      terminalRect = {
-        x: Math.round(headerBox.x),
-        y: terminalTop,
-        width: Math.max(0, Math.round(viewport.width - headerBox.x - 16)),
-        height: Math.max(0, Math.round(viewport.height - terminalTop - 16)),
-      };
+      terminalRect = await inlineTerminalBounds(page, `${user}@${targetAddress}`);
       assertThat(terminalRect.width > 100 && terminalRect.height > 100,
         'terminal content area has no usable visible bounds');
       terminalPoint = {
@@ -14024,7 +13994,6 @@ async function main() {
       let markerBytes = null;
       try { markerBytes = fs.statSync(markerPath).size; } catch (_) {}
       diagnostic.terminal = {
-        connectedHeaderVisible: Boolean(headerBox),
         terminalRect,
         terminalPoint,
         interactions: terminalInteraction,
@@ -14115,7 +14084,7 @@ async function main() {
     safeRunStage = 'Bash shell history setup is explicitly pasted into the SSH terminal';
     await click(page, 'Close');
     const pasteSentFrameBaseline = firstRelaySocket.sentFrames.length;
-    await pasteClipboardToActiveTerminal(page, user, targetAddress, {
+    await pasteClipboardToActiveTerminal(page, {
       activeHostName: hostName,
     });
     const pasteFrameDeadline = Date.now() + 10000;
@@ -14140,7 +14109,7 @@ async function main() {
     'Bash history acceptance command is not the expected side-effect-free printf');
     const historyOutputFrameBeforeCommand = firstRelaySocket.receivedFrames.length;
     safeRunStage = 'Bash shell history executes the safe remote command';
-    await sendCommandToActiveTerminal(page, user, targetAddress, historyCommand, {
+    await sendCommandToActiveTerminal(page, historyCommand, {
       activeHostName: hostName,
     });
     assertThat(await waitForRelayOutputFrame(
@@ -14378,7 +14347,7 @@ async function main() {
       safeRunStage = 'profile B explicitly installs local Bash history capture';
       await click(secondPage, 'Close');
       const profileBPasteBaseline = secondDeviceRelaySocket.sentFrames.length;
-      await pasteClipboardToActiveTerminal(secondPage, user, targetAddress, {
+      await pasteClipboardToActiveTerminal(secondPage, {
         activeHostName: hostName,
       });
       const profileBPasteDeadline = Date.now() + 10000;
@@ -14422,7 +14391,7 @@ async function main() {
       await click(page, 'View command history');
       await click(page, 'Stop local capture');
       await click(page, 'Close');
-      await sendCommandToActiveTerminal(page, user, targetAddress, 'atermius_off', {
+      await sendCommandToActiveTerminal(page, 'atermius_off', {
         activeHostName: hostName,
       });
       await waitForRelaySocketQuiet(page, firstRelaySocket, 500, 8000);
@@ -14521,7 +14490,7 @@ async function main() {
         secondDeviceRelaySocket.sentFrames.length;
       const dictionaryOutputFramesBeforeEnter =
         secondDeviceRelaySocket.receivedFrames.length;
-      await focusActiveTerminalForInput(secondPage, user, targetAddress, {
+      await focusActiveTerminalForInput(secondPage, {
         activeHostName: hostName,
       });
       await secondPage.keyboard.press('Enter');
@@ -14610,7 +14579,7 @@ async function main() {
         secondDeviceRelaySocket.receivedFrames.length;
       const sentFramesBeforeExplicitEnter = secondDeviceRelaySocket.sentFrames.length;
       safeRunStage = 'profile B focuses the SSH terminal before explicit Enter';
-      await focusActiveTerminalForInput(secondPage, user, targetAddress, {
+      await focusActiveTerminalForInput(secondPage, {
         activeHostName: hostName,
       });
       safeRunStage = 'profile B waits for SSH output after explicit Enter';
@@ -14700,7 +14669,7 @@ async function main() {
       assertThat(await profileBHistorySyncSwitch.getAttribute('aria-checked') === 'false',
         'profile B history upload preference changed during suggestion use');
       await click(secondPage, 'Close');
-      await sendCommandToActiveTerminal(secondPage, user, targetAddress,
+      await sendCommandToActiveTerminal(secondPage,
         'atermius_off', { activeHostName: hostName });
       await waitForRelaySocketQuiet(secondPage, secondDeviceRelaySocket, 500, 8000);
       await secondPage.waitForTimeout(1000);
@@ -14763,7 +14732,7 @@ async function main() {
       `printf '%s\\n' 'WEB_RELAY_HISTORY_AFTER_STOP_${RUN_ID.replaceAll('-', '').toUpperCase()}'`;
     const ignoredHistoryOutputBaseline = firstRelaySocket.receivedFrames.length;
     safeRunStage = 'Bash shell history ignores the next command after local stop';
-    await sendCommandToActiveTerminal(page, user, targetAddress,
+    await sendCommandToActiveTerminal(page,
       ignoredHistoryCommand, { activeHostName: hostName });
     assertThat(await waitForRelayOutputFrame(
       page, firstRelaySocket, ignoredHistoryOutputBaseline, 15000),
@@ -14792,7 +14761,7 @@ async function main() {
     await click(page, 'Close');
 
     safeRunStage = 'Bash shell history remote in-memory hook cleanup';
-    await sendCommandToActiveTerminal(page, user, targetAddress, 'atermius_off', {
+    await sendCommandToActiveTerminal(page, 'atermius_off', {
       activeHostName: hostName,
     });
     await waitForRelaySocketQuiet(page, firstRelaySocket, 500, 8000);
@@ -14803,7 +14772,7 @@ async function main() {
     const searchMarkerPath = path.join(remoteRoot, 'terminal-search-marker');
     const searchMarkerRemotePath = '/tmp/remote/terminal-search-marker';
     const searchMarkerCommand = `printf '%s\\n' '${searchMarkerValue}' > '${searchMarkerRemotePath}'; printf '%s\\n' '${searchMarkerValue}'`;
-    await sendCommandToActiveTerminal(page, user, targetAddress, searchMarkerCommand, {
+    await sendCommandToActiveTerminal(page, searchMarkerCommand, {
       activeHostName: hostName,
     });
     assertThat(await waitForRemoteMarker(searchMarkerPath, searchMarkerValue),
@@ -15677,7 +15646,7 @@ async function main() {
     const afterCancelMarker = `WEB_RELAY_AFTER_CANCEL_${RUN_ID.replaceAll('-', '').toUpperCase()}`;
     const afterCancelMarkerPath = path.join(remoteRoot, 'after-cancel-marker');
     safeRunStage = 'structured Bash cancellation reuses terminal connection';
-    await sendCommandToActiveTerminal(page, user, targetAddress,
+    await sendCommandToActiveTerminal(page,
       `printf '%s\\n' '${afterCancelMarker}' > '/tmp/remote/after-cancel-marker'; printf '%s\\n' '${afterCancelMarker}'`, {
         activeHostName: hostName,
       });
@@ -15686,7 +15655,7 @@ async function main() {
       'canceling snippet execution closed the shared interactive SSH connection');
     console.log('stage: structured text argv, literal shell metacharacters, exit status, cancel, and terminal reuse verified through the Relay target');
 
-    const firstTerminalFingerprint = await stableTerminalVisualFingerprint(page, user, targetAddress);
+    const firstTerminalFingerprint = await stableTerminalVisualFingerprint(page);
     const secondHostName = `Local relay SSH second ${RUN_ID.slice(0, 6)}`;
     const secondTargetCredentialName = `Relay target key B ${RUN_ID.slice(0, 6)}`;
     safeRunStage = 'second SSH Host creation';
@@ -15766,8 +15735,8 @@ async function main() {
 
       safeRunStage = 'second SSH terminal CONNECTED status';
       await waitText(page, 'CONNECTED', 40000);
-      safeRunStage = 'second SSH terminal connected header';
-      await waitText(page, `${user}@${targetAddress}`);
+      safeRunStage = 'second SSH terminal inline layout';
+      await inlineTerminalBounds(page, `${user}@${targetAddress}`);
 
       safeRunStage = 'second SSH terminal Relay socket assertion';
       const secondTerminalSocketAttempts = relaySocketsForPage(page)
@@ -15830,15 +15799,13 @@ async function main() {
         inactiveHostName: hostName,
       });
       const connectedStatus = page.getByText('CONNECTED', { exact: true });
-      const connectedHeader = page.getByText(`${user}@${targetAddress}`, {
-        exact: true,
-      });
+      const pane = terminalPane(page);
       const [connectedStatusCount, connectedStatusVisible,
-        connectedHeaderCount, connectedHeaderVisible] = await Promise.all([
+        visiblePaneCount, terminalPaneVisible] = await Promise.all([
         connectedStatus.count().catch(() => null),
         connectedStatus.isVisible().catch(() => false),
-        connectedHeader.count().catch(() => null),
-        connectedHeader.isVisible().catch(() => false),
+        pane.count().catch(() => null),
+        pane.isVisible().catch(() => false),
       ]);
       const secondTargetConnectionAfter = sshdRuntimeSummary(
         path.join(tempRoot, 'sshd-target-b.log'),
@@ -15869,8 +15836,8 @@ async function main() {
           page, hostName, secondHostName),
         connectedStatusCount,
         connectedStatusVisible,
-        connectedHeaderCount,
-        connectedHeaderVisible,
+        visiblePaneCount,
+        terminalPaneVisible,
         relayTicketCountBefore: relayTicketBaseline,
         relayTicketCountAfter: relayTicketChecksForPage(page).length,
         relayTicketCountDelta: relayTicketChecksForPage(page).length -
@@ -16155,7 +16122,7 @@ async function main() {
     const secondRemoteMarkerPath = '/tmp/remote/terminal-tab-b-marker';
     const secondShellCommand = `i=0; while [ "$i" -lt 80 ]; do i=$((i+1)); printf 'SCROLL_${secondMarkerValue}_%s\\n' "$i"; done; printf '%s\\n' '${secondMarkerValue}' > '${secondRemoteMarkerPath}'; printf '%s\\n' '${secondMarkerValue}'; printf '\\033[?25l'`;
     const secondOutputFrameBaseline = secondRelaySocket.receivedFrames.length;
-    await sendCommandToActiveTerminal(page, user, targetAddress, secondShellCommand, {
+    await sendCommandToActiveTerminal(page, secondShellCommand, {
       activeHostName: secondHostName,
       inactiveHostName: hostName,
     });
@@ -16164,7 +16131,7 @@ async function main() {
     assertThat(await waitForRelayOutputFrame(page, secondRelaySocket, secondOutputFrameBaseline),
       'second terminal did not receive shell output');
     const secondTerminalFingerprint = await stableTerminalVisualFingerprint(
-      page, user, targetAddress, 15000, firstTerminalFingerprint);
+      page, 15000, firstTerminalFingerprint);
     const terminalBuffersDiffer = firstTerminalFingerprint !== secondTerminalFingerprint;
     assertThat(terminalBuffersDiffer,
       'the two active SSH terminal buffers rendered the same screen');
@@ -16175,7 +16142,7 @@ async function main() {
     await terminalTabButton(page, secondHostName, 'inactive');
     await waitText(page, 'CONNECTED');
     const firstRestoredFingerprint = await stableTerminalVisualFingerprint(
-      page, user, targetAddress, 15000, secondTerminalFingerprint);
+      page, 15000, secondTerminalFingerprint);
     const firstTerminalRestored = firstRestoredFingerprint === firstTerminalFingerprint;
     assertThat(firstTerminalRestored,
       'switching back did not restore the first terminal screen and scrollback');
@@ -16197,7 +16164,7 @@ async function main() {
     const firstActiveFocusBefore = await safePageInputFocusState(page);
     await installSafePageInputCounters(page);
     safeRunStage = 'active first SSH terminal command dispatch';
-    await sendCommandToActiveTerminal(page, user, targetAddress, firstActiveCommand, {
+    await sendCommandToActiveTerminal(page, firstActiveCommand, {
       activeHostName: hostName,
       inactiveHostName: secondHostName,
     });
@@ -16286,7 +16253,7 @@ async function main() {
       'selected first terminal did not receive shell output');
     safeRunStage = 'active first SSH terminal stable fingerprint';
     const firstUpdatedFingerprint = await stableTerminalVisualFingerprint(
-      page, user, targetAddress, 15000, firstTerminalFingerprint);
+      page, 15000, firstTerminalFingerprint);
     assertThat(firstUpdatedFingerprint !== secondTerminalFingerprint,
       'input on the first tab changed the wrong visible terminal buffer');
 
@@ -16319,7 +16286,7 @@ async function main() {
       secondRestoreEvidence.phase = 'connected_indicator_observed';
       safeRunStage = 'second SSH terminal tab restore stable fingerprint';
       const secondRestoredFingerprint = await stableTerminalVisualFingerprint(
-        page, user, targetAddress, 15000, firstUpdatedFingerprint);
+        page, 15000, firstUpdatedFingerprint);
       secondRestoreEvidence.fingerprintCompared = true;
       secondRestoreEvidence.fingerprintMatchesExpected =
         secondRestoredFingerprint === secondTerminalFingerprint;
@@ -16367,7 +16334,7 @@ async function main() {
     await terminalTabButton(page, hostName, 'active');
     await terminalTabButton(page, secondHostName, 'inactive');
     const firstUpdatedRestoredFingerprint = await stableTerminalVisualFingerprint(
-      page, user, targetAddress, 15000, secondTerminalFingerprint);
+      page, 15000, secondTerminalFingerprint);
     assertThat(firstUpdatedRestoredFingerprint === firstUpdatedFingerprint,
       'the first terminal did not retain its active-tab output');
 
@@ -16478,7 +16445,7 @@ async function main() {
 
       closeEvidence.phase = 'verify_survivor_buffer';
       secondAfterCloseFingerprint = await stableTerminalVisualFingerprint(
-        page, user, targetAddress, 15000, firstUpdatedFingerprint);
+        page, 15000, firstUpdatedFingerprint);
       closeEvidence.survivorFingerprintMatches =
         secondAfterCloseFingerprint === secondTerminalFingerprint;
       assertThat(closeEvidence.survivorFingerprintMatches,
@@ -16656,7 +16623,7 @@ async function main() {
     };
     try {
       safeRunStage = 'surviving SSH terminal command dispatch';
-      await sendCommandToActiveTerminal(page, user, targetAddress, survivingCommand, {
+      await sendCommandToActiveTerminal(page, survivingCommand, {
         activeHostName: secondHostName,
       });
       survivingCommandDispatched = true;
@@ -18009,7 +17976,7 @@ async function main() {
     'Bastion A, Bastion B, and loopback Target did not each accept their independent SSH credential');
 
     const multiHopMarker = `WEB_RELAY_MULTIHOP_${RUN_ID.replaceAll('-', '').toUpperCase()}`;
-    await sendCommandToActiveTerminal(page, user, targetAddress,
+    await sendCommandToActiveTerminal(page,
       `printf '%s\\n' '${multiHopMarker}' > /tmp/remote/${multiHopMarker}`, {
         activeHostName: multiHopHostName,
       });

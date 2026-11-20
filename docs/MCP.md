@@ -1,10 +1,12 @@
 # 外部 AI 的 MCP 接入
 
-在桌面或 Android 客户端解锁工作区，打开 **设置 → AI / MCP**，选择端口后启用，再复制连接配置到外部 AI 的 MCP 配置中。在“机器访问权限”中设置默认权限，以及每台机器的“禁止访问 / 只读 / 读写”覆盖项。新工作区默认只读；读写权限允许连接、输入、执行命令和写文件。默认禁止、单台读写可建立允许列表。权限收紧立即生效并取消受影响的在途调用；提升权限须成功保存。启用与停止服务独立于机器权限；停止会撤销令牌。
+在桌面、Android 或 iOS 客户端解锁工作区，打开 **设置 → AI / MCP**，选择端口后启用，再复制连接配置到外部 AI 的 MCP 配置中。在“机器访问权限”中设置默认权限，以及每台机器的“禁止访问 / 只读 / 读写”覆盖项。新工作区默认只读；读写权限允许连接、输入、执行命令和写文件。默认禁止、单台读写可建立允许列表。权限收紧立即生效并取消受影响的在途调用；提升权限须成功保存。启用与停止服务独立于机器权限；停止会撤销令牌。
 
 服务默认仅监听 `http://127.0.0.1:8765/mcp`（端口可改，范围 1024–65535）。监听范围在启用前选择，见下文「监听范围」。每次启用生成独立随机 Bearer 令牌，不写入磁盘。配置含令牌，只交给信任的客户端。锁定、退出或切换工作区会撤销授权；重新启用后需要更新 AI 端配置。多窗口应使用不同端口。停止 MCP 不关闭已打开的会话，也不能撤销已经发生的远程操作；等待用户确认的连接可能仍由应用完成。
 
-Windows、Linux、macOS 和 Android 支持监听；Web、iOS 不监听端口。Android 使用带“停止 MCP”按钮的前台通知；电脑端通过 ADB 转发同一端口连接，见 [Android 连通与后台运行](MCP-ANDROID.md)。此外，客户端现已预留无 HTTP 端口的**进程内原生 MCP 接口**（Dart 侧 `McpService.createNativeGateway` / `McpNativeBridge` 与 `MethodChannel('atermius/mcp_native')`，iOS Swift 宿主侧 `AtermiusNativeMcpBridge.shared`），在包括 iOS / iPadOS 在内的全平台均可为未来内置 AI 或系统助手提供受控能力，且同样受下方工作区锁屏撤销与逐机权限策略严格约束。服务与当前已解锁的本地 Profile 或云端 Vault 绑定，不把密钥交给服务器，不包含内置模型聊天。
+Android 使用带“停止 MCP”按钮的前台通知。电脑端可通过 ADB 转发同一端口连接，见 [Android 连通与后台运行](MCP-ANDROID.md)。iPhone 和 iPad 进入后台时会停止监听并撤销令牌。从电脑连接 iOS 时，在手机或平板上选择「局域网」或「指定 IP」，并让 Atermius 保持在前台。返回应用后，需要重新启用并复制新的连接配置。
+
+客户端还提供**进程内原生 MCP 接口**（Dart 侧 `McpService.createNativeGateway`、`McpNativeBridge` 和 `atermius/mcp_native`，iOS Swift 侧 `AtermiusNativeMcpBridge.shared`），供内置 AI 或系统助手复用工作区授权和逐机权限。MCP 服务与当前已解锁的本地 Profile 或云端 Vault 绑定。
 
 | 工具 | 用途 | 需要操作权限 |
 | --- | --- | --- |

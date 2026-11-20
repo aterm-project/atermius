@@ -329,4 +329,3 @@ class _UnsupportedPortForwardPlatform extends Fake
   @override
   bool get isSupported => false;
 }
-

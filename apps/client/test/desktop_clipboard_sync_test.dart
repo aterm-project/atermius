@@ -15,10 +15,10 @@ class _Harness {
     bool writesLocal = true,
     Set<String> secrets = const {},
     Future<void> Function()? secretsReady,
-  }) : clipboard = FakeLocalClipboard(
-         android: android,
-         readsQuietly: readsQuietly,
-       ) {
+    FakeLocalClipboard? device,
+  }) : clipboard =
+           device ??
+           FakeLocalClipboard(android: android, readsQuietly: readsQuietly) {
     sync = DesktopClipboardSync(
       clipboard: clipboard,
       active: () => active,
@@ -40,6 +40,15 @@ class _Harness {
   String? rejectWith;
   final sent = <String>[];
   final notices = <String>[];
+}
+
+class _CopyDuringWrite extends FakeLocalClipboard {
+  @override
+  Future<({bool written, int? stamp})> writeText(String text) async {
+    final result = await super.writeText(text);
+    copy('new local');
+    return result;
+  }
 }
 
 void main() {
@@ -89,6 +98,27 @@ void main() {
     await h.sync.remoteChanged('local');
     expect(h.clipboard.writes, isEmpty);
   });
+
+  test('a repeated remote copy replaces a newer private local clip', () async {
+    final h = _Harness();
+    await h.sync.remoteChanged('remote');
+    h.clipboard.copy('private', sensitive: true);
+    await h.sync.localMayHaveChanged();
+    await h.sync.remoteChanged('remote');
+    expect(h.clipboard.writes, ['remote', 'remote']);
+    expect(h.sent, isEmpty);
+    expect(h.clipboard.reads, 0);
+  });
+
+  test(
+    'a local copy racing the remote write acknowledgement is offered',
+    () async {
+      final h = _Harness(device: _CopyDuringWrite());
+      await h.sync.remoteChanged('remote');
+      await h.sync.localMayHaveChanged();
+      expect(h.sent, ['new local']);
+    },
+  );
 
   test('an unchanged Android clip is not read again', () async {
     final h = _Harness();
@@ -280,14 +310,17 @@ void main() {
     expect(h.sent, isEmpty);
   });
 
-  test('a detached window only remembers remote text', () async {
-    final h = _Harness(writesLocal: false);
-    await h.sync.remoteChanged('parent wrote it');
-    expect(h.clipboard.writes, isEmpty);
-    h.clipboard.copy('parent wrote it');
-    await h.sync.localMayHaveChanged();
-    expect(h.sent, isEmpty);
-  });
+  test(
+    'a detached window leaves writes and duplicate offers to its parent',
+    () async {
+      final h = _Harness(writesLocal: false);
+      await h.sync.remoteChanged('parent wrote it');
+      expect(h.clipboard.writes, isEmpty);
+      h.clipboard.copy('parent wrote it');
+      await h.sync.localMayHaveChanged();
+      expect(h.sent, ['parent wrote it']);
+    },
+  );
 
   test('window offers pass the parent checks and are sent once', () async {
     final h = _Harness(secrets: {'secret'});

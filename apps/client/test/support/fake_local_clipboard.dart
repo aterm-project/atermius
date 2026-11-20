@@ -84,11 +84,11 @@ class FakeLocalClipboard implements LocalClipboard {
   }
 
   @override
-  Future<bool> writeText(String value) async {
-    if (failWrites) return false;
+  Future<LocalClipboardWrite> writeText(String value) async {
+    if (failWrites) return (written: false, stamp: null);
     writes.add(value);
     copy(value);
-    return true;
+    return (written: true, stamp: android ? _stamp : null);
   }
 
   @override

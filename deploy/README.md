@@ -1245,6 +1245,17 @@ with the private `auth-rate-limit.key` stored in `/data`; include that file
 alongside the database and instance signing key in backups. The server creates
 it with owner-only permissions and refuses unsafe key-file permissions.
 
+For the account Devices page, the server records the browser's socket peer IP
+by default. When behind a reverse proxy, set `ATERMIUS_DEVICE_TRUSTED_PROXIES`
+to the comma-separated CIDRs of the proxies that set or append
+`X-Forwarded-For`. Use exact `/32` or `/128` entries when the addresses are
+fixed. Include every trusted hop between the service and the browser, such as
+both Nginx and Caddy in a separate Web deployment. This setting applies only
+to IPs displayed in the account device list.
+
+PostgreSQL deployments apply `server/migrations/postgres/0041_device_activity.sql`
+before upgrading the server. SQLite applies its migration at startup.
+
 The named volume survives container replacement. The server has encrypted
 backup and staged restore commands. Create a separate 32-byte operator key and
 keep it outside the server volume and away from the backup archive:

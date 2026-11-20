@@ -524,6 +524,7 @@ class WorkspaceTabBar extends StatelessWidget {
     };
     Widget tabBody(BuildContext tabContext) => Semantics(
       container: true,
+      excludeSemantics: tab.isHome,
       explicitChildNodes: true,
       button: true,
       label: tab.isHome
@@ -616,7 +617,7 @@ class WorkspaceTabBar extends StatelessWidget {
       ),
       child: SizedBox(
         width: sessionWidth,
-        height: bar.tabHeight + 4,
+        height: bar.tabHeight,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
@@ -836,11 +837,30 @@ class WorkspaceTabBar extends StatelessWidget {
                         final homeSlot = barConstraints.maxWidth < 380
                             ? 110.0
                             : 128.0;
-                        if (Theme.of(context).platform ==
-                                TargetPlatform.android &&
-                            tabConstraints.maxWidth + menuWidth <
-                                homeSlot + 3 * 152) {
+                        final platform = Theme.of(context).platform;
+                        final compact = tabConstraints.maxWidth + menuWidth <
+                            homeSlot + 3 * 152;
+                        if (platform == TargetPlatform.android && compact) {
                           return _CompactWorkspaceTabs(bar: this, metrics: bar);
+                        }
+                        if (platform == TargetPlatform.iOS && compact) {
+                          return _CompactWorkspaceTabs(
+                            bar: this,
+                            metrics: bar,
+                            strip: _HorizontalTabStrip(
+                              child: Row(
+                                children: [
+                                  for (final tab in visibleTabs)
+                                    _tab(
+                                      context,
+                                      tab,
+                                      bar,
+                                      homeWidth: homeWidth,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
                         }
                         return Row(
                           children: [
@@ -985,14 +1005,19 @@ class WorkspaceTabBar extends StatelessWidget {
   }
 }
 
-/// A browser-style tab switcher on Android widths that cannot fit four tabs.
+/// A tab switcher on mobile viewports that cannot fit four tabs.
 /// The portal covers the current page below the toolbar without rebuilding or
 /// resizing its live sessions; its list follows the latest parent tab state.
 class _CompactWorkspaceTabs extends StatefulWidget {
-  const _CompactWorkspaceTabs({required this.bar, required this.metrics});
+  const _CompactWorkspaceTabs({
+    required this.bar,
+    required this.metrics,
+    this.strip,
+  });
 
   final WorkspaceTabBar bar;
   final WindowBarMetrics metrics;
+  final Widget? strip;
 
   @override
   State<_CompactWorkspaceTabs> createState() => _CompactWorkspaceTabsState();
@@ -1003,6 +1028,7 @@ class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
   final _peekToken = Object();
   late final _peek = FullscreenTabsPeek.instance;
   bool _open = false;
+  bool _showStrip = false;
 
   @override
   void dispose() {
@@ -1010,10 +1036,13 @@ class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
     super.dispose();
   }
 
-  void _hide() {
+  void _hide({bool showStrip = false}) {
     _portal.hide();
     _peek.unblock(_peekToken);
-    setState(() => _open = false);
+    setState(() {
+      _open = false;
+      _showStrip = showStrip;
+    });
   }
 
   void _toggle() {
@@ -1029,8 +1058,22 @@ class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.strip case final strip? when _showStrip) {
+      return Row(
+        children: [
+          Expanded(child: strip),
+          IconButton(
+            key: const ValueKey('workspace-return-to-tab-list'),
+            tooltip: context.l10n.listView,
+            icon: const Icon(Icons.view_list_outlined),
+            onPressed: () => setState(() => _showStrip = false),
+          ),
+        ],
+      );
+    }
     final bar = widget.bar;
     final tabs = bar._displayTabs;
+    final home = tabs.where((tab) => tab.isHome).firstOrNull;
     final selected = tabs
         .where(
           (tab) =>
@@ -1077,6 +1120,15 @@ class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
                           child: Row(
                             children: [
                               Expanded(child: Text(countLabel)),
+                              if (widget.strip != null)
+                                IconButton(
+                                  key: const ValueKey(
+                                    'workspace-show-tab-strip',
+                                  ),
+                                  tooltip: context.l10n.showWorkspaceTabStrip,
+                                  onPressed: () => _hide(showStrip: true),
+                                  icon: const Icon(Icons.view_week_outlined),
+                                ),
                               IconButton(
                                 tooltip: context.l10n.close,
                                 onPressed: _hide,
@@ -1140,7 +1192,33 @@ class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
           );
         },
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (home != null)
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 2,
+                  vertical: widget.metrics.tabInset,
+                ),
+                child: SizedBox(
+                  width: widget.metrics.actionWidth,
+                  child: IconButton(
+                    key: const ValueKey('workspace_compact_home'),
+                    tooltip: home.title,
+                    isSelected: selected?.id == home.id,
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      Icons.home_outlined,
+                      size: widget.metrics.iconSize,
+                    ),
+                    selectedIcon: Icon(Icons.home, size: widget.metrics.iconSize),
+                    onPressed: () {
+                      if (_open) _hide();
+                      bar.onSelect(home.id);
+                    },
+                  ),
+                ),
+              ),
             Expanded(
               child: Padding(
                 padding: EdgeInsets.symmetric(
@@ -1149,8 +1227,9 @@ class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
                 ),
                 child: Material(
                   color: palette.isDark ? palette.surfaceSoft : palette.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  shape: appleSquircleBorder(
+                    BorderRadius.circular(8),
+                    platform: Theme.of(context).platform,
                     side: BorderSide(color: palette.line),
                   ),
                   child: InkWell(
@@ -1584,7 +1663,7 @@ class _TabEntrance extends StatelessWidget {
             .hasViewportDimension ??
         false,
     duration: MotionDurations.standard,
-    offset: const Offset(0, 6),
+    offset: Offset.zero,
     child: child,
   );
 }

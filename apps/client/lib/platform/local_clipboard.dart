@@ -44,7 +44,7 @@ class LocalClipboardRead {
   /// Only for [LocalClipboardStatus.text].
   final String? text;
 
-  /// Android's clip timestamp (API 26+): equal stamps mean the same clip.
+  /// Windows clipboard sequence number or Android clip timestamp (API 26+).
   final int? stamp;
 
   /// The copying app marked the clip sensitive (Android's
@@ -73,6 +73,10 @@ class LocalClipboardState {
   final bool sensitive;
 }
 
+/// A write can report the clip's version if the platform can obtain it while
+/// it still owns the clipboard lock.
+typedef LocalClipboardWrite = ({bool written, int? stamp});
+
 /// This device's text clipboard.
 abstract class LocalClipboard {
   static LocalClipboard? _instance;
@@ -93,12 +97,10 @@ abstract class LocalClipboard {
     bool automatic = false,
   });
 
-  /// Null where the platform cannot tell without reading (everything but
-  /// Android).
+  /// Null where the platform cannot tell without reading.
   Future<LocalClipboardState?> state();
 
-  /// Returns false when the platform refused the write.
-  Future<bool> writeText(String text);
+  Future<LocalClipboardWrite> writeText(String text);
 
   /// Windows/Android: the primary clip changed while Atermius had focus. Silent
   /// elsewhere.
@@ -123,7 +125,7 @@ class SystemLocalClipboard implements LocalClipboard {
     bool? bridge,
   }) : _bridgeAvailable = bridge ?? platform_bridge.hasNativeClipboardBridge;
 
-  /// The Android bridge; tests replace it, [platform], [web] and whether the
+  /// The native bridge; tests replace it, [platform], [web] and whether the
   /// bridge exists (the real OS decides by default).
   final MethodChannel channel;
   final TargetPlatform? platform;
@@ -152,28 +154,19 @@ class SystemLocalClipboard implements LocalClipboard {
         // Windows can post its change notification before the copying
         // application closes the clipboard. Retry that short lock instead
         // of treating this sequence number as a clip without text.
-        for (var attempt = 0; attempt < 5; attempt++) {
-          final raw = await channel
-              .invokeMapMethod<String, Object?>('read', {
-                'maxBytes': maxBytes,
-                'uris': !automatic,
-              })
-              .timeout(const Duration(seconds: 5));
-          if (raw?['status'] != 'busy') {
-            if (raw != null) return _parseRead(raw, maxBytes);
-            break;
-          }
-          if (attempt < 4) {
-            await Future<void>.delayed(
-              Duration(milliseconds: 25 * (attempt + 1)),
-            );
-          } else {
+        final raw = await _invokeClipboard('read', {
+          'maxBytes': maxBytes,
+          'uris': !automatic,
+        });
+        if (raw != null) {
+          if (raw['status'] == 'busy') {
             return LocalClipboardRead(
               automatic
                   ? LocalClipboardStatus.unfocused
                   : LocalClipboardStatus.noText,
             );
           }
+          return _parseRead(raw, maxBytes);
         }
       } on MissingPluginException {
         _bridgeMissing = true;
@@ -269,12 +262,41 @@ class SystemLocalClipboard implements LocalClipboard {
   }
 
   @override
-  Future<bool> writeText(String text) async {
+  Future<LocalClipboardWrite> writeText(String text) async {
+    if (_bridge && _target == TargetPlatform.windows) {
+      try {
+        final result = await _invokeClipboard('write', text);
+        final stamp = result?['stamp'];
+        return (
+          written: result?['status'] == 'written',
+          stamp: stamp is int && stamp != 0 ? stamp : null,
+        );
+      } on MissingPluginException {
+        // Older runners provide read and state only.
+      } on PlatformException {
+        return (written: false, stamp: null);
+      } on TimeoutException {
+        return (written: false, stamp: null);
+      }
+    }
     try {
       await Clipboard.setData(ClipboardData(text: text));
-      return true;
+      return (written: true, stamp: null);
     } on Object {
-      return false;
+      return (written: false, stamp: null);
+    }
+  }
+
+  Future<Map<String, Object?>?> _invokeClipboard(
+    String method,
+    Object arguments,
+  ) async {
+    for (var attempt = 0; ; attempt++) {
+      final result = await channel
+          .invokeMapMethod<String, Object?>(method, arguments)
+          .timeout(const Duration(seconds: 5));
+      if (result?['status'] != 'busy' || attempt == 4) return result;
+      await Future<void>.delayed(Duration(milliseconds: 25 * (attempt + 1)));
     }
   }
 

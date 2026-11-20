@@ -70,6 +70,7 @@ import 'telnet/telnet_errors.dart';
 import 'telnet/telnet_session.dart';
 import 'telnet/telnet_transport.dart';
 import 'platform/application_windows.dart';
+import 'platform/device_name.dart';
 import 'platform/server_hosted.dart';
 import 'terminal/encrypted_shell_history_repository.dart';
 import 'terminal/shell_integration_protocol.dart';
@@ -1635,6 +1636,9 @@ class AppController extends ChangeNotifier {
   bool vaultPresenceLoading = false;
   String? vaultPresenceError;
   Timer? _vaultPresenceHeartbeatTimer;
+  Timer? _deviceActivityTimer;
+  ApiClient? _deviceActivityClient;
+  Future<void>? _deviceActivityReport;
   // The last immediate heartbeat, so a restart right after it (workspace
   // open followed by Vault selection) does not trip the server's 5 s limit.
   ({String vaultId, Object? session, DateTime at})? _lastVaultPresenceBeat;
@@ -8967,6 +8971,11 @@ class AppController extends ChangeNotifier {
           break;
         }
         final next = projectedHosts[nextId];
+        if (next != null &&
+            next.protocol != HostProtocol.ssh &&
+            routeTouchesEditedHost) {
+          return currentL10n.theJumpHostMustUseThe;
+        }
         if (next == null) {
           if (routeTouchesEditedHost) {
             return currentL10n.theSelectedJumpHostNoLonger;
@@ -15134,6 +15143,7 @@ class AppController extends ChangeNotifier {
 
   void _startSyncHints() {
     _reconcileMobilePushListeningScope();
+    _startDeviceActivity();
     if (_controllerDisposed || _lockedUnlockInProgress) {
       _syncHints.stop();
       return;
@@ -15163,6 +15173,74 @@ class AppController extends ChangeNotifier {
         origin: client.notificationsOrigin,
       ),
     );
+  }
+
+  void _startDeviceActivity() {
+    final client = api;
+    if (client == null ||
+        session == null ||
+        stage != ClientStage.workspace ||
+        _controllerDisposed ||
+        instance?.capabilities.contains('device_activity') != true) {
+      _stopDeviceActivity();
+      return;
+    }
+    if (identical(_deviceActivityClient, client)) return;
+    _stopDeviceActivity();
+    _deviceActivityClient = client;
+    void report() {
+      if (_deviceActivityReport != null) return;
+      final auth = session;
+      if (auth == null ||
+          !identical(api, client) ||
+          stage != ClientStage.workspace) {
+        _stopDeviceActivity();
+        return;
+      }
+      final flight = _reportDeviceActivity(client, auth);
+      _deviceActivityReport = flight;
+      unawaited(
+        flight.whenComplete(() {
+          if (identical(_deviceActivityReport, flight)) {
+            _deviceActivityReport = null;
+          }
+        }),
+      );
+    }
+
+    report();
+    _deviceActivityTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => report(),
+    );
+  }
+
+  Future<void> _reportDeviceActivity(ApiClient client, AuthSession auth) async {
+    bool isCurrent() =>
+        identical(api, client) &&
+        identical(_deviceActivityClient, client) &&
+        identical(session, auth);
+
+    try {
+      final payload = await deviceActivityPayload();
+      if (isCurrent()) await client.reportDeviceActivity(payload);
+    } on ApiException catch (error) {
+      if (isCurrent() &&
+          (error.code == 'AUTH_REQUIRED' || error.code == 'DEVICE_REVOKED')) {
+        // Access tokens also expire normally. The coordinated refresh closes
+        // this workspace only when the server rejects its login session.
+        await _refreshSessionForSyncHint();
+      }
+    } catch (_) {
+      // An offline client will retry at the next heartbeat.
+    }
+  }
+
+  void _stopDeviceActivity() {
+    _deviceActivityTimer?.cancel();
+    _deviceActivityTimer = null;
+    _deviceActivityClient = null;
+    _deviceActivityReport = null;
   }
 
   void _reconcileMobilePushListeningScope() {
@@ -17367,7 +17445,18 @@ class AppController extends ChangeNotifier {
 
   Future<void> refreshDevices({bool background = false}) async {
     try {
-      devices = await _requireApi().devices();
+      final client = _requireApi();
+      final auth = session;
+      await _deviceActivityReport;
+      if (!identical(api, client) || (auth != null && session == null)) return;
+      final rows = await client.devices();
+      if (!identical(api, client) ||
+          (auth != null &&
+              (auth.accountId != session?.accountId ||
+                  auth.deviceId != session?.deviceId))) {
+        return;
+      }
+      devices = rows;
       notifyListeners();
     } catch (error) {
       _setError(friendlyError(error));
@@ -18724,6 +18813,12 @@ class AppController extends ChangeNotifier {
     await refreshDevices();
     if (activeVault != null) await refreshVaultDeviceRows();
     _setNotice(currentL10n.deviceRevoked2);
+  }
+
+  Future<void> signOutDevice(String deviceId) async {
+    await _requireApi().signOutDevice(deviceId);
+    await refreshDevices();
+    _setNotice(currentL10n.deviceSignedOut);
   }
 
   /// Creates the signed, device-encrypted payload for a migration destination
@@ -21206,6 +21301,57 @@ class AppController extends ChangeNotifier {
     final desktop = DesktopSession(
       directConnectionForTesting: desktopConnectionForTesting,
       onUserReconnect: () => noteHostRequested(host),
+      openSshTunnel: (target, cancellation) async {
+        bool active() =>
+            current() &&
+            tab.recovery?.available == true &&
+            !cancellation.isCancelled;
+        if (!active()) throw const SshConnectCancelledException();
+        final route = _resolveJumpHostConnection(target);
+        tab.verifiedHostKeys.clear();
+        tab.sshAuthenticationCancelled = Completer<void>();
+        final attempt = tab.connectProgress.attempt;
+        try {
+          final tunnel = await _connectWithVerifiedHostKeys<DesktopSshTunnel>(
+            tab: tab,
+            reviewTabId: tab.id,
+            hostCount: route.length,
+            attemptCurrent: active,
+            advance: (stage) => tab.connectProgress.advance(attempt, stage),
+            initialKnownHostAccountId: reviewedAccount,
+            initialKnownHostDeviceId: reviewedDevice,
+            initialKnownHostVaultId: reviewedVault,
+            close: (tunnel) => tunnel.close(),
+            connect: (verify) =>
+                SshService(
+                  api: client,
+                  deviceId: reviewedDevice!,
+                  knownHostDecisionLock: _knownHostDecisionLock,
+                ).openDesktopTunnel(
+                  desktop: target,
+                  jumpHops: [
+                    for (final hop in route)
+                      SshJumpHop(
+                        host: hop.host,
+                        credential: hop.credential,
+                        verifyHostKey: (type, fingerprint) =>
+                            verify(hop.host, type, fingerprint),
+                      ),
+                  ],
+                  knownHostDecisionScope:
+                      _requireRepository().knownHostDecisionScope,
+                  cancellation: cancellation,
+                  onUserInfoRequest: (host, request) =>
+                      _requestSshUserInfo(tab, host, request),
+                ),
+          );
+          if (active()) return tunnel;
+          await tunnel.close();
+          throw const SshConnectCancelledException();
+        } catch (error) {
+          throw StateError(_connectFailureMessage(error));
+        }
+      },
       reconnectAllowed: () => current() && tab.recovery?.available == true,
       // "Restore connection" in the view resolves the Host saved now.
       latestHost: (id) => hosts.where((h) => h.id == id).firstOrNull,
@@ -21302,7 +21448,8 @@ class AppController extends ChangeNotifier {
     }
     if (reuseTab == null) onTabOpened?.call(tab.id);
     notifyListeners();
-    if (DesktopSession.supportsDirect(host.protocol)) {
+    if (DesktopSession.supportsDirect(host.protocol) ||
+        (!kIsWeb && host.jumpHostId != null)) {
       await desktop.connectLocal(host, userStarted: userStarted);
     } else {
       await desktop.connect(client, deviceId!, host);
@@ -21939,205 +22086,44 @@ class AppController extends ChangeNotifier {
       }
     }
 
-    SshHostKeyFailure? hostKeyFailure;
-    KnownHostApprovalRequest? hostKeyDecisionToResolve;
-    // A full SSH retry starts at the first Jump Host again. Keep each
-    // endpoint proof only for this bounded route setup so a later-hop review
-    // does not force already reviewed earlier hops through another Vault sync.
-    // This map is local to this openTerminalTab call and cannot authorize a
-    // later tab or connection attempt.
-    final verifiedHostKeyProofs = <String, _VerifiedTerminalHostKeyProof>{};
     try {
-      Future<bool> verifyHostKeyFor(
-        HostRecord keyHost,
-        String type,
-        String fingerprint,
-      ) async {
-        try {
-          if (!attemptCurrent()) return false;
-          final canonicalHost = canonicalizeKnownHost(keyHost.address);
-          final presentedProof = VerifiedTerminalHostKey(
-            host: canonicalHost,
-            port: keyHost.port,
-            algorithm: type,
-            fingerprint: fingerprint,
-          );
-          // Reuse only a proof for this exact canonical endpoint, algorithm,
-          // and fingerprint while this route setup is in progress. Recheck
-          // the current account/device/Vault scope and the authenticated local
-          // KnownHost projection for every handshake. An unrelated repository
-          // rebuild may advance the decision generation during approval of a
-          // later hop; revalidate the exact endpoint in the current repository
-          // instead of forcing every earlier hop through another full route
-          // restart.
-          final verifiedProof = verifiedHostKeyProofs[presentedProof.proofKey];
-          if (verifiedProof != null) {
-            final verifiedRepository = verifiedProof.repository;
-            final usingTestTrust = knownHostTrustStatusForTesting != null;
-            final testProofStillCurrent =
-                usingTestTrust &&
-                (verifiedRepository == null ||
-                    identical(_repository, verifiedRepository)) &&
-                verifiedProof.generation == _knownHostDecisionGeneration;
-            final scopeStillCurrent =
-                verifiedProof.hostKey.proofKey == presentedProof.proofKey &&
-                verifiedProof.accountId == session?.accountId &&
-                verifiedProof.deviceId == identity?.deviceId &&
-                verifiedProof.deviceId == session?.deviceId &&
-                verifiedProof.vaultId == activeVault?.id;
-            void requestFreshDecision() {
-              hostKeyDecisionToResolve = KnownHostApprovalRequest(
-                host: canonicalHost,
-                port: keyHost.port,
-                algorithm: type,
-                fingerprint: fingerprint,
-                previouslyRevoked: false,
-              );
-            }
+      final connection = await _connectWithVerifiedHostKeys<SshConnection>(
+        tab: tab,
+        reviewTabId: progressAttempt == null ? null : id,
+        hostCount: jumpRoute.length + 1,
+        attemptCurrent: attemptCurrent,
+        advance: advance,
+        initialKnownHostAccountId: initialKnownHostAccountId,
+        initialKnownHostDeviceId: initialKnownHostDeviceId,
+        initialKnownHostVaultId: initialKnownHostVaultId,
+        close: (connection) => connection.close(),
+        connect: (trackedVerifyHostKeyFor) async {
+          Future<bool> verifyHostKey(String type, String fingerprint) =>
+              trackedVerifyHostKeyFor(host, type, fingerprint);
+          final sshJumpHops = jumpRoute
+              .map(
+                (hop) => SshJumpHop(
+                  host: hop.host,
+                  credential: hop.credential,
+                  verifyHostKey: (type, fingerprint) =>
+                      trackedVerifyHostKeyFor(hop.host, type, fingerprint),
+                ),
+              )
+              .toList(growable: false);
+          Future<bool> verifyLegacyJumpHostKey(
+            String type,
+            String fingerprint,
+          ) => jumpRoute.isEmpty
+              ? Future<bool>.value(false)
+              : trackedVerifyHostKeyFor(jumpRoute.last.host, type, fingerprint);
 
-            if (!scopeStillCurrent) {
-              verifiedHostKeyProofs.remove(presentedProof.proofKey);
-              throw StateError(currentL10n.sshHostKeyApprovalProofAccount);
-            }
-            if (usingTestTrust) {
-              if (!testProofStillCurrent) {
-                verifiedHostKeyProofs.remove(presentedProof.proofKey);
-                requestFreshDecision();
-                return false;
-              }
-            } else {
-              if (_knownHostStateTransitionPending) {
-                verifiedHostKeyProofs.remove(presentedProof.proofKey);
-                requestFreshDecision();
-                return false;
-              }
-              _ensureKnownHostDecisionCurrent();
-              _ensureKnownHostDecisionScopeCurrent(
-                accountId: verifiedProof.accountId,
-                deviceId: verifiedProof.deviceId,
-                vaultId: verifiedProof.vaultId,
-              );
-              final currentRepository = _repository;
-              if (currentRepository == null) {
-                verifiedHostKeyProofs.remove(presentedProof.proofKey);
-                requestFreshDecision();
-                return false;
-              }
-              final generationBeforeTrustRead = _knownHostDecisionGeneration;
-              // A route proof may be reused across hops/retries, but local
-              // KnownHost state can change without rebuilding the Repository
-              // (for example, a revocation queued from another route). Recheck
-              // the authenticated local projection and exact outbox state
-              // without holding this SSH handshake open for a network pull.
-              final cachedTrust = await currentRepository
-                  .cachedKnownHostTrustSnapshot(
-                    host: canonicalHost,
-                    port: keyHost.port,
-                    algorithm: type,
-                    fingerprint: fingerprint,
-                  );
-              if (verifiedProof.accountId != session?.accountId ||
-                  verifiedProof.deviceId != identity?.deviceId ||
-                  verifiedProof.deviceId != session?.deviceId ||
-                  verifiedProof.vaultId != activeVault?.id) {
-                verifiedHostKeyProofs.remove(presentedProof.proofKey);
-                throw StateError(currentL10n.sshHostKeyApprovalProofAccount);
-              }
-              if (!identical(_repository, currentRepository) ||
-                  _knownHostStateTransitionPending ||
-                  generationBeforeTrustRead != _knownHostDecisionGeneration) {
-                verifiedHostKeyProofs.remove(presentedProof.proofKey);
-                requestFreshDecision();
-                return false;
-              }
-              if (cachedTrust.status != KnownHostTrustStatus.trusted) {
-                verifiedHostKeyProofs.remove(presentedProof.proofKey);
-                requestFreshDecision();
-                return false;
-              }
-              if (!identical(verifiedRepository, currentRepository) ||
-                  verifiedProof.generation != generationBeforeTrustRead) {
-                // The proof remains valid only because the exact current
-                // endpoint/fingerprint is still trusted in the current
-                // authenticated projection. Refresh its route-local binding
-                // so subsequent hops do not restart this route again.
-                verifiedHostKeyProofs[presentedProof.proofKey] =
-                    _VerifiedTerminalHostKeyProof(
-                      hostKey: presentedProof,
-                      repository: currentRepository,
-                      generation: generationBeforeTrustRead,
-                      accountId: verifiedProof.accountId,
-                      deviceId: verifiedProof.deviceId,
-                      vaultId: verifiedProof.vaultId,
-                    );
-              }
-            }
-            tab.verifiedHostKeys[presentedProof.key] = presentedProof;
-            return true;
-          }
-          // End this SSH handshake before pulling the Vault. SSH servers
-          // commonly enforce a short LoginGraceTime, so even an already
-          // trusted key must not hold the transport open during sync. The
-          // outer loop resolves the current trust state, then retries with a
-          // route-scoped proof bound to that exact key and Vault scope.
-          hostKeyDecisionToResolve = KnownHostApprovalRequest(
-            host: canonicalHost,
-            port: keyHost.port,
-            algorithm: type,
-            fingerprint: fingerprint,
-            previouslyRevoked: false,
-          );
-          return false;
-        } catch (error) {
-          rethrow;
-        }
-      }
-
-      // Progress follows the real handshake: a presented key moves the tab to
-      // "verifying", an accepted key to "signing in".
-      Future<bool> trackedVerifyHostKeyFor(
-        HostRecord keyHost,
-        String type,
-        String fingerprint,
-      ) async {
-        advance(ConnectStage.verifyingHost);
-        final accepted = await verifyHostKeyFor(keyHost, type, fingerprint);
-        if (accepted) advance(ConnectStage.authenticating);
-        return accepted;
-      }
-
-      Future<bool> verifyHostKey(String type, String fingerprint) =>
-          trackedVerifyHostKeyFor(host, type, fingerprint);
-      final sshJumpHops = jumpRoute
-          .map(
-            (hop) => SshJumpHop(
-              host: hop.host,
-              credential: hop.credential,
-              verifyHostKey: (type, fingerprint) =>
-                  trackedVerifyHostKeyFor(hop.host, type, fingerprint),
-            ),
-          )
-          .toList(growable: false);
-      Future<bool> verifyLegacyJumpHostKey(String type, String fingerprint) =>
-          jumpRoute.isEmpty
-          ? Future<bool>.value(false)
-          : trackedVerifyHostKeyFor(jumpRoute.last.host, type, fingerprint);
-
-      final connector = sshConnectorForTesting;
-      final jumpConnector = sshConnectorWithJumpForTesting;
-      final routeConnector = sshConnectorWithRouteForTesting;
-      final userInfoConnector = sshConnectorWithUserInfoForTesting;
-      final cancellationConnector = sshConnectorWithCancellationForTesting;
-      final connectCancellation = tab.connectionCancellation!;
-      final maxHostKeyRestarts = (jumpRoute.length + 1) * 2;
-      var hostKeyRestartCount = 0;
-      late SshConnection connection;
-      while (true) {
-        hostKeyDecisionToResolve = null;
-        advance(ConnectStage.connecting);
-        SshConnection? attemptConnection;
-        try {
-          attemptConnection = cancellationConnector != null
+          final connector = sshConnectorForTesting;
+          final jumpConnector = sshConnectorWithJumpForTesting;
+          final routeConnector = sshConnectorWithRouteForTesting;
+          final userInfoConnector = sshConnectorWithUserInfoForTesting;
+          final cancellationConnector = sshConnectorWithCancellationForTesting;
+          final connectCancellation = tab.connectionCancellation!;
+          return cancellationConnector != null
               ? await cancellationConnector(
                   host: host,
                   credential: credential,
@@ -22196,206 +22182,8 @@ class AppController extends ChangeNotifier {
                   cancellation: connectCancellation,
                   onUserInfoRequest: requestUserInfo,
                 );
-        } catch (_) {
-          if (hostKeyDecisionToResolve == null) rethrow;
-        }
-
-        final request = hostKeyDecisionToResolve;
-        if (request == null) {
-          connection = attemptConnection!;
-          break;
-        }
-        await attemptConnection?.close();
-        if (++hostKeyRestartCount > maxHostKeyRestarts) {
-          throw StateError(currentL10n.tooManySshHostKeyChecks);
-        }
-        if (!attemptCurrent()) return;
-        var decision = await _knownHostTrustDecision(
-          host: request.host,
-          port: request.port,
-          algorithm: request.algorithm,
-          fingerprint: request.fingerprint,
-        );
-        if (!attemptCurrent()) return;
-        final usingTestTrust = knownHostTrustStatusForTesting != null;
-        if (!usingTestTrust) {
-          _ensureKnownHostDecisionScopeCurrent(
-            accountId: initialKnownHostAccountId,
-            deviceId: initialKnownHostDeviceId,
-            vaultId: initialKnownHostVaultId,
-          );
-        } else if (decision.generation != _knownHostDecisionGeneration) {
-          throw StateError(currentL10n.sshHostKeyTestDecisionBecame);
-        }
-        if (decision.status == KnownHostTrustStatus.changed ||
-            decision.status == KnownHostTrustStatus.conflict) {
-          hostKeyFailure = SshHostKeyFailure.changed;
-          throw SshHostKeyVerificationException(hostKeyFailure!);
-        }
-
-        if (decision.status != KnownHostTrustStatus.trusted) {
-          // Tabs connect independently, so several can reach an unknown host
-          // key at once. Their reviews are shown one at a time, and the next
-          // one starts when the previous approval is stored: a tab that
-          // waited asks again first, so tabs connecting to the same new Host
-          // are answered by one review. Storing takes a moment; when it is
-          // held up the next review is shown anyway.
-          final earlierReview = _hostKeyReview;
-          final review = _hostKeyReview = _HostKeyReviewTurn();
-          final storedBefore = _hostKeyApprovalsStored;
-          try {
-            if (earlierReview != null) {
-              await earlierReview.answered.future;
-              await earlierReview.stored.future.timeout(
-                const Duration(seconds: 2),
-                onTimeout: () {},
-              );
-              if (!attemptCurrent()) return;
-            }
-            if (_hostKeyApprovalsStored != storedBefore) {
-              decision = await _knownHostTrustDecision(
-                host: request.host,
-                port: request.port,
-                algorithm: request.algorithm,
-                fingerprint: request.fingerprint,
-              );
-              if (!attemptCurrent()) return;
-              if (!usingTestTrust) {
-                _ensureKnownHostDecisionScopeCurrent(
-                  accountId: initialKnownHostAccountId,
-                  deviceId: initialKnownHostDeviceId,
-                  vaultId: initialKnownHostVaultId,
-                );
-              } else if (decision.generation != _knownHostDecisionGeneration) {
-                throw StateError(currentL10n.sshHostKeyTestDecisionBecame);
-              }
-              if (decision.status == KnownHostTrustStatus.changed ||
-                  decision.status == KnownHostTrustStatus.conflict) {
-                hostKeyFailure = SshHostKeyFailure.changed;
-                throw const SshHostKeyVerificationException(
-                  SshHostKeyFailure.changed,
-                );
-              }
-            }
-            if (decision.status != KnownHostTrustStatus.trusted) {
-              final approvalRequest = KnownHostApprovalRequest(
-                host: request.host,
-                port: request.port,
-                algorithm: request.algorithm,
-                fingerprint: request.fingerprint,
-                previouslyRevoked: decision.status == KnownHostTrustStatus.revoked,
-                offlineTransportUnavailable: decision.offlineTransportUnavailable,
-                // A new tab or a retry is reviewed over its own tab.
-                tabId: progressAttempt == null ? null : id,
-              );
-              final confirmDetailed = askTrustHostApproval;
-              final confirmLegacy = askTrustHost;
-              advance(ConnectStage.awaitingUser);
-              final approved = confirmDetailed != null
-                  ? await confirmDetailed(approvalRequest)
-                  : confirmLegacy != null
-                  ? await confirmLegacy(
-                      endpointKey(host: request.host, port: request.port),
-                      request.fingerprint,
-                    )
-                  : false;
-              review.answer();
-              if (!attemptCurrent() || !approved) {
-                hostKeyFailure = SshHostKeyFailure.rejected;
-                throw SshHostKeyVerificationException(hostKeyFailure!);
-              }
-              advance(ConnectStage.verifyingHost);
-              var approvalWasQueuedOffline = false;
-              await approveKnownHost(
-                host: approvalRequest.host,
-                port: approvalRequest.port,
-                algorithm: approvalRequest.algorithm,
-                fingerprint: approvalRequest.fingerprint,
-                offlineFirstApprovalWasConfirmed:
-                    approvalRequest.offlineTransportUnavailable,
-                onOfflineApprovalQueued: () => approvalWasQueuedOffline = true,
-              );
-              if (approvalWasQueuedOffline) {
-                // A queued local record is not yet a Vault-confirmed SSH trust.
-                // The current handshake always stops; a later retry must sync and
-                // resolve any concurrent approval or revocation first.
-                throw const KnownHostApprovalQueuedException();
-              }
-              _hostKeyApprovalsStored++;
-              // Approval performs a Vault pull/push/readback, which may replace
-              // the repository or advance the decision generation while the
-              // review dialog is open. Resolve trust again after that sync so
-              // the route-scoped SSH proof is bound to the confirmed current state.
-              try {
-                decision = await _knownHostTrustDecision(
-                  host: approvalRequest.host,
-                  port: approvalRequest.port,
-                  algorithm: approvalRequest.algorithm,
-                  fingerprint: approvalRequest.fingerprint,
-                );
-              } on StateError {
-                if (_knownHostStateTransitionPending ||
-                    _vaultMembershipChangeActive) {
-                  continue;
-                }
-                rethrow;
-              }
-              if (decision.status == KnownHostTrustStatus.changed ||
-                  decision.status == KnownHostTrustStatus.conflict) {
-                hostKeyFailure = SshHostKeyFailure.changed;
-                throw SshHostKeyVerificationException(hostKeyFailure!);
-              }
-              if (decision.status != KnownHostTrustStatus.trusted) {
-                throw StateError(currentL10n.vaultSyncDidNotConfirmThe);
-              }
-            }
-          } finally {
-            if (identical(_hostKeyReview, review)) _hostKeyReview = null;
-            review.finish();
-          }
-        }
-
-        if (!usingTestTrust) {
-          _ensureKnownHostDecisionScopeCurrent(
-            accountId: initialKnownHostAccountId,
-            deviceId: initialKnownHostDeviceId,
-            vaultId: initialKnownHostVaultId,
-          );
-          // Membership and snapshot refreshes can begin after a successful
-          // preflight (for example, while a reviewed approval is syncing).
-          // Keep the transport closed and resolve the decision again on the
-          // next bounded pass instead of failing the user's connection or
-          // carrying a proof across the transition.
-          if (_knownHostStateTransitionPending ||
-              _vaultMembershipChangeActive) {
-            continue;
-          }
-          _ensureKnownHostDecisionCurrent();
-        }
-        if ((decision.repository != null &&
-                !identical(_repository, decision.repository)) ||
-            decision.generation != _knownHostDecisionGeneration) {
-          if (!usingTestTrust) continue;
-          throw StateError(currentL10n.sshHostKeyTestDecisionBecame);
-        }
-        final verifiedProof = VerifiedTerminalHostKey(
-          host: request.host,
-          port: request.port,
-          algorithm: request.algorithm,
-          fingerprint: request.fingerprint,
-        );
-        verifiedHostKeyProofs[verifiedProof.proofKey] =
-            _VerifiedTerminalHostKeyProof(
-              hostKey: verifiedProof,
-              repository: decision.repository,
-              generation: decision.generation,
-              accountId: session?.accountId,
-              deviceId: identity?.deviceId,
-              vaultId: activeVault?.id,
-            );
-        if (!attemptCurrent()) return;
-      }
-
+        },
+      );
       if (!attemptCurrent() || (reuseTab != null && tab.recovery?.available != true) ||
           !connectScopeCurrent()) {
         await connection.close();
@@ -22460,37 +22248,16 @@ class AppController extends ChangeNotifier {
     } catch (error) {
       if (!attemptCurrent()) return;
       tab.cancelPendingSshAuthentication();
-      tab.log?.markFailed(
-        hostKeyFailure == null
-            ? error
-            : SshHostKeyVerificationException(hostKeyFailure!),
-      );
+      tab.log?.markFailed(error);
       tab.state = 'failed';
       tab.recovery?.update(connected: false);
-      tab.errorMessage = friendlyError(
-        hostKeyFailure == null
-            ? error
-            : SshHostKeyVerificationException(hostKeyFailure!),
-      );
+      tab.errorMessage = friendlyError(error);
       if (progressAttempt != null) {
-        final reportedFailure = hostKeyFailure;
-        tab.connectProgress.fail(
-          progressAttempt,
-          _connectFailureMessage(
-            reportedFailure == null
-                ? error
-                : SshHostKeyVerificationException(reportedFailure),
-          ),
-        );
+        tab.connectProgress.fail(progressAttempt, _connectFailureMessage(error));
       } else if (tab.recovery?.everConnected == true) {
         tab.noteReconnectFailure(tab.errorMessage!);
       }
-      final failure = hostKeyFailure;
-      _setError(
-        friendlyError(
-          failure == null ? error : SshHostKeyVerificationException(failure),
-        ),
-      );
+      _setError(friendlyError(error));
       rethrow;
     } finally {
       // Any exit that neither connected nor reported keeps no loading state.
@@ -22502,6 +22269,393 @@ class AppController extends ChangeNotifier {
           tab.errorMessage ?? currentL10n.theWorkspaceChanged,
         );
       }
+    }
+  }
+
+  Future<T> _connectWithVerifiedHostKeys<T extends Object>({
+    required TerminalTabSession tab,
+    required String? reviewTabId,
+    required int hostCount,
+    required bool Function() attemptCurrent,
+    required void Function(ConnectStage) advance,
+    required String? initialKnownHostAccountId,
+    required String? initialKnownHostDeviceId,
+    required String? initialKnownHostVaultId,
+    required Future<T> Function(
+      Future<bool> Function(HostRecord, String, String),
+    )
+    connect,
+    required Future<void> Function(T) close,
+  }) async {
+    KnownHostApprovalRequest? hostKeyDecisionToResolve;
+    // A full SSH retry starts at the first Jump Host again. Keep each
+    // endpoint proof only for this bounded route setup so a later-hop review
+    // does not force already reviewed earlier hops through another Vault sync.
+    // The proofs apply only to this SSH route setup.
+    final verifiedHostKeyProofs = <String, _VerifiedTerminalHostKeyProof>{};
+    Future<bool> verifyHostKeyFor(
+      HostRecord keyHost,
+      String type,
+      String fingerprint,
+    ) async {
+      try {
+        if (!attemptCurrent()) return false;
+        final canonicalHost = canonicalizeKnownHost(keyHost.address);
+        final presentedProof = VerifiedTerminalHostKey(
+          host: canonicalHost,
+          port: keyHost.port,
+          algorithm: type,
+          fingerprint: fingerprint,
+        );
+        // Reuse only a proof for this exact canonical endpoint, algorithm,
+        // and fingerprint while this route setup is in progress. Recheck
+        // the current account/device/Vault scope and the authenticated local
+        // KnownHost projection for every handshake. An unrelated repository
+        // rebuild may advance the decision generation during approval of a
+        // later hop; revalidate the exact endpoint in the current repository
+        // instead of forcing every earlier hop through another full route
+        // restart.
+        final verifiedProof = verifiedHostKeyProofs[presentedProof.proofKey];
+        if (verifiedProof != null) {
+          final verifiedRepository = verifiedProof.repository;
+          final usingTestTrust = knownHostTrustStatusForTesting != null;
+          final testProofStillCurrent =
+              usingTestTrust &&
+              (verifiedRepository == null ||
+                  identical(_repository, verifiedRepository)) &&
+              verifiedProof.generation == _knownHostDecisionGeneration;
+          final scopeStillCurrent =
+              verifiedProof.hostKey.proofKey == presentedProof.proofKey &&
+              verifiedProof.accountId == session?.accountId &&
+              verifiedProof.deviceId == identity?.deviceId &&
+              verifiedProof.deviceId == session?.deviceId &&
+              verifiedProof.vaultId == activeVault?.id;
+          void requestFreshDecision() {
+            hostKeyDecisionToResolve = KnownHostApprovalRequest(
+              host: canonicalHost,
+              port: keyHost.port,
+              algorithm: type,
+              fingerprint: fingerprint,
+              previouslyRevoked: false,
+            );
+          }
+
+          if (!scopeStillCurrent) {
+            verifiedHostKeyProofs.remove(presentedProof.proofKey);
+            throw StateError(currentL10n.sshHostKeyApprovalProofAccount);
+          }
+          if (usingTestTrust) {
+            if (!testProofStillCurrent) {
+              verifiedHostKeyProofs.remove(presentedProof.proofKey);
+              requestFreshDecision();
+              return false;
+            }
+          } else {
+            if (_knownHostStateTransitionPending) {
+              verifiedHostKeyProofs.remove(presentedProof.proofKey);
+              requestFreshDecision();
+              return false;
+            }
+            _ensureKnownHostDecisionCurrent();
+            _ensureKnownHostDecisionScopeCurrent(
+              accountId: verifiedProof.accountId,
+              deviceId: verifiedProof.deviceId,
+              vaultId: verifiedProof.vaultId,
+            );
+            final currentRepository = _repository;
+            if (currentRepository == null) {
+              verifiedHostKeyProofs.remove(presentedProof.proofKey);
+              requestFreshDecision();
+              return false;
+            }
+            final generationBeforeTrustRead = _knownHostDecisionGeneration;
+            // A route proof may be reused across hops/retries, but local
+            // KnownHost state can change without rebuilding the Repository
+            // (for example, a revocation queued from another route). Recheck
+            // the authenticated local projection and exact outbox state
+            // without holding this SSH handshake open for a network pull.
+            final cachedTrust = await currentRepository
+                .cachedKnownHostTrustSnapshot(
+                  host: canonicalHost,
+                  port: keyHost.port,
+                  algorithm: type,
+                  fingerprint: fingerprint,
+                );
+            if (verifiedProof.accountId != session?.accountId ||
+                verifiedProof.deviceId != identity?.deviceId ||
+                verifiedProof.deviceId != session?.deviceId ||
+                verifiedProof.vaultId != activeVault?.id) {
+              verifiedHostKeyProofs.remove(presentedProof.proofKey);
+              throw StateError(currentL10n.sshHostKeyApprovalProofAccount);
+            }
+            if (!identical(_repository, currentRepository) ||
+                _knownHostStateTransitionPending ||
+                generationBeforeTrustRead != _knownHostDecisionGeneration) {
+              verifiedHostKeyProofs.remove(presentedProof.proofKey);
+              requestFreshDecision();
+              return false;
+            }
+            if (cachedTrust.status != KnownHostTrustStatus.trusted) {
+              verifiedHostKeyProofs.remove(presentedProof.proofKey);
+              requestFreshDecision();
+              return false;
+            }
+            if (!identical(verifiedRepository, currentRepository) ||
+                verifiedProof.generation != generationBeforeTrustRead) {
+              // The proof remains valid only because the exact current
+              // endpoint/fingerprint is still trusted in the current
+              // authenticated projection. Refresh its route-local binding
+              // so subsequent hops do not restart this route again.
+              verifiedHostKeyProofs[presentedProof.proofKey] =
+                  _VerifiedTerminalHostKeyProof(
+                    hostKey: presentedProof,
+                    repository: currentRepository,
+                    generation: generationBeforeTrustRead,
+                    accountId: verifiedProof.accountId,
+                    deviceId: verifiedProof.deviceId,
+                    vaultId: verifiedProof.vaultId,
+                  );
+            }
+          }
+          tab.verifiedHostKeys[presentedProof.key] = presentedProof;
+          return true;
+        }
+        // End this SSH handshake before pulling the Vault. SSH servers
+        // commonly enforce a short LoginGraceTime, so even an already
+        // trusted key must not hold the transport open during sync. The
+        // outer loop resolves the current trust state, then retries with a
+        // route-scoped proof bound to that exact key and Vault scope.
+        hostKeyDecisionToResolve = KnownHostApprovalRequest(
+          host: canonicalHost,
+          port: keyHost.port,
+          algorithm: type,
+          fingerprint: fingerprint,
+          previouslyRevoked: false,
+        );
+        return false;
+      } catch (error) {
+        rethrow;
+      }
+    }
+
+    // Progress follows the real handshake: a presented key moves the tab to
+    // "verifying", an accepted key to "signing in".
+    Future<bool> trackedVerifyHostKeyFor(
+      HostRecord keyHost,
+      String type,
+      String fingerprint,
+    ) async {
+      advance(ConnectStage.verifyingHost);
+      final accepted = await verifyHostKeyFor(keyHost, type, fingerprint);
+      if (accepted) advance(ConnectStage.authenticating);
+      return accepted;
+    }
+
+    final maxHostKeyRestarts = hostCount * 2;
+    var hostKeyRestartCount = 0;
+    while (true) {
+      hostKeyDecisionToResolve = null;
+      advance(ConnectStage.connecting);
+      T? attemptConnection;
+      try {
+        attemptConnection = await connect(trackedVerifyHostKeyFor);
+      } catch (_) {
+        if (hostKeyDecisionToResolve == null) rethrow;
+      }
+
+      final request = hostKeyDecisionToResolve;
+      if (request == null) {
+        return attemptConnection!;
+      }
+      if (attemptConnection != null) await close(attemptConnection);
+      if (++hostKeyRestartCount > maxHostKeyRestarts) {
+        throw StateError(currentL10n.tooManySshHostKeyChecks);
+      }
+      if (!attemptCurrent()) throw const SshConnectCancelledException();
+      var decision = await _knownHostTrustDecision(
+        host: request.host,
+        port: request.port,
+        algorithm: request.algorithm,
+        fingerprint: request.fingerprint,
+      );
+      if (!attemptCurrent()) throw const SshConnectCancelledException();
+      final usingTestTrust = knownHostTrustStatusForTesting != null;
+      if (!usingTestTrust) {
+        _ensureKnownHostDecisionScopeCurrent(
+          accountId: initialKnownHostAccountId,
+          deviceId: initialKnownHostDeviceId,
+          vaultId: initialKnownHostVaultId,
+        );
+      } else if (decision.generation != _knownHostDecisionGeneration) {
+        throw StateError(currentL10n.sshHostKeyTestDecisionBecame);
+      }
+      if (decision.status == KnownHostTrustStatus.changed ||
+          decision.status == KnownHostTrustStatus.conflict) {
+        throw const SshHostKeyVerificationException(SshHostKeyFailure.changed);
+      }
+
+      if (decision.status != KnownHostTrustStatus.trusted) {
+        // Tabs connect independently, so several can reach an unknown host
+        // key at once. Their reviews are shown one at a time, and the next
+        // one starts when the previous approval is stored: a tab that
+        // waited asks again first, so tabs connecting to the same new Host
+        // are answered by one review. Storing takes a moment; when it is
+        // held up the next review is shown anyway.
+        final earlierReview = _hostKeyReview;
+        final review = _hostKeyReview = _HostKeyReviewTurn();
+        final storedBefore = _hostKeyApprovalsStored;
+        try {
+          if (earlierReview != null) {
+            await earlierReview.answered.future;
+            await earlierReview.stored.future.timeout(
+              const Duration(seconds: 2),
+              onTimeout: () {},
+            );
+            if (!attemptCurrent()) throw const SshConnectCancelledException();
+          }
+          if (_hostKeyApprovalsStored != storedBefore) {
+            decision = await _knownHostTrustDecision(
+              host: request.host,
+              port: request.port,
+              algorithm: request.algorithm,
+              fingerprint: request.fingerprint,
+            );
+            if (!attemptCurrent()) throw const SshConnectCancelledException();
+            if (!usingTestTrust) {
+              _ensureKnownHostDecisionScopeCurrent(
+                accountId: initialKnownHostAccountId,
+                deviceId: initialKnownHostDeviceId,
+                vaultId: initialKnownHostVaultId,
+              );
+            } else if (decision.generation != _knownHostDecisionGeneration) {
+              throw StateError(currentL10n.sshHostKeyTestDecisionBecame);
+            }
+            if (decision.status == KnownHostTrustStatus.changed ||
+                decision.status == KnownHostTrustStatus.conflict) {
+              throw const SshHostKeyVerificationException(
+                SshHostKeyFailure.changed,
+              );
+            }
+          }
+          if (decision.status != KnownHostTrustStatus.trusted) {
+            final approvalRequest = KnownHostApprovalRequest(
+              host: request.host,
+              port: request.port,
+              algorithm: request.algorithm,
+              fingerprint: request.fingerprint,
+              previouslyRevoked:
+                  decision.status == KnownHostTrustStatus.revoked,
+              offlineTransportUnavailable: decision.offlineTransportUnavailable,
+              // A new tab or a retry is reviewed over its own tab.
+              tabId: reviewTabId,
+            );
+            final confirmDetailed = askTrustHostApproval;
+            final confirmLegacy = askTrustHost;
+            advance(ConnectStage.awaitingUser);
+            final approved = confirmDetailed != null
+                ? await confirmDetailed(approvalRequest)
+                : confirmLegacy != null
+                ? await confirmLegacy(
+                    endpointKey(host: request.host, port: request.port),
+                    request.fingerprint,
+                  )
+                : false;
+            review.answer();
+            if (!attemptCurrent() || !approved) {
+              throw const SshHostKeyVerificationException(
+                SshHostKeyFailure.rejected,
+              );
+            }
+            advance(ConnectStage.verifyingHost);
+            var approvalWasQueuedOffline = false;
+            await approveKnownHost(
+              host: approvalRequest.host,
+              port: approvalRequest.port,
+              algorithm: approvalRequest.algorithm,
+              fingerprint: approvalRequest.fingerprint,
+              offlineFirstApprovalWasConfirmed:
+                  approvalRequest.offlineTransportUnavailable,
+              onOfflineApprovalQueued: () => approvalWasQueuedOffline = true,
+            );
+            if (approvalWasQueuedOffline) {
+              // A queued local record is not yet a Vault-confirmed SSH trust.
+              // The current handshake always stops; a later retry must sync and
+              // resolve any concurrent approval or revocation first.
+              throw const KnownHostApprovalQueuedException();
+            }
+            _hostKeyApprovalsStored++;
+            // Approval performs a Vault pull/push/readback, which may replace
+            // the repository or advance the decision generation while the
+            // review dialog is open. Resolve trust again after that sync so
+            // the route-scoped SSH proof is bound to the confirmed current state.
+            try {
+              decision = await _knownHostTrustDecision(
+                host: approvalRequest.host,
+                port: approvalRequest.port,
+                algorithm: approvalRequest.algorithm,
+                fingerprint: approvalRequest.fingerprint,
+              );
+            } on StateError {
+              if (_knownHostStateTransitionPending ||
+                  _vaultMembershipChangeActive) {
+                continue;
+              }
+              rethrow;
+            }
+            if (decision.status == KnownHostTrustStatus.changed ||
+                decision.status == KnownHostTrustStatus.conflict) {
+              throw const SshHostKeyVerificationException(
+                SshHostKeyFailure.changed,
+              );
+            }
+            if (decision.status != KnownHostTrustStatus.trusted) {
+              throw StateError(currentL10n.vaultSyncDidNotConfirmThe);
+            }
+          }
+        } finally {
+          if (identical(_hostKeyReview, review)) _hostKeyReview = null;
+          review.finish();
+        }
+      }
+
+      if (!usingTestTrust) {
+        _ensureKnownHostDecisionScopeCurrent(
+          accountId: initialKnownHostAccountId,
+          deviceId: initialKnownHostDeviceId,
+          vaultId: initialKnownHostVaultId,
+        );
+        // Membership and snapshot refreshes can begin after a successful
+        // preflight (for example, while a reviewed approval is syncing).
+        // Keep the transport closed and resolve the decision again on the
+        // next bounded pass instead of failing the user's connection or
+        // carrying a proof across the transition.
+        if (_knownHostStateTransitionPending || _vaultMembershipChangeActive) {
+          continue;
+        }
+        _ensureKnownHostDecisionCurrent();
+      }
+      if ((decision.repository != null &&
+              !identical(_repository, decision.repository)) ||
+          decision.generation != _knownHostDecisionGeneration) {
+        if (!usingTestTrust) continue;
+        throw StateError(currentL10n.sshHostKeyTestDecisionBecame);
+      }
+      final verifiedProof = VerifiedTerminalHostKey(
+        host: request.host,
+        port: request.port,
+        algorithm: request.algorithm,
+        fingerprint: request.fingerprint,
+      );
+      verifiedHostKeyProofs[verifiedProof.proofKey] =
+          _VerifiedTerminalHostKeyProof(
+            hostKey: verifiedProof,
+            repository: decision.repository,
+            generation: decision.generation,
+            accountId: session?.accountId,
+            deviceId: identity?.deviceId,
+            vaultId: activeVault?.id,
+          );
+      if (!attemptCurrent()) throw const SshConnectCancelledException();
     }
   }
 
@@ -23933,6 +24087,7 @@ class AppController extends ChangeNotifier {
       _sessionLogScope.retire();
       _automaticSync.stop();
       _syncHints.stop();
+      _stopDeviceActivity();
       if (client != null && endingSession != null && mobilePushSupported) {
         await _stopMobilePushForSession(client: client, auth: endingSession);
       }
@@ -24055,6 +24210,7 @@ class AppController extends ChangeNotifier {
       return false;
     }
     _stopVaultPresenceHeartbeats(clearState: true);
+    _stopDeviceActivity();
     _pendingAccountPasswordChange = null;
     accountPasswordChangeBusy = false;
     api?.accessToken = null;
@@ -24248,6 +24404,7 @@ class AppController extends ChangeNotifier {
     _syncHints.stop();
     await _waitForLockedReceiveCompletion();
     _stopVaultPresenceHeartbeats(clearState: true);
+    _stopDeviceActivity();
     _pendingAccountPasswordChange = null;
     cancelPreparedAccountRecovery(force: true);
     accountPasswordChangeBusy = false;
@@ -25120,6 +25277,7 @@ class AppController extends ChangeNotifier {
     databaseQuarantineRegistry.removeListener(_onDatabaseQuarantineChanged);
     _automaticSync.stop();
     _syncHints.stop();
+    _stopDeviceActivity();
     _stopVaultPresenceHeartbeats(clearState: true);
     _resetAdminRestoreStage();
     _resetAdminAccountRelayPolicy();

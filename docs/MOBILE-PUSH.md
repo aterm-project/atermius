@@ -12,4 +12,6 @@ flutter build apk --debug   --dart-define=ATERMIUS_FCM_API_KEY=YOUR_CLIENT_API_K
 
 For iOS use `ATERMIUS_FCM_IOS_APP_ID` and `ATERMIUS_FCM_IOS_BUNDLE_ID` with the common values. Configure the signing team's Push Notifications entitlement and matching sandbox/production provisioning. / iOS 使用对应 App ID、Bundle ID，配置签名团队、推送权限与正确环境。
 
+In the Runner target's Xcode build settings, set `ATERMIUS_RUNNER_ENTITLEMENTS` to `Runner/RunnerPush.entitlements` for the configuration that uses push. Set `ATERMIUS_APS_ENVIRONMENT` to the provisioned APNs environment (`development` for sandbox or `production` for distribution). Enable background sync hints on a signed device after configuring Firebase and the server. / 启用推送的签名配置需在 Runner 的 Xcode Build Settings 中设置 `ATERMIUS_RUNNER_ENTITLEMENTS` 为 `Runner/RunnerPush.entitlements`，并让 `ATERMIUS_APS_ENVIRONMENT` 与描述文件的 APNs 环境相符。
+
 The package/bundle identifier and Firebase project must match the server's configured provider. Keep service-account JSON and APNs private keys on the server, outside source and client bundles. Follow [server provider configuration](../deploy/README.md#mobile-background-sync-hints). / 服务端私钥不属于客户端构建参数，应按服务端指南独立保管。

@@ -3,6 +3,7 @@
 #include <flutter/standard_method_codec.h>
 
 #include <algorithm>
+#include <climits>
 #include <string>
 
 namespace {
@@ -12,6 +13,12 @@ using flutter::EncodableValue;
 EncodableValue Status(const char *status) {
   return EncodableValue(
       EncodableMap{{EncodableValue("status"), EncodableValue(status)}});
+}
+
+EncodableValue Stamp() {
+  const auto sequence = GetClipboardSequenceNumber();
+  return sequence ? EncodableValue(static_cast<int64_t>(sequence))
+                  : EncodableValue();
 }
 } // namespace
 
@@ -46,6 +53,10 @@ ClipboardBridge::ClipboardBridge(flutter::BinaryMessenger *messenger,
             }
           }
           result->Success(Read(max_bytes, automatic));
+        } else if (call.method_name() == "write") {
+          const auto args = call.arguments();
+          const auto text = args ? std::get_if<std::string>(args) : nullptr;
+          result->Success(text ? Write(*text) : Status("invalid"));
         } else {
           result->NotImplemented();
         }
@@ -73,8 +84,7 @@ EncodableValue ClipboardBridge::State() const {
       {EncodableValue("focused"), EncodableValue(Focused())},
       {EncodableValue("allowed"), EncodableValue(true)},
       {EncodableValue("hasClip"), EncodableValue(CountClipboardFormats() != 0)},
-      {EncodableValue("stamp"),
-       EncodableValue(static_cast<int64_t>(GetClipboardSequenceNumber()))},
+      {EncodableValue("stamp"), Stamp()},
       {EncodableValue("sensitive"), EncodableValue(Sensitive())},
   });
 }
@@ -82,12 +92,17 @@ EncodableValue ClipboardBridge::State() const {
 EncodableValue ClipboardBridge::Read(int max_bytes, bool automatic) const {
   if (!Focused())
     return Status("unfocused");
-  if (automatic && Sensitive())
-    return Status("noText");
-  if (!IsClipboardFormatAvailable(CF_UNICODETEXT))
-    return Status("empty");
   if (!OpenClipboard(window_))
     return Status("busy");
+  // Check the metadata and read the data under the same clipboard lock.
+  if (automatic && Sensitive()) {
+    CloseClipboard();
+    return Status("noText");
+  }
+  if (!IsClipboardFormatAvailable(CF_UNICODETEXT)) {
+    CloseClipboard();
+    return Status("empty");
+  }
   const auto data = GetClipboardData(CF_UNICODETEXT);
   const auto capacity = data ? GlobalSize(data) / sizeof(wchar_t) : 0;
   const auto text =
@@ -116,8 +131,7 @@ EncodableValue ClipboardBridge::Read(int max_bytes, bool automatic) const {
         result = EncodableValue(EncodableMap{
             {EncodableValue("status"), EncodableValue("text")},
             {EncodableValue("text"), EncodableValue(utf8)},
-            {EncodableValue("stamp"), EncodableValue(static_cast<int64_t>(
-                                          GetClipboardSequenceNumber()))},
+            {EncodableValue("stamp"), Stamp()},
         });
       }
     }
@@ -127,7 +141,54 @@ EncodableValue ClipboardBridge::Read(int max_bytes, bool automatic) const {
   return result;
 }
 
-void ClipboardBridge::HandleMessage(UINT message) {
-  if (message == WM_CLIPBOARDUPDATE && Focused())
+EncodableValue ClipboardBridge::Write(const std::string &text) const {
+  if (text.size() > INT_MAX || text.find('\0') != std::string::npos)
+    return Status("invalid");
+  const int bytes = static_cast<int>(text.size());
+  const int units = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                        text.data(), bytes, nullptr, 0);
+  if (!text.empty() && units == 0)
+    return Status("invalid");
+  const HGLOBAL memory = GlobalAlloc(
+      GMEM_MOVEABLE, (static_cast<size_t>(units) + 1) * sizeof(wchar_t));
+  if (!memory)
+    return Status("failed");
+  auto buffer = static_cast<wchar_t *>(GlobalLock(memory));
+  if (!buffer) {
+    GlobalFree(memory);
+    return Status("failed");
+  }
+  if (units && MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(),
+                                   bytes, buffer, units) != units) {
+    GlobalUnlock(memory);
+    GlobalFree(memory);
+    return Status("failed");
+  }
+  buffer[units] = L'\0';
+  GlobalUnlock(memory);
+  if (!OpenClipboard(window_)) {
+    GlobalFree(memory);
+    return Status("busy");
+  }
+  // Win32 takes ownership of the movable handle on success.
+  const bool written =
+      EmptyClipboard() && SetClipboardData(CF_UNICODETEXT, memory);
+  const auto stamp = Stamp();
+  CloseClipboard();
+  if (!written) {
+    GlobalFree(memory);
+    return Status("failed");
+  }
+  return EncodableValue(EncodableMap{
+      {EncodableValue("status"), EncodableValue("written")},
+      {EncodableValue("stamp"), stamp},
+  });
+}
+
+void ClipboardBridge::HandleMessage(UINT message, WPARAM wparam) {
+  // Clipboard updates while another window is in front are skipped. The
+  // Flutter focus node can stay focused across a native window switch.
+  if ((message == WM_CLIPBOARDUPDATE && Focused()) ||
+      (message == WM_ACTIVATE && LOWORD(wparam) != WA_INACTIVE))
     channel_->InvokeMethod("changed", nullptr);
 }

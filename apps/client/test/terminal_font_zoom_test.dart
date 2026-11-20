@@ -7,11 +7,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xterm/xterm.dart';
 
 void main() {
-  final android = TargetPlatformVariant.only(TargetPlatform.android);
+  const mobile = TargetPlatformVariant({
+    TargetPlatform.android,
+    TargetPlatform.iOS,
+  });
 
   testWidgets(
     'white pane handle exposes text-size reset for its terminal',
-    variant: android,
+    variant: mobile,
     (tester) async {
       final terminal = Terminal();
       final workspace = SessionWorkspaceController()..activate('test-terminal');
@@ -51,7 +54,7 @@ void main() {
   testWidgets(
     'pinching changes glyph size and terminal dimensions without remote input; '
     'expanded keybar restores the configured size',
-    variant: android,
+    variant: mobile,
     (tester) async {
       final terminal = Terminal();
       final output = <String>[];
@@ -85,7 +88,7 @@ void main() {
 
   testWidgets(
     'scale is bounded, survives rebuilds and cancellation, and is per terminal',
-    variant: android,
+    variant: mobile,
     (tester) async {
       final first = Terminal();
       final second = Terminal();
@@ -130,7 +133,7 @@ void main() {
 
   testWidgets(
     'single finger scroll and long press selection still work',
-    variant: android,
+    variant: mobile,
     (tester) async {
       final terminal = Terminal();
       final controller = TerminalController();

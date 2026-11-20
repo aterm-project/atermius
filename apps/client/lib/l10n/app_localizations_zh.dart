@@ -4626,7 +4626,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get remoteDesktopsUsePasswordLoginWithout =>
-      '远程桌面使用密码登录，不使用 SSH 路由或转发';
+      '远程桌面使用密码登录。持久 SSH 转发规则需在 SSH 主机上配置。';
+
+  @override
+  String get desktopJumpTunnelHint => '连接时会通过所选 SSH 跳板机自动建立本地临时转发，关闭会话后自动释放。';
+
+  @override
+  String get desktopJumpNativeRequired => '请在原生客户端打开此主机以使用所选 SSH 跳板机。';
+
+  @override
+  String get desktopJumpUpdateEngine => '请更新原生 RDP 引擎以通过 SSH 跳板机连接。';
+
+  @override
+  String get desktopJumpFailed => '无法通过 SSH 跳板机建立到远程桌面的临时转发。';
 
   @override
   String get remoteForwardingTargetsMustUseThis =>
@@ -5472,6 +5484,36 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get accountDevices => '账户设备';
+
+  @override
+  String get browserDevice => '浏览器';
+
+  @override
+  String browserLastIp(String ip) {
+    return '最近 IP · $ip';
+  }
+
+  @override
+  String browserPreviousIps(String ips) {
+    return '历史 IP · $ips';
+  }
+
+  @override
+  String get signOutDevice => '踢下线';
+
+  @override
+  String get signOutDeviceTitle => '将此设备踢下线？';
+
+  @override
+  String signOutDeviceDescription(String name) {
+    return '此操作会结束「$name」的当前会话并断开其工作区连接。';
+  }
+
+  @override
+  String get deviceSignedOut => '设备已下线。';
+
+  @override
+  String get deviceSignedInStatus => '已登录';
 
   @override
   String get accountInvitationCreated => '账户邀请已创建';
@@ -11807,6 +11849,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get listView => '列表视图';
 
   @override
+  String get showWorkspaceTabStrip => '显示横向标签栏';
+
+  @override
   String get afterCreatingALocalProfileYou =>
       '创建一个本地配置后，可以在此设备上加密保存 Host 和登录凭据。';
 
@@ -12830,7 +12875,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get theBrowserAndMobileAppsDont =>
-      '此版本的 Atermius 不提供本机 MCP 监听。请在 Windows、Linux、macOS 或 Android 应用中打开工作区后启用。';
+      '此版本的 Atermius 不提供本机 MCP 监听。请在 Windows、Linux、macOS、Android 或 iOS 应用中打开工作区后启用。';
 
   @override
   String get portMustBe102465535 => '端口范围为 1024–65535。';
@@ -16559,6 +16604,14 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get rdpStoragePermissionRequired =>
       '映射磁盘或文件夹需要在 Android 设置中允许 Atermius 访问文件，然后重试。';
+
+  @override
+  String get rdpStorageIosFolderRequired =>
+      '请在「文件」的「我的 iPhone」或「我的 iPad」中选择 Atermius 文件夹或其子文件夹。';
+
+  @override
+  String get iosPushTokenUnavailable =>
+      'Apple 推送服务尚未返回设备令牌。请确认设备已联网、应用签名已启用推送权限，然后重试。';
 
   @override
   String get rdpStoragePickerFailed => '无法选择本机文件夹，请换一个当前设备上的目录重试。';

@@ -9357,8 +9357,8 @@ class _TerminalPageState extends State<_TerminalPage> {
     // In the browser an open terminal takes the full width; the tab bar
     // already switches and opens sessions. The list stays for the empty page
     // and for a staged saved layout, whose panes are connected from it.
-    final showConnections =
-        !kIsWeb || activeTab == null || stagedWorkspace != null;
+    final inlineSession = kIsWeb && activeTab != null;
+    final showConnections = !inlineSession || stagedWorkspace != null;
     // A phone-width browser window has no room for the list and the welcome
     // panel side by side: the panel was squeezed into a 90 px sliver. On the
     // empty page the list is the part the user needs, so it gets the row.
@@ -9368,7 +9368,9 @@ class _TerminalPageState extends State<_TerminalPage> {
         stagedWorkspace == null &&
         MediaQuery.sizeOf(context).width < 600;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(17, 15, 17, 17),
+      padding: inlineSession
+          ? EdgeInsets.zero
+          : const EdgeInsets.fromLTRB(17, 15, 17, 17),
       child: LayoutBuilder(builder: (context, box) => Row(
         children: [
           if (showConnections) ...[
@@ -9519,164 +9521,160 @@ class _TerminalPageState extends State<_TerminalPage> {
           if (!listOnly) const SizedBox(width: 13),
           ],
           if (!listOnly) Expanded(
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
+            child: Container(
+              margin: inlineSession ? null : const EdgeInsets.only(top: 8),
+              decoration: inlineSession
+                  ? null
+                  : BoxDecoration(
                       color: wallpaperWindowFill(context, const Color(0xFF080C11)),
                       border: Border.all(color: context.palette.line),
                       borderRadius: BorderRadius.circular(15),
                     ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) => Column(
-                        children: [
-                          if (shareStatus != null)
-                            Container(
-                              key: const ValueKey('terminal-share-status'),
-                              height: 34,
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(color: context.palette.line),
+              child: LayoutBuilder(
+                builder: (context, constraints) => Column(
+                  children: [
+                    if (shareStatus != null)
+                      Container(
+                        key: const ValueKey('terminal-share-status'),
+                        height: 34,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(color: context.palette.line),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              shareStatus.phase == 'active'
+                                  ? Icons.lock_outline_rounded
+                                  : shareStatus.phase == 'failed'
+                                  ? Icons.error_outline_rounded
+                                  : Icons.sync_rounded,
+                              size: 14,
+                              color: shareStatus.phase == 'active'
+                                  ? context.palette.teal
+                                  : shareStatus.phase == 'failed'
+                                  ? context.palette.red
+                                  : context.palette.orange,
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              shareStatus.errorMessage ??
+                                  context.l10n.terminalSharePhase(shareStatus.phase),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: context.palette.muted,
+                                fontSize: 10,
+                              ),
+                            ),
+                            if (shareStatus.inputControlEnabled) ...[
+                              const SizedBox(width: 10),
+                              Flexible(
+                                child: Text(
+                                  shareStatus.controllerLabel == null
+                                      ? shareStatus.controllerRevoking
+                                            ? context.l10n.inputControlRevoking
+                                            : context.l10n.inputControlOff
+                                      : context.l10n.inputControlControllerlabel('${shareStatus.controllerLabel}'),
+                                  key: const ValueKey(
+                                    'terminal-share-controller-status',
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: context.palette.muted,
+                                    fontSize: 10,
+                                  ),
                                 ),
                               ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    shareStatus.phase == 'active'
-                                        ? Icons.lock_outline_rounded
-                                        : shareStatus.phase == 'failed'
-                                        ? Icons.error_outline_rounded
-                                        : Icons.sync_rounded,
-                                    size: 14,
-                                    color: shareStatus.phase == 'active'
-                                        ? context.palette.teal
-                                        : shareStatus.phase == 'failed'
-                                        ? context.palette.red
-                                        : context.palette.orange,
-                                  ),
-                                  const SizedBox(width: 7),
-                                  Text(
-                                    shareStatus.errorMessage ??
-                                        context.l10n.terminalSharePhase(shareStatus.phase),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: context.palette.muted,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                  if (shareStatus.inputControlEnabled) ...[
-                                    const SizedBox(width: 10),
-                                    Flexible(
-                                      child: Text(
-                                        shareStatus.controllerLabel == null
-                                            ? shareStatus.controllerRevoking
-                                                  ? context.l10n.inputControlRevoking
-                                                  : context.l10n.inputControlOff
-                                            : context.l10n.inputControlControllerlabel('${shareStatus.controllerLabel}'),
-                                        key: const ValueKey(
-                                          'terminal-share-controller-status',
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: context.palette.muted,
-                                          fontSize: 10,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                  if ({
-                                    'starting',
-                                    'connecting',
-                                    'active',
-                                  }.contains(shareStatus.phase)) ...[
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      'ID',
-                                      style: TextStyle(
-                                        color: context.palette.muted,
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 5),
-                                    SelectableText(
-                                      shareStatus.sessionId,
-                                      key: const ValueKey('terminal-share-code'),
-                                      style: TextStyle(
-                                        color: context.palette.muted,
-                                        fontSize: 10,
-                                        fontFamily: 'monospace',
-                                      ),
-                                    ),
-                                    IconButton(
-                                      tooltip: context.l10n.copyTerminalShareId,
-                                      visualDensity: VisualDensity.compact,
-                                      constraints: const BoxConstraints.tightFor(
-                                        width: 28,
-                                        height: 28,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      onPressed: () => Clipboard.setData(
-                                        ClipboardData(
-                                          text: shareStatus.sessionId,
-                                        ),
-                                      ),
-                                      icon: const Icon(Icons.copy, size: 13),
-                                    ),
-                                  ],
-                                ],
+                            ],
+                            if ({
+                              'starting',
+                              'connecting',
+                              'active',
+                            }.contains(shareStatus.phase)) ...[
+                              const SizedBox(width: 10),
+                              Text(
+                                'ID',
+                                style: TextStyle(
+                                  color: context.palette.muted,
+                                  fontSize: 10,
+                                ),
                               ),
-                            ),
-                          Expanded(
-                            child:
-                                widget.sessionWorkspace.sessionIds.length > 1 ||
-                                    (!liveSplitReady &&
-                                        (connected ||
-                                            deviceSession ||
-                                            activeTab?.connectProgress
-                                                    .isVisible ==
-                                                true ||
-                                            // A dropped SSH/Telnet tab keeps
-                                            // its terminal (scrollback) under
-                                            // the "Connection lost" overlay.
-                                            activeTab?.recovery?.everConnected ==
-                                                true) &&
-                                        activeTab != null)
-                                ? _workspaceView()
-                                : liveSplitReady
-                                ? _liveSplitTerminalViews(
-                                    stagedWorkspace,
-                                    stagedSplitTabs,
-                                  )
-                                : _TerminalWelcome(
-                                    app: app,
-                                    errorMessage: activeTab?.errorMessage,
-                                    // Without a session there is no pane
-                                    // handle menu to offer this from.
-                                    onJoinShare: collaborationEnabled
-                                        ? _joinTerminalShare
-                                        : null,
+                              const SizedBox(width: 5),
+                              SelectableText(
+                                shareStatus.sessionId,
+                                key: const ValueKey('terminal-share-code'),
+                                style: TextStyle(
+                                  color: context.palette.muted,
+                                  fontSize: 10,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: context.l10n.copyTerminalShareId,
+                                visualDensity: VisualDensity.compact,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 28,
+                                  height: 28,
+                                ),
+                                padding: EdgeInsets.zero,
+                                onPressed: () => Clipboard.setData(
+                                  ClipboardData(
+                                    text: shareStatus.sessionId,
                                   ),
-                          ),
-                          if (connected && activeTab != null)
-                            TerminalKeybar(
-                              terminal: activeTab.terminal,
-                              focusNode: _focusNodeFor(activeTab.id),
-                              readOnly: activeTab.state != 'connected',
-                              // Exclude this column's share status row.
-                              availablePaneHeight: constraints.maxHeight -
-                                  (shareStatus != null ? 34 : 0),
-                            ),
-                        ],
+                                ),
+                                icon: const Icon(Icons.copy, size: 13),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
+                    Expanded(
+                      child:
+                          widget.sessionWorkspace.sessionIds.length > 1 ||
+                              (!liveSplitReady &&
+                                  (connected ||
+                                      deviceSession ||
+                                      activeTab?.connectProgress
+                                              .isVisible ==
+                                          true ||
+                                      // A dropped SSH/Telnet tab keeps
+                                      // its terminal (scrollback) under
+                                      // the "Connection lost" overlay.
+                                      activeTab?.recovery?.everConnected ==
+                                          true) &&
+                                  activeTab != null)
+                          ? _workspaceView()
+                          : liveSplitReady
+                          ? _liveSplitTerminalViews(
+                              stagedWorkspace,
+                              stagedSplitTabs,
+                            )
+                          : _TerminalWelcome(
+                              app: app,
+                              errorMessage: activeTab?.errorMessage,
+                              // Without a session there is no pane
+                              // handle menu to offer this from.
+                              onJoinShare: collaborationEnabled
+                                  ? _joinTerminalShare
+                                  : null,
+                            ),
                     ),
-                  ),
+                    if (connected && activeTab != null)
+                      TerminalKeybar(
+                        terminal: activeTab.terminal,
+                        focusNode: _focusNodeFor(activeTab.id),
+                        readOnly: activeTab.state != 'connected',
+                        // Exclude this column's share status row.
+                        availablePaneHeight: constraints.maxHeight -
+                            (shareStatus != null ? 34 : 0),
+                      ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ],
@@ -10075,16 +10073,18 @@ return DesktopView(
                   _requestTerminalKeyboard(id, fromUserGesture: true);
                 }
               },
-              child: MergeSemantics(
-                child: Semantics(
-                  label: context.l10n.sshTerminalInput,
-                  textField: true,
-                  enabled: tab.liveTerminalTransport != null,
-                  onTap: () =>
-                      _requestTerminalKeyboard(id, fromUserGesture: true),
-                  child: surface,
-                ),
-              ),
+              child: kIsWeb
+                  ? surface
+                  : MergeSemantics(
+                    child: Semantics(
+                      label: context.l10n.sshTerminalInput,
+                      textField: true,
+                      enabled: tab.liveTerminalTransport != null,
+                      onTap: () =>
+                          _requestTerminalKeyboard(id, fromUserGesture: true),
+                      child: surface,
+                    ),
+                  ),
             ),
           ),
         ],
@@ -10144,23 +10144,22 @@ return DesktopView(
     return Stack(
       children: [
         Positioned.fill(child: ExcludeSemantics(child: terminalView)),
-        Positioned(
-          left: 0,
-          top: 0,
+        // The editable node covers the pane so a pointer can focus it anywhere.
+        Positioned.fill(
           child: ListenableBuilder(
             listenable: focusNode,
             builder: (context, _) => Semantics(
               label: context.l10n.sshTerminalInput,
               textField: true,
               container: true,
-              enabled: true,
+              enabled: tab.liveTerminalTransport != null,
               focusable: true,
               focused: focusNode.hasFocus,
               onFocus: () =>
                   _requestTerminalKeyboard(tab.id, fromUserGesture: true),
               onTap: () =>
                   _requestTerminalKeyboard(tab.id, fromUserGesture: true),
-              child: const SizedBox(width: 1, height: 1),
+              child: const SizedBox.expand(),
             ),
           ),
         ),
@@ -14951,6 +14950,7 @@ String _auditActionLabel(String action) => switch (action) {
   'auth.refresh_reuse_detected' => currentL10n.refreshCredentialReplayDetectedTheRelated,
   'device.registered' => currentL10n.deviceApproved2,
   'device.revoked' => currentL10n.deviceRevoked,
+  'device.sessions_signed_out' => currentL10n.deviceSignedOut,
   'relay.ticket_issued' => currentL10n.sshRelayConnectionTicketIssued,
   'relay.connected' => currentL10n.sshRelayConnected,
   'vault.created' => currentL10n.vaultCreated,
@@ -15287,13 +15287,25 @@ class _DevicesPage extends StatelessWidget {
         ],
         Padding(
           padding: const EdgeInsets.only(bottom: 9),
-          child: Text(
-            context.l10n.accountDevices,
-            style: TextStyle(
-              color: context.palette.muted,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.l10n.accountDevices,
+                  style: TextStyle(
+                    color: context.palette.muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (app.devices.isNotEmpty)
+                IconButton(
+                  tooltip: context.l10n.refreshDevices,
+                  onPressed: () => _refreshDevicesFromUi(app),
+                  icon: const Icon(Icons.refresh),
+                ),
+            ],
           ),
         ),
         if (app.devices.isEmpty)
@@ -15312,6 +15324,15 @@ class _DevicesPage extends StatelessWidget {
             final id = device['device_id'] as String? ?? 'unknown';
             final current = id == app.identity?.deviceId;
             final status = _trustedDeviceStatus(device['status']);
+            final signedIn = device['signed_in'];
+            final activity = device['activity'] as Map<String, dynamic>?;
+            final platform = activity?['platform'];
+            final isBrowser = platform == 'web';
+            final name = isBrowser
+                ? context.l10n.browserDevice
+                : activity?['device_name'] as String? ??
+                      device['name'] as String? ??
+                      context.l10n.unnamedDevice;
             final createdAt = _deviceTimestamp(device['created_at']);
             final revokedAt = _deviceTimestamp(device['revoked_at']);
             return Card(
@@ -15326,18 +15347,19 @@ class _DevicesPage extends StatelessWidget {
                       ? context.palette.lime.withValues(alpha: .15)
                       : context.palette.surfaceSoft,
                   child: Icon(
-                    current ? Icons.laptop_mac_rounded : Icons.devices_rounded,
+                    switch (platform) {
+                      'web' => Icons.language_rounded,
+                      'ios' || 'android' => Icons.smartphone_rounded,
+                      'windows' || 'macos' || 'linux' => Icons.computer_rounded,
+                      _ => Icons.devices_rounded,
+                    },
                     color: current ? context.palette.lime : context.palette.muted,
                     size: 19,
                   ),
                 ),
                 title: Row(
                   children: [
-                    Flexible(
-                      child: Text(
-                        device['name'] as String? ?? context.l10n.unnamedDevice,
-                      ),
-                    ),
+                    Flexible(child: Text(name)),
                     if (current) ...[
                       const SizedBox(width: 8),
                       Semantics(
@@ -15353,6 +15375,7 @@ class _DevicesPage extends StatelessWidget {
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (isBrowser) _browserDeviceActivity(context, activity!),
                     Text(
                       context.l10n.itemSigningKeyShortkey('${device['device_id']}', _shortKey(device['signing_public_key'] as String?)),
                       style: TextStyle(
@@ -15369,6 +15392,13 @@ class _DevicesPage extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         _DeviceStatusTag(status: status),
+                        if (status == _TrustedDeviceStatus.active &&
+                            signedIn is bool)
+                          _Tag(
+                            label: signedIn
+                                ? context.l10n.deviceSignedInStatus
+                                : context.l10n.signedOut,
+                          ),
                         if (createdAt != null)
                           Text(
                             context.l10n.createdFormat(DateFormat.yMMMd().add_jm().format(createdAt)),
@@ -15394,35 +15424,72 @@ class _DevicesPage extends StatelessWidget {
                 isThreeLine: true,
                 trailing: current || status != _TrustedDeviceStatus.active
                     ? null
-                    : IconButton(
-                        tooltip: context.l10n.revokeDevice,
-                        onPressed: () async {
-                          if (await _confirmRevokeDevice(
-                                context,
-                                device['name'] as String? ?? 'device',
-                              ) !=
-                              true) {
-                            return;
-                          }
-                          try {
-                            await app.revokeDevice(id);
-                          } catch (error) {
-                            if (context.mounted)
-                              _snack(
-                                context,
-                                app.friendlyError(error),
-                                error: true,
-                              );
-                          }
-                        },
-                        icon: Icon(
-                          Icons.block_rounded,
-                          color: context.palette.red,
-                        ),
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (signedIn == true)
+                            IconButton(
+                              tooltip: context.l10n.signOutDevice,
+                              onPressed: () =>
+                                  _signOutDevice(context, app, id, name),
+                              icon: const Icon(Icons.logout_rounded),
+                            ),
+                          IconButton(
+                            tooltip: context.l10n.revokeDevice,
+                            onPressed: () async {
+                              if (await _confirmRevokeDevice(context, name) !=
+                                  true) {
+                                return;
+                              }
+                              try {
+                                await app.revokeDevice(id);
+                              } catch (error) {
+                                if (context.mounted) {
+                                  _snack(
+                                    context,
+                                    app.friendlyError(error),
+                                    error: true,
+                                  );
+                                }
+                              }
+                            },
+                            icon: Icon(
+                              Icons.block_rounded,
+                              color: context.palette.red,
+                            ),
+                          ),
+                        ],
                       ),
               ),
             );
           }),
+      ],
+    ),
+  );
+}
+
+Widget _browserDeviceActivity(
+  BuildContext context,
+  Map<String, dynamic> activity,
+) {
+  final agent = activity['user_agent'] as String?;
+  final lastIp = activity['last_ip'] as String?;
+  final history =
+      (activity['ip_history'] as List?)?.whereType<String>() ?? const <String>[];
+  final style = TextStyle(color: context.palette.muted, fontSize: 11, height: 1.5);
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 7),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (agent != null) Text(agent, style: style),
+        if (lastIp != null)
+          Text(context.l10n.browserLastIp(lastIp), style: style),
+        if (history.isNotEmpty)
+          Text(
+            context.l10n.browserPreviousIps(history.join(', ')),
+            style: style,
+          ),
       ],
     ),
   );
@@ -15513,6 +15580,37 @@ class _DeviceStatusTag extends StatelessWidget {
       ),
       child: Text(label, style: TextStyle(fontSize: 10, color: color)),
     );
+  }
+}
+
+Future<void> _signOutDevice(
+  BuildContext context,
+  AppController app,
+  String id,
+  String name,
+) async {
+  final confirmed = await showAppDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(context.l10n.signOutDeviceTitle),
+      content: Text(context.l10n.signOutDeviceDescription(name)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(context.l10n.cancel2),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(context.l10n.signOutDevice),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+  try {
+    await app.signOutDevice(id);
+  } catch (error) {
+    if (context.mounted) _snack(context, app.friendlyError(error), error: true);
   }
 }
 

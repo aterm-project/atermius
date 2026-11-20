@@ -3759,7 +3759,11 @@
   "@portMustBeBetween1And": {},
   "rdpCertificateFingerprintMustContain64": "RDP certificate fingerprint must contain 64 hexadecimal SHA-256 digits",
   "@rdpCertificateFingerprintMustContain64": {},
-  "remoteDesktopsUsePasswordLoginWithout": "Remote desktops use password login without SSH routes or forwards",
+  "remoteDesktopsUsePasswordLoginWithout": "Remote desktops use password login. Configure saved SSH forwarding rules on an SSH host.",
+  "desktopJumpTunnelHint": "Connecting opens a temporary local port through the selected SSH jump host. Closing the session releases it.",
+  "desktopJumpNativeRequired": "Open this host in the native app to use its SSH jump host.",
+  "desktopJumpUpdateEngine": "Update the native RDP engine to connect through an SSH jump host.",
+  "desktopJumpFailed": "Could not open the temporary SSH forward to the remote desktop.",
   "@remoteDesktopsUsePasswordLoginWithout": {},
   "remoteForwardingTargetsMustUseThis": "Remote forwarding targets must use this device loopback unless network exposure is confirmed",
   "@remoteForwardingTargetsMustUseThis": {},
@@ -4432,6 +4436,40 @@
   },
   "accountDevices": "Account devices",
   "@accountDevices": {},
+  "browserDevice": "Browser",
+  "@browserDevice": {},
+  "browserLastIp": "Last IP · {ip}",
+  "@browserLastIp": {
+    "placeholders": {
+      "ip": {
+        "type": "String"
+      }
+    }
+  },
+  "browserPreviousIps": "Previous IPs · {ips}",
+  "@browserPreviousIps": {
+    "placeholders": {
+      "ips": {
+        "type": "String"
+      }
+    }
+  },
+  "signOutDevice": "Sign out device",
+  "@signOutDevice": {},
+  "signOutDeviceTitle": "Sign out this device?",
+  "@signOutDeviceTitle": {},
+  "signOutDeviceDescription": "Signing out {name} ends its current sessions and disconnects its workspace.",
+  "@signOutDeviceDescription": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deviceSignedOut": "Device signed out.",
+  "@deviceSignedOut": {},
+  "deviceSignedInStatus": "Signed in",
+  "@deviceSignedInStatus": {},
   "accountInvitationCreated": "Account invitation created",
   "@accountInvitationCreated": {},
   "accountInvitations": "Account invitations",
@@ -9826,6 +9864,8 @@
   "@theGroupRecordWasChangedBy": {},
   "listView": "List view",
   "@listView": {},
+  "showWorkspaceTabStrip": "Show horizontal tabs",
+  "@showWorkspaceTabStrip": {},
   "afterCreatingALocalProfileYou": "After creating a local profile, you can store Hosts and sign-in credentials encrypted on this device.",
   "@afterCreatingALocalProfileYou": {},
   "createdFormatdate": "Created {formatDate}",
@@ -10606,7 +10646,7 @@
   "@localListeningPort": {},
   "starting": "Starting…",
   "@starting": {},
-  "theBrowserAndMobileAppsDont": "This version of Atermius doesn't provide a local MCP listener. Enable it after opening the workspace in the Windows, Linux, macOS or Android app.",
+  "theBrowserAndMobileAppsDont": "This version of Atermius doesn't provide a local MCP listener. Open the workspace in the Windows, Linux, macOS, Android or iOS app to enable it.",
   "@theBrowserAndMobileAppsDont": {},
   "portMustBe102465535": "Port must be 1024–65535.",
   "@portMustBe102465535": {},
@@ -15160,6 +15200,10 @@
     }
   },
   "rdpStoragePermissionRequired": "To map a disk or folder, allow Atermius to access files in Android Settings, then try again.",
+  "rdpStorageIosFolderRequired": "Choose the Atermius folder or one of its subfolders under On My iPhone or On My iPad in Files.",
+  "@rdpStorageIosFolderRequired": {},
+  "iosPushTokenUnavailable": "Apple Push Notifications did not provide a device token. Try again when the device is online and the app is signed for push notifications.",
+  "@iosPushTokenUnavailable": {},
   "rdpStoragePickerFailed": "Could not choose a local folder. Try another folder on this device.",
   "rdpDriveMappingHelp": "Mapped disks and folders appear under \\\\tsclient in the remote session. Changes apply after reconnecting. Android requires file access permission for live disk mapping.",
   "rdpRenameMapping": "Rename mapping",

@@ -200,6 +200,55 @@ impl PgDeviceLifecycleRepository {
         }))
     }
 
+    pub(crate) async fn sign_out_device(
+        &self,
+        user: &auth::AuthUser,
+        target_device_id: &str,
+    ) -> Result<u64, ApiError> {
+        let mut tx = self.pool.begin().await.map_err(ApiError::internal)?;
+        crate::pg_auth_lifecycle::lock_account_lifecycle(&mut tx, &user.user_id).await?;
+        lock_revocation_sessions(&mut tx, user, target_device_id).await?;
+        crate::pg_sync_auth::PgSyncAuthRepository::recheck_active_principal_for_sync_tx(
+            &mut tx, user,
+        )
+        .await?;
+        let owned: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM devices WHERE user_id=$1 AND device_id=$2)",
+        )
+        .bind(&user.user_id)
+        .bind(target_device_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(ApiError::internal)?;
+        if !owned {
+            return Err(ApiError::not_found());
+        }
+        let changed = sqlx::query(
+            "UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP \
+             WHERE user_id=$1 AND device_id=$2 AND revoked_at IS NULL \
+               AND refresh_expires_at>CURRENT_TIMESTAMP",
+        )
+        .bind(&user.user_id)
+        .bind(target_device_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::internal)?
+        .rows_affected();
+        if changed > 0 {
+            sqlx::query("DELETE FROM notification_push_endpoints WHERE user_id=$1 AND device_id=$2")
+                .bind(&user.user_id)
+                .bind(target_device_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(ApiError::internal)?;
+            self.record_device_event(&mut tx, user, target_device_id, "device.sessions_signed_out")
+                .await?;
+            notify_sync_wake(&mut tx).await?;
+        }
+        tx.commit().await.map_err(ApiError::internal)?;
+        Ok(changed)
+    }
+
     pub(crate) async fn revoke_device(
         &self,
         user: &auth::AuthUser,
@@ -300,7 +349,7 @@ impl PgDeviceLifecycleRepository {
         .await
         .map_err(ApiError::internal)?;
 
-        self.record_device_revoked(&mut tx, user, target_device_id)
+        self.record_device_event(&mut tx, user, target_device_id, "device.revoked")
             .await?;
         // Revocation invalidates every session and notification socket bound
         // to this device, including sockets connected to peer nodes.
@@ -312,22 +361,24 @@ impl PgDeviceLifecycleRepository {
         }))
     }
 
-    async fn record_device_revoked(
+    async fn record_device_event(
         &self,
         tx: &mut Transaction<'_, Postgres>,
         user: &auth::AuthUser,
         device_id: &str,
+        action: &str,
     ) -> Result<(), ApiError> {
         let scope_id = crate::audit::account_scope_id(&self.audit_scope_key, &user.user_id)?;
         sqlx::query(
             "INSERT INTO audit_events( \
                  scope_type,scope_id,actor_user_id,actor_device_id,action, \
                  resource_type,resource_id,result,occurred_at,source \
-             ) VALUES('account',$1,$2,$3,'device.revoked','device',$4,'success',$5,'api')",
+             ) VALUES('account',$1,$2,$3,$4,'device',$5,'success',$6,'api')",
         )
         .bind(scope_id)
         .bind(&user.user_id)
         .bind(&user.device_id)
+        .bind(action)
         .bind(device_id)
         .bind(Utc::now().timestamp())
         .execute(&mut **tx)

@@ -14,7 +14,7 @@
 | Split panes and saved sets / 分屏与窗口组合 | Workspace support; OS windows on desktop / 工作区支持，系统窗口限桌面 | Browser workspace panes / 浏览器工作区面板 |
 | Organizations and member Host sharing / 组织与成员分享 | Requires server capabilities / 需服务端能力 | Requires server capabilities / 需服务端能力 |
 | Temporary guest SSH/RDP / 临时访客访问 | Open its URL in a supported browser / 在支持的浏览器打开链接 | Separate account-free trusted-gateway flow / 独立免账户受信网关流程 |
-| External MCP / 外部 MCP | Desktop and Android loopback service, explicit opt-in; iOS has no listener / 桌面与 Android 回环服务，显式启用；iOS 不监听 | No OS listener / 不监听系统端口 |
+| External MCP / 外部 MCP | Opt-in listener on desktop, Android and iOS. iOS revokes the token on backgrounding. / 桌面、Android 和 iOS 可显式启用监听。iOS 进入后台时撤销令牌。 | No OS listener / 不监听系统端口 |
 
 ## Terminal scrollback / 终端回滚缓冲
 

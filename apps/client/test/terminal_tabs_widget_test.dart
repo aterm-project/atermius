@@ -339,4 +339,3 @@ class _UnsupportedPortForwardPlatform implements SshPortForwardPlatform {
     SshPortForwardProfile profile,
   ) => throw UnsupportedError('Unsupported in this Web-like test.');
 }
-

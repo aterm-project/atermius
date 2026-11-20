@@ -236,7 +236,9 @@ void main() {
           HostRecord.fromJson(host.copyWith(name: 'Renamed').toJson()).protocol,
           protocol,
         );
-        expect(host.copyWith(jumpHostId: 'ssh').validate(), isNotNull);
+        final routed = host.copyWith(jumpHostId: 'ssh');
+        expect(routed.validate(), isNull);
+        expect(HostRecord.fromJson(routed.toJson()).jumpHostId, 'ssh');
       }
       expect(
         () => HostRecord.fromJson({'id': 'h', 'protocol': 'other'}),

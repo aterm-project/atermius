@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../platform/window_chrome.dart';
@@ -171,6 +172,7 @@ class WindowBarMetrics {
     BuildContext context,
     WindowChromeController controller,
   ) {
+    if (kIsWeb) return touch;
     final scaler = MediaQuery.textScalerOf(context);
     if (controller.supported && controller.state.customFrame) {
       return WindowBarMetrics.native(

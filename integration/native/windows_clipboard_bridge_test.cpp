@@ -24,6 +24,9 @@ public:
     handler = std::move(value);
   }
   EncodableMap Call(const char *method, EncodableMap arguments = {}) {
+    return Invoke(method, EncodableValue(std::move(arguments)));
+  }
+  EncodableMap Invoke(const char *method, EncodableValue arguments) {
     EncodableValue result;
     bool success = false;
     flutter::MethodResultFunctions<> capture(
@@ -88,7 +91,7 @@ int main() {
         "read", {{EncodableValue("maxBytes"), EncodableValue(4)}});
     assert(std::get<std::string>(small[EncodableValue("status")]) ==
            "tooLarge");
-    bridge.HandleMessage(WM_CLIPBOARDUPDATE);
+    bridge.HandleMessage(WM_CLIPBOARDUPDATE, 0);
     assert(messenger.changes == 1);
     Copy(window, L"synthetic secret", true);
     state = messenger.Call("state");
@@ -106,8 +109,24 @@ int main() {
     read = messenger.Call("read");
     assert(std::get<std::string>(read[EncodableValue("status")]) ==
            "unfocused");
-    bridge.HandleMessage(WM_CLIPBOARDUPDATE);
+    bridge.HandleMessage(WM_CLIPBOARDUPDATE, 0);
     assert(messenger.changes == 1);
+    // A detached window may be in front when the parent receives remote text.
+    const auto written =
+        messenger.Invoke("write", EncodableValue(u8"新 😀\r\nabc"));
+    assert(std::get<std::string>(written.at(EncodableValue("status"))) ==
+           "written");
+    assert(OpenClipboard(other));
+    const auto handle = GetClipboardData(CF_UNICODETEXT);
+    const auto contents = static_cast<const wchar_t *>(GlobalLock(handle));
+    assert(contents && wcscmp(contents, L"新 😀\r\nabc") == 0);
+    GlobalUnlock(handle);
+    CloseClipboard();
+    SetForegroundWindow(window);
+    bridge.HandleMessage(WM_ACTIVATE, WA_ACTIVE);
+    assert(messenger.changes == 2);
+    bridge.HandleMessage(WM_ACTIVATE, WA_INACTIVE);
+    assert(messenger.changes == 2);
     DestroyWindow(other);
   }
   DestroyWindow(window);

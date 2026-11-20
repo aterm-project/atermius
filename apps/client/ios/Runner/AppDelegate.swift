@@ -27,7 +27,6 @@ import UIKit
   private var transferTimers: [String: Timer] = [:]
 
   private var mcpLeaseId: String?
-  private var mcpBackgroundTask: UIBackgroundTaskIdentifier = .invalid
 
   override func application(
     _ application: UIApplication,
@@ -40,6 +39,14 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     let messenger = engineBridge.applicationRegistrar.messenger()
+    FlutterMethodChannel(name: "atermius/device_info", binaryMessenger: messenger)
+      .setMethodCallHandler { call, result in
+        if call.method == "name" {
+          result(UIDevice.current.name)
+        } else {
+          result(FlutterMethodNotImplemented)
+        }
+      }
     setupSshKeepaliveChannel(messenger: messenger)
     setupTransferForegroundChannel(messenger: messenger)
     setupMcpForegroundChannel(messenger: messenger)
@@ -51,16 +58,17 @@ import UIKit
 
   // MARK: - Scene Lifecycle Background Task Rotation
 
-  private func hasForegroundScene() -> Bool {
+  private func hasForegroundScene(excluding scene: UIScene? = nil) -> Bool {
     return UIApplication.shared.connectedScenes
       .compactMap { $0 as? UIWindowScene }
       .contains {
-        $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive
+        $0 !== scene &&
+          ($0.activationState == .foregroundActive || $0.activationState == .foregroundInactive)
       }
   }
 
   func handleSceneDidEnterBackground(_ scene: UIScene) {
-    guard !hasForegroundScene() else { return }
+    guard !hasForegroundScene(excluding: scene) else { return }
     handleDidEnterBackground()
   }
 
@@ -69,6 +77,7 @@ import UIKit
   }
 
   private func handleDidEnterBackground() {
+    revokeMcpLease(reason: "background_unprotected")
     if sshSessions > 0 {
       acquireSshBackgroundTaskIfNeeded()
       sshRevision += 1
@@ -78,9 +87,6 @@ import UIKit
         "starting": false,
         "notifications": false,
       ])
-    }
-    if let leaseId = mcpLeaseId {
-      acquireMcpBackgroundTask(for: leaseId)
     }
   }
 
@@ -95,7 +101,6 @@ import UIKit
         "notifications": false,
       ])
     }
-    endMcpBackgroundTask()
   }
 
   // MARK: - SSH Background Keepalive (`atermius/ssh_keepalive`)
@@ -217,10 +222,12 @@ import UIKit
         self.releaseTransferLease(leaseId)
         var taskId: UIBackgroundTaskIdentifier = .invalid
         taskId = UIApplication.shared.beginBackgroundTask(withName: "com.atermius.transfer.\(leaseId)") { [weak self] in
-          self?.releaseTransferLease(leaseId)
-          if taskId != .invalid {
-            UIApplication.shared.endBackgroundTask(taskId)
-          }
+          guard let self = self, self.transferTasks[leaseId] == taskId else { return }
+          self.releaseTransferLease(leaseId)
+        }
+        guard taskId != .invalid else {
+          result(false)
+          return
         }
         self.transferTasks[leaseId] = taskId
         self.scheduleTransferLeaseTimeout(leaseId)
@@ -243,37 +250,10 @@ import UIKit
 
   // MARK: - MCP Foreground Guard (`atermius/mcp_foreground`)
 
-  private func acquireMcpBackgroundTask(for leaseId: String) {
-    guard mcpBackgroundTask == .invalid else { return }
-    var taskId: UIBackgroundTaskIdentifier = .invalid
-    taskId = UIApplication.shared.beginBackgroundTask(withName: "com.atermius.mcp_foreground") { [weak self] in
-      guard let self = self else {
-        if taskId != .invalid {
-          UIApplication.shared.endBackgroundTask(taskId)
-        }
-        return
-      }
-      let expiredId = self.mcpBackgroundTask != .invalid ? self.mcpBackgroundTask : taskId
-      self.mcpBackgroundTask = .invalid
-      if self.mcpLeaseId == leaseId {
-        self.mcpLeaseId = nil
-        self.mcpChannel?.invokeMethod("revoked", arguments: [
-          "leaseId": leaseId,
-          "reason": "timeout",
-        ])
-      }
-      if expiredId != .invalid {
-        UIApplication.shared.endBackgroundTask(expiredId)
-      }
-    }
-    mcpBackgroundTask = taskId
-  }
-
-  private func endMcpBackgroundTask() {
-    guard mcpBackgroundTask != .invalid else { return }
-    let taskId = mcpBackgroundTask
-    mcpBackgroundTask = .invalid
-    UIApplication.shared.endBackgroundTask(taskId)
+  private func revokeMcpLease(reason: String) {
+    guard let leaseId = mcpLeaseId else { return }
+    mcpLeaseId = nil
+    mcpChannel?.invokeMethod("revoked", arguments: ["leaseId": leaseId, "reason": reason])
   }
 
   private func setupMcpForegroundChannel(messenger: FlutterBinaryMessenger) {
@@ -294,26 +274,18 @@ import UIKit
       }
       switch call.method {
       case "start":
-        if let previous = self.mcpLeaseId, previous != leaseId {
-          self.endMcpBackgroundTask()
-          self.mcpChannel?.invokeMethod("revoked", arguments: [
-            "leaseId": previous,
-            "reason": "replaced",
-          ])
+        guard self.hasForegroundScene() else {
+          result(["active": false, "notifications": false])
+          return
+        }
+        if self.mcpLeaseId != leaseId {
+          self.revokeMcpLease(reason: "replaced")
         }
         self.mcpLeaseId = leaseId
-        if !self.hasForegroundScene() {
-          self.acquireMcpBackgroundTask(for: leaseId)
-        }
-        let active = self.hasForegroundScene() || self.mcpBackgroundTask != .invalid
-        result([
-          "active": active,
-          "notifications": false,
-        ])
+        result(["active": true, "notifications": false])
       case "stop":
         if self.mcpLeaseId == leaseId {
           self.mcpLeaseId = nil
-          self.endMcpBackgroundTask()
         }
         result(nil)
       default:

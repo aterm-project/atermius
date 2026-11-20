@@ -66,3 +66,5 @@ jobs:
         working-directory: apps/client
       - run: flutter test --concurrency=2 test/session_recovery_test.dart test/desktop_reconnect_test.dart test/telnet_app_controller_test.dart test/terminal_tabs_controller_test.dart test/telnet_local_profile_widget_test.dart test/terminal_tabs_widget_test.dart
         working-directory: apps/client
+      - run: flutter test --concurrency=2 test/terminal_font_zoom_test.dart test/mobile_workspace_tabs_test.dart test/desktop_wheel_test.dart test/rdp_storage_test.dart test/mcp_listener_lifecycle_test.dart test/mcp_listener_transport_test.dart test/mcp_settings_panel_test.dart
+        working-directory: apps/client

@@ -5524,7 +5524,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get remoteDesktopsUsePasswordLoginWithout =>
-      'Remote desktops use password login without SSH routes or forwards';
+      'Remote desktops use password login. Configure saved SSH forwarding rules on an SSH host.';
+
+  @override
+  String get desktopJumpTunnelHint =>
+      'Connecting opens a temporary local port through the selected SSH jump host. Closing the session releases it.';
+
+  @override
+  String get desktopJumpNativeRequired =>
+      'Open this host in the native app to use its SSH jump host.';
+
+  @override
+  String get desktopJumpUpdateEngine =>
+      'Update the native RDP engine to connect through an SSH jump host.';
+
+  @override
+  String get desktopJumpFailed =>
+      'Could not open the temporary SSH forward to the remote desktop.';
 
   @override
   String get remoteForwardingTargetsMustUseThis =>
@@ -6475,6 +6491,36 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountDevices => 'Account devices';
+
+  @override
+  String get browserDevice => 'Browser';
+
+  @override
+  String browserLastIp(String ip) {
+    return 'Last IP · $ip';
+  }
+
+  @override
+  String browserPreviousIps(String ips) {
+    return 'Previous IPs · $ips';
+  }
+
+  @override
+  String get signOutDevice => 'Sign out device';
+
+  @override
+  String get signOutDeviceTitle => 'Sign out this device?';
+
+  @override
+  String signOutDeviceDescription(String name) {
+    return 'Signing out $name ends its current sessions and disconnects its workspace.';
+  }
+
+  @override
+  String get deviceSignedOut => 'Device signed out.';
+
+  @override
+  String get deviceSignedInStatus => 'Signed in';
 
   @override
   String get accountInvitationCreated => 'Account invitation created';
@@ -13342,6 +13388,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get listView => 'List view';
 
   @override
+  String get showWorkspaceTabStrip => 'Show horizontal tabs';
+
+  @override
   String get afterCreatingALocalProfileYou =>
       'After creating a local profile, you can store Hosts and sign-in credentials encrypted on this device.';
 
@@ -14495,7 +14544,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get theBrowserAndMobileAppsDont =>
-      'This version of Atermius doesn\'t provide a local MCP listener. Enable it after opening the workspace in the Windows, Linux, macOS or Android app.';
+      'This version of Atermius doesn\'t provide a local MCP listener. Open the workspace in the Windows, Linux, macOS, Android or iOS app to enable it.';
 
   @override
   String get portMustBe102465535 => 'Port must be 1024–65535.';
@@ -18530,6 +18579,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get rdpStoragePermissionRequired =>
       'To map a disk or folder, allow Atermius to access files in Android Settings, then try again.';
+
+  @override
+  String get rdpStorageIosFolderRequired =>
+      'Choose the Atermius folder or one of its subfolders under On My iPhone or On My iPad in Files.';
+
+  @override
+  String get iosPushTokenUnavailable =>
+      'Apple Push Notifications did not provide a device token. Try again when the device is online and the app is signed for push notifications.';
 
   @override
   String get rdpStoragePickerFailed =>

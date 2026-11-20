@@ -4,6 +4,7 @@ import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/l10n/l10n.dart';
 import 'package:aterm_client/ui/host_editor_panel.dart';
 import 'package:aterm_client/ui/new_session_menu.dart';
+import 'package:aterm_client/ui/ios_native/ios_mode.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,7 +62,7 @@ void main() {
   }
 
   testWidgets(
-    'protocol selector changes default ports and saves VNC without SSH fields',
+    'protocol selector changes default ports and saves VNC with an SSH jump host',
     (tester) async {
       HostRecord? saved;
       await tester.pumpWidget(
@@ -72,7 +73,14 @@ void main() {
                 saved = await showHostEditorPanel(
                   context,
                   groups: [],
-                  hosts: [],
+                  hosts: const [
+                    HostRecord(
+                      id: 'jump',
+                      name: 'Bastion',
+                      address: 'ssh.example',
+                      username: 'user',
+                    ),
+                  ],
                 );
               },
               child: const Text('Edit'),
@@ -102,14 +110,42 @@ void main() {
         '5900',
       );
       expect(find.byKey(const ValueKey('host_editor_kind')), findsNothing);
-      expect(find.byKey(const ValueKey('host_editor_jump_host')), findsNothing);
+      final jump = find.byKey(const ValueKey('host_editor_jump_host'));
+      await tester.ensureVisible(jump);
+      await tester.tap(jump);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Bastion').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('host_editor_save')),
+      );
       await tester.tap(find.byKey(const ValueKey('host_editor_save')));
       await tester.pumpAndSettle();
+      expect(saved?.jumpHostId, 'jump');
       expect(saved?.protocol, HostProtocol.vnc);
       expect(saved?.port, 5900);
       expect(saved?.username, '');
     },
   );
+  testWidgets('iPhone RDP editor shows its saved jump host in Advanced', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: IosNativeScope(
+        enabled: true,
+        child: HostEditorPanel(
+          existing: HostRecord(
+            id: 'desktop', name: 'Private RDP', address: 'win',
+            protocol: HostProtocol.rdp, jumpHostId: 'jump',
+          ),
+          groups: [],
+          hosts: [HostRecord(id: 'jump', name: 'Bastion', address: 'ssh.example')],
+        ),
+      ),
+    ));
+    final picker = find.byKey(const ValueKey('host_editor_jump_host'));
+    await tester.ensureVisible(picker);
+    expect(find.descendant(of: picker, matching: find.text('Bastion')), findsOneWidget);
+  });
+
   testWidgets('changing protocol preserves a custom port', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(

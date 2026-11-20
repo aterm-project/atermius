@@ -120,6 +120,17 @@ void main() {
         v2.address,
         v3.address,
       ]);
+
+      // A synced route may reference a removed jump host. It must fail
+      // before the native viewer is allowed to dial the private target.
+      connections.last.controller.addError(StateError('Disconnected'));
+      await _settle();
+      app.hosts[app.hosts.indexWhere((h) => h.id == v1.id)] =
+          v3.copyWith(jumpHostId: 'missing');
+      await tab.desktop!.reconnect();
+      expect(tab.desktop!.state, 'disconnected');
+      expect(tab.desktop!.error, isNotEmpty);
+      expect(connected, hasLength(3));
     } finally {
       await app.disconnectAllTerminalTabs();
       app.dispose();
