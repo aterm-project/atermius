@@ -5464,5 +5464,12 @@
   "logsRecordSizeLimit": "各 {kib} KiB まで",
   "logsRecordSecretsHint": "記録中は機密情報を表示しないでください",
   "logsClearFilters": "検索とフィルターをクリア",
-  "forwardingPortAuto": "自動"
+  "forwardingPortAuto": "自動",
+  "snippetsKindScript": "スクリプト",
+  "snippetsKindStructured": "構造化コマンド",
+  "snippetsParameterCount": "{count, plural, other{パラメーター {count} 個}}",
+  "snippetsMoreLines": "{count, plural, other{ほか {count} 行}}",
+  "snippetsMoreActions": "スニペットのその他の操作",
+  "snippetsReadOnlyNotice": "この保管庫は読み取り専用です。スニペットの確認と実行はできますが、追加・編集・削除はできません。",
+  "workspacesReadOnlyNotice": "この保管庫は読み取り専用です。保存済みのワークスペースはプレビューできますが、保存・変更・削除はできません。"
 }

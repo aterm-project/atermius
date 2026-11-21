@@ -18493,4 +18493,39 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get forwardingPortAuto => '自动';
+
+  @override
+  String get snippetsKindScript => '脚本';
+
+  @override
+  String get snippetsKindStructured => '结构化命令';
+
+  @override
+  String snippetsParameterCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个参数',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String snippetsMoreLines(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '还有 $count 行',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get snippetsMoreActions => '更多片段操作';
+
+  @override
+  String get snippetsReadOnlyNotice => '此保险库为只读。你可以检查并运行片段，但不能新建、编辑或删除片段。';
+
+  @override
+  String get workspacesReadOnlyNotice => '此保险库为只读。你可以预览已保存的工作区，但不能保存、更改或删除工作区。';
 }

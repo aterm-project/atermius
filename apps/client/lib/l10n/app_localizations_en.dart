@@ -20631,4 +20631,43 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get forwardingPortAuto => 'auto';
+
+  @override
+  String get snippetsKindScript => 'Script';
+
+  @override
+  String get snippetsKindStructured => 'Structured command';
+
+  @override
+  String snippetsParameterCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count parameters',
+      one: '1 parameter',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String snippetsMoreLines(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '+$count more lines',
+      one: '+1 more line',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get snippetsMoreActions => 'More snippet actions';
+
+  @override
+  String get snippetsReadOnlyNotice =>
+      'This Vault is read-only. You can review and run snippets, but you can\'t add, edit or delete them.';
+
+  @override
+  String get workspacesReadOnlyNotice =>
+      'This Vault is read-only. You can preview saved workspaces, but you can\'t save, change or delete them.';
 }

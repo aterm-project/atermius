@@ -5464,5 +5464,12 @@
   "logsRecordSizeLimit": "每份不超过 {kib} KiB",
   "logsRecordSecretsHint": "录制时请避免显示机密信息",
   "logsClearFilters": "清除搜索和筛选",
-  "forwardingPortAuto": "自动"
+  "forwardingPortAuto": "自动",
+  "snippetsKindScript": "脚本",
+  "snippetsKindStructured": "结构化命令",
+  "snippetsParameterCount": "{count, plural, other{{count} 个参数}}",
+  "snippetsMoreLines": "{count, plural, other{还有 {count} 行}}",
+  "snippetsMoreActions": "更多片段操作",
+  "snippetsReadOnlyNotice": "此保险库为只读。你可以检查并运行片段，但不能新建、编辑或删除片段。",
+  "workspacesReadOnlyNotice": "此保险库为只读。你可以预览已保存的工作区，但不能保存、更改或删除工作区。"
 }

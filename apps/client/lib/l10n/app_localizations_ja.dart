@@ -19440,4 +19440,41 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get forwardingPortAuto => '自動';
+
+  @override
+  String get snippetsKindScript => 'スクリプト';
+
+  @override
+  String get snippetsKindStructured => '構造化コマンド';
+
+  @override
+  String snippetsParameterCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'パラメーター $count 個',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String snippetsMoreLines(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'ほか $count 行',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get snippetsMoreActions => 'スニペットのその他の操作';
+
+  @override
+  String get snippetsReadOnlyNotice =>
+      'この保管庫は読み取り専用です。スニペットの確認と実行はできますが、追加・編集・削除はできません。';
+
+  @override
+  String get workspacesReadOnlyNotice =>
+      'この保管庫は読み取り専用です。保存済みのワークスペースはプレビューできますが、保存・変更・削除はできません。';
 }

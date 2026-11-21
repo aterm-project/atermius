@@ -5464,5 +5464,12 @@
   "logsRecordSizeLimit": "До {kib} КиБ каждая",
   "logsRecordSecretsHint": "Не выводите секреты во время записи",
   "logsClearFilters": "Сбросить поиск и фильтр",
-  "forwardingPortAuto": "авто"
+  "forwardingPortAuto": "авто",
+  "snippetsKindScript": "Скрипт",
+  "snippetsKindStructured": "Структурированная команда",
+  "snippetsParameterCount": "{count, plural, one{{count} параметр} few{{count} параметра} many{{count} параметров} other{{count} параметра}}",
+  "snippetsMoreLines": "{count, plural, one{ещё {count} строка} few{ещё {count} строки} many{ещё {count} строк} other{ещё {count} строки}}",
+  "snippetsMoreActions": "Другие действия со сниппетом",
+  "snippetsReadOnlyNotice": "Сейф доступен только для чтения. Сниппеты можно просматривать и запускать, но нельзя добавлять, изменять или удалять.",
+  "workspacesReadOnlyNotice": "Сейф доступен только для чтения. Сохранённые рабочие пространства можно просматривать, но нельзя сохранять, изменять или удалять."
 }

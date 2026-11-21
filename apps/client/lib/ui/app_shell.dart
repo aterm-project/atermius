@@ -7546,23 +7546,34 @@ class _SnippetsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canWrite = app.activeVault?.canWrite == true;
+    final batchTargetCount = _availableSnippetTargets(app).length;
     return SingleChildScrollView(
       padding: AppDensity.of(context).pagePadding,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PageHeading(
+          PageHeader(
             title: context.l10n.commandSnippets,
             subtitle: context.l10n.keepRepeatableCommandsInTheSame,
-            trailing: FilledButton.icon(
-              onPressed: canWrite ? () => _editSnippet(context, app) : null,
-              icon: const Icon(Icons.add),
-              label: Text(context.l10n.newSnippet),
-            ),
+            actions: [
+              FilledButton.icon(
+                onPressed: canWrite ? () => _editSnippet(context, app) : null,
+                icon: const Icon(Icons.add),
+                label: Text(context.l10n.newSnippet),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
+          if (app.activeVault != null && !canWrite) ...[
+            PageNotice(
+              icon: Icons.lock_outline_rounded,
+              tone: context.palette.orange,
+              message: context.l10n.snippetsReadOnlyNotice,
+            ),
+            const SizedBox(height: 14),
+          ],
           if (app.snippets.isEmpty)
-            _EmptyState(
+            _LibraryEmptyState(
               icon: Icons.code_rounded,
               title: context.l10n.noSnippetsYet2,
               body: context.l10n.previewStructuredCommandsOrReviewAnd,
@@ -7573,161 +7584,613 @@ class _SnippetsPage extends StatelessWidget {
               ),
             )
           else
-            ...app.snippets.map(
-              (snippet) => Semantics(
-                container: true,
-                explicitChildNodes: true,
-                label: context.l10n.snippetTitle3(snippet.title),
-                child: Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(17, 15, 12, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.code_rounded,
-                              color: context.palette.lime,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 9),
-                            Expanded(
-                              child: Text(
-                                snippet.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            _Tag(label: snippet.shell),
-                            const SizedBox(width: 8),
-                            if (app.recordHistorySupported)
-                              IconButton(
-                                key: ValueKey('snippet_history_${snippet.id}'),
-                                tooltip: context.l10n.recordHistoryTitle,
-                                onPressed: () => showRecordHistoryDialog(
-                                  context,
-                                  app: app,
-                                  recordId: snippet.id,
-                                  recordName: snippet.title,
-                                ),
-                                icon: Icon(
-                                  Icons.history_rounded,
-                                  size: 18,
-                                  color: context.palette.muted,
-                                ),
-                              ),
-                            IconButton(
-                              tooltip: context.l10n.edit2,
-                              onPressed: canWrite
-                                  ? () => _editSnippet(context, app, snippet)
-                                  : null,
-                              icon: Icon(
-                                Icons.edit_outlined,
-                                size: 18,
-                                color: context.palette.muted,
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: context.l10n.delete2,
-                              onPressed: !canWrite
-                                  ? null
-                                  : () async {
-                                      if (await _confirmDelete(
-                                            context,
-                                            snippet.title,
-                                          ) ==
-                                          true)
-                                        await app.deleteSnippet(snippet);
-                                    },
-                              icon: Icon(
-                                Icons.delete_outline,
-                                size: 18,
-                                color: context.palette.muted,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(13),
-                          decoration: BoxDecoration(
-                            color: context.palette.codeBackground,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: context.palette.line),
-                          ),
-                          child: SelectableText(
-                            snippet.executionMode == SnippetExecutionMode.script
-                                ? snippet.body
-                                : '${snippet.program} · ${snippet.arguments.length} arguments · ${snippet.parameters.length} parameters',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              height: 1.55,
-                              color: context.palette.codeText,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 9),
-                        Row(
-                          children: [
-                            for (final tag in snippet.tags)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 5),
-                                child: _Tag(label: tag),
-                              ),
-                            const Spacer(),
-                            TextButton.icon(
-                              onPressed:
-                                  snippet.executionMode ==
-                                      SnippetExecutionMode.script
-                                  ? () => Clipboard.setData(
-                                      ClipboardData(text: snippet.body),
-                                    )
-                                  : null,
-                              icon: const Icon(Icons.copy, size: 15),
-                              label: Text(context.l10n.copy),
-                            ),
-                            const SizedBox(width: 7),
-                            FilledButton.tonalIcon(
-                              onPressed: () =>
-                                  _runSnippet(context, app, snippet),
-                              icon: const Icon(
-                                Icons.visibility_outlined,
-                                size: 17,
-                              ),
-                              label: Text(context.l10n.reviewAndRun),
-                            ),
-                          ],
-                        ),
-                        if (snippet.executionMode ==
-                                SnippetExecutionMode.bashCommand &&
-                            _availableSnippetTargets(app).length > 1) ...[
-                          const SizedBox(height: 4),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: OutlinedButton.icon(
-                              key: ValueKey('snippet-batch-run-${snippet.id}'),
-                              onPressed: () =>
-                                  _runSnippetBatch(context, app, snippet),
-                              icon: const Icon(Icons.dns_outlined, size: 16),
-                              label: Text(
-                                context.l10n.reviewOnCountConnectedHosts(_availableSnippetTargets(app).length),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
+            _LibraryCardGrid(
+              itemCount: app.snippets.length,
+              minCardWidth: 400,
+              maxColumns: 3,
+              compactBelow: 420,
+              itemBuilder: (context, index, compact) => _SnippetCard(
+                app: app,
+                snippet: app.snippets[index],
+                canWrite: canWrite,
+                batchTargetCount: batchTargetCount,
+                compact: compact,
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+enum _SnippetMenuAction { copy, history, edit, delete }
+
+/// One snippet of the library: what it runs and in which shell, its tags,
+/// and the actions that review, run, copy, edit or delete it.
+class _SnippetCard extends StatelessWidget {
+  const _SnippetCard({
+    required this.app,
+    required this.snippet,
+    required this.canWrite,
+    required this.batchTargetCount,
+    required this.compact,
+  });
+
+  final AppController app;
+  final SnippetRecord snippet;
+  final bool canWrite;
+
+  /// Connected terminal tabs a structured command can be reviewed on at once.
+  final int batchTargetCount;
+
+  /// A narrow (phone) card: copy, edit and delete move into one menu and the
+  /// run buttons take the full width.
+  final bool compact;
+
+  /// Script lines the preview shows; the rest is counted below it.
+  static const _previewLines = 4;
+
+  bool get _isScript => snippet.executionMode == SnippetExecutionMode.script;
+
+  Future<void> _copy() => Clipboard.setData(ClipboardData(text: snippet.body));
+
+  Future<void> _edit(BuildContext context) =>
+      _editSnippet(context, app, snippet);
+
+  Future<void> _history(BuildContext context) => showRecordHistoryDialog(
+    context,
+    app: app,
+    recordId: snippet.id,
+    recordName: snippet.title,
+  );
+
+  Future<void> _delete(BuildContext context) async {
+    if (await _confirmDelete(context, snippet.title) == true) {
+      await app.deleteSnippet(snippet);
+    }
+  }
+
+  /// The command as the card shows it, and how many script lines it leaves
+  /// out: the first lines of a script, or the structured program with its
+  /// arguments, parameters as `{name}`.
+  (InlineSpan, int) _preview(BuildContext context) {
+    final palette = context.palette;
+    if (_isScript) {
+      final lines = snippet.body.trimRight().split('\n');
+      final hidden = lines.length > _previewLines
+          ? lines.length - _previewLines
+          : 0;
+      return (TextSpan(text: lines.take(_previewLines).join('\n')), hidden);
+    }
+    final spans = <InlineSpan>[
+      TextSpan(
+        text: snippet.program,
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    ];
+    for (final argument in snippet.arguments) {
+      spans.add(const TextSpan(text: ' '));
+      final name = argument.parameter;
+      if (name == null) {
+        spans.add(TextSpan(text: _snippetDisplayWord(argument.value ?? '')));
+        continue;
+      }
+      final secret = snippet.parameters.any(
+        (parameter) =>
+            parameter.name == name &&
+            parameter.type == SnippetParameterType.credentialSecret,
+      );
+      spans.add(
+        TextSpan(
+          text: '{$name}',
+          style: TextStyle(
+            color: secret ? palette.orange : palette.hostBlue,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+    return (TextSpan(children: spans), 0);
+  }
+
+  Widget _iconAction(
+    BuildContext context, {
+    Key? key,
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) => IconButton(
+    key: key,
+    tooltip: tooltip,
+    onPressed: onPressed,
+    visualDensity: VisualDensity.compact,
+    color: context.palette.muted,
+    icon: Icon(icon, size: 18),
+  );
+
+  Widget _menu(BuildContext context) {
+    final l10n = context.l10n;
+    return PopupMenuButton<_SnippetMenuAction>(
+      popUpAnimationStyle: AppMotion.menuStyle(context),
+      tooltip: l10n.snippetsMoreActions,
+      iconColor: context.palette.muted,
+      onSelected: (action) => switch (action) {
+        _SnippetMenuAction.copy => _copy(),
+        _SnippetMenuAction.history => _history(context),
+        _SnippetMenuAction.edit => _edit(context),
+        _SnippetMenuAction.delete => _delete(context),
+      },
+      itemBuilder: (menuContext) => [
+        if (_isScript)
+          appMenuItem(
+            menuContext,
+            value: _SnippetMenuAction.copy,
+            child: AppMenuLabel(Icons.copy_rounded, l10n.copy),
+          ),
+        if (app.recordHistorySupported)
+          appMenuItem(
+            menuContext,
+            key: ValueKey('snippet_history_${snippet.id}'),
+            value: _SnippetMenuAction.history,
+            child: AppMenuLabel(Icons.history_rounded, l10n.recordHistoryTitle),
+          ),
+        appMenuItem(
+          menuContext,
+          value: _SnippetMenuAction.edit,
+          enabled: canWrite,
+          child: AppMenuLabel(Icons.edit_outlined, l10n.edit2),
+        ),
+        appMenuItem(
+          menuContext,
+          value: _SnippetMenuAction.delete,
+          enabled: canWrite,
+          child: AppMenuLabel(
+            Icons.delete_outline,
+            l10n.delete2,
+            color: canWrite ? context.palette.red : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final l10n = context.l10n;
+    final density = AppDensity.of(context);
+    final structured = !_isScript;
+    final tone = structured ? palette.hostBlue : palette.teal;
+    final (preview, hiddenLines) = _preview(context);
+
+    final title = Text(
+      snippet.title,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 14,
+        height: 1.3,
+        fontWeight: FontWeight.w600,
+        color: palette.text,
+      ),
+    );
+    final chips = Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        _LibraryChip(label: snippet.shell, tone: tone, monospace: true),
+        _LibraryChip(
+          label: structured
+              ? l10n.snippetsKindStructured
+              : l10n.snippetsKindScript,
+        ),
+        if (structured && snippet.parameters.isNotEmpty)
+          _LibraryChip(
+            icon: Icons.tune_rounded,
+            label: l10n.snippetsParameterCount(snippet.parameters.length),
+          ),
+        for (final tag in snippet.tags) _LibraryChip(label: '#$tag'),
+      ],
+    );
+    // On a narrow card the chips take the card's full width under the title
+    // instead of a column beside the icon.
+    final header = Row(
+      crossAxisAlignment: compact
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: tone.withValues(alpha: .13),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            structured ? Icons.data_object_rounded : Icons.code_rounded,
+            size: 19,
+            color: tone,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: compact
+              ? title
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [title, const SizedBox(height: 6), chips],
+                ),
+        ),
+        const SizedBox(width: 4),
+        if (compact)
+          _menu(context)
+        else ...[
+          if (_isScript)
+            _iconAction(
+              context,
+              icon: Icons.copy_rounded,
+              tooltip: l10n.copy,
+              onPressed: _copy,
+            ),
+          if (app.recordHistorySupported)
+            _iconAction(
+              context,
+              key: ValueKey('snippet_history_${snippet.id}'),
+              icon: Icons.history_rounded,
+              tooltip: l10n.recordHistoryTitle,
+              onPressed: () => _history(context),
+            ),
+          _iconAction(
+            context,
+            icon: Icons.edit_outlined,
+            tooltip: l10n.edit2,
+            onPressed: canWrite ? () => _edit(context) : null,
+          ),
+          _iconAction(
+            context,
+            icon: Icons.delete_outline,
+            tooltip: l10n.delete2,
+            onPressed: canWrite ? () => _delete(context) : null,
+          ),
+        ],
+      ],
+    );
+
+    final code = Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: palette.codeBackground,
+        borderRadius: BorderRadius.circular(density.radiusMd),
+        border: Border.all(color: palette.line.withValues(alpha: .7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SelectionArea(
+            child: Text.rich(
+              preview,
+              maxLines: _previewLines,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                height: 1.55,
+                color: palette.codeText,
+              ),
+            ),
+          ),
+          if (hiddenLines > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              l10n.snippetsMoreLines(hiddenLines),
+              style: TextStyle(fontSize: 11, color: palette.hint),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    final runButtons = <Widget>[
+      if (snippet.executionMode == SnippetExecutionMode.bashCommand &&
+          batchTargetCount > 1)
+        OutlinedButton.icon(
+          key: ValueKey('snippet-batch-run-${snippet.id}'),
+          onPressed: () => _runSnippetBatch(context, app, snippet),
+          icon: const Icon(Icons.dns_outlined, size: 16),
+          label: Text(l10n.reviewOnCountConnectedHosts(batchTargetCount)),
+        ),
+      FilledButton.tonalIcon(
+        onPressed: () => _runSnippet(context, app, snippet),
+        icon: const Icon(Icons.play_arrow_rounded, size: 18),
+        label: Text(l10n.reviewAndRun),
+      ),
+    ];
+    final footer = compact
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < runButtons.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                runButtons[i],
+              ],
+            ],
+          )
+        : Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: runButtons,
+          );
+
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: l10n.snippetTitle3(snippet.title),
+      child: Material(
+        color: palette.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(density.radiusLg + 2),
+          side: BorderSide(color: palette.line),
+        ),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 14, compact ? 8 : 10, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            // In a grid row the card is as tall as its tallest neighbour;
+            // the run buttons stay at the bottom so the rows line up.
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  header,
+                  if (compact) ...[
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: chips,
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: EdgeInsets.only(right: compact ? 8 : 6),
+                    child: code,
+                  ),
+                ],
+              ),
+              Padding(
+                padding: EdgeInsets.only(top: 14, right: compact ? 8 : 6),
+                child: footer,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows a literal argument the way it would be typed in a shell, quoted
+/// when it has spaces or shell characters. Display only: the command that
+/// runs is built and reviewed in the run dialog.
+String _snippetDisplayWord(String value) {
+  if (value.isNotEmpty &&
+      !RegExp(r'''[\s'"\\$`!*?&|;<>(){}\[\]#~]''').hasMatch(value)) {
+    return value;
+  }
+  return "'${value.replaceAll("'", r"'\''")}'";
+}
+
+/// Lays the cards of a library page (snippets, saved workspaces) out in
+/// equal columns: as many as fit [minCardWidth] (scaled with the text size),
+/// at most [maxColumns]. The cards of a row are as tall as the tallest one,
+/// so their actions line up.
+class _LibraryCardGrid extends StatelessWidget {
+  const _LibraryCardGrid({
+    required this.itemCount,
+    required this.minCardWidth,
+    required this.maxColumns,
+    required this.compactBelow,
+    required this.itemBuilder,
+  });
+
+  final int itemCount;
+  final double minCardWidth;
+  final int maxColumns;
+
+  /// Cards narrower than this (scaled with the text size) use their compact
+  /// layout.
+  final double compactBelow;
+  final Widget Function(BuildContext context, int index, bool compact)
+  itemBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final textScale = (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(
+      1.0,
+      2.0,
+    );
+    return LayoutBuilder(
+      builder: (context, box) {
+        const gap = 12.0;
+        final columns =
+            ((box.maxWidth + gap) / (minCardWidth * textScale + gap))
+                .floor()
+                .clamp(1, maxColumns);
+        final cardWidth = (box.maxWidth - gap * (columns - 1)) / columns;
+        final compact = cardWidth < compactBelow * textScale;
+        final rows = <Widget>[];
+        for (var start = 0; start < itemCount; start += columns) {
+          if (start > 0) rows.add(const SizedBox(height: gap));
+          if (columns == 1) {
+            rows.add(itemBuilder(context, start, compact));
+            continue;
+          }
+          rows.add(
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < columns; i++) ...[
+                    if (i > 0) const SizedBox(width: gap),
+                    Expanded(
+                      child: start + i < itemCount
+                          ? itemBuilder(context, start + i, compact)
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: rows,
+        );
+      },
+    );
+  }
+}
+
+/// A small label on a library card: a property (shell, layout, a count), a
+/// tag, or, with [tone], a state such as the active pane or missing Hosts.
+class _LibraryChip extends StatelessWidget {
+  const _LibraryChip({
+    required this.label,
+    this.icon,
+    this.tone,
+    this.monospace = false,
+    super.key,
+  });
+
+  final String label;
+  final IconData? icon;
+  final Color? tone;
+  final bool monospace;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final tone = this.tone;
+    final color = tone ?? palette.muted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: tone == null
+            ? palette.surfaceRaised
+            : tone.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: tone == null
+              ? palette.line.withValues(alpha: .8)
+              : tone.withValues(alpha: .3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.3,
+                fontWeight: tone == null ? FontWeight.w500 : FontWeight.w600,
+                fontFamily: monospace ? 'monospace' : null,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The "nothing here yet" panel of the library pages (snippets, saved
+/// workspaces, files): what is missing, how to add it and the action that
+/// does. With [fill] the panel takes the space it is given and centres its
+/// content.
+class _LibraryEmptyState extends StatelessWidget {
+  const _LibraryEmptyState({
+    required this.icon,
+    required this.title,
+    required this.body,
+    this.action,
+    this.fill = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final Widget? action;
+  final bool fill;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: palette.teal.withValues(alpha: .12),
+              shape: BoxShape.circle,
+              border: Border.all(color: palette.teal.withValues(alpha: .25)),
+            ),
+            child: Icon(icon, size: 24, color: palette.teal),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: palette.text,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Text(
+              body,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.55,
+                color: palette.muted,
+              ),
+            ),
+          ),
+          if (action != null) ...[const SizedBox(height: 18), action!],
+        ],
+      ),
+    );
+    return Material(
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(
+          AppDensity.of(context).radiusLg + 2,
+        ),
+        side: BorderSide(color: palette.line),
+      ),
+      child: fill
+          ? Center(child: SingleChildScrollView(child: content))
+          : Center(child: content),
     );
   }
 }
@@ -7744,69 +8207,41 @@ class _SavedWorkspacesPage extends StatelessWidget {
     return SingleChildScrollView(
       padding: AppDensity.of(context).pagePadding,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PageHeading(
+          PageHeader(
             title: context.l10n.savedWorkspaces,
-            subtitle:
-                context.l10n.namedTerminalLayoutsSyncEncryptedIncluding,
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.end,
-              children: [
-                OutlinedButton.icon(
-                  key: const ValueKey('workspace-save-current'),
-                  onPressed: canWrite && canSaveCurrent
-                      ? () => _saveCurrentWorkspace(context, app)
-                      : null,
-                  icon: const Icon(Icons.bookmark_add_outlined),
-                  label: Text(context.l10n.saveCurrentTabs),
-                ),
-                FilledButton.icon(
-                  key: const ValueKey('workspace-create-split'),
-                  onPressed: canCreateSplit
-                      ? () => _createSplitWorkspace(context, app)
-                      : null,
-                  icon: const Icon(Icons.splitscreen_rounded),
-                  label: Text(context.l10n.createSplitWorkspace),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: context.palette.teal.withValues(alpha: .08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: context.palette.teal.withValues(alpha: .25)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.lock_outline_rounded,
-                  size: 17,
-                  color: context.palette.teal,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    context.l10n.onlyTheHostIdTabOrder,
-                    style: const TextStyle(fontSize: 12, height: 1.4),
-                  ),
-                ),
-              ],
-            ),
+            subtitle: context.l10n.namedTerminalLayoutsSyncEncryptedIncluding,
+            actions: [
+              OutlinedButton.icon(
+                key: const ValueKey('workspace-save-current'),
+                onPressed: canWrite && canSaveCurrent
+                    ? () => _saveCurrentWorkspace(context, app)
+                    : null,
+                icon: const Icon(Icons.bookmark_add_outlined),
+                label: Text(context.l10n.saveCurrentTabs),
+              ),
+              FilledButton.icon(
+                key: const ValueKey('workspace-create-split'),
+                onPressed: canCreateSplit
+                    ? () => _createSplitWorkspace(context, app)
+                    : null,
+                icon: const Icon(Icons.splitscreen_rounded),
+                label: Text(context.l10n.createSplitWorkspace),
+              ),
+            ],
           ),
           const SizedBox(height: 18),
+          if (app.activeVault != null && !canWrite) ...[
+            PageNotice(
+              icon: Icons.edit_off_outlined,
+              tone: context.palette.orange,
+              message: context.l10n.workspacesReadOnlyNotice,
+            ),
+            const SizedBox(height: 14),
+          ],
           if (app.savedWorkspaces.isEmpty)
-            _EmptyState(
+            _LibraryEmptyState(
               icon: Icons.view_quilt_outlined,
               title: context.l10n.noSavedWorkspaces,
               body: canSaveCurrent
@@ -7828,13 +8263,55 @@ class _SavedWorkspacesPage extends StatelessWidget {
                     ),
             )
           else
-            ...app.savedWorkspaces.map(
-              (workspace) => _SavedWorkspaceCard(
+            _LibraryCardGrid(
+              itemCount: app.savedWorkspaces.length,
+              minCardWidth: 460,
+              maxColumns: 2,
+              compactBelow: 440,
+              itemBuilder: (context, index, compact) => _SavedWorkspaceCard(
                 app: app,
-                workspace: workspace,
+                workspace: app.savedWorkspaces[index],
                 canWrite: canWrite,
+                compact: compact,
               ),
             ),
+          // What a workspace record holds is fine print under the list, so
+          // the saved layouts come first.
+          const SizedBox(height: 16),
+          _WorkspacesPrivacyNote(message: context.l10n.onlyTheHostIdTabOrder),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkspacesPrivacyNote extends StatelessWidget {
+  const _WorkspacesPrivacyNote({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(
+              Icons.lock_outline_rounded,
+              size: 15,
+              color: palette.teal,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(fontSize: 12, height: 1.5, color: palette.muted),
+            ),
+          ),
         ],
       ),
     );
@@ -7846,133 +8323,369 @@ class _SavedWorkspaceCard extends StatelessWidget {
     required this.app,
     required this.workspace,
     required this.canWrite,
+    this.compact = false,
   });
 
   final AppController app;
   final WorkspaceRecord workspace;
   final bool canWrite;
 
+  /// A narrow (phone) card: the preview button takes the full width and a
+  /// missing Host's repair button moves under its row.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final l10n = context.l10n;
     final isSplit = workspace.isSplit;
     final ratio = workspace.splitRatioBasisPoints ?? 5000;
     final firstPercent = ratio ~/ 100;
     final secondPercent = 100 - firstPercent;
+    final knownHostIds = {for (final host in app.hosts) host.id};
     final missingCount = workspace.hostIds
-        .where((id) => !app.hosts.any((host) => host.id == id))
+        .where((id) => !knownHostIds.contains(id))
         .length;
-    return Card(
-      key: ValueKey('saved-workspace-${workspace.id}'),
-      margin: const EdgeInsets.only(bottom: 11),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(17, 15, 13, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.view_quilt_outlined,
-                  size: 19,
-                  color: context.palette.lime,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    workspace.name,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+
+    final name = Text(
+      workspace.name,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 15,
+        height: 1.3,
+        fontWeight: FontWeight.w600,
+        color: palette.text,
+      ),
+    );
+    final chips = Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        _LibraryChip(
+          icon: isSplit ? Icons.space_dashboard_outlined : Icons.tab_outlined,
+          label: isSplit
+              ? l10n.splitFirstpercentSecondpercent(firstPercent, secondPercent)
+              : l10n.countTabs(workspace.panes.length),
+        ),
+        if (isSplit)
+          _LibraryChip(
+            label: workspace.splitAxis == WorkspaceSplitAxis.horizontal
+                ? l10n.sideBySide
+                : l10n.stacked,
+          ),
+        if (isSplit)
+          _LibraryChip(
+            label: l10n.activePaneValuevalue(workspace.activeIndex + 1),
+            tone: palette.teal,
+          ),
+        if (missingCount > 0)
+          _LibraryChip(
+            icon: Icons.link_off_rounded,
+            label: l10n.missingcountMissing(missingCount),
+            tone: palette.orange,
+          ),
+      ],
+    );
+    // On a narrow card the chips take the card's full width under the name
+    // instead of a column beside the layout miniature.
+    final header = Row(
+      crossAxisAlignment: compact
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
+      children: [
+        _WorkspaceLayoutThumbnail(
+          workspace: workspace,
+          knownHostIds: knownHostIds,
+          compact: compact,
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: compact
+              ? name
+              : Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [name, const SizedBox(height: 7), chips],
                   ),
                 ),
-                _Tag(
-                  label: isSplit
-                      ? context.l10n.splitFirstpercentSecondpercent(firstPercent, secondPercent)
-                      : context.l10n.countTabs(workspace.panes.length),
-                ),
-                if (isSplit)
-                  _Tag(
-                    label: workspace.splitAxis == WorkspaceSplitAxis.horizontal
-                        ? context.l10n.sideBySide
-                        : context.l10n.stacked,
-                  ),
-                if (isSplit) ...[
-                  const SizedBox(width: 6),
-                  _Tag(label: context.l10n.activePaneValuevalue(workspace.activeIndex + 1)),
-                ],
-                if (missingCount > 0) ...[
-                  const SizedBox(width: 7),
-                  _Tag(label: context.l10n.missingcountMissing(missingCount)),
-                ],
-                PopupMenuButton<String>(
-                  popUpAnimationStyle: AppMotion.menuStyle(context),
-                  tooltip: context.l10n.workspaceActions,
-                  onSelected: (action) =>
-                      _runWorkspaceAction(context, app, workspace, action),
-                  itemBuilder: (context) => [
-                    appMenuItem(context,value: 'rename', child: Text(context.l10n.rename)),
-                    appMenuItem(context,
-                      value: 'duplicate',
-                      child: Text(context.l10n.duplicate),
-                    ),
-                    appMenuItem(context,value: 'delete', child: Text(context.l10n.delete2)),
-                  ],
-                ),
-              ],
+        ),
+        const SizedBox(width: 4),
+        PopupMenuButton<String>(
+          popUpAnimationStyle: AppMotion.menuStyle(context),
+          tooltip: l10n.workspaceActions,
+          iconColor: palette.muted,
+          onSelected: (action) =>
+              _runWorkspaceAction(context, app, workspace, action),
+          itemBuilder: (menuContext) => [
+            appMenuItem(
+              menuContext,
+              value: 'rename',
+              child: AppMenuLabel(
+                Icons.drive_file_rename_outline_rounded,
+                l10n.rename,
+              ),
             ),
-            if (workspace.layoutTree case final tree?) ...[
-              const SizedBox(height: 6),
-              Wrap(
-                key: ValueKey('workspace-topology-${workspace.id}'),
-                spacing: 5,
-                runSpacing: 4,
-                children: [
-                  for (final (index, label) in _workspaceSplitDescriptions(
-                    tree,
-                  ).indexed)
-                    Container(
-                      key: ValueKey(
-                        'workspace-topology-${workspace.id}-split-$index',
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: context.palette.surface,
-                        borderRadius: BorderRadius.circular(7),
-                        border: Border.all(color: context.palette.line),
-                      ),
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: context.palette.muted,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 8),
-            for (final (index, pane) in workspace.panes.indexed)
-              _WorkspacePaneSummary(
-                app: app,
-                workspace: workspace,
-                pane: pane,
-                index: index,
-                canWrite: canWrite,
-              ),
-            const SizedBox(height: 9),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.tonalIcon(
-                key: ValueKey('workspace-preview-${workspace.id}'),
-                onPressed: () => app.stageWorkspace(workspace.id),
-                icon: const Icon(Icons.preview_outlined, size: 17),
-                label: Text(context.l10n.previewDisconnectedLayout),
+            appMenuItem(
+              menuContext,
+              value: 'duplicate',
+              child: AppMenuLabel(Icons.copy_all_outlined, l10n.duplicate),
+            ),
+            appMenuItem(
+              menuContext,
+              value: 'delete',
+              child: AppMenuLabel(
+                Icons.delete_outline,
+                l10n.delete2,
+                color: palette.red,
               ),
             ),
           ],
         ),
+      ],
+    );
+
+    final topology = switch (workspace.layoutTree) {
+      final tree? => Wrap(
+        key: ValueKey('workspace-topology-${workspace.id}'),
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final (index, label) in _workspaceSplitDescriptions(
+            tree,
+          ).indexed)
+            _LibraryChip(
+              key: ValueKey('workspace-topology-${workspace.id}-split-$index'),
+              label: label,
+            ),
+        ],
+      ),
+      null => null,
+    };
+    final preview = FilledButton.tonalIcon(
+      key: ValueKey('workspace-preview-${workspace.id}'),
+      onPressed: () => app.stageWorkspace(workspace.id),
+      icon: const Icon(Icons.preview_outlined, size: 17),
+      label: Text(l10n.previewDisconnectedLayout),
+    );
+    final footer = compact
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (topology != null) ...[topology, const SizedBox(height: 12)],
+              preview,
+            ],
+          )
+        : Row(
+            children: [
+              Expanded(child: topology ?? const SizedBox.shrink()),
+              const SizedBox(width: 12),
+              preview,
+            ],
+          );
+
+    return Material(
+      key: ValueKey('saved-workspace-${workspace.id}'),
+      color: palette.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(
+          AppDensity.of(context).radiusLg + 2,
+        ),
+        side: BorderSide(
+          color: missingCount > 0
+              ? palette.orange.withValues(alpha: .45)
+              : palette.line,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 10, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          // In a grid row the card is as tall as its tallest neighbour; the
+          // preview button stays at the bottom so the rows line up.
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                header,
+                if (compact) ...[
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: chips,
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final (index, pane) in workspace.panes.indexed) ...[
+                        if (index > 0) const SizedBox(height: 6),
+                        _WorkspacePaneSummary(
+                          app: app,
+                          workspace: workspace,
+                          pane: pane,
+                          index: index,
+                          canWrite: canWrite,
+                          compact: compact,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 14, right: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Divider(height: 1, color: palette.line.withValues(alpha: .7)),
+                  const SizedBox(height: 12),
+                  footer,
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A miniature of a saved workspace's layout: its tab strip, or its split
+/// panes at their saved proportions, numbered like the pane list. The
+/// active pane is highlighted; a pane whose Host is gone is orange.
+class _WorkspaceLayoutThumbnail extends StatelessWidget {
+  const _WorkspaceLayoutThumbnail({
+    required this.workspace,
+    required this.knownHostIds,
+    required this.compact,
+  });
+
+  final WorkspaceRecord workspace;
+  final Set<String> knownHostIds;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final numbers = {
+      for (final (index, pane) in workspace.panes.indexed) pane.paneId: index,
+    };
+    Color toneOf(String paneId, String hostId) => !knownHostIds.contains(hostId)
+        ? palette.orange
+        : paneId == workspace.activePaneId
+        ? palette.teal
+        : palette.muted;
+    bool strong(String paneId, String hostId) =>
+        !knownHostIds.contains(hostId) || paneId == workspace.activePaneId;
+
+    Widget cell(String paneId, String hostId) {
+      final tone = toneOf(paneId, hostId);
+      final emphasis = strong(paneId, hostId);
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: tone.withValues(alpha: emphasis ? .22 : .1),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: tone.withValues(alpha: emphasis ? .75 : .3),
+          ),
+        ),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Padding(
+              padding: const EdgeInsets.all(1),
+              child: Text(
+                '${(numbers[paneId] ?? 0) + 1}',
+                style: TextStyle(
+                  fontSize: 9,
+                  height: 1,
+                  fontWeight: FontWeight.w700,
+                  color: tone,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Widget node(WorkspaceLayoutNode layout) {
+      if (layout is WorkspaceTerminalNode) {
+        return cell(layout.paneId, layout.hostId);
+      }
+      final split = layout as WorkspaceSplitNode;
+      final horizontal = split.axis == WorkspaceSplitAxis.horizontal;
+      return Flex(
+        direction: horizontal ? Axis.horizontal : Axis.vertical,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(flex: split.splitRatioBasisPoints, child: node(split.first)),
+          SizedBox(width: horizontal ? 2 : 0, height: horizontal ? 0 : 2),
+          Expanded(
+            flex: 10000 - split.splitRatioBasisPoints,
+            child: node(split.second),
+          ),
+        ],
+      );
+    }
+
+    final Widget body;
+    if (workspace.layoutTree case final tree?) {
+      body = node(tree);
+    } else {
+      final activeIndex = workspace.activeIndex;
+      final active = workspace.panes[activeIndex < 0 ? 0 : activeIndex];
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: 6,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (index, pane)
+                    in workspace.panes.take(6).indexed) ...[
+                  if (index > 0) const SizedBox(width: 2),
+                  Expanded(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: toneOf(pane.paneId, pane.hostId).withValues(
+                          alpha: strong(pane.paneId, pane.hostId) ? .75 : .3,
+                        ),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 3),
+          Expanded(child: cell(active.paneId, active.hostId)),
+        ],
+      );
+    }
+    return ExcludeSemantics(
+      child: Container(
+        width: compact ? 54 : 66,
+        height: compact ? 42 : 48,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: palette.surfaceRaised,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: palette.line),
+        ),
+        child: body,
       ),
     );
   }
@@ -8005,6 +8718,7 @@ class _WorkspacePaneSummary extends StatelessWidget {
     required this.pane,
     required this.index,
     required this.canWrite,
+    this.compact = false,
   });
 
   final AppController app;
@@ -8012,49 +8726,152 @@ class _WorkspacePaneSummary extends StatelessWidget {
   final WorkspacePane pane;
   final int index;
   final bool canWrite;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final l10n = context.l10n;
     final host = app.hosts.where((item) => item.id == pane.hostId).firstOrNull;
     final missing = host == null;
+    final active = index == workspace.activeIndex;
     final paneLabel = workspace.isSplit
-        ? context.l10n.paneValuevalue(index + 1)
-        : context.l10n.tabValuevalue(index + 1);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
+        ? l10n.paneValuevalue(index + 1)
+        : l10n.tabValuevalue(index + 1);
+    final tone = missing
+        ? palette.orange
+        : active
+        ? palette.teal
+        : palette.muted;
+    final separator = TextSpan(
+      text: ' · ',
+      style: TextStyle(color: palette.hint),
+    );
+    final text = Text.rich(
+      TextSpan(
         children: [
-          Icon(
-            missing ? Icons.link_off_rounded : Icons.dns_outlined,
-            size: 16,
-            color: missing ? context.palette.orange : context.palette.muted,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              missing
-                  ? '$paneLabel · Missing Host · ${_shortAuditId(pane.hostId)}'
-                  : '$paneLabel · ${host.name} · ${host.endpoint}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: missing ? context.palette.orange : context.palette.text,
-              ),
+          TextSpan(
+            text: paneLabel,
+            style: TextStyle(
+              color: missing ? palette.orange : palette.muted,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          if (missing)
-            TextButton(
-              key: ValueKey('workspace-repair-${workspace.id}-${pane.paneId}'),
-              onPressed: canWrite && app.hosts.isNotEmpty
-                  ? () => _repairWorkspacePane(context, app, workspace, pane)
-                  : null,
-              child: Text(context.l10n.replaceHost),
-            )
-          else if (index == workspace.activeIndex)
-            _Tag(label: context.l10n.activePane2),
+          separator,
+          if (missing) ...[
+            TextSpan(
+              text: l10n.missingHost,
+              style: TextStyle(
+                color: palette.orange,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            separator,
+            TextSpan(
+              text: _shortAuditId(pane.hostId),
+              style: TextStyle(color: palette.orange),
+            ),
+          ] else ...[
+            TextSpan(
+              text: host.name,
+              style: TextStyle(
+                color: palette.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            separator,
+            TextSpan(
+              text: host.endpoint,
+              style: TextStyle(color: palette.muted),
+            ),
+          ],
         ],
       ),
+      maxLines: compact ? 2 : 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 12.5, height: 1.4),
+    );
+    final Widget? trailing = missing
+        ? TextButton(
+            key: ValueKey('workspace-repair-${workspace.id}-${pane.paneId}'),
+            onPressed: canWrite && app.hosts.isNotEmpty
+                ? () => _repairWorkspacePane(context, app, workspace, pane)
+                : null,
+            child: Text(l10n.replaceHost),
+          )
+        // A split card names its active pane in the header already.
+        : active && !workspace.isSplit
+        ? _LibraryChip(label: l10n.activePane2, tone: palette.teal)
+        : null;
+    final icon = Icon(
+      missing ? Icons.link_off_rounded : Icons.dns_outlined,
+      size: 16,
+      color: tone,
+    );
+    // On a narrow card the repair button or the active tag goes under the
+    // text, so neither squeezes the Host name away.
+    final stacked = compact && trailing != null;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 36),
+      padding: EdgeInsets.fromLTRB(10, 4, trailing is TextButton ? 2 : 8, 4),
+      decoration: BoxDecoration(
+        color: missing
+            ? palette.orange.withValues(alpha: .07)
+            : active
+            ? palette.teal.withValues(alpha: .07)
+            : palette.surfaceRaised.withValues(alpha: .45),
+        borderRadius: BorderRadius.circular(
+          AppDensity.of(context).radiusMd - 1,
+        ),
+        border: Border.all(
+          color: missing
+              ? palette.orange.withValues(alpha: .3)
+              : active
+              ? palette.teal.withValues(alpha: .28)
+              : palette.line.withValues(alpha: .55),
+        ),
+      ),
+      child: stacked
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, right: 6),
+                  child: Row(
+                    children: [
+                      icon,
+                      const SizedBox(width: 10),
+                      Expanded(child: text),
+                    ],
+                  ),
+                ),
+                if (missing)
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: trailing,
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(
+                      start: 26,
+                      top: 4,
+                      bottom: 4,
+                    ),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: trailing,
+                    ),
+                  ),
+              ],
+            )
+          : Row(
+              children: [
+                icon,
+                const SizedBox(width: 10),
+                Expanded(child: text),
+                if (trailing != null) ...[const SizedBox(width: 8), trailing],
+              ],
+            ),
     );
   }
 }
@@ -13925,7 +14742,7 @@ class _SftpPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _PageHeading(
+          PageHeader(
             title: context.l10n.sftpFileBrowser,
             subtitle: connected
                 ? context.l10n.remoteFilesEndpoint(host.endpoint)
@@ -13934,10 +14751,13 @@ class _SftpPage extends StatelessWidget {
           const SizedBox(height: 16),
           Expanded(
             child: file == null
-                ? _EmptyState(
+                // The empty panel takes the browser's place, so the page
+                // shows where the files appear once a session is connected.
+                ? _LibraryEmptyState(
                     icon: Icons.folder_open_outlined,
                     title: context.l10n.noActiveSshSession,
                     body: context.l10n.openTerminalChooseAHostAnd,
+                    fill: true,
                     action: FilledButton.icon(
                       onPressed: () =>
                           app.showWorkspacePage(WorkspacePage.terminal),

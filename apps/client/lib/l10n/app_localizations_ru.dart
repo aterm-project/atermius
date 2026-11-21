@@ -20723,4 +20723,47 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get forwardingPortAuto => 'авто';
+
+  @override
+  String get snippetsKindScript => 'Скрипт';
+
+  @override
+  String get snippetsKindStructured => 'Структурированная команда';
+
+  @override
+  String snippetsParameterCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count параметра',
+      many: '$count параметров',
+      few: '$count параметра',
+      one: '$count параметр',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String snippetsMoreLines(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'ещё $count строки',
+      many: 'ещё $count строк',
+      few: 'ещё $count строки',
+      one: 'ещё $count строка',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get snippetsMoreActions => 'Другие действия со сниппетом';
+
+  @override
+  String get snippetsReadOnlyNotice =>
+      'Сейф доступен только для чтения. Сниппеты можно просматривать и запускать, но нельзя добавлять, изменять или удалять.';
+
+  @override
+  String get workspacesReadOnlyNotice =>
+      'Сейф доступен только для чтения. Сохранённые рабочие пространства можно просматривать, но нельзя сохранять, изменять или удалять.';
 }

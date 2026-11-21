@@ -32529,6 +32529,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'auto'**
   String get forwardingPortAuto;
+
+  /// No description provided for @snippetsKindScript.
+  ///
+  /// In en, this message translates to:
+  /// **'Script'**
+  String get snippetsKindScript;
+
+  /// No description provided for @snippetsKindStructured.
+  ///
+  /// In en, this message translates to:
+  /// **'Structured command'**
+  String get snippetsKindStructured;
+
+  /// No description provided for @snippetsParameterCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 parameter} other{{count} parameters}}'**
+  String snippetsParameterCount(int count);
+
+  /// No description provided for @snippetsMoreLines.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{+1 more line} other{+{count} more lines}}'**
+  String snippetsMoreLines(int count);
+
+  /// No description provided for @snippetsMoreActions.
+  ///
+  /// In en, this message translates to:
+  /// **'More snippet actions'**
+  String get snippetsMoreActions;
+
+  /// No description provided for @snippetsReadOnlyNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'This Vault is read-only. You can review and run snippets, but you can\'t add, edit or delete them.'**
+  String get snippetsReadOnlyNotice;
+
+  /// No description provided for @workspacesReadOnlyNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'This Vault is read-only. You can preview saved workspaces, but you can\'t save, change or delete them.'**
+  String get workspacesReadOnlyNotice;
 }
 
 class _AppLocalizationsDelegate
