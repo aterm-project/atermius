@@ -15923,183 +15923,309 @@ class _AuditPage extends StatelessWidget {
 
   final AppController app;
 
+  /// Account / current Vault switch. Chips rather than a segmented button:
+  /// they wrap onto a second line instead of clipping long labels (Russian)
+  /// on a phone.
+  Widget _scopeSwitcher(BuildContext context) {
+    Widget chip(AuditScope scope, IconData icon, String label) {
+      final selected = app.auditScope == scope;
+      return ChoiceChip(
+        showCheckmark: false,
+        avatar: Icon(
+          icon,
+          size: 16,
+          color: selected
+              ? context.palette.onAccentContainer
+              : context.palette.muted,
+        ),
+        label: Text(label),
+        // The theme's chip label style carries no font family; start from
+        // the text theme so the label uses the app font.
+        labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: selected
+              ? context.palette.onAccentContainer
+              : context.palette.text,
+        ),
+        selected: selected,
+        onSelected: app.auditLoading
+            ? null
+            : (_) => app.selectAuditScope(scope),
+      );
+    }
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        chip(AuditScope.account, Icons.person_outline, context.l10n.account2),
+        chip(
+          AuditScope.activeVault,
+          Icons.lock_outline,
+          context.l10n.currentVault3,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final events = app.visibleAuditEvents;
     final vaultSelected = app.auditScope == AuditScope.activeVault;
     final cannotReadVault = vaultSelected && !app.canReadActiveVaultAudit;
     final hasUnfilteredEvents = app.auditPageEvents.isNotEmpty;
+    final showEvents =
+        app.auditError == null &&
+        !(app.auditLoading && !hasUnfilteredEvents) &&
+        events.isNotEmpty;
+    // With nothing to page through both buttons would only be disabled, so
+    // the bar is left out instead of floating under an empty state.
+    final showPager = app.auditHasPrevious || app.auditHasMore || showEvents;
+    final Widget content;
+    if (app.auditError != null) {
+      content = _AuditErrorPanel(app: app);
+    } else if (app.auditLoading && !hasUnfilteredEvents) {
+      content = _AuditFrame(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    context.l10n.readingAuditRecords,
+                    style: TextStyle(fontSize: 13, color: palette.muted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    } else if (events.isEmpty) {
+      content = EmptyRow(
+        icon: cannotReadVault
+            ? Icons.admin_panel_settings_outlined
+            : Icons.history_toggle_off_rounded,
+        title: cannotReadVault
+            ? context.l10n.yourCurrentRoleCantViewThe
+            : app.auditHasMore
+            ? context.l10n.noEventsInThisScopeOn
+            : context.l10n.noAuditRecordsInTheCurrent,
+        body: cannotReadVault
+            ? context.l10n.accountEventsAreStillVisibleOnly
+            : app.auditHasMore
+            ? context.l10n.theServerPageContainsSeveralVisible
+            : context.l10n.committedAdminActionsAppearHereNew,
+      );
+    } else {
+      content = _AuditTimeline(
+        events: events,
+        footer: _AuditPager(app: app, count: events.length),
+      );
+    }
     return SingleChildScrollView(
       padding: AppDensity.of(context).pagePadding,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PageHeading(
+          PageHeader(
             title: context.l10n.auditRecords,
             subtitle: context.l10n.readOnlyViewOfCommittedAccount,
-            trailing: OutlinedButton.icon(
-              onPressed: app.auditLoading ? null : app.refreshAudit,
-              icon: app.auditLoading
-                  ? const SizedBox(
-                      width: 15,
-                      height: 15,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh_rounded),
-              label: Text(context.l10n.refresh),
-            ),
-          ),
-          const SizedBox(height: 17),
-          SegmentedButton<AuditScope>(
-            segments: [
-              ButtonSegment(
-                value: AuditScope.account,
-                icon: const Icon(Icons.person_outline),
-                label: Text(context.l10n.account2),
-              ),
-              ButtonSegment(
-                value: AuditScope.activeVault,
-                icon: const Icon(Icons.lock_outline),
-                label: Text(context.l10n.currentVault3),
+            actions: [
+              _scopeSwitcher(context),
+              OutlinedButton.icon(
+                onPressed: app.auditLoading ? null : app.refreshAudit,
+                icon: app.auditLoading
+                    ? const SizedBox(
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+                label: Text(context.l10n.refresh),
               ),
             ],
-            selected: {app.auditScope},
-            onSelectionChanged: app.auditLoading
-                ? null
-                : (selection) => app.selectAuditScope(selection.single),
           ),
-          const SizedBox(height: 12),
-          if (vaultSelected)
+          const SizedBox(height: 18),
+          if (vaultSelected) ...[
             _AuditInlineNotice(
               icon: cannotReadVault
                   ? Icons.info_outline_rounded
                   : Icons.lock_outline_rounded,
-              color: cannotReadVault ? context.palette.orange : context.palette.teal,
+              color: cannotReadVault ? palette.orange : palette.teal,
               text: cannotReadVault
                   ? context.l10n.vaultScopedAuditIsAvailableOnly
-                  : context.l10n.showingEventsForCurrentvaultnameSwitchingThe(app.currentVaultName),
-            ),
-          const SizedBox(height: 15),
-          if (app.auditError != null)
-            Card(
-              color: context.palette.red.withValues(alpha: .07),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.error_outline, color: context.palette.red),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Semantics(
-                            header: true,
-                            liveRegion: true,
-                            container: true,
-                            label: context.l10n.couldntLoadAuditRecords,
-                            excludeSemantics: true,
-                            child: Text(
-                              context.l10n.couldntLoadAuditRecords,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            app.auditError!,
-                            style: TextStyle(
-                              color: context.palette.muted,
-                              fontSize: 12,
-                              height: 1.45,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            onPressed: app.auditLoading
-                                ? null
-                                : app.refreshAudit,
-                            icon: const Icon(Icons.restart_alt_rounded),
-                            label: Text(context.l10n.retryFromTheFirstPage),
-                          ),
-                        ],
-                      ),
+                  : context.l10n.showingEventsForCurrentvaultnameSwitchingThe(
+                      app.currentVaultName,
                     ),
-                  ],
-                ),
-              ),
-            )
-          else if (app.auditLoading && !hasUnfilteredEvents)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 45),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(),
-                      const SizedBox(height: 13),
-                      Text(context.l10n.readingAuditRecords),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else if (events.isEmpty)
-            _EmptyState(
-              icon: cannotReadVault
-                  ? Icons.admin_panel_settings_outlined
-                  : Icons.history_toggle_off_rounded,
-              title: cannotReadVault
-                  ? context.l10n.yourCurrentRoleCantViewThe
-                  : app.auditHasMore
-                  ? context.l10n.noEventsInThisScopeOn
-                  : context.l10n.noAuditRecordsInTheCurrent,
-              body: cannotReadVault
-                  ? context.l10n.accountEventsAreStillVisibleOnly
-                  : app.auditHasMore
-                  ? context.l10n.theServerPageContainsSeveralVisible
-                  : context.l10n.committedAdminActionsAppearHereNew,
-            )
-          else
-            ...events.map((event) => _AuditEventCard(event: event)),
-          const SizedBox(height: 14),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                children: [
-                  Text(
-                    context.l10n.pageValuevalue2(app.auditPageIndex + 1),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.palette.muted,
-                    ),
-                  ),
-                  const Spacer(),
-                  OutlinedButton.icon(
-                    onPressed: app.auditLoading || !app.auditHasPrevious
-                        ? null
-                        : app.previousAuditPage,
-                    icon: const Icon(Icons.chevron_left),
-                    label: Text(context.l10n.previousPage),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: app.auditLoading || !app.auditHasMore
-                        ? null
-                        : app.nextAuditPage,
-                    icon: const Icon(Icons.chevron_right),
-                    label: Text(context.l10n.nextPage),
-                  ),
-                ],
-              ),
             ),
-          ),
+            const SizedBox(height: 12),
+          ],
+          content,
+          if (showPager && !showEvents) ...[
+            const SizedBox(height: 10),
+            _AuditFrame(
+              children: [_AuditPager(app: app, count: events.length)],
+            ),
+          ],
         ],
       ),
     );
   }
+}
+
+/// The bordered surface the audit timeline, its loading row and a pager
+/// without events sit on.
+class _AuditFrame extends StatelessWidget {
+  const _AuditFrame({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final radius = BorderRadius.circular(AppDensity.of(context).radiusLg + 2);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: radius,
+        border: Border.all(color: palette.line),
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
+      ),
+    );
+  }
+}
+
+/// Events of the page grouped under one header per local day, newest
+/// group first as the server orders them.
+class _AuditTimeline extends StatelessWidget {
+  const _AuditTimeline({required this.events, required this.footer});
+
+  final List<AuditEvent> events;
+  final Widget footer;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final groups = <({DateTime day, List<AuditEvent> events})>[];
+    for (final event in events) {
+      final day = DateUtils.dateOnly(event.occurredAt.toLocal());
+      if (groups.isEmpty || groups.last.day != day) {
+        groups.add((day: day, events: [event]));
+      } else {
+        groups.last.events.add(event);
+      }
+    }
+    final divider = Divider(height: 1, thickness: 1, color: palette.line);
+    return _AuditFrame(
+      children: [
+        for (var g = 0; g < groups.length; g++) ...[
+          if (g > 0) divider,
+          _AuditDayHeader(day: groups[g].day, events: groups[g].events),
+          for (final event in groups[g].events) ...[
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: palette.line.withValues(alpha: .6),
+            ),
+            _AuditEventCard(event: event),
+          ],
+        ],
+        divider,
+        footer,
+      ],
+    );
+  }
+}
+
+class _AuditDayHeader extends StatelessWidget {
+  const _AuditDayHeader({required this.day, required this.events});
+
+  final DateTime day;
+  final List<AuditEvent> events;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final today = DateUtils.dateOnly(DateTime.now());
+    final label = day == today
+        ? context.l10n.auditToday
+        : day == DateTime(today.year, today.month, today.day - 1)
+        ? context.l10n.auditYesterday
+        : DateFormat.yMMMEd(context.l10n.localeName).format(day);
+    final failed = events.where((event) => event.result == 'failure').length;
+    return ColoredBox(
+      color: palette.surfaceRaised.withValues(alpha: .55),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: palette.text,
+              ),
+            ),
+            Text(
+              context.l10n.auditEventCount(events.length),
+              style: TextStyle(fontSize: 11.5, color: palette.muted),
+            ),
+            if (failed > 0)
+              CountTag(
+                label: context.l10n.auditFailedCount(failed),
+                tone: palette.red,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Icon of an audit action's family, chosen from the action code (never
+/// from its label).
+IconData _auditActionIcon(AuditEvent event) {
+  final action = event.action;
+  if (event.source == 'maintenance') return Icons.settings_suggest_outlined;
+  if (action == 'auth.refresh_reuse_detected') return Icons.gpp_maybe_outlined;
+  if (action.startsWith('auth.login') || action.startsWith('auth.mfa_login')) {
+    return Icons.login_rounded;
+  }
+  if (action.startsWith('auth.logout')) return Icons.logout_rounded;
+  if (action.startsWith('auth.mfa')) return Icons.phonelink_lock_outlined;
+  if (action.startsWith('auth.password')) return Icons.password_rounded;
+  if (action.startsWith('auth.account_recover')) {
+    return Icons.health_and_safety_outlined;
+  }
+  if (action.startsWith('device.')) return Icons.devices_outlined;
+  if (action.startsWith('relay.')) return Icons.swap_horiz_rounded;
+  if (action.startsWith('vault.key')) return Icons.vpn_key_outlined;
+  if (action.startsWith('vault.member') ||
+      action.startsWith('vault.invitation') ||
+      action.startsWith('vault.ownership')) {
+    return Icons.group_outlined;
+  }
+  if (action.startsWith('vault.')) return Icons.lock_outline_rounded;
+  if (action.startsWith('account.')) return Icons.person_outline_rounded;
+  return Icons.history_rounded;
 }
 
 class _AuditEventCard extends StatelessWidget {
@@ -16108,74 +16234,301 @@ class _AuditEventCard extends StatelessWidget {
   final AuditEvent event;
 
   @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(bottom: 9),
-    child: Padding(
-      padding: const EdgeInsets.all(15),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 17,
-            backgroundColor: context.palette.teal.withValues(alpha: .13),
-            child: Icon(
-              event.source == 'maintenance'
-                  ? Icons.settings_suggest_outlined
-                  : Icons.check_circle_outline,
-              size: 18,
-              color: context.palette.teal,
-            ),
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final l10n = context.l10n;
+    final (resultLabel, resultTone) = switch (event.result) {
+      'success' => (l10n.succeeded, palette.teal),
+      'failure' => (l10n.failed, palette.red),
+      _ => (l10n.unknownResult, palette.muted),
+    };
+    final tone = event.result == 'failure'
+        ? palette.red
+        : event.source == 'maintenance'
+        ? palette.orange
+        : palette.teal;
+    final at = event.occurredAt.toLocal();
+    final time = Tooltip(
+      message: DateFormat.yMMMd(l10n.localeName).add_jms().format(at),
+      child: Text(
+        DateFormat.jm(l10n.localeName).format(at),
+        style: TextStyle(
+          fontSize: 12,
+          color: palette.muted,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+    final badge = Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Icon(_auditActionIcon(event), size: 17, color: tone),
+    );
+    final title = Text(
+      _auditActionLabel(event.action),
+      style: TextStyle(
+        fontSize: 13.5,
+        height: 1.35,
+        fontWeight: FontWeight.w600,
+        color: palette.text,
+      ),
+    );
+    final chip = _WrapStatusChip(label: resultLabel, tone: resultTone);
+    final meta = Wrap(
+      spacing: 14,
+      runSpacing: 3,
+      children: [
+        Text(
+          '${event.resourceType}${event.resourceId == null ? '' : ' · ${_shortAuditId(event.resourceId!)}'}',
+          style: TextStyle(
+            color: palette.muted,
+            fontSize: 11,
+            height: 1.5,
+            fontFamily: 'monospace',
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+        ),
+        Text(
+          l10n.accountShortauditidDeviceShortauditid2Valuevalue(
+            _shortAuditId(event.actorUserId),
+            _shortAuditId(event.actorDeviceId),
+            event.source == 'maintenance' ? l10n.maintenanceJobs : 'API',
+          ),
+          style: TextStyle(color: palette.muted, fontSize: 11.5, height: 1.45),
+        ),
+        Text(
+          '#${event.eventId}',
+          style: TextStyle(
+            color: palette.hint,
+            fontSize: 11,
+            height: 1.5,
+            fontFamily: 'monospace',
+          ),
+        ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 11, 16, 12),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          if (box.maxWidth >= 560) {
+            return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _auditActionLabel(event.action),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${event.resourceType}${event.resourceId == null ? '' : ' · ${_shortAuditId(event.resourceId!)}'}',
-                  style: TextStyle(
-                    color: context.palette.muted,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
+                SizedBox(
+                  width: 60,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 7),
+                    child: time,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  context.l10n.accountShortauditidDeviceShortauditid2Valuevalue(_shortAuditId(event.actorUserId), _shortAuditId(event.actorDeviceId), event.source == 'maintenance' ? context.l10n.maintenanceJobs : 'API'),
-                  style: TextStyle(color: context.palette.muted, fontSize: 11),
+                badge,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: title),
+                          const SizedBox(width: 10),
+                          chip,
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      meta,
+                    ],
+                  ),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                DateFormat.yMMMd().add_jm().format(event.occurredAt.toLocal()),
-                style: TextStyle(fontSize: 11, color: context.palette.muted),
-                textAlign: TextAlign.right,
-              ),
-              const SizedBox(height: 5),
-              Text(
-                '#${event.eventId}',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: context.palette.muted,
-                  fontFamily: 'monospace',
+              badge,
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    title,
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [chip, time],
+                    ),
+                    const SizedBox(height: 5),
+                    meta,
+                  ],
                 ),
               ),
             ],
-          ),
-        ],
+          );
+        },
       ),
-    ),
-  );
+    );
+  }
+}
+
+/// The slim page bar at the foot of the timeline.
+class _AuditPager extends StatelessWidget {
+  const _AuditPager({required this.app, required this.count});
+
+  final AppController app;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final l10n = context.l10n;
+    final onPrevious = app.auditLoading || !app.auditHasPrevious
+        ? null
+        : app.previousAuditPage;
+    final onNext = app.auditLoading || !app.auditHasMore
+        ? null
+        : app.nextAuditPage;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          // Narrow windows keep both buttons as icons; their names stay in
+          // the tooltips and the semantics.
+          final iconsOnly = box.maxWidth < 430;
+          const compact = ButtonStyle(visualDensity: VisualDensity.compact);
+          return Row(
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      l10n.pageValuevalue2(app.auditPageIndex + 1),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: palette.text,
+                      ),
+                    ),
+                    if (count > 0)
+                      Text(
+                        l10n.auditEventCount(count),
+                        style: TextStyle(fontSize: 12, color: palette.muted),
+                      ),
+                  ],
+                ),
+              ),
+              if (iconsOnly) ...[
+                IconButton(
+                  tooltip: l10n.previousPage,
+                  onPressed: onPrevious,
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
+                IconButton(
+                  tooltip: l10n.nextPage,
+                  onPressed: onNext,
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+              ] else ...[
+                TextButton.icon(
+                  style: compact,
+                  onPressed: onPrevious,
+                  icon: const Icon(Icons.chevron_left_rounded, size: 18),
+                  label: Text(l10n.previousPage),
+                ),
+                const SizedBox(width: 4),
+                FilledButton.tonalIcon(
+                  style: compact,
+                  iconAlignment: IconAlignment.end,
+                  onPressed: onNext,
+                  icon: const Icon(Icons.chevron_right_rounded, size: 18),
+                  label: Text(l10n.nextPage),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AuditErrorPanel extends StatelessWidget {
+  const _AuditErrorPanel({required this.app});
+
+  final AppController app;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+          palette.red.withValues(alpha: .08),
+          palette.surface,
+        ),
+        borderRadius: BorderRadius.circular(
+          AppDensity.of(context).radiusLg + 2,
+        ),
+        border: Border.all(color: palette.red.withValues(alpha: .35)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.error_outline, color: palette.red, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    liveRegion: true,
+                    container: true,
+                    label: context.l10n.couldntLoadAuditRecords,
+                    excludeSemantics: true,
+                    child: Text(
+                      context.l10n.couldntLoadAuditRecords,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: palette.text,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    app.auditError!,
+                    style: TextStyle(
+                      color: palette.muted,
+                      fontSize: 12,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: app.auditLoading ? null : app.refreshAudit,
+                    icon: const Icon(Icons.restart_alt_rounded),
+                    label: Text(context.l10n.retryFromTheFirstPage),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AuditInlineNotice extends StatelessWidget {
@@ -16190,25 +16543,46 @@ class _AuditInlineNotice extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 17),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: context.palette.muted,
-                fontSize: 11,
-                height: 1.45,
-              ),
+  Widget build(BuildContext context) =>
+      PageNotice(icon: icon, tone: color, message: text);
+}
+
+/// [StatusChip] whose label wraps inside the chip instead of overflowing
+/// when a phone row is narrower than the label (long Russian labels at
+/// large text sizes); otherwise it looks the same.
+class _WrapStatusChip extends StatelessWidget {
+  const _WrapStatusChip({required this.label, required this.tone});
+
+  final String label;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: tone.withValues(alpha: .12),
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: tone,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -16327,6 +16701,7 @@ class _VaultRedactionReadinessPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final devices = app.activeVaultDeviceRows
         .where(
           (device) =>
@@ -16357,115 +16732,145 @@ class _VaultRedactionReadinessPanel extends StatelessWidget {
     final cardKey = showReviewDevices
         ? const ValueKey('recycle_bin_redaction_readiness')
         : const ValueKey('vault_redaction_readiness_section');
+    final tone = blockers.isEmpty ? palette.teal : palette.orange;
 
-    return Card(
+    return PagePanel(
       key: cardKey,
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 12 : 15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+      icon: Icons.verified_user_outlined,
+      title: context.l10n.redactionReadiness,
+      trailing: app.vaultDeviceRowsLoading
+          ? const Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : readiness.isEmpty
+          ? null
+          : CountTag(
+              label: context.l10n.devicesReadyFraction(
+                readyCount,
+                readiness.length,
+              ),
+              tone: tone,
+            ),
+      children: [
+        Text(
+          readiness.isEmpty
+              ? context.l10n.noActiveVaultDeviceReportsAre
+              : context.l10n.devicesReadinessSummary(
+                  readyCount,
+                  readiness.length,
+                  blockers.length,
+                ),
+          key: const ValueKey('vault_redaction_readiness_summary'),
+          style: TextStyle(color: palette.muted, fontSize: 12, height: 1.5),
+        ),
+        if (readiness.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: readyCount / readiness.length,
+              minHeight: 6,
+              color: tone,
+              backgroundColor: palette.line.withValues(alpha: .7),
+            ),
+          ),
+        ],
+        if (app.vaultDeviceRowsError case final error?) ...[
+          const SizedBox(height: 8),
+          Text(
+            error,
+            key: const ValueKey('vault_redaction_readiness_error'),
+            style: TextStyle(color: palette.red, fontSize: 12, height: 1.45),
+          ),
+        ],
+        if (shownDevices.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          for (final item in shownDevices)
+            _VaultRedactionDeviceReadinessRow(
+              device: item.device,
+              readiness: item.status,
+            ),
+          if (compact && blockers.length > shownDevices.length)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                context.l10n.valuevalueMoreDeviceSNeedReview(
+                  blockers.length - shownDevices.length,
+                ),
+                style: TextStyle(color: palette.muted, fontSize: 11.5),
+              ),
+            ),
+        ] else if (!app.vaultDeviceRowsLoading &&
+            app.vaultDeviceRowsError == null &&
+            readiness.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.check_circle_outline, size: 16, color: palette.lime),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  context.l10n.allActiveVaultDevicesReportSupport,
+                  style: TextStyle(
+                    color: palette.lime,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.sync_problem_outlined,
-                  color: context.palette.teal,
-                  size: 19,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    context.l10n.redactionReadiness,
-                    key: const ValueKey('vault_redaction_readiness_summary'),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                if (app.vaultDeviceRowsLoading)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-              ],
+            OutlinedButton.icon(
+              key: const ValueKey('vault_redaction_readiness_refresh'),
+              onPressed: app.vaultDeviceRowsLoading
+                  ? null
+                  : () => unawaited(_refreshVaultReadinessFromUi(app)),
+              icon: const Icon(Icons.refresh_rounded, size: 17),
+              label: Text(context.l10n.refreshReadiness),
             ),
-            const SizedBox(height: 5),
-            Text(
-              readiness.isEmpty
-                  ? context.l10n.noActiveVaultDeviceReportsAre
-                  : '$readyCount of ${readiness.length} active Vault devices are ready; ${blockers.length} report(s) block permanent purge.',
-              style: TextStyle(
-                color: context.palette.muted,
-                fontSize: 12,
-                height: 1.4,
+            if (showReviewDevices)
+              TextButton.icon(
+                key: const ValueKey('recycle_bin_review_trusted_devices'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  app.showWorkspacePage(WorkspacePage.devices);
+                },
+                icon: const Icon(Icons.devices_outlined, size: 17),
+                label: Text(context.l10n.reviewTrustedDevices),
               ),
-            ),
-            if (app.vaultDeviceRowsError case final error?) ...[
-              const SizedBox(height: 5),
-              Text(
-                error,
-                key: const ValueKey('vault_redaction_readiness_error'),
-                style: TextStyle(color: context.palette.red, fontSize: 12),
-              ),
-            ],
-            if (shownDevices.isNotEmpty) ...[
-              const SizedBox(height: 7),
-              for (final item in shownDevices)
-                _VaultRedactionDeviceReadinessRow(
-                  device: item.device,
-                  readiness: item.status,
-                ),
-              if (compact && blockers.length > shownDevices.length)
-                Padding(
-                  padding: const EdgeInsets.only(top: 3),
-                  child: Text(
-                    context.l10n.valuevalueMoreDeviceSNeedReview(blockers.length - shownDevices.length),
-                    style: TextStyle(
-                      color: context.palette.muted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-            ] else if (!app.vaultDeviceRowsLoading &&
-                app.vaultDeviceRowsError == null &&
-                readiness.isNotEmpty) ...[
-              const SizedBox(height: 5),
-              Text(
-                context.l10n.allActiveVaultDevicesReportSupport,
-                style: TextStyle(color: context.palette.lime, fontSize: 12),
-              ),
-            ],
-            const SizedBox(height: 7),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                OutlinedButton.icon(
-                  key: const ValueKey('vault_redaction_readiness_refresh'),
-                  onPressed: app.vaultDeviceRowsLoading
-                      ? null
-                      : () => unawaited(_refreshVaultReadinessFromUi(app)),
-                  icon: const Icon(Icons.refresh_rounded, size: 17),
-                  label: Text(context.l10n.refreshReadiness),
-                ),
-                if (showReviewDevices)
-                  TextButton.icon(
-                    key: const ValueKey('recycle_bin_review_trusted_devices'),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      app.showWorkspacePage(WorkspacePage.devices);
-                    },
-                    icon: const Icon(Icons.devices_outlined, size: 17),
-                    label: Text(context.l10n.reviewTrustedDevices),
-                  ),
-              ],
-            ),
           ],
         ),
-      ),
+      ],
     );
   }
 }
+
+String _redactionReadinessLabel(
+  BuildContext context,
+  DeviceRedactionReadinessStatus status,
+) => switch (status) {
+  DeviceRedactionReadinessStatus.ready => context.l10n.devicesReadinessReady,
+  DeviceRedactionReadinessStatus.missing =>
+    context.l10n.devicesReadinessMissing,
+  DeviceRedactionReadinessStatus.invalidated =>
+    context.l10n.devicesReadinessInvalidated,
+  DeviceRedactionReadinessStatus.unverifiable =>
+    context.l10n.devicesReadinessUnverifiable,
+  DeviceRedactionReadinessStatus.unsupported =>
+    context.l10n.devicesReadinessUnsupported,
+};
 
 class _VaultRedactionDeviceReadinessRow extends StatelessWidget {
   const _VaultRedactionDeviceReadinessRow({
@@ -16478,39 +16883,64 @@ class _VaultRedactionDeviceReadinessRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final name =
         device['name'] is String && (device['name'] as String).trim().isNotEmpty
         ? (device['name'] as String).trim()
-        : 'Unnamed device';
+        : context.l10n.unnamedDevice;
     final deviceId = device['device_id'] as String? ?? '';
     final shortId = deviceId.length >= 8 ? deviceId.substring(0, 8) : 'unknown';
     final statusColor = switch (readiness.status) {
-      DeviceRedactionReadinessStatus.ready => context.palette.lime,
+      DeviceRedactionReadinessStatus.ready => palette.teal,
       DeviceRedactionReadinessStatus.missing ||
       DeviceRedactionReadinessStatus.invalidated ||
-      DeviceRedactionReadinessStatus.unsupported => context.palette.orange,
-      DeviceRedactionReadinessStatus.unverifiable => context.palette.red,
+      DeviceRedactionReadinessStatus.unsupported => palette.orange,
+      DeviceRedactionReadinessStatus.unverifiable => palette.red,
     };
+    final statusLabel = _redactionReadinessLabel(context, readiness.status);
     return Semantics(
       key: ValueKey('vault_redaction_device-$deviceId'),
       container: true,
-      label: context.l10n.vaultDeviceNameStatuslabel(name, readiness.statusLabel),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                '$name · $shortId',
-                style: const TextStyle(fontSize: 12),
+      label: context.l10n.vaultDeviceNameStatuslabel(name, statusLabel),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: palette.line.withValues(alpha: .6)),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: palette.text,
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' · $shortId',
+                      style: TextStyle(
+                        color: palette.hint,
+                        fontFamily: 'monospace',
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+                style: const TextStyle(fontSize: 12.5, height: 1.4),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              readiness.statusLabel,
-              style: TextStyle(color: statusColor, fontSize: 12),
-            ),
-          ],
+              _WrapStatusChip(label: statusLabel, tone: statusColor),
+            ],
+          ),
         ),
       ),
     );
@@ -16521,121 +16951,358 @@ class _DevicesPage extends StatelessWidget {
   const _DevicesPage({required this.app});
   final AppController app;
 
-  @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    padding: AppDensity.of(context).pagePadding,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _deviceList(BuildContext context) {
+    final palette = context.palette;
+    final statuses = app.devices
+        .map((device) => _trustedDeviceStatus(device['status']))
+        .toList(growable: false);
+    final activeCount = statuses
+        .where((status) => status == _TrustedDeviceStatus.active)
+        .length;
+    final revokedCount = statuses
+        .where((status) => status == _TrustedDeviceStatus.revoked)
+        .length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _PageHeading(
-          title: context.l10n.trustedDevices,
-          subtitle: context.l10n.onlyASignedEnrollmentFromAn,
-          trailing: app.activeVault == null
-              ? OutlinedButton.icon(
-                  onPressed: () => _approveDevice(context, app),
-                  icon: const Icon(Icons.person_add_alt_1_outlined),
-                  label: Text(context.l10n.approveEnrollment),
-                )
-              : OutlinedButton.icon(
-                  onPressed: app.activeVault?.canWrite == true
-                      ? () => _approveDevice(context, app)
-                      : null,
-                  icon: const Icon(Icons.person_add_alt_1_outlined),
-                  label: Text(context.l10n.approveEnrollment),
-                ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(15),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.admin_panel_settings_outlined,
-                  color: context.palette.teal,
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Text(
-                    context.l10n.eachDeviceKeepsItsPrivateSigning,
-                    style: TextStyle(
-                      color: context.palette.muted,
-                      fontSize: 12,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        if (app.activeVault != null) ...[
-          _VaultRedactionReadinessPanel(app: app),
-          const SizedBox(height: 12),
-        ],
         Padding(
-          padding: const EdgeInsets.only(bottom: 9),
+          padding: const EdgeInsets.only(bottom: 10),
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  context.l10n.accountDevices,
-                  style: TextStyle(
-                    color: context.palette.muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      context.l10n.accountDevices,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: palette.text,
+                      ),
+                    ),
+                    if (activeCount > 0)
+                      CountTag(
+                        label: context.l10n.devicesActiveCount(activeCount),
+                        tone: palette.teal,
+                      ),
+                    if (revokedCount > 0)
+                      CountTag(
+                        label: context.l10n.devicesRevokedCount(revokedCount),
+                        tone: palette.red,
+                      ),
+                  ],
                 ),
               ),
               if (app.devices.isNotEmpty)
                 IconButton(
                   tooltip: context.l10n.refreshDevices,
                   onPressed: () => _refreshDevicesFromUi(app),
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(Icons.refresh_rounded),
                 ),
             ],
           ),
         ),
         if (app.devices.isEmpty)
-          _EmptyState(
-            icon: Icons.devices_other_outlined,
+          _DevicesEmptyRow(
             title: context.l10n.noDeviceListLoaded,
             body: context.l10n.refreshToLoadApprovedDevicesFrom,
             action: OutlinedButton.icon(
               onPressed: () => _refreshDevicesFromUi(app),
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(Icons.refresh_rounded),
               label: Text(context.l10n.refreshDevices),
             ),
           )
         else
-          ...app.devices.map((device) {
-            final id = device['device_id'] as String? ?? 'unknown';
-            final current = id == app.identity?.deviceId;
-            final status = _trustedDeviceStatus(device['status']);
-            final signedIn = device['signed_in'];
-            final activity = device['activity'] as Map<String, dynamic>?;
-            final platform = activity?['platform'];
-            final isBrowser = platform == 'web';
-            final name = isBrowser
-                ? context.l10n.browserDevice
-                : activity?['device_name'] as String? ??
-                      device['name'] as String? ??
-                      context.l10n.unnamedDevice;
-            final createdAt = _deviceTimestamp(device['created_at']);
-            final revokedAt = _deviceTimestamp(device['revoked_at']);
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 17,
-                  vertical: 6,
-                ),
-                leading: CircleAvatar(
-                  backgroundColor: current
-                      ? context.palette.lime.withValues(alpha: .15)
-                      : context.palette.surfaceSoft,
+          for (var i = 0; i < app.devices.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _TrustedDeviceTile(app: app, device: app.devices[i]),
+          ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final approve = app.activeVault == null
+        ? FilledButton.icon(
+            onPressed: () => _approveDevice(context, app),
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+            label: Text(context.l10n.approveEnrollment),
+          )
+        : FilledButton.icon(
+            onPressed: app.activeVault?.canWrite == true
+                ? () => _approveDevice(context, app)
+                : null,
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+            label: Text(context.l10n.approveEnrollment),
+          );
+    return SingleChildScrollView(
+      padding: AppDensity.of(context).pagePadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PageHeader(
+            title: context.l10n.trustedDevices,
+            subtitle: context.l10n.onlyASignedEnrollmentFromAn,
+            actions: [approve],
+          ),
+          const SizedBox(height: 16),
+          PageNotice(
+            icon: Icons.admin_panel_settings_outlined,
+            tone: palette.teal,
+            message: context.l10n.eachDeviceKeepsItsPrivateSigning,
+          ),
+          const SizedBox(height: 22),
+          LayoutBuilder(
+            builder: (context, box) {
+              final list = _deviceList(context);
+              if (app.activeVault == null) return list;
+              final readiness = _VaultRedactionReadinessPanel(app: app);
+              if (box.maxWidth < 1000) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [list, const SizedBox(height: 24), readiness],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 7, child: list),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 5, child: readiness),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "No devices loaded" row with the action that loads them.
+class _DevicesEmptyRow extends StatelessWidget {
+  const _DevicesEmptyRow({
+    required this.title,
+    required this.body,
+    required this.action,
+  });
+
+  final String title;
+  final String body;
+  final Widget action;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(
+          AppDensity.of(context).radiusLg + 2,
+        ),
+        border: Border.all(color: palette.line),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: palette.teal.withValues(alpha: .12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.devices_other_outlined,
+                size: 18,
+                color: palette.teal,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: palette.text,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    body,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.5,
+                      color: palette.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  action,
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One account device: name and status first, then its timestamps and the
+/// identity details, with the actions that apply to it.
+class _TrustedDeviceTile extends StatelessWidget {
+  const _TrustedDeviceTile({required this.app, required this.device});
+
+  final AppController app;
+  final Map<String, dynamic> device;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final l10n = context.l10n;
+    final id = device['device_id'] as String? ?? 'unknown';
+    final current = id == app.identity?.deviceId;
+    final status = _trustedDeviceStatus(device['status']);
+    final signedIn = device['signed_in'];
+    final activity = device['activity'] as Map<String, dynamic>?;
+    final platform = activity?['platform'];
+    final isBrowser = platform == 'web';
+    final name = isBrowser
+        ? l10n.browserDevice
+        : activity?['device_name'] as String? ??
+              device['name'] as String? ??
+              l10n.unnamedDevice;
+    final createdAt = _deviceTimestamp(device['created_at']);
+    final revokedAt = _deviceTimestamp(device['revoked_at']);
+    final dateFormat = DateFormat.yMMMd(l10n.localeName).add_jm();
+    final active = status == _TrustedDeviceStatus.active;
+    final tone = current
+        ? palette.lime
+        : active
+        ? palette.teal
+        : palette.muted;
+    final radius = BorderRadius.circular(AppDensity.of(context).radiusLg + 2);
+
+    final actions = <Widget>[
+      if (!current && active && signedIn == true)
+        Tooltip(
+          message: l10n.signOutDevice,
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+            ),
+            onPressed: () => _signOutDevice(context, app, id, name),
+            icon: const Icon(Icons.logout_rounded, size: 16),
+            label: Text(l10n.devicesSignOutAction),
+          ),
+        ),
+      if (!current && active)
+        Tooltip(
+          message: l10n.revokeDevice,
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              foregroundColor: palette.red,
+              side: BorderSide(color: palette.red.withValues(alpha: .45)),
+            ),
+            onPressed: () async {
+              if (await _confirmRevokeDevice(context, name) != true) {
+                return;
+              }
+              try {
+                await app.revokeDevice(id);
+              } catch (error) {
+                if (context.mounted) {
+                  _snack(context, app.friendlyError(error), error: true);
+                }
+              }
+            },
+            icon: const Icon(Icons.block_rounded, size: 16),
+            label: Text(l10n.devicesRevokeAction),
+          ),
+        ),
+    ];
+
+    final metaStyle = TextStyle(color: palette.muted, fontSize: 12);
+    Widget meta(IconData icon, String text) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: palette.hint),
+        const SizedBox(width: 5),
+        Flexible(child: Text(text, style: metaStyle)),
+      ],
+    );
+
+    final details = DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.surfaceRaised.withValues(alpha: .55),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
+        border: Border.all(color: palette.line.withValues(alpha: .6)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isBrowser) _browserDeviceActivity(context, activity!),
+            Text(
+              l10n.itemSigningKeyShortkey(
+                '${device['device_id']}',
+                _shortKey(device['signing_public_key'] as String?),
+              ),
+              style: TextStyle(
+                color: palette.muted,
+                fontSize: 11,
+                height: 1.55,
+                fontFamily: 'monospace',
+              ),
+            ),
+            const SizedBox(height: 6),
+            _deviceCapabilitySummary(context, app, device),
+          ],
+        ),
+      ),
+    );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: current
+            ? Color.alphaBlend(
+                palette.lime.withValues(alpha: .05),
+                palette.surface,
+              )
+            : palette.surface,
+        borderRadius: radius,
+        border: Border.all(
+          color: current ? palette.lime.withValues(alpha: .45) : palette.line,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final wide = box.maxWidth >= 540;
+            final header = Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: tone.withValues(alpha: .13),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
                   child: Icon(
                     switch (platform) {
                       'web' => Icons.language_rounded,
@@ -16643,119 +17310,106 @@ class _DevicesPage extends StatelessWidget {
                       'windows' || 'macos' || 'linux' => Icons.computer_rounded,
                       _ => Icons.devices_rounded,
                     },
-                    color: current ? context.palette.lime : context.palette.muted,
-                    size: 19,
+                    color: tone,
+                    size: 20,
                   ),
                 ),
-                title: Row(
-                  children: [
-                    Flexible(child: Text(name)),
-                    if (current) ...[
-                      const SizedBox(width: 8),
-                      Semantics(
-                        container: true,
-                        label: context.l10n.currentDevice,
-                        child: ExcludeSemantics(
-                          child: _Tag(label: context.l10n.thisDevice),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (isBrowser) _browserDeviceActivity(context, activity!),
-                    Text(
-                      context.l10n.itemSigningKeyShortkey('${device['device_id']}', _shortKey(device['signing_public_key'] as String?)),
-                      style: TextStyle(
-                        color: context.palette.muted,
-                        fontSize: 11,
-                        height: 1.5,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Wrap(
-                      spacing: 7,
-                      runSpacing: 5,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        _DeviceStatusTag(status: status),
-                        if (status == _TrustedDeviceStatus.active &&
-                            signedIn is bool)
-                          _Tag(
-                            label: signedIn
-                                ? context.l10n.deviceSignedInStatus
-                                : context.l10n.signedOut,
-                          ),
-                        if (createdAt != null)
-                          Text(
-                            context.l10n.createdFormat(DateFormat.yMMMd().add_jm().format(createdAt)),
-                            style: TextStyle(
-                              color: context.palette.muted,
-                              fontSize: 11,
-                            ),
-                          ),
-                        if (revokedAt != null)
-                          Text(
-                            context.l10n.revokedFormat2(DateFormat.yMMMd().add_jm().format(revokedAt)),
-                            style: TextStyle(
-                              color: context.palette.muted,
-                              fontSize: 11,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 7),
-                    _deviceCapabilitySummary(context, app, device),
-                  ],
-                ),
-                isThreeLine: true,
-                trailing: current || status != _TrustedDeviceStatus.active
-                    ? null
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          if (signedIn == true)
-                            IconButton(
-                              tooltip: context.l10n.signOutDevice,
-                              onPressed: () =>
-                                  _signOutDevice(context, app, id, name),
-                              icon: const Icon(Icons.logout_rounded),
-                            ),
-                          IconButton(
-                            tooltip: context.l10n.revokeDevice,
-                            onPressed: () async {
-                              if (await _confirmRevokeDevice(context, name) !=
-                                  true) {
-                                return;
-                              }
-                              try {
-                                await app.revokeDevice(id);
-                              } catch (error) {
-                                if (context.mounted) {
-                                  _snack(
-                                    context,
-                                    app.friendlyError(error),
-                                    error: true,
-                                  );
-                                }
-                              }
-                            },
-                            icon: Icon(
-                              Icons.block_rounded,
-                              color: context.palette.red,
+                          Text(
+                            name,
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              height: 1.3,
+                              fontWeight: FontWeight.w600,
+                              color: active ? palette.text : palette.muted,
                             ),
                           ),
+                          if (current)
+                            Semantics(
+                              container: true,
+                              label: l10n.currentDevice,
+                              child: ExcludeSemantics(
+                                child: CountTag(
+                                  label: l10n.devicesThisDevice,
+                                  tone: palette.lime,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
-              ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _DeviceStatusTag(status: status),
+                          if (active && signedIn is bool)
+                            _WrapStatusChip(
+                              label: signedIn
+                                  ? l10n.deviceSignedInStatus
+                                  : l10n.signedOut,
+                              tone: signedIn ? palette.info : palette.hint,
+                            ),
+                          if (createdAt != null)
+                            Padding(
+                              padding: const EdgeInsetsDirectional.only(
+                                start: 4,
+                                end: 6,
+                              ),
+                              child: meta(
+                                Icons.event_available_outlined,
+                                l10n.createdFormat(
+                                  dateFormat.format(createdAt),
+                                ),
+                              ),
+                            ),
+                          if (revokedAt != null)
+                            meta(
+                              Icons.block_rounded,
+                              l10n.revokedFormat2(dateFormat.format(revokedAt)),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (wide && actions.isNotEmpty) ...[
+                  const SizedBox(width: 12),
+                  Wrap(spacing: 8, runSpacing: 8, children: actions),
+                ],
+              ],
             );
-          }),
-      ],
-    ),
-  );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                const SizedBox(height: 10),
+                Padding(
+                  // Wide tiles line the details up with the device name.
+                  padding: EdgeInsetsDirectional.only(start: wide ? 52 : 0),
+                  child: details,
+                ),
+                if (!wide && actions.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 8, children: actions),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 Widget _browserDeviceActivity(
@@ -16766,9 +17420,13 @@ Widget _browserDeviceActivity(
   final lastIp = activity['last_ip'] as String?;
   final history =
       (activity['ip_history'] as List?)?.whereType<String>() ?? const <String>[];
-  final style = TextStyle(color: context.palette.muted, fontSize: 11, height: 1.5);
+  final style = TextStyle(
+    color: context.palette.muted,
+    fontSize: 11.5,
+    height: 1.5,
+  );
   return Padding(
-    padding: const EdgeInsets.only(bottom: 7),
+    padding: const EdgeInsets.only(bottom: 6),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -16857,19 +17515,23 @@ class _DeviceStatusTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Only the known server values get a name; anything else reads as
+    // "status unavailable" instead of showing the raw server text.
     final (label, color) = switch (status) {
-      _TrustedDeviceStatus.active => ('Active', context.palette.teal),
-      _TrustedDeviceStatus.revoked => ('Revoked', context.palette.red),
-      _TrustedDeviceStatus.unknown => ('Status unavailable', context.palette.muted),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(6),
+      _TrustedDeviceStatus.active => (
+        context.l10n.devicesStatusActive,
+        context.palette.teal,
       ),
-      child: Text(label, style: TextStyle(fontSize: 10, color: color)),
-    );
+      _TrustedDeviceStatus.revoked => (
+        context.l10n.devicesStatusRevoked,
+        context.palette.red,
+      ),
+      _TrustedDeviceStatus.unknown => (
+        context.l10n.devicesStatusUnknown,
+        context.palette.muted,
+      ),
+    };
+    return _WrapStatusChip(label: label, tone: color);
   }
 }
 

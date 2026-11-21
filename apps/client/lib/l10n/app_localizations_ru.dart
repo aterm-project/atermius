@@ -20591,4 +20591,105 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get keychainNoMatchesHint => 'Измените запрос или покажите все типы.';
+
+  @override
+  String get devicesStatusActive => 'Активно';
+
+  @override
+  String get devicesStatusRevoked => 'Отозвано';
+
+  @override
+  String get devicesStatusUnknown => 'Статус неизвестен';
+
+  @override
+  String get devicesThisDevice => 'Это устройство';
+
+  @override
+  String get devicesSignOutAction => 'Завершить сеанс';
+
+  @override
+  String get devicesRevokeAction => 'Отозвать';
+
+  @override
+  String devicesActiveCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count активного',
+      many: '$count активных',
+      few: '$count активных',
+      one: '$count активное',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String devicesRevokedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count отозванного',
+      many: '$count отозванных',
+      few: '$count отозванных',
+      one: '$count отозванное',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String devicesReadinessSummary(int ready, int total, int blocked) {
+    return 'Готовы $ready из $total активных устройств сейфа; отчётов, блокирующих окончательное удаление: $blocked.';
+  }
+
+  @override
+  String devicesReadyFraction(int ready, int total) {
+    return 'Готово $ready/$total';
+  }
+
+  @override
+  String get devicesReadinessReady => 'Готово';
+
+  @override
+  String get devicesReadinessMissing => 'Отчёт не получен';
+
+  @override
+  String get devicesReadinessInvalidated => 'Отчёт истёк или аннулирован';
+
+  @override
+  String get devicesReadinessUnverifiable => 'Не удалось проверить отчёт';
+
+  @override
+  String get devicesReadinessUnsupported => 'Версия клиента не поддерживается';
+
+  @override
+  String get auditToday => 'Сегодня';
+
+  @override
+  String get auditYesterday => 'Вчера';
+
+  @override
+  String auditEventCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count события',
+      many: '$count событий',
+      few: '$count события',
+      one: '$count событие',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String auditFailedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count сбоя',
+      many: '$count сбоев',
+      few: '$count сбоя',
+      one: '$count сбой',
+    );
+    return '$_temp0';
+  }
 }

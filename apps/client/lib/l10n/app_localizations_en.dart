@@ -20508,4 +20508,97 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keychainNoMatchesHint => 'Try another search, or show all types.';
+
+  @override
+  String get devicesStatusActive => 'Active';
+
+  @override
+  String get devicesStatusRevoked => 'Revoked';
+
+  @override
+  String get devicesStatusUnknown => 'Status unavailable';
+
+  @override
+  String get devicesThisDevice => 'This device';
+
+  @override
+  String get devicesSignOutAction => 'Sign out';
+
+  @override
+  String get devicesRevokeAction => 'Revoke';
+
+  @override
+  String devicesActiveCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count active',
+      one: '1 active',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String devicesRevokedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count revoked',
+      one: '1 revoked',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String devicesReadinessSummary(int ready, int total, int blocked) {
+    return '$ready of $total active Vault devices are ready; $blocked report(s) block permanent purge.';
+  }
+
+  @override
+  String devicesReadyFraction(int ready, int total) {
+    return '$ready/$total ready';
+  }
+
+  @override
+  String get devicesReadinessReady => 'Ready';
+
+  @override
+  String get devicesReadinessMissing => 'Report not received';
+
+  @override
+  String get devicesReadinessInvalidated => 'Report expired or invalidated';
+
+  @override
+  String get devicesReadinessUnverifiable => 'Report could not be verified';
+
+  @override
+  String get devicesReadinessUnsupported => 'Client version unsupported';
+
+  @override
+  String get auditToday => 'Today';
+
+  @override
+  String get auditYesterday => 'Yesterday';
+
+  @override
+  String auditEventCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count events',
+      one: '1 event',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String auditFailedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count failed',
+      one: '1 failed',
+    );
+    return '$_temp0';
+  }
 }

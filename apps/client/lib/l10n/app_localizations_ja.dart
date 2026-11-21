@@ -19323,4 +19323,93 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get keychainNoMatchesHint => '別のキーワードで検索するか、すべての種類を表示してください。';
+
+  @override
+  String get devicesStatusActive => '有効';
+
+  @override
+  String get devicesStatusRevoked => '失効済み';
+
+  @override
+  String get devicesStatusUnknown => '状態不明';
+
+  @override
+  String get devicesThisDevice => 'このデバイス';
+
+  @override
+  String get devicesSignOutAction => 'サインアウト';
+
+  @override
+  String get devicesRevokeAction => '失効';
+
+  @override
+  String devicesActiveCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '有効 $count 台',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String devicesRevokedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '失効済み $count 台',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String devicesReadinessSummary(int ready, int total, int blocked) {
+    return 'アクティブな保管庫デバイス $total 台のうち $ready 台が準備完了です。$blocked 件のレポートが完全削除を妨げています。';
+  }
+
+  @override
+  String devicesReadyFraction(int ready, int total) {
+    return '$ready/$total 準備完了';
+  }
+
+  @override
+  String get devicesReadinessReady => '準備完了';
+
+  @override
+  String get devicesReadinessMissing => 'レポート未受信';
+
+  @override
+  String get devicesReadinessInvalidated => 'レポートが期限切れまたは無効';
+
+  @override
+  String get devicesReadinessUnverifiable => 'レポートを検証できません';
+
+  @override
+  String get devicesReadinessUnsupported => 'クライアントのバージョンが非対応';
+
+  @override
+  String get auditToday => '今日';
+
+  @override
+  String get auditYesterday => '昨日';
+
+  @override
+  String auditEventCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 件のイベント',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String auditFailedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '失敗 $count 件',
+    );
+    return '$_temp0';
+  }
 }

@@ -18376,4 +18376,93 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get keychainNoMatchesHint => '换个关键词，或显示全部类型。';
+
+  @override
+  String get devicesStatusActive => '有效';
+
+  @override
+  String get devicesStatusRevoked => '已撤销';
+
+  @override
+  String get devicesStatusUnknown => '状态未知';
+
+  @override
+  String get devicesThisDevice => '此设备';
+
+  @override
+  String get devicesSignOutAction => '踢下线';
+
+  @override
+  String get devicesRevokeAction => '撤销';
+
+  @override
+  String devicesActiveCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台有效',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String devicesRevokedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台已撤销',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String devicesReadinessSummary(int ready, int total, int blocked) {
+    return '$total 台活动的保险库设备中有 $ready 台已就绪；$blocked 份报告阻止永久清除。';
+  }
+
+  @override
+  String devicesReadyFraction(int ready, int total) {
+    return '$ready/$total 已就绪';
+  }
+
+  @override
+  String get devicesReadinessReady => '已就绪';
+
+  @override
+  String get devicesReadinessMissing => '未收到报告';
+
+  @override
+  String get devicesReadinessInvalidated => '报告已过期或失效';
+
+  @override
+  String get devicesReadinessUnverifiable => '报告无法验证';
+
+  @override
+  String get devicesReadinessUnsupported => '客户端版本不受支持';
+
+  @override
+  String get auditToday => '今天';
+
+  @override
+  String get auditYesterday => '昨天';
+
+  @override
+  String auditEventCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 条事件',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String auditFailedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 条失败',
+    );
+    return '$_temp0';
+  }
 }

@@ -32379,6 +32379,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Try another search, or show all types.'**
   String get keychainNoMatchesHint;
+
+  /// No description provided for @devicesStatusActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get devicesStatusActive;
+
+  /// No description provided for @devicesStatusRevoked.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoked'**
+  String get devicesStatusRevoked;
+
+  /// No description provided for @devicesStatusUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Status unavailable'**
+  String get devicesStatusUnknown;
+
+  /// No description provided for @devicesThisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get devicesThisDevice;
+
+  /// No description provided for @devicesSignOutAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get devicesSignOutAction;
+
+  /// No description provided for @devicesRevokeAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke'**
+  String get devicesRevokeAction;
+
+  /// No description provided for @devicesActiveCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 active} other{{count} active}}'**
+  String devicesActiveCount(int count);
+
+  /// No description provided for @devicesRevokedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 revoked} other{{count} revoked}}'**
+  String devicesRevokedCount(int count);
+
+  /// No description provided for @devicesReadinessSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{ready} of {total} active Vault devices are ready; {blocked} report(s) block permanent purge.'**
+  String devicesReadinessSummary(int ready, int total, int blocked);
+
+  /// No description provided for @devicesReadyFraction.
+  ///
+  /// In en, this message translates to:
+  /// **'{ready}/{total} ready'**
+  String devicesReadyFraction(int ready, int total);
+
+  /// No description provided for @devicesReadinessReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get devicesReadinessReady;
+
+  /// No description provided for @devicesReadinessMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Report not received'**
+  String get devicesReadinessMissing;
+
+  /// No description provided for @devicesReadinessInvalidated.
+  ///
+  /// In en, this message translates to:
+  /// **'Report expired or invalidated'**
+  String get devicesReadinessInvalidated;
+
+  /// No description provided for @devicesReadinessUnverifiable.
+  ///
+  /// In en, this message translates to:
+  /// **'Report could not be verified'**
+  String get devicesReadinessUnverifiable;
+
+  /// No description provided for @devicesReadinessUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Client version unsupported'**
+  String get devicesReadinessUnsupported;
+
+  /// No description provided for @auditToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get auditToday;
+
+  /// No description provided for @auditYesterday.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get auditYesterday;
+
+  /// No description provided for @auditEventCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 event} other{{count} events}}'**
+  String auditEventCount(int count);
+
+  /// No description provided for @auditFailedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 failed} other{{count} failed}}'**
+  String auditFailedCount(int count);
 }
 
 class _AppLocalizationsDelegate
