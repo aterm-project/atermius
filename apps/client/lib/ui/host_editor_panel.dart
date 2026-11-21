@@ -181,6 +181,12 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
   bool _iosAdvancedExpanded = false;
   bool _lastKnownIosDirty = false;
 
+  bool get _showsUsername => switch (_protocol) {
+    HostProtocol.telnet => false,
+    HostProtocol.vnc => !DesktopSession.supportsDirect(_protocol),
+    _ => true,
+  };
+
   void _iosSetState(VoidCallback fn) => setState(fn);
 
   @override
@@ -437,9 +443,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
                           ],
                         ),
                         fieldGap,
-                        // Telnet login is interactive; no user name is stored
-                        // or sent automatically.
-                        if (_protocol != HostProtocol.telnet) ...[
+                        if (_showsUsername) ...[
                           _field(
                             _username,
                             _protocol == HostProtocol.ssh
@@ -890,6 +894,16 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
 
   void _save() {
     final port = int.tryParse(_port.text.trim());
+    final initialHost = widget.existing ?? widget.initialDraft;
+    final username = switch (_protocol) {
+      HostProtocol.telnet => '',
+      // Preserve a username supplied for this VNC host for gateway connections.
+      HostProtocol.vnc when !_showsUsername =>
+        _initialProtocolValue == HostProtocol.vnc
+            ? initialHost?.username ?? ''
+            : '',
+      _ => _username.text.trim(),
+    };
     final host = HostRecord(
       id: widget.existing?.id ?? _uuid.v4(),
       name: _name.text.trim(),
@@ -901,7 +915,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
               _rdpFingerprint.text.trim().isNotEmpty
           ? _rdpFingerprint.text.trim().replaceAll(':', '').toLowerCase()
           : null,
-      username: _protocol == HostProtocol.telnet ? '' : _username.text.trim(),
+      username: username,
       groupId: _groupId,
       credentialId: _protocol == HostProtocol.ssh && _source.startsWith('k:')
           ? _source.substring(2)

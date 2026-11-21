@@ -55,6 +55,12 @@ void main() {
               .text,
           '${protocol.defaultPort}',
         );
+        expect(
+          find.byKey(const ValueKey('host_editor_username')),
+          protocol == HostProtocol.ssh || protocol == HostProtocol.rdp
+              ? findsOneWidget
+              : findsNothing,
+        );
         if (protocol != HostProtocol.ssh)
           expect(find.byKey(const ValueKey('host_editor_kind')), findsNothing);
       },
@@ -98,6 +104,8 @@ void main() {
         find.byKey(const ValueKey('host_editor_address')),
         'desktop.example',
       );
+      final username = find.byKey(const ValueKey('host_editor_username'));
+      await tester.enterText(username, 'ssh-user');
       await tester.tap(find.byKey(const ValueKey('host_editor_protocol')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('VNC').last);
@@ -110,6 +118,7 @@ void main() {
         '5900',
       );
       expect(find.byKey(const ValueKey('host_editor_kind')), findsNothing);
+      expect(username, findsNothing);
       final jump = find.byKey(const ValueKey('host_editor_jump_host'));
       await tester.ensureVisible(jump);
       await tester.tap(jump);
@@ -127,6 +136,49 @@ void main() {
       expect(saved?.username, '');
     },
   );
+  testWidgets(
+    'iPhone VNC hides the username and preserves the saved gateway username',
+    (tester) async {
+      HostRecord? saved;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: IosNativeScope(
+            enabled: true,
+            child: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async {
+                  saved = await showHostEditorPanel(
+                    context,
+                    existing: const HostRecord(
+                      id: 'vnc',
+                      name: 'VNC desktop',
+                      address: 'desktop.example',
+                      protocol: HostProtocol.vnc,
+                      username: 'gateway-user',
+                    ),
+                    groups: [],
+                    hosts: [],
+                  );
+                },
+                child: const Text('Edit'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('host_editor_username')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('host_editor_password')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('host_editor_save')));
+      await tester.pumpAndSettle();
+      expect(saved?.username, 'gateway-user');
+    },
+  );
+
   testWidgets('iPhone RDP editor shows its saved jump host in Advanced', (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: IosNativeScope(

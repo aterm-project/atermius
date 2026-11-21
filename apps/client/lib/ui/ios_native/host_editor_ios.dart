@@ -184,7 +184,7 @@ extension _HostEditorPanelIos on _HostEditorPanelState {
               keyboardType: TextInputType.number,
               textInputAction: TextInputAction.next,
             ),
-            if (_protocol != HostProtocol.telnet)
+            if (_showsUsername)
               IosTextFieldRow(
                 fieldKey: ValueKey('${prefix}_username'),
                 label: _protocol == HostProtocol.ssh
