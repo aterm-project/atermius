@@ -47,6 +47,7 @@ import 'ssh/port_forward_rule_change.dart';
 import 'domain/record_redaction.dart';
 import 'domain/shell_history_record.dart';
 import 'domain/vault_preference.dart';
+import 'domain/vault_wallpaper.dart';
 import 'domain/sftp_entries.dart';
 import 'domain/sftp_transfer.dart';
 import 'domain/snippet_invocation.dart';
@@ -1354,6 +1355,10 @@ class AppController extends ChangeNotifier {
   Future<void> _mobilePushWriteQueue = Future<void>.value();
   VaultDescriptor? activeVault;
   final Map<String, Uint8List> _vaultKeys = {};
+
+  /// Vaults whose latest verified membership has this account as the only
+  /// (Owner) member; see [wallpaperSyncAvailability].
+  final Set<String> _soloOwnedVaultIds = {};
   final Map<String, Map<String, Uint8List>> _vaultEpochKeys = {};
   final Map<String, String> _revisionIds = {};
   final Set<String> pendingKnownHostRecordIds = {};
@@ -1450,6 +1455,9 @@ class AppController extends ChangeNotifier {
   Future<void> _shellHistorySyncWriteQueue = Future<void>.value();
   final List<KnownHostRecord> knownHosts = [];
   final List<VaultPreferenceRecord> preferences = [];
+
+  /// Account wallpaper records of the active Vault (normally at most one).
+  final List<VaultWallpaperRecord> wallpaperRecords = [];
   String? preferenceError;
   final Map<String, _PreferenceTupleConflictState> _preferenceConflicts = {};
   bool _unsupportedVaultPreferencePresent = false;
@@ -5109,6 +5117,7 @@ class AppController extends ChangeNotifier {
     knownHosts.clear();
     pendingKnownHostRecordIds.clear();
     preferences.clear();
+    wallpaperRecords.clear();
     preferenceError = null;
     _resetDefaultSectionConflictRepair();
     _clearVaultDeviceRows();
@@ -5397,6 +5406,7 @@ class AppController extends ChangeNotifier {
     }
 
     final loadedVaultKeys = <String, Uint8List>{};
+    final loadedSoloOwnedVaultIds = <String>{};
     final loadedEpochKeys = <String, Map<String, Uint8List>>{};
     final loadedNames = <String, String>{};
     final loadedSignerDirectories = <String, Map<String, Uint8List>>{};
@@ -5522,6 +5532,24 @@ class AppController extends ChangeNotifier {
           throw FormatException(
             currentL10n.vaultIdMembershipDoesNotInclude(vault.id),
           );
+        }
+        // Only this account (as Owner) is or may become a member: data in it
+        // reaches no other account (the account wallpaper lives here).
+        final signedMembers = latestMembership.manifest['members'] as List;
+        if (signedMembers.every(
+              (member) =>
+                  member is Map &&
+                  (member['user_id'] == currentAccountId ||
+                      member['state'] == 'revoked'),
+            ) &&
+            signedMembers.any(
+              (member) =>
+                  member is Map &&
+                  member['user_id'] == currentAccountId &&
+                  member['state'] == 'active' &&
+                  member['role'] == 'owner',
+            )) {
+          loadedSoloOwnedVaultIds.add(vault.id);
         }
         final addressed = vault.keyEnvelopes.where(
           (item) => item['recipient_device_id'] == currentIdentity.deviceId,
@@ -5735,6 +5763,9 @@ class AppController extends ChangeNotifier {
       _vaultKeys
         ..clear()
         ..addAll(loadedVaultKeys);
+      _soloOwnedVaultIds
+        ..clear()
+        ..addAll(loadedSoloOwnedVaultIds);
       _vaultEpochKeys
         ..clear()
         ..addAll(loadedEpochKeys);
@@ -6375,6 +6406,7 @@ class AppController extends ChangeNotifier {
     knownHosts.clear();
     pendingKnownHostRecordIds.clear();
     preferences.clear();
+    wallpaperRecords.clear();
     preferenceError = null;
     _resetDefaultSectionConflictRepair();
     _resetAuditState();
@@ -6481,6 +6513,7 @@ class AppController extends ChangeNotifier {
     vaultRecordsLoadedFor = null;
     knownHosts.clear();
     preferences.clear();
+    wallpaperRecords.clear();
     preferenceError = null;
     _unsupportedVaultPreferencePresent = false;
     String? unsupportedPreferenceError;
@@ -6538,6 +6571,10 @@ class AppController extends ChangeNotifier {
             shellHistoryRecords.add(
               ShellHistoryRecord.fromJson({...row, if (id is String) 'id': id}),
             );
+          case VaultWallpaperRecord.recordType:
+            final record = VaultWallpaperRecord.fromJson(row);
+            wallpaperRecords.add(record);
+            if (revision is String) _revisionIds[record.id] = revision;
           default:
             // Unknown/future types remain encrypted in the repository. Make
             // their omission visible and never expose a revision for editing.
@@ -6936,6 +6973,103 @@ class AppController extends ChangeNotifier {
     _automaticSync.scheduleEdit();
     notifyListeners();
     return WorkspacePreferenceSaveOutcome.savedToActiveVault;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Account wallpaper: an encrypted `wallpaper` record in a Vault only this
+  // account is a member of, whose image is an encrypted attachment in that
+  // Vault's object store (see lib/sync/wallpaper_sync.dart).
+
+  /// Whether the account wallpaper can be read and saved right now.
+  WallpaperSyncAvailability get wallpaperSyncAvailability {
+    if (session == null || identity == null || api == null) {
+      return WallpaperSyncAvailability.signedOut;
+    }
+    if (workspaceLocked) return WallpaperSyncAvailability.locked;
+    final vault = activeVault;
+    final repository = _repository;
+    if (vault == null || repository == null || repository.vaultId != vault.id) {
+      return WallpaperSyncAvailability.noVault;
+    }
+    if (vaultOrganization(vault.id) != null ||
+        !_soloOwnedVaultIds.contains(vault.id)) {
+      return WallpaperSyncAvailability.sharedVault;
+    }
+    if (!vault.canWrite ||
+        vault.status != 'active' ||
+        !repository.canWrite ||
+        repository.deletionPending) {
+      return WallpaperSyncAvailability.readOnly;
+    }
+    if (vaultRecordsLoadedFor != vault.id) {
+      return WallpaperSyncAvailability.loading;
+    }
+    return WallpaperSyncAvailability.available;
+  }
+
+  /// The Vault holding the account wallpaper, while it is available.
+  String? get wallpaperSyncVaultId =>
+      wallpaperSyncAvailability == WallpaperSyncAvailability.available
+      ? activeVault?.id
+      : null;
+
+  /// The account wallpaper record: the newest one if two devices created it
+  /// at the same time.
+  VaultWallpaperRecord? get accountWallpaperRecord {
+    VaultWallpaperRecord? best;
+    for (final record in wallpaperRecords) {
+      if (best == null ||
+          record.value.updatedAtMs > best.value.updatedAtMs ||
+          (record.value.updatedAtMs == best.value.updatedAtMs &&
+              record.id.compareTo(best.id) > 0)) {
+        best = record;
+      }
+    }
+    return best;
+  }
+
+  /// A fresh attachment cipher for the wallpaper image.
+  HostAttachmentCrypto wallpaperImageCrypto() =>
+      HostAttachmentCrypto(randomBytes: crypto.randomBytes);
+
+  /// Encrypts and queues the account wallpaper record in [vaultId] (which
+  /// must still be the available wallpaper Vault). Its image objects must
+  /// already be uploaded: the server only accepts references to them then.
+  Future<void> saveAccountWallpaper(
+    VaultWallpaperValue value, {
+    required String vaultId,
+  }) async {
+    _assertEditsAllowed(requireWritableVault: true);
+    if (wallpaperSyncVaultId != vaultId) {
+      throw StateError('The account wallpaper Vault is not available.');
+    }
+    final repository = _requireRepository();
+    final existing = accountWallpaperRecord;
+    final record = VaultWallpaperRecord.create(value: value, id: existing?.id);
+    final baseRevisionId = existing == null
+        ? null
+        : _revisionIds[existing.id] ?? existing.revisionId;
+    final envelope = await repository.saveRecord(
+      recordId: record.id,
+      plaintext: record.toJson(),
+      baseRevisionId: baseRevisionId,
+      operation: existing == null ? 'create' : 'update',
+    );
+    if (activeVault?.id != vaultId || !identical(_repository, repository)) {
+      return;
+    }
+    final revisionId =
+        (envelope['header'] as Map<String, dynamic>)['revision_id'] as String;
+    _revisionIds[record.id] = revisionId;
+    wallpaperRecords
+      ..removeWhere((item) => item.id == record.id)
+      ..add(record.copyWith(revisionId: revisionId));
+    await refreshSyncStatus();
+    if (activeVault?.id != vaultId || !identical(_repository, repository)) {
+      return;
+    }
+    _automaticSync.scheduleEdit();
+    notifyListeners();
   }
 
   List<WindowCombination> get windowCombinations {
@@ -8551,6 +8685,7 @@ class AppController extends ChangeNotifier {
         case 'preference':
         case 'workspace':
         case 'shellHistory':
+        case VaultWallpaperRecord.recordType:
           break;
         default:
           throw FormatException(
@@ -11121,6 +11256,9 @@ class AppController extends ChangeNotifier {
         return null;
       case 'shellHistory':
         ShellHistoryRecord.fromJson(Map<String, dynamic>.from(candidate));
+        return null;
+      case VaultWallpaperRecord.recordType:
+        VaultWallpaperRecord.fromJson(Map<String, dynamic>.from(candidate));
         return null;
       default:
         return currentL10n.thisRecordTypeCannotBeRestored;
@@ -18003,6 +18141,8 @@ class AppController extends ChangeNotifier {
         canWrite: vault.canWrite,
         adminVisible: vault.adminVisible, // credential-visibility
       );
+      // Someone else is now invited: no longer a Vault of this account only.
+      _soloOwnedVaultIds.remove(vault.id);
       _vaultDescriptors = _vaultDescriptors
           .map((item) => item.id == updated.id ? updated : item)
           .toList(growable: false);
@@ -24326,6 +24466,7 @@ class AppController extends ChangeNotifier {
       key.fillRange(0, key.length, 0);
     }
     _vaultKeys.clear();
+    _soloOwnedVaultIds.clear();
     _vaultEpochKeys.clear();
     _pendingVaultKeyBufferWipes.clear();
     _accountKey?.fillRange(0, _accountKey!.length, 0);
@@ -24370,6 +24511,7 @@ class AppController extends ChangeNotifier {
     knownHosts.clear();
     pendingKnownHostRecordIds.clear();
     preferences.clear();
+    wallpaperRecords.clear();
     preferenceError = null;
     _resetDefaultSectionConflictRepair();
     // These collections may come from immutable API/Drift snapshots. Replace
@@ -24473,6 +24615,7 @@ class AppController extends ChangeNotifier {
       for (final buffers in _pendingVaultKeyBufferWipes.values) ...buffers,
     };
     _vaultKeys.clear();
+    _soloOwnedVaultIds.clear();
     _vaultEpochKeys.clear();
     _pendingVaultKeyBufferWipes.clear();
     final endingAccountKey = _accountKey;
@@ -24566,6 +24709,7 @@ class AppController extends ChangeNotifier {
     knownHosts.clear();
     pendingKnownHostRecordIds.clear();
     preferences.clear();
+    wallpaperRecords.clear();
     preferenceError = null;
     _resetDefaultSectionConflictRepair();
     devices = [];
@@ -24750,6 +24894,7 @@ class AppController extends ChangeNotifier {
       key.fillRange(0, key.length, 0);
     }
     _vaultKeys.clear();
+    _soloOwnedVaultIds.clear();
     _vaultEpochKeys.clear();
     _pendingVaultKeyBufferWipes.clear();
     final accountKey = _accountKey;
@@ -24913,6 +25058,7 @@ class AppController extends ChangeNotifier {
         key.fillRange(0, key.length, 0);
       }
       _vaultKeys.clear();
+      _soloOwnedVaultIds.clear();
       _vaultEpochKeys.clear();
       _accountKey?.fillRange(0, _accountKey!.length, 0);
       _accountKey = null;
@@ -25353,6 +25499,7 @@ class AppController extends ChangeNotifier {
       for (final buffers in _pendingVaultKeyBufferWipes.values) ...buffers,
     };
     _vaultKeys.clear();
+    _soloOwnedVaultIds.clear();
     _vaultEpochKeys.clear();
     _pendingVaultKeyBufferWipes.clear();
     final retiredAccountKey = _accountKey;

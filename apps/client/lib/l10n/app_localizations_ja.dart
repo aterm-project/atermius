@@ -16155,6 +16155,35 @@ class AppLocalizationsJa extends AppLocalizations {
       '画像のコピーはこのデバイスのアプリ専用ストレージに保存されます。別ウィンドウも開いたときに同じ壁紙を使います。';
 
   @override
+  String get wallpaperSyncTitle => '自分のデバイス間で同期';
+
+  @override
+  String get wallpaperSyncSynced =>
+      '同期済みです。画像はこのデバイスで暗号化されて個人用 Vault に保存され、自分のデバイスだけが読み取れます。';
+
+  @override
+  String get wallpaperSyncUploading => '壁紙を暗号化してアップロードしています…';
+
+  @override
+  String get wallpaperSyncDownloading => 'アカウントから壁紙を取得しています…';
+
+  @override
+  String get wallpaperSyncFailed => '壁紙を同期できませんでした。自動的に再試行します。';
+
+  @override
+  String get wallpaperSyncOff => 'このデバイスは独自の壁紙を使い、ほかのデバイスとは同期しません。';
+
+  @override
+  String get wallpaperSyncSharedVault =>
+      '一時停止中：現在の Vault はほかの人と共有されています。壁紙を同期するには個人用 Vault に切り替えてください。';
+
+  @override
+  String get wallpaperSyncReadOnly => '一時停止中：現在の Vault は読み取り専用です。';
+
+  @override
+  String get wallpaperSyncWaiting => 'アカウントにサインインしてロックを解除すると同期が始まります。';
+
+  @override
   String get fileManagerPasteInto => 'フォルダーに貼り付け';
 
   @override

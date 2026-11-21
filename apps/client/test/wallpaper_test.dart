@@ -474,7 +474,8 @@ void main() {
       expect(owned(), hasLength(1));
       final settings = File('${root.path}/wallpaper-v1/settings.json').readAsStringSync();
       final json = jsonDecode(settings) as Map;
-      expect(json.keys.toSet(), {'v', 'image', 'mode', 'blur'});
+      // `t`: when the user made the change (account wallpaper sync).
+      expect(json.keys.toSet(), {'v', 'image', 'mode', 'blur', 't'});
       expect(json['mode'], 'panes');
       expect(json['blur'], 12.5);
       expect(settings.length, lessThan(160)); // no image bytes, no paths

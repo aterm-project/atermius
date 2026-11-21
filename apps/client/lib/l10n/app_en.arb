@@ -13450,6 +13450,42 @@
   "@wallpaperDeviceNote": {
     "description": "Theme settings wallpaper card (wallpaper worker)."
   },
+  "wallpaperSyncTitle": "Sync across my devices",
+  "@wallpaperSyncTitle": {
+    "description": "Wallpaper settings: account wallpaper sync (same user, all devices)."
+  },
+  "wallpaperSyncSynced": "Synced. The image is encrypted on this device and kept in your personal Vault; only your own devices can read it.",
+  "@wallpaperSyncSynced": {
+    "description": "Wallpaper settings: account wallpaper sync (same user, all devices)."
+  },
+  "wallpaperSyncUploading": "Encrypting and uploading the wallpaper…",
+  "@wallpaperSyncUploading": {
+    "description": "Wallpaper settings: account wallpaper sync (same user, all devices)."
+  },
+  "wallpaperSyncDownloading": "Getting the wallpaper from your account…",
+  "@wallpaperSyncDownloading": {
+    "description": "Wallpaper settings: account wallpaper sync (same user, all devices)."
+  },
+  "wallpaperSyncFailed": "The wallpaper couldn't be synced. It's retried automatically.",
+  "@wallpaperSyncFailed": {
+    "description": "Wallpaper settings: account wallpaper sync (same user, all devices)."
+  },
+  "wallpaperSyncOff": "This device keeps its own wallpaper and doesn't share it with your other devices.",
+  "@wallpaperSyncOff": {
+    "description": "Wallpaper settings: account wallpaper sync (same user, all devices)."
+  },
+  "wallpaperSyncSharedVault": "Paused: the current Vault is shared with others. Switch to your personal Vault to sync the wallpaper.",
+  "@wallpaperSyncSharedVault": {
+    "description": "Wallpaper settings: account wallpaper sync (same user, all devices)."
+  },
+  "wallpaperSyncReadOnly": "Paused: the current Vault is read-only.",
+  "@wallpaperSyncReadOnly": {
+    "description": "Wallpaper settings: account wallpaper sync (same user, all devices)."
+  },
+  "wallpaperSyncWaiting": "Sync starts once your account is signed in and unlocked.",
+  "@wallpaperSyncWaiting": {
+    "description": "Wallpaper settings: account wallpaper sync (same user, all devices)."
+  },
   "@fileManagerRename": {
     "description": "File manager UI text."
   },

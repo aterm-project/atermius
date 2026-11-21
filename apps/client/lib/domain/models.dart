@@ -22,6 +22,9 @@ enum RecordKind {
   preference,
   workspace,
   shellHistory,
+
+  /// Account wallpaper (see `domain/vault_wallpaper.dart`).
+  wallpaper,
 }
 
 enum AuthKind { password, privateKey }

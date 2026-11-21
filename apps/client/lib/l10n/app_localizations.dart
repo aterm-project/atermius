@@ -27052,6 +27052,60 @@ abstract class AppLocalizations {
   /// **'A copy of the image is kept in this app\'s storage on this device. Separate windows use the same wallpaper when they open.'**
   String get wallpaperDeviceNote;
 
+  /// Wallpaper settings: account wallpaper sync (same user, all devices).
+  ///
+  /// In en, this message translates to:
+  /// **'Sync across my devices'**
+  String get wallpaperSyncTitle;
+
+  /// Wallpaper settings: account wallpaper sync (same user, all devices).
+  ///
+  /// In en, this message translates to:
+  /// **'Synced. The image is encrypted on this device and kept in your personal Vault; only your own devices can read it.'**
+  String get wallpaperSyncSynced;
+
+  /// Wallpaper settings: account wallpaper sync (same user, all devices).
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypting and uploading the wallpaper…'**
+  String get wallpaperSyncUploading;
+
+  /// Wallpaper settings: account wallpaper sync (same user, all devices).
+  ///
+  /// In en, this message translates to:
+  /// **'Getting the wallpaper from your account…'**
+  String get wallpaperSyncDownloading;
+
+  /// Wallpaper settings: account wallpaper sync (same user, all devices).
+  ///
+  /// In en, this message translates to:
+  /// **'The wallpaper couldn\'t be synced. It\'s retried automatically.'**
+  String get wallpaperSyncFailed;
+
+  /// Wallpaper settings: account wallpaper sync (same user, all devices).
+  ///
+  /// In en, this message translates to:
+  /// **'This device keeps its own wallpaper and doesn\'t share it with your other devices.'**
+  String get wallpaperSyncOff;
+
+  /// Wallpaper settings: account wallpaper sync (same user, all devices).
+  ///
+  /// In en, this message translates to:
+  /// **'Paused: the current Vault is shared with others. Switch to your personal Vault to sync the wallpaper.'**
+  String get wallpaperSyncSharedVault;
+
+  /// Wallpaper settings: account wallpaper sync (same user, all devices).
+  ///
+  /// In en, this message translates to:
+  /// **'Paused: the current Vault is read-only.'**
+  String get wallpaperSyncReadOnly;
+
+  /// Wallpaper settings: account wallpaper sync (same user, all devices).
+  ///
+  /// In en, this message translates to:
+  /// **'Sync starts once your account is signed in and unlocked.'**
+  String get wallpaperSyncWaiting;
+
   /// File manager UI text.
   ///
   /// In en, this message translates to:

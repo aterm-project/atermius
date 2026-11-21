@@ -17180,6 +17180,40 @@ class AppLocalizationsEn extends AppLocalizations {
       'A copy of the image is kept in this app\'s storage on this device. Separate windows use the same wallpaper when they open.';
 
   @override
+  String get wallpaperSyncTitle => 'Sync across my devices';
+
+  @override
+  String get wallpaperSyncSynced =>
+      'Synced. The image is encrypted on this device and kept in your personal Vault; only your own devices can read it.';
+
+  @override
+  String get wallpaperSyncUploading =>
+      'Encrypting and uploading the wallpaper…';
+
+  @override
+  String get wallpaperSyncDownloading =>
+      'Getting the wallpaper from your account…';
+
+  @override
+  String get wallpaperSyncFailed =>
+      'The wallpaper couldn\'t be synced. It\'s retried automatically.';
+
+  @override
+  String get wallpaperSyncOff =>
+      'This device keeps its own wallpaper and doesn\'t share it with your other devices.';
+
+  @override
+  String get wallpaperSyncSharedVault =>
+      'Paused: the current Vault is shared with others. Switch to your personal Vault to sync the wallpaper.';
+
+  @override
+  String get wallpaperSyncReadOnly => 'Paused: the current Vault is read-only.';
+
+  @override
+  String get wallpaperSyncWaiting =>
+      'Sync starts once your account is signed in and unlocked.';
+
+  @override
   String get fileManagerPasteInto => 'Paste into folder';
 
   @override

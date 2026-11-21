@@ -8,7 +8,9 @@ import 'dart:typed_data';
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/crypto/vault_crypto.dart';
+import 'package:aterm_client/crypto/host_attachment_crypto.dart';
 import 'package:aterm_client/domain/vault_preference.dart';
+import 'package:aterm_client/domain/vault_wallpaper.dart';
 import 'package:aterm_client/storage/client_database.dart';
 import 'package:aterm_client/storage/secure_store.dart';
 import 'package:aterm_client/sync/sync_repository.dart';
@@ -106,6 +108,64 @@ void main() {
         expect(app.terminalTabs, isEmpty);
         await app.saveWindowCombinations([]);
         expect(app.windowCombinations, isEmpty);
+      } finally {
+        app.dispose();
+        identity.dispose();
+        key.fillRange(0, key.length, 0);
+        await database.close();
+      }
+    },
+  );
+
+  test(
+    'the account wallpaper record references its image objects and reloads',
+    () async {
+      final (app, database, repository, identity, key) = await _fixture(sodium);
+      try {
+        final encrypted = await HostAttachmentCrypto(
+          randomBytes: sodium.randombytes.buf,
+        ).encrypt(
+          fileName: vaultWallpaperFileName,
+          mediaType: 'image/png',
+          bytes: List.filled(64, 7),
+        );
+        final value = VaultWallpaperValue(
+          updatedAtMs: 1700000000000,
+          mode: 'panes',
+          blur: 4,
+          overlay: .35,
+          image: encrypted.manifestEntry,
+        );
+        final record = VaultWallpaperRecord.create(value: value);
+        final envelope = await repository.saveRecord(
+          recordId: record.id,
+          plaintext: record.toJson(),
+        );
+        final header = envelope['header']! as Map<String, dynamic>;
+        expect(header['object_refs'], value.objectIds);
+        final stored = (await database.encryptedRecord(_vaultId, record.id))!;
+        // The image key and layout stay inside the ciphertext.
+        expect(stored.envelopeJson, isNot(contains('blob_key')));
+        expect(stored.envelopeJson, isNot(contains('panes')));
+
+        await app.reloadRecords();
+        expect(app.preferenceError, isNull);
+        expect(app.unavailableRecordCount, 0);
+        expect(app.preferences, isEmpty);
+        final loaded = app.accountWallpaperRecord!;
+        expect(loaded.id, record.id);
+        expect(loaded.revisionId, header['revision_id']);
+        expect(loaded.value.blobId, value.blobId);
+        expect(loaded.value.overlay, .35);
+        // No account session in this fixture: nothing may be written.
+        expect(
+          app.wallpaperSyncAvailability,
+          WallpaperSyncAvailability.signedOut,
+        );
+        await expectLater(
+          app.saveAccountWallpaper(value, vaultId: _vaultId),
+          throwsStateError,
+        );
       } finally {
         app.dispose();
         identity.dispose();

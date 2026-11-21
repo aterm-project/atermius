@@ -4930,6 +4930,7 @@ class _RecycleBinRow extends StatelessWidget {
     'workspace' => Icons.dashboard_outlined,
     'knownHost' => Icons.verified_user_outlined,
     'shellHistory' => Icons.history_rounded,
+    'wallpaper' => Icons.wallpaper_outlined,
     _ => Icons.inventory_2_outlined,
   };
 
@@ -4942,6 +4943,7 @@ class _RecycleBinRow extends StatelessWidget {
     'preference' => currentL10n.preference,
     'knownHost' => currentL10n.knownHost,
     'shellHistory' => currentL10n.terminalHistory,
+    'wallpaper' => currentL10n.wallpaperSettingTitle,
     _ => currentL10n.record,
   };
 }

@@ -1929,6 +1929,7 @@ class SyncRepository {
       'preference' => record['key'],
       'knownHost' => record['host'],
       'shellHistory' => 'Terminal command history',
+      'wallpaper' => 'Wallpaper',
       _ => null,
     };
     if (value is String && value.trim().isNotEmpty) return value.trim();
@@ -1941,6 +1942,7 @@ class SyncRepository {
       'preference' => 'Vault preference',
       'knownHost' => 'Known host',
       'shellHistory' => 'Terminal command history',
+      'wallpaper' => 'Wallpaper',
       _ => 'Encrypted record',
     };
   }

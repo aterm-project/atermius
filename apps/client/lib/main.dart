@@ -63,6 +63,7 @@ import 'storage/app_theme_store.dart';
 import 'ui/app_theme_mode.dart';
 import 'storage/wallpaper_store.dart';
 import 'ui/wallpaper.dart';
+import 'sync/wallpaper_sync.dart';
 import 'storage/keyword_highlight_store.dart';
 import 'storage/terminal_palette_store.dart';
 import 'terminal/keyword_highlighter.dart';
@@ -642,6 +643,7 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     final controller = _controller;
     if (controller != null) {
+      WallpaperSyncCoordinator.unbind(controller);
       unawaited(controller.closeWorkspace().catchError((Object _) {}));
     }
     final catalog = _localCatalog;
@@ -720,6 +722,12 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
         _usingServer = true;
         _usingLocal = false;
       });
+      // Account wallpaper sync runs only in the main window, for the
+      // controller this app created (never for injected ones): a files
+      // window is another process sharing the same device wallpaper store.
+      if (created != null && widget.filesLaunch == null) {
+        WallpaperSyncCoordinator.bind(controller);
+      }
       _restoreServerSession();
     } on UnsupportedWebStorageException {
       created?.dispose();
@@ -827,7 +835,10 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
           _serverRestoreStarted = false;
         }
       });
-      if (retiring != null) await retiring.closeWorkspace();
+      if (retiring != null) {
+        WallpaperSyncCoordinator.unbind(retiring);
+        await retiring.closeWorkspace();
+      }
     } on Object {
       if (mounted) {
         setState(

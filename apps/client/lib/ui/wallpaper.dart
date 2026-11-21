@@ -76,6 +76,9 @@ class WallpaperPreferences {
     this.mode = WallpaperLayoutMode.window,
     this.blur = wallpaperDefaultBlur,
     this.overlay,
+    this.updatedAtMs = 0,
+    this.syncedBlobId,
+    this.syncEnabled = true,
   });
 
   /// Random id of the app-owned image copy; never a path or file name.
@@ -85,6 +88,18 @@ class WallpaperPreferences {
 
   /// User-chosen opacity of the color overlay; null keeps it automatic.
   final double? overlay;
+
+  /// When the user last changed the wallpaper on any device (milliseconds
+  /// since the epoch; 0 for a record written before account sync existed).
+  /// The newer of this and the account wallpaper wins.
+  final int updatedAtMs;
+
+  /// ID of the account (encrypted Vault) image the local copy is, or null
+  /// when the local image has not been synchronized.
+  final String? syncedBlobId;
+
+  /// Device-local choice to follow and publish the account wallpaper.
+  final bool syncEnabled;
 
   /// Strict, sanitizing parse. Anything invalid falls back field by field.
   static WallpaperPreferences parse(String? raw) {
@@ -101,13 +116,24 @@ class WallpaperPreferences {
       return const WallpaperPreferences();
     }
     final image = decoded['image'];
+    final updatedAt = decoded['t'];
+    final remote = decoded['remote'];
     return WallpaperPreferences(
       imageId: image is String && isValidWallpaperImageId(image) ? image : null,
       mode: WallpaperLayoutMode.parse(decoded['mode']),
       blur: sanitizeWallpaperBlur(decoded['blur'] ?? wallpaperDefaultBlur),
       overlay: sanitizeWallpaperOverlay(decoded['overlay']),
+      updatedAtMs: updatedAt is int && updatedAt >= 0 ? updatedAt : 0,
+      syncedBlobId: remote is String && _blobIdPattern.hasMatch(remote)
+          ? remote
+          : null,
+      syncEnabled: decoded['sync'] != false,
     );
   }
+
+  static final _blobIdPattern = RegExp(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+  );
 
   /// Whether [raw] is a well-formed v1 record whose image reference is known
   /// (absent or a valid id). Only then may stale image copies be cleaned.
@@ -130,6 +156,9 @@ class WallpaperPreferences {
     'mode': mode.code,
     'blur': blur,
     'overlay': ?overlay,
+    if (updatedAtMs > 0) 't': updatedAtMs,
+    'remote': ?syncedBlobId,
+    if (!syncEnabled) 'sync': false,
   });
 }
 
@@ -470,6 +499,40 @@ double wallpaperOverlayAlpha(
   required double? overlay,
 }) => overlay ?? wallpaperScrimAlpha(palette, luminance, pane: pane);
 
+const Object _keep = Object();
+
+/// The account wallpaper values to show locally (from the encrypted Vault
+/// preference). [blobId] identifies its image, null when it has none.
+@immutable
+class WallpaperAccountState {
+  const WallpaperAccountState({
+    required this.updatedAtMs,
+    required this.mode,
+    required this.blur,
+    required this.overlay,
+    required this.blobId,
+  });
+
+  final int updatedAtMs;
+  final WallpaperLayoutMode mode;
+  final double blur;
+  final double? overlay;
+  final String? blobId;
+
+  WallpaperPreferences preferences(
+    String? imageId, {
+    required bool syncEnabled,
+  }) => WallpaperPreferences(
+    imageId: imageId,
+    mode: mode,
+    blur: sanitizeWallpaperBlur(blur),
+    overlay: overlay == null ? null : sanitizeWallpaperOverlay(overlay),
+    updatedAtMs: updatedAtMs,
+    syncedBlobId: blobId,
+    syncEnabled: syncEnabled,
+  );
+}
+
 String _newImageId() {
   final random = math.Random.secure();
   return List.generate(
@@ -537,6 +600,23 @@ class WallpaperController extends ChangeNotifier {
   /// reference) until the user explicitly chooses or removes an image.
   bool _settingsKnown = true;
   Future<void>? _restoring;
+  int _updatedAtMs = 0;
+  String? _syncedBlobId;
+  bool _syncEnabled = true;
+  int _localChangeRevision = 0;
+  String? _savedContent;
+
+  /// When the shown wallpaper was last changed by a user (0: unknown).
+  int get updatedAtMs => _updatedAtMs;
+
+  /// The account image the local copy is, or null when unsynchronized.
+  String? get syncedBlobId => _syncedBlobId;
+
+  /// Whether this device follows and publishes the account wallpaper.
+  bool get syncEnabled => _syncEnabled;
+
+  /// Advances on every local user change (not on applied account values).
+  int get localChangeRevision => _localChangeRevision;
 
   WallpaperLayoutMode get mode => _mode;
   double get blur => _blur;
@@ -600,6 +680,10 @@ class WallpaperController extends ChangeNotifier {
     _blur = preferences.blur;
     _overlay = preferences.overlay;
     _imageId = preferences.imageId;
+    _updatedAtMs = preferences.updatedAtMs;
+    _syncedBlobId = preferences.syncedBlobId;
+    _syncEnabled = preferences.syncEnabled;
+    _savedContent = _contentSignature();
     final generation = ++_imageGeneration;
     _setImage(null);
     _status = _imageId == null ? WallpaperStatus.none : WallpaperStatus.loading;
@@ -639,7 +723,27 @@ class WallpaperController extends ChangeNotifier {
 
   /// Validates, decodes and stores a copy of [bytes] as the wallpaper.
   /// Returns null on success. The previous image stays on any failure.
-  Future<WallpaperImageError?> setImageBytes(Uint8List bytes) async {
+  Future<WallpaperImageError?> setImageBytes(Uint8List bytes) =>
+      _replaceImage(bytes, account: null);
+
+  /// Shows the account wallpaper [bytes] (already decrypted) with the
+  /// account's layout values. It is not a local change, so it is never
+  /// published back. Returns null on success; false-y errors leave the
+  /// current wallpaper in place.
+  Future<WallpaperImageError?> applyAccountImage(
+    Uint8List bytes,
+    WallpaperAccountState account,
+  ) {
+    if (bytes.length > wallpaperMaxEncodedBytes) {
+      return Future.value(WallpaperImageError.tooLarge);
+    }
+    return _replaceImage(bytes, account: account);
+  }
+
+  Future<WallpaperImageError?> _replaceImage(
+    Uint8List bytes, {
+    required WallpaperAccountState? account,
+  }) async {
     if (_busy || _disposed) return null;
     _busy = true;
     _lastError = null;
@@ -653,6 +757,7 @@ class WallpaperController extends ChangeNotifier {
       decoded = await decodeWallpaperImage(bytes);
       final luminance = await _measure(decoded);
       if (superseded()) return null;
+      var next = account?.preferences(id, syncEnabled: _syncEnabled);
       if (store != null) {
         final copy = Uint8List.fromList(bytes);
         var committed = false;
@@ -660,12 +765,17 @@ class WallpaperController extends ChangeNotifier {
           if (superseded()) return;
           await store.writeImage(id, copy);
           if (superseded()) return;
-          await store.writeSettings(
-            WallpaperPreferences(imageId: id, mode: _mode, blur: _blur).encode(),
-          );
+          final settings =
+              next ??
+              _snapshot(
+                imageId: id,
+                updatedAtMs: _nextChangeTime(),
+                syncedBlobId: null,
+              );
+          await store.writeSettings(settings.encode());
           // Committed inside the chain so later coalesced writes keep it.
           if (!superseded()) {
-            _imageId = id;
+            next = settings;
             _settingsKnown = true;
             committed = true;
           }
@@ -682,7 +792,15 @@ class WallpaperController extends ChangeNotifier {
         if (!committed) return null;
       }
       if (superseded()) return null;
-      _imageId = id;
+      _adopt(
+        next ??
+            _snapshot(
+              imageId: id,
+              updatedAtMs: _nextChangeTime(),
+              syncedBlobId: null,
+            ),
+        localChange: account == null,
+      );
       _status = WallpaperStatus.ready;
       _writeFailed = false;
       _setImage(decoded, luminance);
@@ -705,25 +823,85 @@ class WallpaperController extends ChangeNotifier {
   }
 
   /// Removes the wallpaper and every owned image copy.
-  Future<void> reset() async {
+  Future<void> reset() => _removeImage(account: null);
+
+  /// Applies an account wallpaper without an image (removed on another
+  /// device), keeping its layout values.
+  Future<void> applyAccountRemoval(WallpaperAccountState account) =>
+      _removeImage(account: account);
+
+  Future<void> _removeImage({required WallpaperAccountState? account}) async {
     if (_disposed) return;
     ++_imageGeneration;
     _imageId = null;
-    _settingsKnown = true; // explicit user choice: no wallpaper
+    _settingsKnown = true; // explicit choice: no wallpaper
     _status = WallpaperStatus.none;
     _lastError = null;
     _setImage(null);
+    if (account == null) {
+      _touch();
+      _savedContent = _contentSignature();
+    } else {
+      _adopt(account.preferences(null, syncEnabled: _syncEnabled),
+          localChange: false);
+    }
     notifyListeners();
     final store = _store;
     if (store == null) return;
     await _persist(() => store.deleteImagesExcept(null));
   }
 
+  /// Applies the account layout values while the local image already is the
+  /// account image ([WallpaperAccountState.blobId] equals [syncedBlobId]).
+  void applyAccountSettings(WallpaperAccountState account) {
+    if (_disposed) return;
+    final blurChanged = account.blur != _blur;
+    _adopt(account.preferences(_imageId, syncEnabled: _syncEnabled),
+        localChange: false);
+    notifyListeners();
+    if (blurChanged) _scheduleBake();
+    unawaited(_persist());
+  }
+
+  /// Records that the account now holds this device's wallpaper as of
+  /// [updatedAtMs] (as image [blobId]). Ignored after a newer local change.
+  void markPublished({required int updatedAtMs, required String? blobId}) {
+    if (_disposed || updatedAtMs != _updatedAtMs) return;
+    if (_syncedBlobId == blobId) return;
+    _syncedBlobId = blobId;
+    notifyListeners();
+    unawaited(_persist());
+  }
+
+  /// Gives a wallpaper saved before account sync existed a change time, so
+  /// it can be published and compared with the account wallpaper.
+  void stampChangeTime() {
+    if (_disposed || _updatedAtMs != 0) return;
+    _updatedAtMs = _nextChangeTime();
+    unawaited(_persist());
+  }
+
+  /// Device-local choice to follow and publish the account wallpaper.
+  void setSyncEnabled(bool enabled) {
+    if (_disposed || enabled == _syncEnabled) return;
+    _syncEnabled = enabled;
+    notifyListeners();
+    unawaited(_persist());
+  }
+
+  /// The stored copy of the current image (to publish it), or null.
+  Future<Uint8List?> readImageBytes() async {
+    final store = _store;
+    final id = _imageId;
+    if (store == null || id == null) return null;
+    return store.readImage(id, maxBytes: wallpaperMaxEncodedBytes);
+  }
+
   void setMode(WallpaperLayoutMode mode) {
     if (mode == _mode || _disposed) return;
     _mode = mode;
     notifyListeners();
-    unawaited(_persist());
+    unawaited(_persist(null, true));
   }
 
   /// Applies [value] immediately (sanitized). [persist] is false while a
@@ -736,7 +914,7 @@ class WallpaperController extends ChangeNotifier {
       notifyListeners();
       _scheduleBake();
     }
-    if (persist) unawaited(_persist());
+    if (persist) unawaited(_persist(null, true));
   }
 
   /// Sets the color overlay opacity (0..1), or null for automatic. [persist]
@@ -748,10 +926,66 @@ class WallpaperController extends ChangeNotifier {
       _overlay = next;
       notifyListeners();
     }
-    if (persist) unawaited(_persist());
+    if (persist) unawaited(_persist(null, true));
   }
 
-  Future<void> _persist([Future<void> Function()? after]) {
+  /// Image, layout, blur and overlay: what a user change alters.
+  String _contentSignature() => jsonEncode([
+    _imageId,
+    _mode.code,
+    _blur,
+    _overlay,
+  ]);
+
+  int _nextChangeTime() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return now > _updatedAtMs ? now : _updatedAtMs + 1;
+  }
+
+  /// Marks the current values as a new local change (published to the
+  /// account by the sync coordinator).
+  void _touch() {
+    _updatedAtMs = _nextChangeTime();
+    _localChangeRevision++;
+  }
+
+  WallpaperPreferences _snapshot({
+    String? imageId,
+    int? updatedAtMs,
+    Object? syncedBlobId = _keep,
+  }) => WallpaperPreferences(
+    imageId: imageId ?? _imageId,
+    mode: _mode,
+    blur: _blur,
+    overlay: _overlay,
+    updatedAtMs: updatedAtMs ?? _updatedAtMs,
+    syncedBlobId: identical(syncedBlobId, _keep)
+        ? _syncedBlobId
+        : syncedBlobId as String?,
+    syncEnabled: _syncEnabled,
+  );
+
+  void _adopt(WallpaperPreferences next, {required bool localChange}) {
+    _imageId = next.imageId;
+    _mode = next.mode;
+    _blur = next.blur;
+    _overlay = next.overlay;
+    _updatedAtMs = next.updatedAtMs;
+    _syncedBlobId = next.syncedBlobId;
+    _savedContent = _contentSignature();
+    if (localChange) _localChangeRevision++;
+  }
+
+  /// Writes the current values. [userChange] marks a user edit: when it
+  /// changed what is shown it gets a new change time (so it is published).
+  Future<void> _persist([
+    Future<void> Function()? after,
+    bool userChange = false,
+  ]) {
+    if (userChange && _contentSignature() != _savedContent) {
+      _touch();
+      _savedContent = _contentSignature();
+    }
     final store = _store;
     if (store == null) return Future<void>.value();
     if (!_settingsKnown) {
@@ -769,14 +1003,7 @@ class WallpaperController extends ChangeNotifier {
       try {
         // Coalesced: only the latest snapshot is written.
         if (revision == _writeRevision) {
-          await store.writeSettings(
-            WallpaperPreferences(
-              imageId: _imageId,
-              mode: _mode,
-              blur: _blur,
-              overlay: _overlay,
-            ).encode(),
-          );
+          await store.writeSettings(_snapshot().encode());
         }
         await after?.call();
       } on Object {

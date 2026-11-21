@@ -17219,6 +17219,40 @@ class AppLocalizationsRu extends AppLocalizations {
       'Копия изображения хранится в хранилище приложения на этом устройстве. Отдельные окна при открытии используют те же обои.';
 
   @override
+  String get wallpaperSyncTitle => 'Синхронизировать между моими устройствами';
+
+  @override
+  String get wallpaperSyncSynced =>
+      'Синхронизировано. Изображение шифруется на этом устройстве и хранится в вашем личном Vault; прочитать его могут только ваши устройства.';
+
+  @override
+  String get wallpaperSyncUploading => 'Обои шифруются и загружаются…';
+
+  @override
+  String get wallpaperSyncDownloading =>
+      'Получение обоев из вашей учётной записи…';
+
+  @override
+  String get wallpaperSyncFailed =>
+      'Не удалось синхронизировать обои. Попытка будет повторена автоматически.';
+
+  @override
+  String get wallpaperSyncOff =>
+      'Это устройство использует свои обои и не делится ими с другими вашими устройствами.';
+
+  @override
+  String get wallpaperSyncSharedVault =>
+      'Приостановлено: текущий Vault общий. Переключитесь на личный Vault, чтобы синхронизировать обои.';
+
+  @override
+  String get wallpaperSyncReadOnly =>
+      'Приостановлено: текущий Vault доступен только для чтения.';
+
+  @override
+  String get wallpaperSyncWaiting =>
+      'Синхронизация начнётся после входа в учётную запись и её разблокировки.';
+
+  @override
   String get fileManagerPasteInto => 'Вставить в папку';
 
   @override

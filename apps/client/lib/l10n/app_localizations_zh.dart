@@ -15297,6 +15297,34 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wallpaperDeviceNote => '图片副本保存在此设备上的应用存储中。独立窗口在打开时使用相同的壁纸。';
 
   @override
+  String get wallpaperSyncTitle => '在我的设备间同步';
+
+  @override
+  String get wallpaperSyncSynced => '已同步。图片在本机加密后存入你的个人 Vault，只有你自己的设备能读取。';
+
+  @override
+  String get wallpaperSyncUploading => '正在加密并上传壁纸…';
+
+  @override
+  String get wallpaperSyncDownloading => '正在从账户获取壁纸…';
+
+  @override
+  String get wallpaperSyncFailed => '壁纸同步失败，会自动重试。';
+
+  @override
+  String get wallpaperSyncOff => '此设备使用自己的壁纸，不与你的其他设备同步。';
+
+  @override
+  String get wallpaperSyncSharedVault =>
+      '已暂停：当前 Vault 与他人共享。切换到你的个人 Vault 后壁纸才会同步。';
+
+  @override
+  String get wallpaperSyncReadOnly => '已暂停：当前 Vault 为只读。';
+
+  @override
+  String get wallpaperSyncWaiting => '账户登录并解锁后开始同步。';
+
+  @override
   String get fileManagerPasteInto => '粘贴到文件夹';
 
   @override

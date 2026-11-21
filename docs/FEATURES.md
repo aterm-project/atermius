@@ -84,6 +84,28 @@ Source availability is not a native-device acceptance claim. macOS/iOS runners r
 
 Regular browser SSH is an encrypted byte Relay; a desktop/guest gateway can access the remote login/session. See [sharing](SHARING.en.md), [远程桌面](REMOTE-DESKTOP.md), [本机 Shell](LOCAL-SHELL.md), [Telnet](TELNET.md), [导入导出](IMPORT_EXPORT.md) and [MCP](MCP.md).
 
+## Wallpaper sync / 壁纸同步
+
+In the account workspace, Settings → Theme → **Wallpaper** has **Sync across my devices** (on by default). The same account then sees the same wallpaper image, layout, blur and overlay on every device, browser included. Local profiles keep their wallpaper on the device.
+
+How it is stored:
+
+- **Record.** One encrypted Vault record of its own type, `wallpaper`. It holds the layout values, the time of the change and the manifest of the image (with the image's random key). It is written only to a Vault whose sole member is this account (its Owner) and that belongs to no organization, normally the personal Vault; while the active Vault is shared or a team Vault, sync pauses and says so.
+- **Image.** Encrypted on the device as an attachment (`atermius-host-attachment-v1`: random 256-bit key, 4 MiB AES-GCM chunks, at most 16 MiB) and uploaded to that Vault's object store. The record lists the objects in its signed `object_refs`, so the server keeps them while a revision of the record refers to them (earlier images stay with the record's history, like attachment history, until that history is purged) and collects them afterwards as usual. The server only ever has ciphertext; the original file name and path are never sent.
+- **On each device.** A decrypted copy stays in the device-local wallpaper store as before, so startup, offline use and separate windows never wait for the account.
+- **Conflicts.** The newer change wins: each change carries its time, and a device applies the account value when it is newer than its own and publishes its own when that is newer. Choosing or removing an image, the layout, the blur and the overlay are changes; applying the account value is not. With sync off, the device neither applies nor publishes.
+- **No server changes.** Records, objects, quotas and backups use the existing Vault protocol. It is a record type rather than a preference key because older clients keep unknown record types encrypted and count them as unreadable, while an unknown preference key would block their other synced preferences. Two devices editing the wallpaper offline at the same time end up with an ordinary sync conflict to resolve. If the account enabled administrator-visible credentials, administrators who can open the Vault can also open this image.
+
+在账户工作区的 设置 → 主题 → **壁纸** 里有 **在我的设备间同步**（默认开启）。同一账户在每台设备（包括浏览器）上看到相同的壁纸图片、布局、模糊和遮罩。本地资料的壁纸仍只保存在本设备。
+
+存储方式：
+
+- **记录**：一条独立类型的加密 Vault 记录（类型 `wallpaper`），里面是布局参数、修改时间和图片清单（含该图片的随机密钥）。只写入「成员只有本账户（Owner）且不属于任何组织」的 Vault，通常就是个人 Vault；当前 Vault 是共享或团队 Vault 时同步暂停，并在设置里说明原因。
+- **图片**：在本机按附件格式加密（`atermius-host-attachment-v1`：随机 256 位密钥、4 MiB 分块 AES-GCM，最大 16 MiB）后上传到该 Vault 的对象存储。记录在签名的 `object_refs` 里引用这些对象，只要记录的某个修订还引用它们服务端就保留（旧图片和附件历史一样随记录历史保留，直到历史被清除），之后按现有对象回收流程删除。服务端只有密文，原文件名和路径从不上传。
+- **各设备本地**：解密后的副本仍放在设备本地壁纸存储里，启动、离线和独立窗口都不依赖账户。
+- **冲突**：以较新的修改为准。每次修改带有时间；账户里的值比本机新就应用，本机的比账户新就上传。选图、移除图片、布局、模糊和遮罩都算修改，应用账户里的值不算。关闭同步后，本机既不应用也不上传。
+- **服务端无改动**：记录、对象、配额和备份都沿用现有 Vault 协议。用独立记录类型而不是偏好键，是因为旧版客户端会把不认识的记录类型加密保留、只计入「无法读取的记录」，而不认识的偏好键会让它们无法修改其他同步偏好。两台设备同时离线修改壁纸时，会出现一个普通的同步冲突需要处理。如果账户开启了管理员可见凭据，能打开该 Vault 的管理员也能打开这张图片。
+
 ## Home host sorting / 主页主机排序
 
 Every client (Windows, macOS, Linux, Android, iPhone/iPad and Web) offers Recently requested (the default), Name A–Z, Name Z–A, Address, Protocol and Favorites first. The sort control sits beside the home search; the iPhone native home uses its sort menu and applies the same choice inside folders. Address sorting compares numeric chunks so `192.0.2.3` comes before `192.0.2.20`.

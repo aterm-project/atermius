@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
+import '../domain/vault_wallpaper.dart' show WallpaperSyncAvailability;
 import '../storage/wallpaper_store.dart';
+import '../sync/wallpaper_sync.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
@@ -337,6 +339,7 @@ class _WallpaperSettingsState extends State<WallpaperSettings> {
             ],
           ),
         ),
+        _WallpaperSyncSection(wallpapers: wallpapers, ios: true),
       ],
     );
   }
@@ -533,9 +536,144 @@ class _WallpaperSettingsState extends State<WallpaperSettings> {
                 fontSize: 12,
               ),
             ),
+            _WallpaperSyncSection(wallpapers: wallpapers, ios: false),
           ],
         );
       },
+    );
+  }
+}
+
+/// Status line of the account wallpaper sync.
+String wallpaperSyncStatusText(
+  AppLocalizations l10n,
+  WallpaperSyncCoordinator sync, {
+  required bool enabled,
+}) {
+  if (!enabled) return l10n.wallpaperSyncOff;
+  return switch (sync.state) {
+    WallpaperSyncState.off => l10n.wallpaperSyncOff,
+    WallpaperSyncState.synced => l10n.wallpaperSyncSynced,
+    WallpaperSyncState.uploading => l10n.wallpaperSyncUploading,
+    WallpaperSyncState.downloading => l10n.wallpaperSyncDownloading,
+    WallpaperSyncState.failed => l10n.wallpaperSyncFailed,
+    WallpaperSyncState.unavailable => switch (sync.availability) {
+      WallpaperSyncAvailability.sharedVault => l10n.wallpaperSyncSharedVault,
+      WallpaperSyncAvailability.readOnly => l10n.wallpaperSyncReadOnly,
+      _ => l10n.wallpaperSyncWaiting,
+    },
+  };
+}
+
+/// "Sync across my devices" switch and status; only shown while an account
+/// workspace runs the sync (never in local profiles).
+class _WallpaperSyncSection extends StatelessWidget {
+  const _WallpaperSyncSection({required this.wallpapers, required this.ios});
+
+  final WallpaperController wallpapers;
+  final bool ios;
+
+  @override
+  Widget build(BuildContext context) =>
+      ValueListenableBuilder<WallpaperSyncCoordinator?>(
+        valueListenable: WallpaperSyncCoordinator.current,
+        builder: (context, sync, _) {
+          if (sync == null) return const SizedBox.shrink();
+          return ListenableBuilder(
+            listenable: sync,
+            builder: (context, _) => ios
+                ? _buildIos(context, sync)
+                : _buildMaterial(context, sync),
+          );
+        },
+      );
+
+  Widget _buildMaterial(BuildContext context, WallpaperSyncCoordinator sync) {
+    final l10n = context.l10n;
+    final palette = context.palette;
+    final failed =
+        wallpapers.syncEnabled && sync.state == WallpaperSyncState.failed;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.sync_rounded, size: 18, color: palette.muted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.wallpaperSyncTitle,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              Switch(
+                key: const ValueKey('wallpaper_sync_switch'),
+                value: wallpapers.syncEnabled,
+                onChanged: wallpapers.setSyncEnabled,
+              ),
+            ],
+          ),
+          Text(
+            wallpaperSyncStatusText(
+              l10n,
+              sync,
+              enabled: wallpapers.syncEnabled,
+            ),
+            key: const ValueKey('wallpaper_sync_status'),
+            style: TextStyle(
+              color: failed ? palette.orange : palette.muted,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIos(BuildContext context, WallpaperSyncCoordinator sync) {
+    final l10n = context.l10n;
+    final colors = IosColors.of(context);
+    final hairline = IosMetrics.hairline(context);
+    final failed =
+        wallpapers.syncEnabled && sync.state == WallpaperSyncState.failed;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(height: hairline, child: ColoredBox(color: colors.separator)),
+        IosListRow(
+          leading: Icon(Icons.sync_rounded, size: 22, color: colors.tint),
+          title: Text(l10n.wallpaperSyncTitle),
+          trailing: CupertinoSwitch(
+            key: const ValueKey('wallpaper_sync_switch'),
+            value: wallpapers.syncEnabled,
+            onChanged: wallpapers.setSyncEnabled,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            IosMetrics.rowPaddingH,
+            0,
+            IosMetrics.rowPaddingH,
+            12,
+          ),
+          child: Text(
+            wallpaperSyncStatusText(
+              l10n,
+              sync,
+              enabled: wallpapers.syncEnabled,
+            ),
+            key: const ValueKey('wallpaper_sync_status'),
+            style: IosType.footnote.copyWith(
+              color: failed ? colors.warning : colors.secondaryLabel,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
