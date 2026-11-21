@@ -141,29 +141,61 @@ void main() {
     }
   });
 
-  testWidgets('instance admins get the admin console link as the only '
-      'secondary line', (tester) async {
+  testWidgets('instance admins see their role on the card and the admin '
+      'console row right below Settings', (tester) async {
     final h = await _Harness.create(admin: true);
     try {
       await h.pump(tester, const Size(1280, 800), locale: const Locale('zh'));
-      expect(tester.widget<Text>(find.byKey(_role)).data, '管理控制台');
+      expect(tester.widget<Text>(find.byKey(_role)).data, '实例管理员');
       expect(
         find.descendant(of: find.byKey(_card), matching: find.byType(Text)),
         findsNWidgets(2),
       );
-      // The line is the way into the console; the workspace has no Admin
-      // page of its own.
+      // The console is a site of its own, not an Admin page of the
+      // workspace; its row sits in the sidebar, under Settings.
       expect(_nav('admin'), findsNothing);
-      final card = tester.getRect(find.byKey(_card));
-      final link = tester.getRect(
-        find.byKey(const ValueKey('home_nav_admin_console')),
+      final console = find.byKey(const ValueKey('home_nav_admin_console'));
+      expect(
+        find.descendant(of: find.byKey(_card), matching: console),
+        findsNothing,
       );
-      expect(link.left, greaterThanOrEqualTo(card.left));
-      expect(link.right, lessThanOrEqualTo(card.right));
-      await tester.tap(find.byKey(const ValueKey('home_nav_admin_console')));
+      expect(find.text('管理控制台'), findsOneWidget);
+      final settings = tester.getRect(_nav('settings'));
+      final row = tester.getRect(console);
+      expect(row.top, greaterThanOrEqualTo(settings.bottom));
+      expect(row.top - settings.bottom, lessThan(8));
+      expect(row.left, settings.left);
+      expect(row.height, settings.height);
+      expect(
+        row.bottom,
+        lessThanOrEqualTo(
+          tester.getRect(find.byKey(const ValueKey('home_nav_import_export'))).top,
+        ),
+      );
+      await tester.tap(console);
       await tester.pumpAndSettle();
       expect(h.app.page, WorkspacePage.admin);
       expect(find.byKey(_card), findsNothing);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await h.close(tester);
+    }
+  });
+
+  testWidgets('the compact sidebar shows the admin console row as an icon', (
+    tester,
+  ) async {
+    final h = await _Harness.create(admin: true);
+    try {
+      await h.pump(tester, const Size(900, 700));
+      final console = find.byKey(const ValueKey('home_nav_admin_console'));
+      expect(console, findsOneWidget);
+      expect(find.byTooltip('Open admin console'), findsOneWidget);
+      final settings = tester.getRect(_nav('settings'));
+      expect(tester.getRect(console).top, greaterThanOrEqualTo(settings.bottom));
+      await tester.tap(console);
+      await tester.pumpAndSettle();
+      expect(h.app.page, WorkspacePage.admin);
       expect(tester.takeException(), isNull);
     } finally {
       await h.close(tester);
@@ -220,8 +252,12 @@ void main() {
         expect(rect.top, greaterThanOrEqualTo(0), reason: page);
         expect(rect.bottom, lessThanOrEqualTo(importExport.top), reason: page);
       }
-      // The admin console is not one of the destinations.
+      // The admin console is not a workspace page, but its row fits too.
       expect(_nav('admin'), findsNothing);
+      final console = tester.getRect(
+        find.byKey(const ValueKey('home_nav_admin_console')),
+      );
+      expect(console.bottom, lessThanOrEqualTo(importExport.top));
       // Rows are compacted, not clipped.
       expect(tester.getSize(_nav('hosts')).height, inInclusiveRange(30, 38));
       expect(find.text('管理'), findsNothing);

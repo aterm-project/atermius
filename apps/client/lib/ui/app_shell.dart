@@ -2829,7 +2829,8 @@ class _SideNavigation extends StatelessWidget {
     _NavItem(WorkspacePage.devices, Icons.devices_outlined, _NavLabel.devices),
     _NavItem(WorkspacePage.settings, Icons.settings_outlined, _NavLabel.settings),
     // The admin console is not a page of the workspace: it is a site of its
-    // own (`/admin`), reached through the link on the account card below.
+    // own (`/admin`). Administrators reach it through the row the sidebar
+    // shows right below Settings ([_AdminConsoleNavRow]).
   ];
 
   @override
@@ -2962,7 +2963,7 @@ class _SideNavigation extends StatelessWidget {
             ),
           Expanded(
             child: _SideNavScrollArea(
-              itemCount: items.length,
+              itemCount: items.length + (app.isInstanceAdmin ? 1 : 0),
               itemHeight: itemHeight,
               // Touch rows keep their full tap target; they scroll instead.
               minItemHeight: touch ? itemHeight : 30,
@@ -2971,7 +2972,8 @@ class _SideNavigation extends StatelessWidget {
               padding: const EdgeInsets.only(
                 bottom: _SideNavScrollArea.bottomPadding,
               ),
-              children: items.map((item) {
+              children: [
+                ...items.map((item) {
                 final selected = app.page == item.page;
                 return Padding(
                   padding: EdgeInsets.symmetric(
@@ -3050,7 +3052,22 @@ class _SideNavigation extends StatelessWidget {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
+                // Right below Settings, styled like the destinations so
+                // administrators find it at a glance.
+                if (app.isInstanceAdmin)
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: itemInset,
+                      vertical: itemGap,
+                    ),
+                    child: _AdminConsoleNavRow(
+                      app: app,
+                      wide: wide,
+                      height: itemHeight,
+                    ),
+                  ),
+              ],
             ),
             ),
           ),
@@ -3159,12 +3176,21 @@ class _SideNavigation extends StatelessWidget {
                           ),
                         ),
                         // The only secondary line is the account's role on
-                        // this instance. For an administrator it is the link
-                        // to the admin console, which is a site of its own
-                        // and not a page of this workspace.
+                        // this instance. The way into the admin console is
+                        // its own sidebar row, below Settings.
                         if (app.isInstanceAdmin) ...[
                           const SizedBox(height: 3),
-                          _AdminConsoleLink(app: app),
+                          Text(
+                            context.l10n.accountSettingsInstanceAdmin,
+                            key: const ValueKey('home_nav_user_role'),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: context.palette.muted,
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -3183,23 +3209,12 @@ class _SideNavigation extends StatelessWidget {
                 ],
               ),
             )
-          else ...[
-            if (app.isInstanceAdmin)
-              IconButton(
-                key: const ValueKey('home_nav_admin_console'),
-                tooltip: context.l10n.adminSiteOpen,
-                onPressed: () => app.showWorkspacePage(WorkspacePage.admin),
-                icon: Icon(
-                  Icons.admin_panel_settings_outlined,
-                  color: context.palette.muted,
-                ),
-              ),
+          else
             IconButton(
               tooltip: context.l10n.lockWorkspace,
               onPressed: () => app.lock(),
               icon: Icon(Icons.lock_outline, color: context.palette.muted),
             ),
-          ],
           const SizedBox(height: 9),
         ],
       ),
@@ -3207,49 +3222,67 @@ class _SideNavigation extends StatelessWidget {
   }
 }
 
-/// The account card's link to the admin console, shown to instance
-/// administrators in place of a plain role remark.
-class _AdminConsoleLink extends StatelessWidget {
-  const _AdminConsoleLink({required this.app});
+/// Sidebar row into the admin console, shown to instance administrators right
+/// below Settings. It looks like a destination; the trailing arrow marks that
+/// the console is a site of its own that replaces the workspace.
+class _AdminConsoleNavRow extends StatelessWidget {
+  const _AdminConsoleNavRow({
+    required this.app,
+    required this.wide,
+    required this.height,
+  });
 
   final AppController app;
+  final bool wide;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
-    final color = context.palette.lime;
-    void open() => app.showWorkspacePage(WorkspacePage.admin);
+    final palette = context.palette;
     return Semantics(
       button: true,
       label: context.l10n.adminSiteOpen,
-      onTap: open,
       excludeSemantics: true,
       child: Tooltip(
-        message: context.l10n.adminSiteOpen,
+        message: wide ? '' : context.l10n.adminSiteOpen,
         excludeFromSemantics: true,
         child: InkWell(
           key: const ValueKey('home_nav_admin_console'),
-          borderRadius: BorderRadius.circular(5),
-          onTap: open,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  context.l10n.adminSiteTitle,
-                  key: const ValueKey('home_nav_user_role'),
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: color,
-                    fontWeight: FontWeight.w600,
+          borderRadius: BorderRadius.circular(11),
+          onTap: () => app.showWorkspacePage(WorkspacePage.admin),
+          child: SizedBox(
+            height: height,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: wide ? 11 : 0),
+              child: Row(
+                mainAxisAlignment: wide
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.admin_panel_settings_outlined,
+                    size: 19,
+                    color: palette.muted,
                   ),
-                ),
+                  if (wide) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        context.l10n.adminSiteTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: palette.muted),
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_outward_rounded,
+                      size: 14,
+                      color: palette.muted,
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(width: 2),
-              Icon(Icons.arrow_outward_rounded, size: 11, color: color),
-            ],
+            ),
           ),
         ),
       ),

@@ -14,8 +14,8 @@ credential-visibility notice. Scripts share these entry steps through
 
 The admin console is a site of its own below `/admin` (`/admin/users`,
 `/admin/audit`, …), not a page of the workspace: an instance administrator
-opens it with the `Open admin console` link on the workspace's account card
-and leaves it with `Back to workspace`; while it is open the workspace's
+opens it with the `Open admin console` row of the workspace sidebar (right
+below Settings) and leaves it with `Back to workspace`; while it is open the workspace's
 navigation and tab row are not on the page. Its Users section is a table, and
 an account's details and actions are in the panel its row opens. Scripts share
 these steps through `support/hosted_web.cjs` (`ADMIN_CONSOLE_ENTRY`,

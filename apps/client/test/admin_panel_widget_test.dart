@@ -136,8 +136,8 @@ void main() {
     final harness = await _Harness.create(isAdmin: true);
     try {
       await _pump(tester, harness.app);
-      // The workspace lists no Admin page; the account card links to the
-      // console instead.
+      // The workspace lists no Admin page; the sidebar row below Settings
+      // opens the console instead.
       expect(find.byKey(const ValueKey('home_nav_admin')), findsNothing);
       expect(find.byKey(_navEntry), findsOneWidget);
       expect(find.byKey(_panel), findsNothing);
