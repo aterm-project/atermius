@@ -18465,4 +18465,32 @@ class AppLocalizationsZh extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get logsRecordSubtitle =>
+      '仅对开启后新建的会话生效。保存终端显示的内容（包括服务器回显的文字），从不记录按键或隐藏的密码输入。';
+
+  @override
+  String logsRecordKeepCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '保留最近 $count 份',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String logsRecordSizeLimit(int kib) {
+    return '每份不超过 $kib KiB';
+  }
+
+  @override
+  String get logsRecordSecretsHint => '录制时请避免显示机密信息';
+
+  @override
+  String get logsClearFilters => '清除搜索和筛选';
+
+  @override
+  String get forwardingPortAuto => '自动';
 }

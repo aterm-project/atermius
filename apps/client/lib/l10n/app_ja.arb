@@ -5458,5 +5458,11 @@
   "auditToday": "今日",
   "auditYesterday": "昨日",
   "auditEventCount": "{count, plural, other{{count} 件のイベント}}",
-  "auditFailedCount": "{count, plural, other{失敗 {count} 件}}"
+  "auditFailedCount": "{count, plural, other{失敗 {count} 件}}",
+  "logsRecordSubtitle": "有効にした後に開いたセッションにのみ適用されます。ターミナルに表示された内容（サーバーがエコーした文字を含む）を保存し、キー入力や非表示のパスワード入力は保存しません。",
+  "logsRecordKeepCount": "{count, plural, other{最新 {count} 件を保持}}",
+  "logsRecordSizeLimit": "各 {kib} KiB まで",
+  "logsRecordSecretsHint": "記録中は機密情報を表示しないでください",
+  "logsClearFilters": "検索とフィルターをクリア",
+  "forwardingPortAuto": "自動"
 }

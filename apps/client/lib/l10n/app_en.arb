@@ -17176,5 +17176,17 @@
   "auditEventCount": "{count, plural, =1{1 event} other{{count} events}}",
   "@auditEventCount": {"placeholders": {"count": {"type": "int"}}},
   "auditFailedCount": "{count, plural, =1{1 failed} other{{count} failed}}",
-  "@auditFailedCount": {"placeholders": {"count": {"type": "int"}}}
+  "@auditFailedCount": {"placeholders": {"count": {"type": "int"}}},
+  "logsRecordSubtitle": "Applies to sessions opened after you turn it on. Saves what the terminal displays, including text the server echoes, never your keystrokes or hidden password input.",
+  "@logsRecordSubtitle": {},
+  "logsRecordKeepCount": "{count, plural, =1{Keeps the latest transcript} other{Keeps the latest {count} transcripts}}",
+  "@logsRecordKeepCount": {"placeholders": {"count": {"type": "int"}}},
+  "logsRecordSizeLimit": "Up to {kib} KiB each",
+  "@logsRecordSizeLimit": {"placeholders": {"kib": {"type": "int"}}},
+  "logsRecordSecretsHint": "Avoid displaying secrets while recording",
+  "@logsRecordSecretsHint": {},
+  "logsClearFilters": "Clear search and filter",
+  "@logsClearFilters": {},
+  "forwardingPortAuto": "auto",
+  "@forwardingPortAuto": {}
 }

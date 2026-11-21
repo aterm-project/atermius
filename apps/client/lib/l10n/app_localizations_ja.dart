@@ -19412,4 +19412,32 @@ class AppLocalizationsJa extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get logsRecordSubtitle =>
+      '有効にした後に開いたセッションにのみ適用されます。ターミナルに表示された内容（サーバーがエコーした文字を含む）を保存し、キー入力や非表示のパスワード入力は保存しません。';
+
+  @override
+  String logsRecordKeepCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '最新 $count 件を保持',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String logsRecordSizeLimit(int kib) {
+    return '各 $kib KiB まで';
+  }
+
+  @override
+  String get logsRecordSecretsHint => '記録中は機密情報を表示しないでください';
+
+  @override
+  String get logsClearFilters => '検索とフィルターをクリア';
+
+  @override
+  String get forwardingPortAuto => '自動';
 }

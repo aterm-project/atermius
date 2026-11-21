@@ -5458,5 +5458,11 @@
   "auditToday": "Сегодня",
   "auditYesterday": "Вчера",
   "auditEventCount": "{count, plural, one{{count} событие} few{{count} события} many{{count} событий} other{{count} события}}",
-  "auditFailedCount": "{count, plural, one{{count} сбой} few{{count} сбоя} many{{count} сбоев} other{{count} сбоя}}"
+  "auditFailedCount": "{count, plural, one{{count} сбой} few{{count} сбоя} many{{count} сбоев} other{{count} сбоя}}",
+  "logsRecordSubtitle": "Действует для сеансов, открытых после включения. Сохраняет то, что показывает терминал (включая эхо сервера), но не нажатия клавиш и не скрытый ввод паролей.",
+  "logsRecordKeepCount": "{count, plural, one{Хранится последняя {count} запись} few{Хранятся последние {count} записи} many{Хранятся последние {count} записей} other{Хранятся последние {count} записи}}",
+  "logsRecordSizeLimit": "До {kib} КиБ каждая",
+  "logsRecordSecretsHint": "Не выводите секреты во время записи",
+  "logsClearFilters": "Сбросить поиск и фильтр",
+  "forwardingPortAuto": "авто"
 }

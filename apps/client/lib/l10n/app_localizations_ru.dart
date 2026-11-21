@@ -20692,4 +20692,35 @@ class AppLocalizationsRu extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get logsRecordSubtitle =>
+      'Действует для сеансов, открытых после включения. Сохраняет то, что показывает терминал (включая эхо сервера), но не нажатия клавиш и не скрытый ввод паролей.';
+
+  @override
+  String logsRecordKeepCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Хранятся последние $count записи',
+      many: 'Хранятся последние $count записей',
+      few: 'Хранятся последние $count записи',
+      one: 'Хранится последняя $count запись',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String logsRecordSizeLimit(int kib) {
+    return 'До $kib КиБ каждая';
+  }
+
+  @override
+  String get logsRecordSecretsHint => 'Не выводите секреты во время записи';
+
+  @override
+  String get logsClearFilters => 'Сбросить поиск и фильтр';
+
+  @override
+  String get forwardingPortAuto => 'авто';
 }

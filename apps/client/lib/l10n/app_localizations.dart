@@ -32493,6 +32493,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 failed} other{{count} failed}}'**
   String auditFailedCount(int count);
+
+  /// No description provided for @logsRecordSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to sessions opened after you turn it on. Saves what the terminal displays, including text the server echoes, never your keystrokes or hidden password input.'**
+  String get logsRecordSubtitle;
+
+  /// No description provided for @logsRecordKeepCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Keeps the latest transcript} other{Keeps the latest {count} transcripts}}'**
+  String logsRecordKeepCount(int count);
+
+  /// No description provided for @logsRecordSizeLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to {kib} KiB each'**
+  String logsRecordSizeLimit(int kib);
+
+  /// No description provided for @logsRecordSecretsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Avoid displaying secrets while recording'**
+  String get logsRecordSecretsHint;
+
+  /// No description provided for @logsClearFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search and filter'**
+  String get logsClearFilters;
+
+  /// No description provided for @forwardingPortAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'auto'**
+  String get forwardingPortAuto;
 }
 
 class _AppLocalizationsDelegate

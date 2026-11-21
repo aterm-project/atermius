@@ -1,5 +1,7 @@
 import 'app_menu.dart';
+
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -11,9 +13,11 @@ import '../ssh/port_forward_rule_change.dart';
 import '../ssh/port_forward_runtime.dart';
 
 export '../ssh/port_forward_rule_change.dart';
+import 'app_density.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import 'ios_native/ios_native.dart';
+import 'page_kit.dart';
 import 'ssh_port_forwarding_dialog.dart';
 import 'workspace_controls.dart' show WorkspaceAction;
 
@@ -186,7 +190,8 @@ class CallbackSshForwardingSource implements SshForwardingSource {
   @override
   void showSession(String sessionId) => _showSessionFn?.call(sessionId);
   @override
-  void addListener(VoidCallback listener) => _changesValue?.addListener(listener);
+  void addListener(VoidCallback listener) =>
+      _changesValue?.addListener(listener);
   @override
   void removeListener(VoidCallback listener) =>
       _changesValue?.removeListener(listener);
@@ -353,10 +358,7 @@ class SshForwardingController extends ChangeNotifier {
       return;
     }
     if (!runtimeSupported) {
-      _note(
-        key,
-        unsupportedReason ?? currentL10n.forwardRuntimeUnsupported,
-      );
+      _note(key, unsupportedReason ?? currentL10n.forwardRuntimeUnsupported);
       return;
     }
     final target = targetSession(source, hostId);
@@ -368,9 +370,10 @@ class SshForwardingController extends ChangeNotifier {
       _note(key, currentL10n.r7ForwardChooseSession);
       return;
     }
-    if (sessionsOf(source, hostId).any(
-      (session) => session.phase == SshForwardingSessionPhase.connecting,
-    )) {
+    if (sessionsOf(
+      source,
+      hostId,
+    ).any((session) => session.phase == SshForwardingSessionPhase.connecting)) {
       _note(key, currentL10n.r7ForwardWaitForSession);
       return;
     }
@@ -699,7 +702,9 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
       return;
     }
     if (existing == null && current.length >= maxHostPortForwardProfiles) {
-      setState(() => _error = l10n.aHostCanHaveAtMost(maxHostPortForwardProfiles));
+      setState(
+        () => _error = l10n.aHostCanHaveAtMost(maxHostPortForwardProfiles),
+      );
       return;
     }
     // The rule as the user sees it now; the save is a compare-and-set
@@ -797,7 +802,11 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
 
   /// True while [scope] is current and the Host still saves exactly
   /// [profile]; otherwise shows why the action was dropped.
-  bool _stillSaved(Object? scope, String hostId, SshPortForwardProfile profile) {
+  bool _stillSaved(
+    Object? scope,
+    String hostId,
+    SshPortForwardProfile profile,
+  ) {
     final l10n = context.l10n;
     if (_source.scopeKey != scope) {
       setState(() => _error = l10n.r7ForwardScopeChanged);
@@ -909,8 +918,9 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
           ..sort((a, b) {
             if (a.id == widget.initialHostId) return -1;
             if (b.id == widget.initialHostId) return 1;
-            final rules = (b.portForwardProfiles.isNotEmpty ? 1 : 0)
-                .compareTo(a.portForwardProfiles.isNotEmpty ? 1 : 0);
+            final rules = (b.portForwardProfiles.isNotEmpty ? 1 : 0).compareTo(
+              a.portForwardProfiles.isNotEmpty ? 1 : 0,
+            );
             if (rules != 0) return rules;
             return a.name.toLowerCase().compareTo(b.name.toLowerCase());
           });
@@ -942,141 +952,230 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
       );
     }
 
+    final palette = context.palette;
+    final canAddRule = !_working && _source.canEdit && hosts.isNotEmpty;
+    final notices = <Widget>[
+      if (!supported)
+        PageNotice(
+          key: const ValueKey('r7fwd-unsupported'),
+          icon: Icons.block_rounded,
+          tone: palette.orange,
+          message:
+              _controller.unsupportedReason ?? l10n.forwardRuntimeUnsupported,
+        ),
+      if (!_source.canEdit && _source.readOnlyReason != null)
+        PageNotice(
+          icon: Icons.lock_outline_rounded,
+          tone: palette.muted,
+          message: _source.readOnlyReason!,
+        ),
+      if (anyDynamic)
+        PageNotice(
+          icon: Icons.shield_outlined,
+          tone: palette.orange,
+          message: l10n.dynamicForwardingIsASocks44a,
+        ),
+      if (_error != null)
+        PageNotice(
+          key: const ValueKey('r7fwd-error'),
+          icon: Icons.error_outline_rounded,
+          tone: palette.red,
+          message: _error!,
+        ),
+    ];
+
     return Material(
       key: const ValueKey('ssh-forwarding-page'),
       color: Colors.transparent,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: ListView(
+        key: const ValueKey('r7fwd-list'),
+        padding: AppDensity.of(context).pagePadding,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  alignment: WrapAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          l10n.r7ForwardTitle,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          l10n.r7ForwardSummary(
-                            ruleCount,
-                            hosts
-                                .where(
-                                  (host) => host.portForwardProfiles.isNotEmpty,
-                                )
-                                .length,
-                            running,
-                          ),
-                          key: const ValueKey('r7fwd-summary'),
-                          style: TextStyle(color: context.palette.muted),
-                        ),
-                      ],
-                    ),
-                    FilledButton.icon(
-                      key: const ValueKey('r7fwd-new-rule'),
-                      onPressed: _working || !_source.canEdit || hosts.isEmpty
-                          ? null
-                          : _newRule,
-                      icon: const Icon(Icons.add),
-                      label: Text(l10n.r7ForwardNewRule),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 360),
-                      child: TextField(
-                        key: const ValueKey('r7fwd-search'),
-                        controller: _search,
-                        onChanged: (value) => setState(() => _query = value),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          prefixIcon: const Icon(Icons.search, size: 18),
-                          hintText: l10n.r7ForwardSearchHint,
-                        ),
-                      ),
-                    ),
-                    FilterChip(
-                      key: const ValueKey('r7fwd-show-all'),
-                      selected: _showAllHosts,
-                      onSelected: (value) =>
-                          setState(() => _showAllHosts = value),
-                      label: Text(l10n.r7ForwardShowAllHosts),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${_source.storageDescription} ${l10n.r7ForwardNoAutoStart}',
-                  style: TextStyle(
-                    color: context.palette.muted,
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-                if (!supported)
-                  _Banner(
-                    key: const ValueKey('r7fwd-unsupported'),
-                    text:
-                        _controller.unsupportedReason ??
-                        l10n.forwardRuntimeUnsupported,
-                  ),
-                if (!_source.canEdit && _source.readOnlyReason != null)
-                  _Banner(text: _source.readOnlyReason!),
-                if (anyDynamic)
-                  _Banner(text: l10n.dynamicForwardingIsASocks44a),
-                if (_error != null)
-                  _Banner(
-                    key: const ValueKey('r7fwd-error'),
-                    text: _error!,
-                    color: context.palette.red,
-                  ),
-              ],
-            ),
+          PageHeader(
+            title: l10n.r7ForwardTitle,
+            subtitle:
+                '${_source.storageDescription} ${l10n.r7ForwardNoAutoStart}',
+            actions: [
+              FilledButton.icon(
+                key: const ValueKey('r7fwd-new-rule'),
+                onPressed: canAddRule ? _newRule : null,
+                icon: const Icon(Icons.add, size: 18),
+                label: Text(l10n.r7ForwardNewRule),
+              ),
+            ],
           ),
-          Expanded(
-            child: ListView(
-              key: const ValueKey('r7fwd-list'),
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-              children: [
-                if (hosts.isEmpty)
-                  _Empty(text: l10n.r7ForwardNoHosts)
-                else if (visible.isEmpty && removedHostSessions.isEmpty)
-                  _Empty(
-                    text: searching
-                        ? l10n.r7ForwardNoMatches
-                        : l10n.r7ForwardNoRules,
+          const SizedBox(height: 18),
+          if (hosts.isNotEmpty) ...[
+            _toolbar(
+              summary: l10n.r7ForwardSummary(
+                ruleCount,
+                hosts
+                    .where((host) => host.portForwardProfiles.isNotEmpty)
+                    .length,
+                running,
+              ),
+              running: running > 0,
+            ),
+            const SizedBox(height: 14),
+          ],
+          for (final notice in notices) ...[notice, const SizedBox(height: 10)],
+          if (notices.isNotEmpty) const SizedBox(height: 4),
+          if (hosts.isEmpty)
+            _ForwardingEmpty(
+              icon: Icons.dns_outlined,
+              text: l10n.r7ForwardNoHosts,
+            )
+          else if (visible.isEmpty && removedHostSessions.isEmpty)
+            searching
+                ? _ForwardingNoMatches(text: l10n.r7ForwardNoMatches)
+                : _ForwardingEmpty(
+                    icon: Icons.alt_route_rounded,
+                    text: l10n.r7ForwardNoRules,
+                    action: canAddRule
+                        ? FilledButton.tonalIcon(
+                            onPressed: _newRule,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: Text(l10n.r7ForwardNewRule),
+                          )
+                        : null,
                   ),
-                for (final host in visible)
-                  _hostCard(host, supported: supported),
-                for (final session in removedHostSessions)
-                  _removedHostCard(session),
-              ],
+          for (final host in visible) _hostCard(host, supported: supported),
+          for (final session in removedHostSessions) _removedHostCard(session),
+        ],
+      ),
+    );
+  }
+
+  /// Search, the "hosts without rules" filter and the page's counts.
+  Widget _toolbar({required String summary, required bool running}) {
+    final l10n = context.l10n;
+    final palette = context.palette;
+    final search = TextField(
+      key: const ValueKey('r7fwd-search'),
+      controller: _search,
+      onChanged: (value) => setState(() => _query = value),
+      decoration: InputDecoration(
+        isDense: true,
+        prefixIcon: const Icon(Icons.search, size: 18),
+        hintText: l10n.r7ForwardSearchHint,
+      ),
+    );
+    final showAll = _TogglePill(
+      key: const ValueKey('r7fwd-show-all'),
+      label: l10n.r7ForwardShowAllHosts,
+      selected: _showAllHosts,
+      onChanged: (value) => setState(() => _showAllHosts = value),
+    );
+    final tone = running ? palette.teal : palette.muted;
+    final counts = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: running
+            ? palette.teal.withValues(alpha: .1)
+            : palette.surfaceRaised.withValues(alpha: .7),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: running
+              ? palette.teal.withValues(alpha: .3)
+              : palette.line.withValues(alpha: .7),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.swap_horiz_rounded, size: 15, color: tone),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              summary,
+              key: const ValueKey('r7fwd-summary'),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: running ? palette.teal : palette.text,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
           ),
         ],
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, box) {
+        if (box.maxWidth < 760) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              search,
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [showAll, counts],
+              ),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            SizedBox(width: math.min(380, box.maxWidth * .4), child: search),
+            const SizedBox(width: 10),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: box.maxWidth * .3),
+              child: showAll,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: counts,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// A bordered card; [highlight] tints the border (a connected host).
+  Widget _card({
+    required Key key,
+    required List<Widget> children,
+    Color? highlight,
+  }) {
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        key: key,
+        color: palette.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+            AppDensity.of(context).radiusLg + 2,
+          ),
+          side: BorderSide(
+            color: highlight?.withValues(alpha: .38) ?? palette.line,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0)
+                Divider(height: 1, color: palette.line.withValues(alpha: .6)),
+              children[i],
+            ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _hostCard(HostRecord host, {required bool supported}) {
     final l10n = context.l10n;
+    final palette = context.palette;
     final sessions = _controller.sessionsOf(_source, host.id);
     final live = sessions
         .where((session) => session.liveManager != null)
@@ -1090,14 +1189,11 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
     );
     final (String state, Color color) = live.isEmpty
         ? (connecting || pendingAny)
-              ? (l10n.r7ForwardHostConnecting, context.palette.orange)
-              : (l10n.r7ForwardHostNotConnected, context.palette.muted)
+              ? (l10n.r7ForwardHostConnecting, palette.orange)
+              : (l10n.r7ForwardHostNotConnected, palette.muted)
         : live.length == 1
-        ? (l10n.r7ForwardHostConnected, Theme.of(context).colorScheme.primary)
-        : (
-            l10n.r7ForwardHostSessions(live.length),
-            Theme.of(context).colorScheme.primary,
-          );
+        ? (l10n.r7ForwardHostConnected, palette.teal)
+        : (l10n.r7ForwardHostSessions(live.length), palette.teal);
     final savedIds = host.portForwardProfiles.map((p) => p.id).toSet();
     final orphans = [
       for (final session in live)
@@ -1107,95 +1203,209 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
     final endpoint = host.username.isEmpty
         ? '${host.address}:${host.port}'
         : '${host.username}@${host.address}:${host.port}';
-    return Card(
-      key: ValueKey('r7fwd-host-${host.id}'),
-      color: context.palette.surface,
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    final avatarTone = live.isNotEmpty
+        ? palette.teal
+        : (connecting || pendingAny)
+        ? palette.orange
+        : palette.hostBlue;
+
+    final avatar = Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: avatarTone.withValues(alpha: .13),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(Icons.dns_outlined, size: 18, color: avatarTone),
+    );
+    final identity = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          host.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 14.5,
+            fontWeight: FontWeight.w600,
+            color: palette.text,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          endpoint,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontFamily: 'monospace',
+            color: palette.muted,
+          ),
+        ),
+      ],
+    );
+    final controls = <Widget>[
+      _Pill(
+        label: state,
+        tone: color,
+        textKey: ValueKey('r7fwd-host-state-${host.id}'),
+      ),
+      if (live.length > 1)
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 240),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            decoration: BoxDecoration(
+              color: palette.surfaceRaised,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: palette.line),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                key: ValueKey('r7fwd-session-select-${host.id}'),
+                value: target?.id,
+                isDense: true,
+                isExpanded: true,
+                borderRadius: BorderRadius.circular(10),
+                icon: const Icon(Icons.expand_more_rounded, size: 18),
+                hint: Text(
+                  l10n.r7ForwardChooseSession,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, color: palette.orange),
+                ),
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(fontSize: 12.5, color: palette.text),
+                items: [
+                  for (final session in live)
+                    DropdownMenuItem(
+                      value: session.id,
+                      child: Text(
+                        session.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (id) {
+                  if (id != null) _controller.selectSession(host.id, id);
+                },
+              ),
+            ),
+          ),
+        )
+      else if (target != null)
+        Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Wrap(
-              spacing: 10,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            Icon(Icons.terminal_rounded, size: 14, color: palette.hint),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                target.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: palette.muted),
+              ),
+            ),
+          ],
+        ),
+      if (target != null)
+        TextButton.icon(
+          key: ValueKey('r7fwd-open-session-${host.id}'),
+          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+          onPressed: () => _source.showSession(target.id),
+          icon: const Icon(Icons.open_in_new_rounded, size: 16),
+          label: Text(l10n.r7ForwardOpenSession),
+        ),
+      TextButton.icon(
+        key: ValueKey('r7fwd-add-${host.id}'),
+        style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+        onPressed: _working || !_source.canEdit ? null : () => _edit(host),
+        icon: const Icon(Icons.add, size: 16),
+        label: Text(l10n.addProfile),
+      ),
+    ];
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final wrap = Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: controls,
+          );
+          if (box.maxWidth >= 760) {
+            return Row(
               children: [
-                const Icon(Icons.dns_outlined, size: 18),
-                Text(
-                  host.name,
-                  style: Theme.of(context).textTheme.titleSmall,
+                avatar,
+                const SizedBox(width: 12),
+                Expanded(child: identity),
+                const SizedBox(width: 12),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: box.maxWidth * .6),
+                  child: wrap,
                 ),
-                Text(
-                  endpoint,
-                  style: TextStyle(color: context.palette.muted, fontSize: 12),
-                ),
-                Text(
-                  state,
-                  key: ValueKey('r7fwd-host-state-${host.id}'),
-                  style: TextStyle(color: color, fontSize: 12),
-                ),
-                if (live.length > 1)
-                  DropdownButton<String>(
-                    key: ValueKey('r7fwd-session-select-${host.id}'),
-                    value: target?.id,
-                    isDense: true,
-                    hint: Text(l10n.r7ForwardChooseSession),
-                    items: [
-                      for (final session in live)
-                        DropdownMenuItem(
-                          value: session.id,
-                          child: Text(session.label),
-                        ),
-                    ],
-                    onChanged: (id) {
-                      if (id != null) _controller.selectSession(host.id, id);
-                    },
-                  )
-                else if (target != null)
-                  Text(
-                    target.label,
-                    style: const TextStyle(fontSize: 12),
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  avatar,
+                  const SizedBox(width: 12),
+                  Expanded(child: identity),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: controls,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    return _card(
+      key: ValueKey('r7fwd-host-${host.id}'),
+      highlight: live.isNotEmpty ? palette.teal : null,
+      children: [
+        header,
+        if (host.portForwardProfiles.isEmpty && orphans.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 16, color: palette.hint),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    l10n.noForwardingProfilesSavedForThis,
+                    style: TextStyle(fontSize: 12.5, color: palette.muted),
                   ),
-                if (target != null)
-                  TextButton.icon(
-                    key: ValueKey('r7fwd-open-session-${host.id}'),
-                    onPressed: () => _source.showSession(target.id),
-                    icon: const Icon(Icons.terminal, size: 16),
-                    label: Text(l10n.r7ForwardOpenSession),
-                  ),
-                TextButton.icon(
-                  key: ValueKey('r7fwd-add-${host.id}'),
-                  onPressed: _working || !_source.canEdit
-                      ? null
-                      : () => _edit(host),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: Text(l10n.addProfile),
                 ),
               ],
             ),
-            if (host.portForwardProfiles.isEmpty && orphans.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  l10n.noForwardingProfilesSavedForThis,
-                  style: TextStyle(color: context.palette.muted),
-                ),
-              ),
-            for (final profile in host.portForwardProfiles)
-              _ruleRow(
-                host,
-                profile,
-                live: live,
-                target: target,
-                connectingSession: connecting,
-                supported: supported,
-              ),
-            for (final (session, profile) in orphans)
-              _orphanRow(host.id, session, profile),
-          ],
-        ),
-      ),
+          ),
+        for (final profile in host.portForwardProfiles)
+          _ruleRow(
+            host,
+            profile,
+            live: live,
+            target: target,
+            connectingSession: connecting,
+            supported: supported,
+          ),
+        for (final (session, profile) in orphans)
+          _orphanRow(host.id, session, profile),
+      ],
     );
   }
 
@@ -1208,6 +1418,7 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
     required bool supported,
   }) {
     final l10n = context.l10n;
+    final palette = context.palette;
     final id = '${host.id}-${profile.id}';
     final pending = _controller.isConnecting(host.id, profile.id);
     final busy = _controller.isBusy(host.id, profile.id);
@@ -1233,15 +1444,18 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
     VoidCallback? onToggle;
     String tooltip;
     IconData icon;
+    Color tone;
     if (active) {
       tooltip = l10n.stopForwarding;
-      icon = Icons.stop_circle_outlined;
+      icon = Icons.stop_rounded;
+      tone = palette.red;
       onToggle = busy || manager == null
           ? null
           : () => _controller.stop(manager, host.id, profile.id);
     } else if (target != null) {
       tooltip = l10n.startForwarding;
-      icon = Icons.play_circle_outline;
+      icon = Icons.play_arrow_rounded;
+      tone = palette.teal;
       onToggle = busy || stopping || pending || !supported
           ? null
           : () => _start(host, profile);
@@ -1251,184 +1465,252 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
           : connectingSession
           ? l10n.r7ForwardWaitForSession
           : l10n.r7ForwardConnectAndStart;
-      icon = Icons.power_settings_new;
+      icon = Icons.power_settings_new_rounded;
+      tone = palette.accentText;
       onToggle =
           busy || pending || !supported || live.length > 1 || connectingSession
           ? null
           : () => _start(host, profile);
     }
 
-    return Container(
-      key: ValueKey('r7fwd-rule-$id'),
-      margin: const EdgeInsets.only(top: 6),
-      padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
-      decoration: BoxDecoration(
-        color: context.palette.surfaceRaised,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _TypeBadge(profile.type),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        profile.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    if (profile.exposesBeyondLoopback) ...[
-                      const SizedBox(width: 6),
-                      Tooltip(
-                        message: l10n.reachableBeyondLoopback,
-                        child: Icon(
-                          Icons.public,
-                          size: 15,
-                          color: context.palette.orange,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  sshPortForwardProfileDescription(
-                    profile,
-                    activePort: status.listeningPort,
-                  ),
-                  style: TextStyle(color: context.palette.muted, fontSize: 12),
-                ),
-                const SizedBox(height: 3),
-                if (pending)
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          l10n.r7ForwardConnectingStart,
-                          key: ValueKey('r7fwd-status-$id'),
-                          style: TextStyle(
-                            color: context.palette.orange,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        key: ValueKey('r7fwd-cancel-$id'),
-                        onPressed: () =>
-                            _controller.cancelPending(host.id, profile.id),
-                        child: Text(l10n.cancel2),
-                      ),
-                    ],
-                  )
-                else
-                  _statusText(id, status),
-                if (status.isRunning && status.lastConnectionError != null)
-                  Text(
-                    l10n.lastConnectionLastconnectionerror(
-                      status.lastConnectionError!,
-                    ),
-                    key: ValueKey('r7fwd-connection-error-$id'),
-                    style: TextStyle(
-                      color: context.palette.orange,
-                      fontSize: 12,
-                    ),
-                  ),
-                if (note != null)
-                  Text(
-                    note,
-                    key: ValueKey('r7fwd-note-$id'),
-                    style: TextStyle(
-                      color: context.palette.orange,
-                      fontSize: 12,
-                    ),
-                  ),
-                for (final session in others)
-                  _otherSessionLine(host.id, profile.id, session),
-              ],
-            ),
-          ),
-          if (supported)
-            IconButton(
-              key: ValueKey('r7fwd-toggle-$id'),
-              tooltip: tooltip,
-              onPressed: onToggle,
-              icon: Icon(icon),
-            ),
-          PopupMenuButton<String>(
-            key: ValueKey('r7fwd-menu-$id'),
-            tooltip: l10n.r7ForwardMoreActions,
-            enabled: !_working && _source.canEdit,
-            onSelected: (action) {
-              switch (action) {
-                case 'edit':
-                  _edit(host, existing: profile);
-                case 'duplicate':
-                  _duplicate(host, profile);
-                case 'delete':
-                  _delete(host, profile);
-              }
-            },
-            itemBuilder: (context) => [
-              appMenuItem(context,
-                key: const ValueKey('r7fwd-edit'),
-                value: 'edit',
-                enabled: editable,
-                child: Text(l10n.editForwardingProfile),
+    final statusLine = pending
+        ? Wrap(
+            spacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _Pill(
+                label: l10n.r7ForwardConnectingStart,
+                tone: palette.orange,
+                textKey: ValueKey('r7fwd-status-$id'),
               ),
-              appMenuItem(context,
-                key: const ValueKey('r7fwd-duplicate'),
-                value: 'duplicate',
-                enabled: !_working && _source.canEdit,
-                child: Text(l10n.r7ForwardDuplicate),
-              ),
-              appMenuItem(context,
-                key: const ValueKey('r7fwd-delete'),
-                value: 'delete',
-                enabled: !_working && _source.canEdit,
-                child: Text(l10n.deleteForwardingProfile),
+              TextButton(
+                key: ValueKey('r7fwd-cancel-$id'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => _controller.cancelPending(host.id, profile.id),
+                child: Text(l10n.cancel2),
               ),
             ],
+          )
+        : _statusPill(id, status);
+    final extra = <Widget>[
+      if (status.isRunning && status.lastConnectionError != null)
+        Text(
+          l10n.lastConnectionLastconnectionerror(status.lastConnectionError!),
+          key: ValueKey('r7fwd-connection-error-$id'),
+          style: TextStyle(color: palette.orange, fontSize: 12, height: 1.4),
+        ),
+      if (note != null)
+        Text(
+          note,
+          key: ValueKey('r7fwd-note-$id'),
+          style: TextStyle(color: palette.orange, fontSize: 12, height: 1.4),
+        ),
+      for (final session in others)
+        _otherSessionLine(host.id, profile.id, session),
+    ];
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (supported)
+          IconButton(
+            key: ValueKey('r7fwd-toggle-$id'),
+            tooltip: tooltip,
+            onPressed: onToggle,
+            style: IconButton.styleFrom(
+              foregroundColor: tone,
+              backgroundColor: tone.withValues(alpha: .12),
+              disabledForegroundColor: palette.hint,
+              disabledBackgroundColor: palette.surfaceRaised,
+            ),
+            icon: Icon(icon, size: 20),
           ),
-        ],
+        PopupMenuButton<String>(
+          key: ValueKey('r7fwd-menu-$id'),
+          tooltip: l10n.r7ForwardMoreActions,
+          enabled: !_working && _source.canEdit,
+          icon: const Icon(Icons.more_vert_rounded, size: 20),
+          onSelected: (action) {
+            switch (action) {
+              case 'edit':
+                _edit(host, existing: profile);
+              case 'duplicate':
+                _duplicate(host, profile);
+              case 'delete':
+                _delete(host, profile);
+            }
+          },
+          itemBuilder: (context) => [
+            appMenuItem(
+              context,
+              key: const ValueKey('r7fwd-edit'),
+              value: 'edit',
+              enabled: editable,
+              child: Text(l10n.editForwardingProfile),
+            ),
+            appMenuItem(
+              context,
+              key: const ValueKey('r7fwd-duplicate'),
+              value: 'duplicate',
+              enabled: !_working && _source.canEdit,
+              child: Text(l10n.r7ForwardDuplicate),
+            ),
+            appMenuItem(
+              context,
+              key: const ValueKey('r7fwd-delete'),
+              value: 'delete',
+              enabled: !_working && _source.canEdit,
+              child: Text(l10n.deleteForwardingProfile),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    return Padding(
+      key: ValueKey('r7fwd-rule-$id'),
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final route = _RouteText(
+            profile: profile,
+            activePort: status.listeningPort,
+          );
+          final lines = [
+            for (final line in extra) ...[const SizedBox(height: 4), line],
+          ];
+          if (box.maxWidth >= 680) {
+            return Row(
+              children: [
+                _TypeBadge(profile.type),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [_ruleName(profile), ..._ruleTags(profile)],
+                      ),
+                      const SizedBox(height: 3),
+                      route,
+                      ...lines,
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: box.maxWidth * .3,
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: statusLine,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                actions,
+              ],
+            );
+          }
+          // Narrow: the name shares its line with the buttons only, so the
+          // route and the status get the full width below it.
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _TypeBadge(profile.type),
+                  const SizedBox(width: 12),
+                  Expanded(child: _ruleName(profile)),
+                  const SizedBox(width: 6),
+                  actions,
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 44, end: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: _ruleTags(profile),
+                    ),
+                    const SizedBox(height: 5),
+                    route,
+                    const SizedBox(height: 7),
+                    statusLine,
+                    ...lines,
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _statusText(String id, SshPortForwardStatus status) {
+  Widget _ruleName(SshPortForwardProfile profile) => Text(
+    profile.name,
+    style: TextStyle(
+      fontSize: 13.5,
+      fontWeight: FontWeight.w600,
+      color: context.palette.text,
+    ),
+  );
+
+  /// The rule's type and, when it listens beyond loopback, an exposure tag.
+  List<Widget> _ruleTags(SshPortForwardProfile profile) {
+    final palette = context.palette;
+    return [
+      _TypeTag(profile.type),
+      if (profile.exposesBeyondLoopback)
+        Tooltip(
+          message: context.l10n.reachableBeyondLoopback,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: palette.orange.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Icon(Icons.public, size: 13, color: palette.orange),
+          ),
+        ),
+    ];
+  }
+
+  Widget _statusPill(String id, SshPortForwardStatus status) {
     final l10n = context.l10n;
+    final palette = context.palette;
     final (String text, Color color) = switch (status.state) {
       SshPortForwardState.running => (
         l10n.forwardStatusRunning(
           status.activeConnections,
           status.totalConnections,
         ),
-        Theme.of(context).colorScheme.primary,
+        palette.teal,
       ),
-      SshPortForwardState.starting => (l10n.starting, context.palette.muted),
+      SshPortForwardState.starting => (l10n.starting, palette.orange),
       SshPortForwardState.stopping => (
         l10n.forwardStatusStopping,
-        context.palette.muted,
+        palette.muted,
       ),
       SshPortForwardState.failed => (
-        l10n.forwardStatusFailed(status.error ?? l10n.forwardStatusUnknownError),
-        context.palette.red,
+        l10n.forwardStatusFailed(
+          status.error ?? l10n.forwardStatusUnknownError,
+        ),
+        palette.red,
       ),
-      SshPortForwardState.stopped => (
-        l10n.forwardStatusStopped,
-        context.palette.muted,
-      ),
+      SshPortForwardState.stopped => (l10n.forwardStatusStopped, palette.muted),
     };
-    return Text(
-      text,
-      key: ValueKey('r7fwd-status-$id'),
-      style: TextStyle(color: color, fontSize: 12),
+    return _Pill(
+      label: text,
+      tone: color,
+      textKey: ValueKey('r7fwd-status-$id'),
     );
   }
 
@@ -1437,35 +1719,40 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
     String profileId,
     SshForwardingSessionInfo session,
   ) {
+    final palette = context.palette;
     final manager = session.liveManager!;
     final status = manager.statusOf(profileId);
     final stopping = status.state == SshPortForwardState.stopping;
     return Row(
       key: ValueKey('r7fwd-other-$hostId-$profileId-${session.id}'),
       children: [
+        Icon(
+          Icons.subdirectory_arrow_right_rounded,
+          size: 14,
+          color: palette.hint,
+        ),
+        const SizedBox(width: 4),
         Flexible(
           child: Text(
-            context.l10n.r7ForwardOnSession(
-              session.label,
-              switch (status.state) {
-                SshPortForwardState.running => context.l10n
-                    .forwardStatusRunning(
-                      status.activeConnections,
-                      status.totalConnections,
-                    ),
-                SshPortForwardState.starting => context.l10n.starting,
-                SshPortForwardState.stopping =>
-                  context.l10n.forwardStatusStopping,
-                _ => context.l10n.forwardStatusStopped,
-              },
-            ),
-            style: const TextStyle(fontSize: 12),
+            context.l10n.r7ForwardOnSession(session.label, switch (status
+                .state) {
+              SshPortForwardState.running => context.l10n.forwardStatusRunning(
+                status.activeConnections,
+                status.totalConnections,
+              ),
+              SshPortForwardState.starting => context.l10n.starting,
+              SshPortForwardState.stopping =>
+                context.l10n.forwardStatusStopping,
+              _ => context.l10n.forwardStatusStopped,
+            }),
+            style: TextStyle(fontSize: 12, color: palette.muted),
           ),
         ),
         IconButton(
           key: ValueKey('r7fwd-other-stop-$hostId-$profileId-${session.id}'),
           tooltip: context.l10n.stopForwarding,
           visualDensity: VisualDensity.compact,
+          color: palette.red,
           onPressed: stopping || _controller.isBusy(hostId, profileId)
               ? null
               : () => _controller.stop(manager, hostId, profileId),
@@ -1480,49 +1767,121 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
     SshForwardingSessionInfo session,
     SshPortForwardProfile profile,
   ) {
+    final palette = context.palette;
     final manager = session.liveManager!;
     final status = manager.statusOf(profile.id);
-    return ListTile(
+    return Padding(
       key: ValueKey('r7fwd-orphan-${session.id}-${profile.id}'),
-      dense: true,
-      contentPadding: const EdgeInsets.only(left: 4),
-      leading: _TypeBadge(profile.type),
-      title: Text(profile.name),
-      subtitle: Text(
-        '${context.l10n.sshportforwardprofiledescriptionNoLongerSavedForThis(sshPortForwardProfileDescription(profile, activePort: status.listeningPort))}\n${session.label}',
-      ),
-      isThreeLine: true,
-      trailing: IconButton(
-        key: ValueKey('r7fwd-orphan-stop-${session.id}-${profile.id}'),
-        tooltip: context.l10n.stopForwarding,
-        onPressed: status.state == SshPortForwardState.stopping
-            ? null
-            : () => _controller.stop(manager, hostId, profile.id),
-        icon: const Icon(Icons.stop_circle_outlined),
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _TypeBadge(profile.type),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  profile.name,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: palette.text,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  context.l10n
+                      .sshportforwardprofiledescriptionNoLongerSavedForThis(
+                        sshPortForwardProfileDescription(
+                          profile,
+                          activePort: status.listeningPort,
+                        ),
+                      ),
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.45,
+                    color: palette.orange,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Icon(Icons.terminal_rounded, size: 13, color: palette.hint),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        session.label,
+                        style: TextStyle(fontSize: 12, color: palette.muted),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          IconButton(
+            key: ValueKey('r7fwd-orphan-stop-${session.id}-${profile.id}'),
+            tooltip: context.l10n.stopForwarding,
+            style: IconButton.styleFrom(
+              foregroundColor: palette.red,
+              backgroundColor: palette.red.withValues(alpha: .12),
+              disabledForegroundColor: palette.hint,
+              disabledBackgroundColor: palette.surfaceRaised,
+            ),
+            onPressed: status.state == SshPortForwardState.stopping
+                ? null
+                : () => _controller.stop(manager, hostId, profile.id),
+            icon: const Icon(Icons.stop_rounded, size: 20),
+          ),
+        ],
       ),
     );
   }
 
   Widget _removedHostCard(SshForwardingSessionInfo session) {
+    final palette = context.palette;
     final manager = session.liveManager!;
-    return Card(
+    return _card(
       key: ValueKey('r7fwd-removed-${session.id}'),
-      color: context.palette.surface,
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '${session.label} · ${context.l10n.r7ForwardRemovedHost}',
-              style: TextStyle(color: context.palette.orange),
-            ),
-            for (final profile in manager.activeProfiles)
-              _orphanRow(session.hostId, session, profile),
-          ],
+      highlight: palette.orange,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: palette.orange.withValues(alpha: .13),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.warning_amber_rounded,
+                  size: 18,
+                  color: palette.orange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '${session.label} · ${context.l10n.r7ForwardRemovedHost}',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: palette.orange,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+        for (final profile in manager.activeProfiles)
+          _orphanRow(session.hostId, session, profile),
+      ],
     );
   }
 
@@ -1635,11 +1994,7 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
       if (_error != null)
         IosListRow(
           leading: IosIconTile(icon: IosIcons.warning, color: c.destructive),
-          title: Text(
-            _error!,
-            key: const ValueKey('r7fwd-error'),
-            maxLines: 3,
-          ),
+          title: Text(_error!, key: const ValueKey('r7fwd-error'), maxLines: 3),
           destructive: true,
         ),
     ];
@@ -1670,9 +2025,7 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
           child: IosEmptyState(
             key: const ValueKey('r7fwd-empty'),
             icon: IosIcons.forwarding,
-            title: searching
-                ? l10n.r7ForwardNoMatches
-                : l10n.r7ForwardNoRules,
+            title: searching ? l10n.r7ForwardNoMatches : l10n.r7ForwardNoRules,
             message:
                 '${_source.storageDescription} ${l10n.r7ForwardNoAutoStart}',
             actionLabel: !searching && canAddRule
@@ -1986,11 +2339,7 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
                       ),
                       if (profile.exposesBeyondLoopback) ...[
                         const SizedBox(width: 6),
-                        Icon(
-                          Icons.public_rounded,
-                          size: 15,
-                          color: c.warning,
-                        ),
+                        Icon(Icons.public_rounded, size: 15, color: c.warning),
                       ],
                     ],
                   ),
@@ -2130,8 +2479,10 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
               if (animation.value < CupertinoContextMenu.animationOpensAt) {
                 return buildBody(inPreview: false);
               }
-              final maxW =
-                  (MediaQuery.sizeOf(ctx).width - 40).clamp(240.0, 360.0);
+              final maxW = (MediaQuery.sizeOf(ctx).width - 40).clamp(
+                240.0,
+                360.0,
+              );
               return Center(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: maxW),
@@ -2201,11 +2552,11 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
               context.l10n.r7ForwardOnSession(
                 session.label,
                 switch (status.state) {
-                  SshPortForwardState.running => context.l10n
-                      .forwardStatusRunning(
-                        status.activeConnections,
-                        status.totalConnections,
-                      ),
+                  SshPortForwardState.running =>
+                    context.l10n.forwardStatusRunning(
+                      status.activeConnections,
+                      status.totalConnections,
+                    ),
                   SshPortForwardState.starting => context.l10n.starting,
                   SshPortForwardState.stopping =>
                     context.l10n.forwardStatusStopping,
@@ -2305,6 +2656,27 @@ class _IosForwardTypeTile extends StatelessWidget {
   }
 }
 
+/// Identity colour of a forward type: local blue, remote orange, dynamic
+/// purple (as on iOS).
+Color _typeTone(BuildContext context, SshPortForwardType type) {
+  final palette = context.palette;
+  return switch (type) {
+    SshPortForwardType.local => palette.hostBlue,
+    SshPortForwardType.remote => palette.orange,
+    SshPortForwardType.dynamic =>
+      palette.brightness == Brightness.dark
+          ? const Color(0xFFB79CF4)
+          : const Color(0xFF6A45BE),
+  };
+}
+
+String _typeLabel(BuildContext context, SshPortForwardType type) =>
+    switch (type) {
+      SshPortForwardType.local => context.l10n.localL,
+      SshPortForwardType.remote => context.l10n.remoteR,
+      SshPortForwardType.dynamic => context.l10n.dynamicSocksD,
+    };
+
 class _TypeBadge extends StatelessWidget {
   const _TypeBadge(this.type);
 
@@ -2312,26 +2684,30 @@ class _TypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (String letter, String label) = switch (type) {
-      SshPortForwardType.local => ('L', context.l10n.localL),
-      SshPortForwardType.remote => ('R', context.l10n.remoteR),
-      SshPortForwardType.dynamic => ('D', context.l10n.dynamicSocksD),
+    final tone = _typeTone(context, type);
+    final letter = switch (type) {
+      SshPortForwardType.local => 'L',
+      SshPortForwardType.remote => 'R',
+      SshPortForwardType.dynamic => 'D',
     };
     return Tooltip(
-      message: label,
+      message: _typeLabel(context, type),
       child: Container(
-        width: 26,
-        height: 26,
+        width: 32,
+        height: 32,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(6),
+          color: tone.withValues(alpha: .13),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: tone.withValues(alpha: .3)),
         ),
         child: Text(
           letter,
           style: TextStyle(
+            fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            fontFamily: 'monospace',
+            color: tone,
           ),
         ),
       ),
@@ -2339,37 +2715,266 @@ class _TypeBadge extends StatelessWidget {
   }
 }
 
-class _Banner extends StatelessWidget {
-  const _Banner({required this.text, this.color, super.key});
+/// The type's name beside a rule's name ("Local (-L)").
+class _TypeTag extends StatelessWidget {
+  const _TypeTag(this.type);
 
-  final String text;
-  final Color? color;
+  final SshPortForwardType type;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 6),
-    child: Text(
-      text,
-      style: TextStyle(color: color ?? context.palette.orange, height: 1.4),
+  Widget build(BuildContext context) {
+    final tone = _typeTone(context, type);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Text(
+        _typeLabel(context, type),
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          color: tone,
+        ),
+      ),
+    );
+  }
+}
+
+/// Where a rule listens and where it leads, in monospace
+/// (`127.0.0.1:15432 → db.internal:5432`); the full sentence is the
+/// tooltip.
+class _RouteText extends StatelessWidget {
+  const _RouteText({required this.profile, this.activePort});
+
+  final SshPortForwardProfile profile;
+  final int? activePort;
+
+  @override
+  Widget build(BuildContext context) {
+    String endpoint(String address, String port) =>
+        address.contains(':') ? '[$address]:$port' : '$address:$port';
+    final port = profile.bindPort == 0
+        ? activePort?.toString() ?? context.l10n.forwardingPortAuto
+        : '${profile.bindPort}';
+    final bind = endpoint(profile.bindAddress, port);
+    final destination = profile.destinationAddress;
+    final route =
+        profile.type == SshPortForwardType.dynamic || destination == null
+        ? bind
+        : '$bind → ${endpoint(destination, '${profile.destinationPort}')}';
+    return Tooltip(
+      message: sshPortForwardProfileDescription(
+        profile,
+        activePort: activePort,
+      ),
+      child: Text(
+        route,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.4,
+          fontFamily: 'monospace',
+          color: context.palette.muted,
+        ),
+      ),
+    );
+  }
+}
+
+/// A status label in the style of the kit's status chip; a long label
+/// (a failure reason) wraps instead of running out of a narrow row.
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.tone, this.textKey});
+
+  final String label;
+  final Color tone;
+  final Key? textKey;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: tone.withValues(alpha: .12),
+      // Round as a pill on one line; a wrapped label keeps soft corners.
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            key: textKey,
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.3,
+              fontWeight: FontWeight.w600,
+              color: tone,
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }
 
-class _Empty extends StatelessWidget {
-  const _Empty({required this.text});
+/// An on/off filter in the shape of the page's filter chips; unlike a chip
+/// its label wraps at large text sizes instead of fading out.
+class _TogglePill extends StatelessWidget {
+  const _TogglePill({
+    required this.label,
+    required this.selected,
+    required this.onChanged,
+    super.key,
+  });
+
+  final String label;
+  final bool selected;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final foreground = selected ? palette.onAccentContainer : palette.text;
+    final shape = StadiumBorder(
+      side: BorderSide(
+        color: selected
+            ? palette.accentText.withValues(alpha: .45)
+            : palette.line,
+      ),
+    );
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? palette.accentContainer : palette.surfaceRaised,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => onChanged(!selected),
+          customBorder: shape,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 14, 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  selected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  size: 16,
+                  color: selected ? foreground : palette.muted,
+                ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.3,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      color: foreground,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown instead of the host list when there is nothing to list.
+class _ForwardingEmpty extends StatelessWidget {
+  const _ForwardingEmpty({required this.icon, required this.text, this.action});
+
+  final IconData icon;
+  final String text;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 12),
+      child: Column(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: palette.teal.withValues(alpha: .12),
+              shape: BoxShape.circle,
+              border: Border.all(color: palette.teal.withValues(alpha: .25)),
+            ),
+            child: Icon(icon, size: 24, color: palette.teal),
+          ),
+          const SizedBox(height: 14),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Text(
+              text,
+              key: const ValueKey('r7fwd-empty'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                height: 1.5,
+                fontWeight: FontWeight.w500,
+                color: palette.muted,
+              ),
+            ),
+          ),
+          if (action != null) ...[const SizedBox(height: 16), action!],
+        ],
+      ),
+    );
+  }
+}
+
+/// One-line "nothing matches the search" row.
+class _ForwardingNoMatches extends StatelessWidget {
+  const _ForwardingNoMatches({required this.text});
 
   final String text;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 12),
-    child: Text(
-      text,
-      key: const ValueKey('r7fwd-empty'),
-      textAlign: TextAlign.center,
-      style: TextStyle(color: context.palette.muted),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(
+          AppDensity.of(context).radiusLg + 2,
+        ),
+        border: Border.all(color: palette.line),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(Icons.search_off_rounded, size: 18, color: palette.muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                key: const ValueKey('r7fwd-empty'),
+                style: TextStyle(fontSize: 13, color: palette.muted),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _HostPicker extends StatefulWidget {

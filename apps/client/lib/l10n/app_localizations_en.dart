@@ -20601,4 +20601,34 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get logsRecordSubtitle =>
+      'Applies to sessions opened after you turn it on. Saves what the terminal displays, including text the server echoes, never your keystrokes or hidden password input.';
+
+  @override
+  String logsRecordKeepCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Keeps the latest $count transcripts',
+      one: 'Keeps the latest transcript',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String logsRecordSizeLimit(int kib) {
+    return 'Up to $kib KiB each';
+  }
+
+  @override
+  String get logsRecordSecretsHint =>
+      'Avoid displaying secrets while recording';
+
+  @override
+  String get logsClearFilters => 'Clear search and filter';
+
+  @override
+  String get forwardingPortAuto => 'auto';
 }
