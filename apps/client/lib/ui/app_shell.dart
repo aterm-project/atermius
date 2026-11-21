@@ -26,7 +26,7 @@ import '../mcp/mcp_service.dart';
 import '../mcp/mcp_workspace.dart';
 import 'mcp_settings_panel.dart';
 import 'settings_scaffold.dart';
-import 'sync_health_widgets.dart';
+import 'page_kit.dart';
 import '../console/local_console.dart';
 import 'local_shell_menu.dart';
 import 'home_add_sharing_row.dart';
@@ -12907,7 +12907,7 @@ class _SyncPage extends StatelessWidget {
       if (app.snapshotRecoveryActive ||
           app.syncStatus == 'resnapshot_required' ||
           app.syncStatus == 'snapshot_too_large')
-        SyncNotice(
+        PageNotice(
           icon: app.snapshotRecoveryActive
               ? Icons.sync_rounded
               : Icons.warning_amber_rounded,
@@ -12920,13 +12920,13 @@ class _SyncPage extends StatelessWidget {
         ),
       if (app.activeVault?.status == 'deleting' ||
           app.syncStatus == 'deletion_pending')
-        SyncNotice(
+        PageNotice(
           icon: Icons.lock_clock_outlined,
           tone: palette.orange,
           message: context.l10n.vaultIsInItsDeletionGrace(app.pendingCount),
         ),
       if (app.unavailableRecordCount > 0)
-        SyncNotice(
+        PageNotice(
           icon: Icons.warning_amber_rounded,
           tone: palette.orange,
           message: context.l10n.unavailablerecordcountEncryptedRecordSCouldNot(
@@ -12939,23 +12939,23 @@ class _SyncPage extends StatelessWidget {
   Widget _metrics(BuildContext context) {
     final palette = context.palette;
     final generation = _syncGenerationState(app);
-    return SyncMetricGrid(
+    return MetricGrid(
       children: [
-        SyncMetricTile(
+        MetricTile(
           icon: Icons.upload_rounded,
           label: context.l10n.outboxItems,
           value: '${app.pendingCount}',
           caption: context.l10n.syncOutboxCaption,
           tone: app.pendingCount > 0 ? palette.lime : palette.teal,
         ),
-        SyncMetricTile(
+        MetricTile(
           icon: Icons.download_rounded,
           label: context.l10n.lastPull,
           value: '${app.receivedCount}',
           caption: context.l10n.syncChangesReceived(app.receivedCount),
           tone: palette.teal,
         ),
-        SyncMetricTile(
+        MetricTile(
           icon: Icons.compare_arrows_rounded,
           label: context.l10n.openConflicts,
           value: '${app.unresolvedConflictCount}',
@@ -12964,7 +12964,7 @@ class _SyncPage extends StatelessWidget {
               : null,
           tone: app.unresolvedConflictCount > 0 ? palette.orange : palette.teal,
         ),
-        SyncMetricTile(
+        MetricTile(
           icon: Icons.dns_outlined,
           label: context.l10n.generationCheckpoint,
           value: _syncGenerationStatus(app),
@@ -13000,10 +13000,10 @@ class _SyncPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SyncSectionHeader(
+        SectionHeader(
           title: context.l10n.conflictBranches,
           trailing: app.unresolvedConflictCount > 0
-              ? SyncCountTag(
+              ? CountTag(
                   label: context.l10n.unresolvedconflictcountNeedsReview(
                     app.unresolvedConflictCount,
                   ),
@@ -13012,7 +13012,7 @@ class _SyncPage extends StatelessWidget {
               : null,
         ),
         if (app.openConflicts.isEmpty)
-          SyncEmptyRow(
+          EmptyRow(
             icon: Icons.check_rounded,
             title: context.l10n.noOpenConflicts,
             body: context.l10n.conflictingBranchesArePreservedUntilYou,
@@ -13023,11 +13023,11 @@ class _SyncPage extends StatelessWidget {
               _ConflictCard(app: app, conflict: conflict),
           ]),
         const SizedBox(height: 24),
-        SyncSectionHeader(
+        SectionHeader(
           title: context.l10n.crossDeviceConflictInbox,
           description: context.l10n.concurrentBranchesSubmittedToTheServer,
           trailing: app.openFeedConflictItems.isNotEmpty
-              ? SyncCountTag(
+              ? CountTag(
                   label: context.l10n.countPendingReview(
                     app.openFeedConflictItems.length,
                   ),
@@ -13036,7 +13036,7 @@ class _SyncPage extends StatelessWidget {
               : null,
         ),
         if (app.openFeedConflictItems.isEmpty)
-          SyncEmptyRow(
+          EmptyRow(
             icon: Icons.inbox_outlined,
             title: context.l10n.noPendingCrossDeviceBranches,
             body: context.l10n.newBranchesSyncAutomaticallyWithConflict,
@@ -13076,42 +13076,42 @@ class _SyncPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SyncPanel(
+        PagePanel(
           icon: Icons.fact_check_outlined,
           title: context.l10n.recoveryDetails,
           subtitle: context.l10n.comparedWithTheLastVerifiedServer,
           children: [
-            SyncDetailRow(
+            DetailRow(
               label: context.l10n.syncSavedCheckpoint,
               value: _shortKey(app.syncCheckpointServerGeneration),
             ),
-            SyncDetailRow(
+            DetailRow(
               label: context.l10n.syncLastVerifiedServer,
               value: _shortKey(app.instance?.generation),
             ),
-            SyncDetailRow(
+            DetailRow(
               label: context.l10n.instance,
               value: app.instance?.instanceId ?? '—',
             ),
-            SyncDetailRow(
+            DetailRow(
               label: context.l10n.generation,
               value: app.instance?.generation ?? '—',
             ),
-            SyncDetailRow(
+            DetailRow(
               label: context.l10n.protocol,
               value: 'v${app.instance?.protocolVersion ?? 1}',
             ),
-            SyncDetailRow(
+            DetailRow(
               label: context.l10n.currentVault2,
               value: app.currentVaultId,
             ),
             if (app.identity?.deviceId case final nodeId?)
-              SyncDetailRow(
+              DetailRow(
                 key: const ValueKey('sync_node_id'),
                 label: context.l10n.syncNodeId,
                 value: nodeId,
               ),
-            SyncDetailRow(
+            DetailRow(
               label: context.l10n.cursorPolicy,
               value: context.l10n.advanceOnlyAfterEachPageIs,
               monospace: false,
@@ -13119,7 +13119,7 @@ class _SyncPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        SyncPanel(
+        PagePanel(
           icon: Icons.privacy_tip_outlined,
           title: context.l10n.anonymousDiagnostics,
           subtitle: context.l10n.theExportContainsARandomReport,
@@ -13135,7 +13135,7 @@ class _SyncPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        SyncPanel(
+        PagePanel(
           icon: Icons.offline_pin_outlined,
           title: context.l10n.offlineFirstCiphertextOnly,
           subtitle: context.l10n.localEditsAreEncryptedAndCommitted,
@@ -13160,8 +13160,8 @@ class _SyncPage extends StatelessWidget {
             subtitle: context.l10n.encryptedRecordsImmutableRetriesAndRecovery,
           ),
           const SizedBox(height: 18),
-          SyncTicker(
-            builder: (context, now) => SyncHealthHero(
+          RelativeTimeTicker(
+            builder: (context, now) => StatusHero(
               icon: _syncIcon(app.syncStatus),
               tone: _syncColor(context, app.syncStatus),
               busy: app.syncing || app.snapshotRecoveryActive,
@@ -13170,13 +13170,13 @@ class _SyncPage extends StatelessWidget {
               description: _summary(context),
               facts: [
                 if (!_syncIssueIsNone(app.syncStatus))
-                  SyncHeroFact(
+                  HeroFact(
                     icon: Icons.report_gmailerrorred_outlined,
                     label: context.l10n.issueCategory,
                     value: _syncIssueCategoryLabel(app.syncStatus),
                     tone: _syncColor(context, app.syncStatus),
                   ),
-                SyncHeroFact(
+                HeroFact(
                   icon: Icons.history_rounded,
                   label: context.l10n.lastSuccessfulSync,
                   value: lastSync == null
@@ -26662,55 +26662,11 @@ class _PageHeading extends StatelessWidget {
   final String subtitle;
   final Widget? trailing;
   @override
-  Widget build(BuildContext context) {
-    final heading = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            // R7 density: 20 compact / 22 touch (R6a 22).
-            fontSize: Theme.of(context).textTheme.titleLarge!.fontSize! + 1,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -.5,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: TextStyle(
-            color: context.palette.muted,
-            height: 1.45,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-    if (trailing == null) return heading;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 1280) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              heading,
-              const SizedBox(height: 14),
-              Align(alignment: Alignment.centerRight, child: trailing!),
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(child: heading),
-            const SizedBox(width: 14),
-            trailing!,
-          ],
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => PageHeader(
+    title: title,
+    subtitle: subtitle,
+    actions: [?trailing],
+  );
 }
 
 class _EmptyState extends StatelessWidget {

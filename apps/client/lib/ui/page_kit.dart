@@ -5,20 +5,96 @@ import 'package:flutter/material.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
 
-/// Building blocks of the Sync health page (`/sync`).
+/// Shared building blocks of the workspace pages (Sync health, Groups,
+/// Keychain, Devices, …), so every page has the same header, panels,
+/// counters, notices and empty rows.
 ///
-/// The page leads with one status summary ([SyncHealthHero]), then a row of
-/// counters ([SyncMetricGrid]), then conflicts and the technical detail. The
-/// widgets only lay out what they are given; every label and value comes
-/// from the page, so nothing here depends on the sync state machine.
+/// A page leads with a [PageHeader]; a status page can follow it with a
+/// [StatusHero] and a [MetricGrid]. The widgets only lay out what they are
+/// given: every label and value comes from the page.
+
+/// The title row of a workspace page: title, one-line explanation and the
+/// page's actions.
+///
+/// The actions sit on the title row and only move below the text when the
+/// page is narrower than about 640 px; they used to drop to a row of their
+/// own on every window narrower than 1280 px, which left a lone button
+/// floating under the title on most screens.
+class PageHeader extends StatelessWidget {
+  const PageHeader({
+    required this.title,
+    required this.subtitle,
+    this.actions = const [],
+    super.key,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            // R7 density: 20 compact / 22 touch (R6a 22).
+            fontSize: Theme.of(context).textTheme.titleLarge!.fontSize! + 1,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -.5,
+            color: palette.text,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: TextStyle(color: palette.muted, height: 1.45, fontSize: 12),
+        ),
+      ],
+    );
+    if (actions.isEmpty) return heading;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 640;
+        final buttons = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: narrow ? WrapAlignment.start : WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: actions,
+        );
+        if (narrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [heading, const SizedBox(height: 12), buttons],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: heading),
+            const SizedBox(width: 16),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth * .5),
+              child: buttons,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
 
 /// Radius shared by the page's own surfaces; one step rounder than a Card so
 /// the summary reads as the page's lead element.
 double _radius(BuildContext context) => AppDensity.of(context).radiusLg + 4;
 
 /// One label/value fact shown under the summary title.
-class SyncHeroFact {
-  const SyncHeroFact({
+class HeroFact {
+  const HeroFact({
     required this.icon,
     required this.label,
     required this.value,
@@ -40,8 +116,8 @@ class SyncHeroFact {
 
 /// The page's lead card: what state sync is in, what that means, and the
 /// actions that change it.
-class SyncHealthHero extends StatelessWidget {
-  const SyncHealthHero({
+class StatusHero extends StatelessWidget {
+  const StatusHero({
     required this.icon,
     required this.tone,
     required this.overline,
@@ -58,7 +134,7 @@ class SyncHealthHero extends StatelessWidget {
   final String overline;
   final String title;
   final String description;
-  final List<SyncHeroFact> facts;
+  final List<HeroFact> facts;
   final List<Widget> actions;
 
   /// Shows a progress ring around the status icon.
@@ -217,7 +293,7 @@ class SyncHealthHero extends StatelessWidget {
 
 class _HeroFactChip extends StatelessWidget {
   const _HeroFactChip({required this.fact});
-  final SyncHeroFact fact;
+  final HeroFact fact;
 
   @override
   Widget build(BuildContext context) {
@@ -259,8 +335,8 @@ class _HeroFactChip extends StatelessWidget {
 }
 
 /// One counter on the page: an icon, what is counted, and the count.
-class SyncMetricTile extends StatelessWidget {
-  const SyncMetricTile({
+class MetricTile extends StatelessWidget {
+  const MetricTile({
     required this.icon,
     required this.label,
     required this.value,
@@ -280,13 +356,13 @@ class SyncMetricTile extends StatelessWidget {
   /// [value] is a word rather than a count: smaller, and it may wrap.
   final bool textual;
 
-  /// [SyncMetricGrid] turns the icon off when a tile is so narrow (about
+  /// [MetricGrid] turns the icon off when a tile is so narrow (about
   /// 170 px) that it would squeeze the label into broken words.
   final bool showIcon;
 
-  SyncMetricTile _withIcon(bool show) => show == showIcon
+  MetricTile _withIcon(bool show) => show == showIcon
       ? this
-      : SyncMetricTile(
+      : MetricTile(
           icon: icon,
           label: label,
           value: value,
@@ -382,9 +458,9 @@ class SyncMetricTile extends StatelessWidget {
 
 /// Lays [children] out in equal columns; every tile of a row is as tall as
 /// the tallest one, so labels of different lengths never overflow.
-class SyncMetricGrid extends StatelessWidget {
-  const SyncMetricGrid({required this.children, super.key});
-  final List<SyncMetricTile> children;
+class MetricGrid extends StatelessWidget {
+  const MetricGrid({required this.children, super.key});
+  final List<MetricTile> children;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -427,8 +503,8 @@ class SyncMetricGrid extends StatelessWidget {
 }
 
 /// A coloured notice for a state that needs attention.
-class SyncNotice extends StatelessWidget {
-  const SyncNotice({
+class PageNotice extends StatelessWidget {
+  const PageNotice({
     required this.icon,
     required this.tone,
     required this.message,
@@ -473,8 +549,8 @@ class SyncNotice extends StatelessWidget {
 }
 
 /// Section title with an optional count tag and explanation.
-class SyncSectionHeader extends StatelessWidget {
-  const SyncSectionHeader({
+class SectionHeader extends StatelessWidget {
+  const SectionHeader({
     required this.title,
     this.description,
     this.trailing,
@@ -522,8 +598,8 @@ class SyncSectionHeader extends StatelessWidget {
 }
 
 /// A count tag beside a section title.
-class SyncCountTag extends StatelessWidget {
-  const SyncCountTag({required this.label, required this.tone, super.key});
+class CountTag extends StatelessWidget {
+  const CountTag({required this.label, required this.tone, super.key});
   final String label;
   final Color tone;
 
@@ -543,8 +619,8 @@ class SyncCountTag extends StatelessWidget {
 
 /// One-line "nothing here" row; replaces a full-height empty state so an
 /// empty section does not push the rest of the page down.
-class SyncEmptyRow extends StatelessWidget {
-  const SyncEmptyRow({
+class EmptyRow extends StatelessWidget {
+  const EmptyRow({
     required this.icon,
     required this.title,
     required this.body,
@@ -610,9 +686,9 @@ class SyncEmptyRow extends StatelessWidget {
   }
 }
 
-/// A titled panel of the page's side column.
-class SyncPanel extends StatelessWidget {
-  const SyncPanel({
+/// A titled panel: an icon, a title, an optional explanation and content.
+class PagePanel extends StatelessWidget {
+  const PagePanel({
     required this.icon,
     required this.title,
     required this.children,
@@ -687,10 +763,10 @@ class SyncPanel extends StatelessWidget {
   }
 }
 
-/// A label/value row of a [SyncPanel]; the value is selectable monospace
+/// A label/value row of a [PagePanel]; the value is selectable monospace
 /// text so identifiers can be copied into a support request.
-class SyncDetailRow extends StatelessWidget {
-  const SyncDetailRow({
+class DetailRow extends StatelessWidget {
+  const DetailRow({
     required this.label,
     required this.value,
     this.monospace = true,
@@ -753,8 +829,8 @@ class SyncDetailRow extends StatelessWidget {
 }
 
 /// A small coloured status label.
-class SyncStatusChip extends StatelessWidget {
-  const SyncStatusChip({required this.label, required this.tone, super.key});
+class StatusChip extends StatelessWidget {
+  const StatusChip({required this.label, required this.tone, super.key});
   final String label;
   final Color tone;
 
@@ -789,8 +865,8 @@ class SyncStatusChip extends StatelessWidget {
 
 /// Rebuilds [builder] every [interval] so relative times ("2 minutes ago")
 /// stay true while the page is open and nothing else changes.
-class SyncTicker extends StatefulWidget {
-  const SyncTicker({
+class RelativeTimeTicker extends StatefulWidget {
+  const RelativeTimeTicker({
     required this.builder,
     this.interval = const Duration(seconds: 30),
     super.key,
@@ -800,10 +876,10 @@ class SyncTicker extends StatefulWidget {
   final Duration interval;
 
   @override
-  State<SyncTicker> createState() => _SyncTickerState();
+  State<RelativeTimeTicker> createState() => _RelativeTimeTickerState();
 }
 
-class _SyncTickerState extends State<SyncTicker> {
+class _RelativeTimeTickerState extends State<RelativeTimeTicker> {
   Timer? _timer;
 
   @override
