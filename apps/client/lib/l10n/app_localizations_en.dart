@@ -20168,4 +20168,113 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get webUpdateDownloading =>
       'A new Web version is being downloaded in the background. You can keep working; this page stays on the current version until the download is complete and you reload.';
+
+  @override
+  String get syncUpToDate => 'Up to date';
+
+  @override
+  String get syncHealthAllSynced =>
+      'Every change made on this device has reached the server, and the latest changes from your other devices are here.';
+
+  @override
+  String get syncHealthSyncingNow =>
+      'Exchanging encrypted changes with the server…';
+
+  @override
+  String get syncHealthReadOnlyHint =>
+      'This Vault is read-only here, so local edits are not uploaded.';
+
+  @override
+  String syncHealthChangesWaiting(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count local changes are waiting to upload.',
+      one: '1 local change is waiting to upload.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get syncOutboxCaption => 'Encrypted changes waiting to upload';
+
+  @override
+  String syncChangesReceived(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'changes received in the last sync',
+      one: 'change received in the last sync',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get syncConflictsCaption => 'Choose which version to keep below';
+
+  @override
+  String get syncSavedCheckpoint => 'Saved checkpoint';
+
+  @override
+  String get syncLastVerifiedServer => 'Last verified server';
+
+  @override
+  String get syncIssueSignInRequired => 'Sign-in required';
+
+  @override
+  String get syncJustNow => 'Just now';
+
+  @override
+  String syncMinutesAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count minutes ago',
+      one: '1 minute ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String syncHoursAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count hours ago',
+      one: '1 hour ago',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get syncHintSignIn =>
+      'Your sign-in to this server has expired. Sign in again to resume sync; local changes stay in the outbox until then.';
+
+  @override
+  String get syncHintRevoked =>
+      'This device\'s access to the Vault was revoked, so changes made here are no longer uploaded.';
+
+  @override
+  String get syncHintOffline =>
+      'The server can\'t be reached. You can keep working; changes upload automatically when the connection is back.';
+
+  @override
+  String get syncHintRetry =>
+      'The last attempt did not finish. Sync tries again on its own, or you can start it now.';
+
+  @override
+  String get syncHintError =>
+      'Sync stopped because of an error. Try again; if it keeps failing, export the anonymous diagnostics for support.';
+
+  @override
+  String get syncHintSnapshot =>
+      'This device\'s copy has to be rebuilt from a verified snapshot before sync can continue.';
+
+  @override
+  String get syncHintSnapshotTooLarge =>
+      'The server\'s snapshot of this Vault is larger than this client can load.';
+
+  @override
+  String get syncHintKeyUpdate =>
+      'The Vault\'s keys or members changed. Sync resumes once this device has the current key state; it keeps retrying on its own.';
 }

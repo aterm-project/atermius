@@ -20233,4 +20233,122 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get webUpdateDownloading =>
       'Новая веб-версия загружается в фоне. Можно продолжать работу: страница остаётся на текущей версии, пока загрузка не завершится и вы не перезагрузите её.';
+
+  @override
+  String get syncUpToDate => 'Всё синхронизировано';
+
+  @override
+  String get syncHealthAllSynced =>
+      'Все изменения с этого устройства уже на сервере, а последние изменения с других устройств получены.';
+
+  @override
+  String get syncHealthSyncingNow =>
+      'Идёт обмен зашифрованными изменениями с сервером…';
+
+  @override
+  String get syncHealthReadOnlyHint =>
+      'Здесь сейф доступен только для чтения, поэтому локальные правки не отправляются.';
+
+  @override
+  String syncHealthChangesWaiting(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count локального изменения ждут отправки.',
+      many: '$count локальных изменений ждут отправки.',
+      few: '$count локальных изменения ждут отправки.',
+      one: '$count локальное изменение ждёт отправки.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get syncOutboxCaption =>
+      'Зашифрованные изменения в очереди на отправку';
+
+  @override
+  String syncChangesReceived(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'изменения получено при последней синхронизации',
+      many: 'изменений получено при последней синхронизации',
+      few: 'изменения получено при последней синхронизации',
+      one: 'изменение получено при последней синхронизации',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get syncConflictsCaption => 'Выберите ниже, какую версию оставить';
+
+  @override
+  String get syncSavedCheckpoint => 'Сохранённая контрольная точка';
+
+  @override
+  String get syncLastVerifiedServer => 'Последний проверенный сервер';
+
+  @override
+  String get syncIssueSignInRequired => 'Нужно войти снова';
+
+  @override
+  String get syncJustNow => 'Только что';
+
+  @override
+  String syncMinutesAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count минуты назад',
+      many: '$count минут назад',
+      few: '$count минуты назад',
+      one: '$count минуту назад',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String syncHoursAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count часа назад',
+      many: '$count часов назад',
+      few: '$count часа назад',
+      one: '$count час назад',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get syncHintSignIn =>
+      'Срок входа на этот сервер истёк. Войдите снова, чтобы продолжить синхронизацию; до этого локальные изменения остаются в очереди отправки.';
+
+  @override
+  String get syncHintRevoked =>
+      'Доступ этого устройства к сейфу отозван, поэтому сделанные здесь изменения больше не отправляются.';
+
+  @override
+  String get syncHintOffline =>
+      'Сервер недоступен. Можно продолжать работу: изменения отправятся автоматически, когда связь восстановится.';
+
+  @override
+  String get syncHintRetry =>
+      'Последняя попытка не завершилась. Синхронизация повторится сама, или запустите её сейчас.';
+
+  @override
+  String get syncHintError =>
+      'Синхронизация остановлена из-за ошибки. Повторите попытку; если ошибка не уходит, экспортируйте анонимную диагностику для поддержки.';
+
+  @override
+  String get syncHintSnapshot =>
+      'Чтобы продолжить синхронизацию, копию на этом устройстве нужно перестроить из проверенного снимка.';
+
+  @override
+  String get syncHintSnapshotTooLarge =>
+      'Снимок этого сейфа на сервере больше, чем может загрузить этот клиент.';
+
+  @override
+  String get syncHintKeyUpdate =>
+      'Ключи или участники сейфа изменились. Синхронизация продолжится, когда это устройство получит текущее состояние ключей; до тех пор она повторяется сама.';
 }

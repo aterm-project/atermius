@@ -26,6 +26,7 @@ import '../mcp/mcp_service.dart';
 import '../mcp/mcp_workspace.dart';
 import 'mcp_settings_panel.dart';
 import 'settings_scaffold.dart';
+import 'sync_health_widgets.dart';
 import '../console/local_console.dart';
 import 'local_shell_menu.dart';
 import 'home_add_sharing_row.dart';
@@ -12745,482 +12746,427 @@ class _SyncPage extends StatelessWidget {
     }
   }
 
-  @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    padding: AppDensity.of(context).pagePadding,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _PageHeading(
-          title: context.l10n.syncHealth,
-          subtitle: context.l10n.encryptedRecordsImmutableRetriesAndRecovery,
-          trailing: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.end,
-            children: [
-              if (app.syncStatus == 'resnapshot_required' ||
-                  app.syncStatus == 'snapshot_recovering' ||
-                  app.snapshotRecoveryActive)
-                OutlinedButton.icon(
-                  onPressed: app.syncing || app.snapshotRecoveryActive
-                      ? null
-                      : app.recoverFromSnapshot,
-                  icon: app.snapshotRecoveryActive
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.restore_rounded),
-                  label: Text(
-                    app.snapshotRecoveryActive
-                        ? context.l10n.rebuildingSnapshot2
-                        : context.l10n.rebuildSnapshot,
-                  ),
-                ),
-              FilledButton.icon(
-                onPressed:
-                    app.databaseRecoveryRequired ||
-                        app.syncStatus == 'snapshot_too_large' ||
-                        app.syncing ||
-                        app.snapshotRecoveryActive
-                    ? null
-                    : () => _runSyncFromUi(app),
-                icon: const Icon(Icons.sync_rounded),
-                label: Text(
-                  app.syncStatus == 'snapshot_too_large'
-                      ? context.l10n.snapshotLimitReached
-                      : app.databaseRecoveryRequired
-                      ? app.syncing
-                            ? context.l10n.recoveryRequiredSyncing
-                            : context.l10n.recoveryRequired
-                      : app.syncing
-                      ? 'Syncing…'
-                      : context.l10n.syncNow,
-                ),
-              ),
-            ],
+  /// What the summary says under the status: the problem when there is one,
+  /// otherwise what the healthy state means for the user's data.
+  String _summary(BuildContext context) {
+    final status = app.syncStatus;
+    if (!_syncIssueIsNone(status)) return _syncIssueHint(status);
+    if (status == 'syncing' || app.syncing) {
+      return context.l10n.syncHealthSyncingNow;
+    }
+    if (status == 'read_only' || status == 'deletion_pending') {
+      return context.l10n.syncHealthReadOnlyHint;
+    }
+    if (app.pendingCount > 0) {
+      return context.l10n.syncHealthChangesWaiting(app.pendingCount);
+    }
+    return context.l10n.syncHealthAllSynced;
+  }
+
+  String _title(BuildContext context) {
+    final status = app.syncStatus;
+    if (status == 'idle' && app.pendingCount == 0 && !app.syncing) {
+      return context.l10n.syncUpToDate;
+    }
+    return _statusLabel(status);
+  }
+
+  List<Widget> _actions(BuildContext context) => [
+    if (app.syncStatus == 'resnapshot_required' ||
+        app.syncStatus == 'snapshot_recovering' ||
+        app.snapshotRecoveryActive)
+      OutlinedButton.icon(
+        onPressed: app.syncing || app.snapshotRecoveryActive
+            ? null
+            : app.recoverFromSnapshot,
+        icon: app.snapshotRecoveryActive
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.restore_rounded),
+        label: Text(
+          app.snapshotRecoveryActive
+              ? context.l10n.rebuildingSnapshot2
+              : context.l10n.rebuildSnapshot,
+        ),
+      ),
+    FilledButton.icon(
+      onPressed:
+          app.databaseRecoveryRequired ||
+              app.syncStatus == 'snapshot_too_large' ||
+              app.syncing ||
+              app.snapshotRecoveryActive
+          ? null
+          : () => _runSyncFromUi(app),
+      icon: const Icon(Icons.sync_rounded),
+      label: Text(
+        app.syncStatus == 'snapshot_too_large'
+            ? context.l10n.snapshotLimitReached
+            : app.databaseRecoveryRequired
+            ? app.syncing
+                  ? context.l10n.recoveryRequiredSyncing
+                  : context.l10n.recoveryRequired
+            : app.syncing
+            ? context.l10n.syncSettingsSyncingNow
+            : context.l10n.syncNow,
+      ),
+    ),
+  ];
+
+  List<Widget> _notices(BuildContext context) {
+    final palette = context.palette;
+    return [
+      if (kIsWeb && app.pendingCount > 0)
+        BrowserStorageStatusCard(pendingCount: app.pendingCount),
+      if (app.snapshotRecoveryActive ||
+          app.syncStatus == 'resnapshot_required' ||
+          app.syncStatus == 'snapshot_too_large')
+        SyncNotice(
+          icon: app.snapshotRecoveryActive
+              ? Icons.sync_rounded
+              : Icons.warning_amber_rounded,
+          tone: palette.orange,
+          message: app.snapshotRecoveryActive
+              ? context.l10n.snapshotVerificationIsInProgressLocal
+              : app.syncStatus == 'snapshot_too_large'
+              ? context.l10n.thisSnapshotExceedsThisClientsLimit
+              : context.l10n.theSyncCursorExpiredOrThe,
+        ),
+      if (app.activeVault?.status == 'deleting' ||
+          app.syncStatus == 'deletion_pending')
+        SyncNotice(
+          icon: Icons.lock_clock_outlined,
+          tone: palette.orange,
+          message: context.l10n.vaultIsInItsDeletionGrace(app.pendingCount),
+        ),
+      if (app.unavailableRecordCount > 0)
+        SyncNotice(
+          icon: Icons.warning_amber_rounded,
+          tone: palette.orange,
+          message: context.l10n.unavailablerecordcountEncryptedRecordSCouldNot(
+            app.unavailableRecordCount,
           ),
         ),
-        if (kIsWeb && app.pendingCount > 0) ...[
-          const SizedBox(height: 12),
-          BrowserStorageStatusCard(pendingCount: app.pendingCount),
-        ],
-        if (app.snapshotRecoveryActive ||
-            app.syncStatus == 'resnapshot_required' ||
-            app.syncStatus == 'snapshot_too_large') ...[
-          const SizedBox(height: 12),
-          Card(
-            color: context.palette.orange.withValues(alpha: .08),
-            child: Padding(
-              padding: const EdgeInsets.all(15),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    app.snapshotRecoveryActive
-                        ? Icons.sync_rounded
-                        : Icons.warning_amber_rounded,
-                    color: context.palette.orange,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      app.snapshotRecoveryActive
-                          ? context.l10n.snapshotVerificationIsInProgressLocal
-                          : app.syncStatus == 'snapshot_too_large'
-                          ? context.l10n.thisSnapshotExceedsThisClientsLimit
-                          : context.l10n.theSyncCursorExpiredOrThe,
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.5,
-                        color: context.palette.text,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-        if (app.activeVault?.status == 'deleting' ||
-            app.syncStatus == 'deletion_pending') ...[
-          const SizedBox(height: 12),
-          Card(
-            color: context.palette.orange.withValues(alpha: .08),
-            child: Padding(
-              padding: const EdgeInsets.all(15),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.lock_clock_outlined,
-                    color: context.palette.orange,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      context.l10n.vaultIsInItsDeletionGrace(app.pendingCount),
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.5,
-                        color: context.palette.text,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-        const SizedBox(height: 20),
-        LayoutBuilder(
-          builder: (context, bounds) {
-            // Two tiles side by side need about 200 px each; on a phone
-            // width they got 145 px and their text ran over the tile below.
-            final count = bounds.maxWidth > 850
-                ? 3
-                : bounds.maxWidth < 420
-                ? 1
-                : 2;
-            return GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: count,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: count == 3
-                  ? 2.2
-                  : count == 1
-                  ? bounds.maxWidth / 62
-                  : 2.6,
-              children: [
-                _StatCard(
-                  icon: Icons.cloud_done_outlined,
-                  label: context.l10n.syncStatus,
-                  value: _statusLabel(app.syncStatus),
-                  accent: _syncColor(context, app.syncStatus),
-                ),
-                _StatCard(
-                  icon: Icons.upload_rounded,
-                  label: context.l10n.outboxItems,
-                  value: '${app.pendingCount}',
-                  accent: context.palette.lime,
-                ),
-                _StatCard(
-                  icon: Icons.download_rounded,
-                  label: context.l10n.lastPull,
-                  value: '${app.receivedCount} changes',
-                  accent: context.palette.teal,
-                ),
-                _StatCard(
-                  icon: Icons.compare_arrows_rounded,
-                  label: context.l10n.openConflicts,
-                  value: '${app.unresolvedConflictCount}',
-                  accent: app.unresolvedConflictCount > 0
-                      ? context.palette.orange
-                      : context.palette.teal,
-                ),
-                _StatCard(
-                  icon: Icons.history_rounded,
-                  label: context.l10n.lastSuccessfulSync,
-                  value: app.lastSuccessfulSyncAt == null
-                      ? 'Never'
-                      : DateFormat.yMMMd().add_jm().format(
-                          app.lastSuccessfulSyncAt!.toLocal(),
-                        ),
-                  accent: context.palette.teal,
-                ),
-                _StatCard(
-                  icon: Icons.report_gmailerrorred_outlined,
-                  label: context.l10n.issueCategory,
-                  value: _syncIssueCategoryLabel(app.syncStatus),
-                  accent: _syncIssueCategoryLabel(app.syncStatus) == 'None'
-                      ? context.palette.teal
-                      : context.palette.orange,
-                ),
-              ],
-            );
+    ];
+  }
+
+  Widget _metrics(BuildContext context) {
+    final palette = context.palette;
+    final generation = _syncGenerationState(app);
+    return SyncMetricGrid(
+      children: [
+        SyncMetricTile(
+          icon: Icons.upload_rounded,
+          label: context.l10n.outboxItems,
+          value: '${app.pendingCount}',
+          caption: context.l10n.syncOutboxCaption,
+          tone: app.pendingCount > 0 ? palette.lime : palette.teal,
+        ),
+        SyncMetricTile(
+          icon: Icons.download_rounded,
+          label: context.l10n.lastPull,
+          value: '${app.receivedCount}',
+          caption: context.l10n.syncChangesReceived(app.receivedCount),
+          tone: palette.teal,
+        ),
+        SyncMetricTile(
+          icon: Icons.compare_arrows_rounded,
+          label: context.l10n.openConflicts,
+          value: '${app.unresolvedConflictCount}',
+          caption: app.unresolvedConflictCount > 0
+              ? context.l10n.syncConflictsCaption
+              : null,
+          tone: app.unresolvedConflictCount > 0 ? palette.orange : palette.teal,
+        ),
+        SyncMetricTile(
+          icon: Icons.dns_outlined,
+          label: context.l10n.generationCheckpoint,
+          value: _syncGenerationStatus(app),
+          textual: true,
+          tone: switch (generation) {
+            _SyncGenerationState.matches => palette.teal,
+            _SyncGenerationState.mismatch => palette.orange,
+            _ => palette.muted,
           },
         ),
-        const SizedBox(height: 15),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: LayoutBuilder(
-              builder: (context, box) {
-                // Beside the button the text had a 60 px column on a phone
-                // width and wrapped inside words; put the button below it.
-                final stacked = box.maxWidth < 420;
-                final export = OutlinedButton.icon(
-                  onPressed: () => _exportAnonymousDiagnostics(context),
-                  icon: const Icon(Icons.download_outlined),
-                  label: Text(context.l10n.exportDiagnostics),
-                );
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.privacy_tip_outlined,
-                      color: context.palette.teal,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.l10n.anonymousDiagnostics,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            context.l10n.theExportContainsARandomReport,
-                            style: TextStyle(
-                              fontSize: 12,
-                              height: 1.5,
-                              color: context.palette.muted,
-                            ),
-                          ),
-                          if (stacked) ...[const SizedBox(height: 12), export],
-                        ],
-                      ),
-                    ),
-                    if (!stacked) ...[const SizedBox(width: 12), export],
-                  ],
-                );
-              },
-            ),
-          ),
+      ],
+    );
+  }
+
+  /// Cards of the conflict lists sit flush with the section titles.
+  Widget _flushCards(BuildContext context, List<Widget> cards) {
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        cardTheme: theme.cardTheme.copyWith(
+          margin: const EdgeInsets.only(bottom: 10),
         ),
-        const SizedBox(height: 15),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.dns_outlined, color: context.palette.teal),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Text(
-                        context.l10n.generationCheckpoint,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    _StatusDot(
-                      label: _syncGenerationStatus(app),
-                      color: switch (_syncGenerationStatus(app)) {
-                        'Generation matches' => context.palette.teal,
-                        'Generation mismatch' => context.palette.orange,
-                        _ => context.palette.muted,
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  context.l10n.comparedWithTheLastVerifiedServer,
-                  style: TextStyle(
-                    color: context.palette.muted,
-                    fontSize: 11,
-                    height: 1.45,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: cards,
+      ),
+    );
+  }
+
+  Widget _conflicts(BuildContext context) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SyncSectionHeader(
+          title: context.l10n.conflictBranches,
+          trailing: app.unresolvedConflictCount > 0
+              ? SyncCountTag(
+                  label: context.l10n.unresolvedconflictcountNeedsReview(
+                    app.unresolvedConflictCount,
                   ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  context.l10n.savedCheckpointShortkey(_shortKey(app.syncCheckpointServerGeneration)),
-                  style: TextStyle(
-                    color: context.palette.muted,
-                    fontSize: 12,
-                    height: 1.5,
-                  ),
-                ),
-                Text(
-                  context.l10n.lastVerifiedServerShortkey(_shortKey(app.instance?.generation)),
-                  style: TextStyle(
-                    color: context.palette.muted,
-                    fontSize: 12,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
+                  tone: palette.orange,
+                )
+              : null,
         ),
-        const SizedBox(height: 15),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.offline_pin_outlined, color: context.palette.teal),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.l10n.offlineFirstCiphertextOnly,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        context.l10n.localEditsAreEncryptedAndCommitted,
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.55,
-                          color: context.palette.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _StatusDot(
-                  label: _statusLabel(app.syncStatus).toUpperCase(),
-                  color: _syncColor(context, app.syncStatus),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (app.unavailableRecordCount > 0) ...[
-          const SizedBox(height: 12),
-          Card(
-            color: context.palette.orange.withValues(alpha: .08),
-            child: Padding(
-              padding: const EdgeInsets.all(15),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: context.palette.orange,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      context.l10n.unavailablerecordcountEncryptedRecordSCouldNot(app.unavailableRecordCount),
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.5,
-                        color: context.palette.text,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-        const SizedBox(height: 23),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                context.l10n.conflictBranches,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
-            if (app.unresolvedConflictCount > 0)
-              _Tag(label: context.l10n.unresolvedconflictcountNeedsReview(app.unresolvedConflictCount)),
-          ],
-        ),
-        const SizedBox(height: 10),
         if (app.openConflicts.isEmpty)
-          _EmptyState(
-            icon: Icons.check_circle_outline,
+          SyncEmptyRow(
+            icon: Icons.check_rounded,
             title: context.l10n.noOpenConflicts,
             body: context.l10n.conflictingBranchesArePreservedUntilYou,
           )
         else
-          ...app.openConflicts.map(
-            (conflict) => _ConflictCard(app: app, conflict: conflict),
-          ),
-        const SizedBox(height: 23),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                context.l10n.crossDeviceConflictInbox,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
-            if (app.openFeedConflictItems.isNotEmpty)
-              _Tag(label: context.l10n.countPendingReview(app.openFeedConflictItems.length)),
-          ],
+          _flushCards(context, [
+            for (final conflict in app.openConflicts)
+              _ConflictCard(app: app, conflict: conflict),
+          ]),
+        const SizedBox(height: 24),
+        SyncSectionHeader(
+          title: context.l10n.crossDeviceConflictInbox,
+          description: context.l10n.concurrentBranchesSubmittedToTheServer,
+          trailing: app.openFeedConflictItems.isNotEmpty
+              ? SyncCountTag(
+                  label: context.l10n.countPendingReview(
+                    app.openFeedConflictItems.length,
+                  ),
+                  tone: palette.orange,
+                )
+              : null,
         ),
-        const SizedBox(height: 6),
-        Text(
-          context.l10n.concurrentBranchesSubmittedToTheServer,
-          style: TextStyle(fontSize: 12, height: 1.5, color: context.palette.muted),
-        ),
-        const SizedBox(height: 10),
         if (app.openFeedConflictItems.isEmpty)
-          _EmptyState(
+          SyncEmptyRow(
             icon: Icons.inbox_outlined,
             title: context.l10n.noPendingCrossDeviceBranches,
             body: context.l10n.newBranchesSyncAutomaticallyWithConflict,
           )
         else
-          ...app.openFeedConflictItems.map(
-            (item) => _ConflictFeedCard(app: app, item: item),
-          ),
+          _flushCards(context, [
+            for (final item in app.openFeedConflictItems)
+              _ConflictFeedCard(app: app, item: item),
+          ]),
         if (app.resolvedFeedConflictItems.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Card(
-            child: ExpansionTile(
-              leading: Icon(
-                Icons.task_alt_outlined,
-                color: context.palette.teal,
+          const SizedBox(height: 10),
+          _flushCards(context, [
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: ExpansionTile(
+                shape: const Border(),
+                collapsedShape: const Border(),
+                leading: Icon(Icons.task_alt_outlined, color: palette.teal),
+                title: Text(
+                  context.l10n.processedBranchesCount(
+                    app.resolvedFeedConflictItems.length,
+                  ),
+                ),
+                children: app.resolvedFeedConflictItems
+                    .map((item) => _ConflictFeedCard(app: app, item: item))
+                    .toList(growable: false),
               ),
-              title: Text(context.l10n.processedBranchesCount(app.resolvedFeedConflictItems.length)),
-              children: app.resolvedFeedConflictItems
-                  .map((item) => _ConflictFeedCard(app: app, item: item))
-                  .toList(growable: false),
             ),
-          ),
+          ]),
         ],
-        const SizedBox(height: 24),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(17),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  context.l10n.recoveryDetails,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 10),
-                _DetailLine(
-                  label: context.l10n.instance,
-                  value: app.instance?.instanceId ?? '—',
-                ),
-                _DetailLine(
-                  label: context.l10n.generation,
-                  value: app.instance?.generation ?? '—',
-                ),
-                _DetailLine(
-                  label: context.l10n.protocol,
-                  value: 'v${app.instance?.protocolVersion ?? 1}',
-                ),
-                _DetailLine(label: context.l10n.currentVault2, value: app.currentVaultId),
-                _DetailLine(
-                  label: context.l10n.cursorPolicy,
-                  value: context.l10n.advanceOnlyAfterEachPageIs,
-                ),
-              ],
+      ],
+    );
+  }
+
+  Widget _details(BuildContext context) {
+    final palette = context.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SyncPanel(
+          icon: Icons.fact_check_outlined,
+          title: context.l10n.recoveryDetails,
+          subtitle: context.l10n.comparedWithTheLastVerifiedServer,
+          children: [
+            SyncDetailRow(
+              label: context.l10n.syncSavedCheckpoint,
+              value: _shortKey(app.syncCheckpointServerGeneration),
             ),
-          ),
+            SyncDetailRow(
+              label: context.l10n.syncLastVerifiedServer,
+              value: _shortKey(app.instance?.generation),
+            ),
+            SyncDetailRow(
+              label: context.l10n.instance,
+              value: app.instance?.instanceId ?? '—',
+            ),
+            SyncDetailRow(
+              label: context.l10n.generation,
+              value: app.instance?.generation ?? '—',
+            ),
+            SyncDetailRow(
+              label: context.l10n.protocol,
+              value: 'v${app.instance?.protocolVersion ?? 1}',
+            ),
+            SyncDetailRow(
+              label: context.l10n.currentVault2,
+              value: app.currentVaultId,
+            ),
+            SyncDetailRow(
+              label: context.l10n.cursorPolicy,
+              value: context.l10n.advanceOnlyAfterEachPageIs,
+              monospace: false,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SyncPanel(
+          icon: Icons.privacy_tip_outlined,
+          title: context.l10n.anonymousDiagnostics,
+          subtitle: context.l10n.theExportContainsARandomReport,
+          children: [
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: OutlinedButton.icon(
+                onPressed: () => _exportAnonymousDiagnostics(context),
+                icon: const Icon(Icons.download_outlined),
+                label: Text(context.l10n.exportDiagnostics),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SyncPanel(
+          icon: Icons.offline_pin_outlined,
+          title: context.l10n.offlineFirstCiphertextOnly,
+          subtitle: context.l10n.localEditsAreEncryptedAndCommitted,
+          trailing: Icon(Icons.lock_outline, size: 16, color: palette.hint),
+          children: const [],
         ),
       ],
-    ),
-  );
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lastSync = app.lastSuccessfulSyncAt?.toLocal();
+    final notices = _notices(context);
+    return SingleChildScrollView(
+      padding: AppDensity.of(context).pagePadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PageHeading(
+            title: context.l10n.syncHealth,
+            subtitle: context.l10n.encryptedRecordsImmutableRetriesAndRecovery,
+          ),
+          const SizedBox(height: 18),
+          SyncTicker(
+            builder: (context, now) => SyncHealthHero(
+              icon: _syncIcon(app.syncStatus),
+              tone: _syncColor(context, app.syncStatus),
+              busy: app.syncing || app.snapshotRecoveryActive,
+              overline: context.l10n.syncStatus,
+              title: _title(context),
+              description: _summary(context),
+              facts: [
+                if (!_syncIssueIsNone(app.syncStatus))
+                  SyncHeroFact(
+                    icon: Icons.report_gmailerrorred_outlined,
+                    label: context.l10n.issueCategory,
+                    value: _syncIssueCategoryLabel(app.syncStatus),
+                    tone: _syncColor(context, app.syncStatus),
+                  ),
+                SyncHeroFact(
+                  icon: Icons.history_rounded,
+                  label: context.l10n.lastSuccessfulSync,
+                  value: lastSync == null
+                      ? context.l10n.syncSettingsNever
+                      : _syncRelativeTime(context, lastSync, now),
+                  tooltip: lastSync == null
+                      ? null
+                      : DateFormat.yMMMd().add_jm().format(lastSync),
+                ),
+              ],
+              actions: _actions(context),
+            ),
+          ),
+          for (final notice in notices) ...[const SizedBox(height: 10), notice],
+          const SizedBox(height: 14),
+          _metrics(context),
+          const SizedBox(height: 26),
+          LayoutBuilder(
+            builder: (context, box) {
+              if (box.maxWidth < 1000) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _conflicts(context),
+                    const SizedBox(height: 26),
+                    _details(context),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 7, child: _conflicts(context)),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 5, child: _details(context)),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// What the user can expect or do in an issue [status] (see
+/// [_syncIssueIsNone]); the category itself is shown beside it.
+String _syncIssueHint(String status) => switch (status) {
+  'auth_required' => currentL10n.syncHintSignIn,
+  'revoked' => currentL10n.syncHintRevoked,
+  'offline' => currentL10n.syncHintOffline,
+  'retry_wait' => currentL10n.syncHintRetry,
+  'resnapshot_required' ||
+  'snapshot_recovering' => currentL10n.syncHintSnapshot,
+  'snapshot_too_large' => currentL10n.syncHintSnapshotTooLarge,
+  'epoch_update_required' => currentL10n.syncHintKeyUpdate,
+  _ => currentL10n.syncHintError,
+};
+
+enum _SyncGenerationState { noCheckpoint, unknown, matches, mismatch }
+
+_SyncGenerationState _syncGenerationState(AppController app) {
+  final checkpoint = app.syncCheckpointServerGeneration;
+  final current = app.instance?.generation;
+  if (checkpoint == null || checkpoint.isEmpty) {
+    return _SyncGenerationState.noCheckpoint;
+  }
+  if (current == null || current.isEmpty) return _SyncGenerationState.unknown;
+  return checkpoint == current
+      ? _SyncGenerationState.matches
+      : _SyncGenerationState.mismatch;
+}
+
+/// "Just now", "5 minutes ago", "3 hours ago"; older times as a date.
+String _syncRelativeTime(BuildContext context, DateTime at, DateTime now) {
+  final age = now.difference(at);
+  if (age.isNegative || age.inSeconds < 60) return context.l10n.syncJustNow;
+  if (age.inMinutes < 60) return context.l10n.syncMinutesAgo(age.inMinutes);
+  if (age.inHours < 24) return context.l10n.syncHoursAgo(age.inHours);
+  return DateFormat.yMMMd().add_jm().format(at);
 }
 
 class _ConflictFeedCard extends StatefulWidget {
@@ -26671,62 +26617,6 @@ class _PageHeading extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.accent,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color accent;
-  @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-      child: Row(
-        children: [
-          Container(
-            width: 35,
-            height: 35,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: accent, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10, color: context.palette.muted),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
     required this.icon,
@@ -26989,6 +26879,15 @@ String _statusLabel(String status) => switch (status) {
   _ => currentL10n.syncError,
 };
 
+/// Whether [status] is a healthy state with no issue to report.
+bool _syncIssueIsNone(String status) => const {
+  'idle',
+  'pending',
+  'syncing',
+  'read_only',
+  'deletion_pending',
+}.contains(status);
+
 String _syncIssueCategoryLabel(String status) => switch (status) {
   'idle' ||
   'pending' ||
@@ -26999,7 +26898,7 @@ String _syncIssueCategoryLabel(String status) => switch (status) {
   'resnapshot_required' => currentL10n.recoveryRequired,
   'snapshot_too_large' => currentL10n.snapshotSizeLimit,
   'epoch_update_required' => currentL10n.vaultKeyState,
-  'auth_required' => 'Sign-in required',
+  'auth_required' => currentL10n.syncIssueSignInRequired,
   'revoked' => currentL10n.deviceAccessRevoked,
   'offline' => currentL10n.networkUnavailable,
   'retry_wait' => currentL10n.retryPending,
@@ -27007,13 +26906,13 @@ String _syncIssueCategoryLabel(String status) => switch (status) {
   _ => currentL10n.otherSyncIssue,
 };
 
-String _syncGenerationStatus(AppController app) {
-  final checkpoint = app.syncCheckpointServerGeneration;
-  final current = app.instance?.generation;
-  if (checkpoint == null || checkpoint.isEmpty) return currentL10n.noCheckpoint;
-  if (current == null || current.isEmpty) return currentL10n.serverGenerationUnknown;
-  return checkpoint == current ? currentL10n.generationMatches : currentL10n.generationMismatch;
-}
+String _syncGenerationStatus(AppController app) =>
+    switch (_syncGenerationState(app)) {
+      _SyncGenerationState.noCheckpoint => currentL10n.noCheckpoint,
+      _SyncGenerationState.unknown => currentL10n.serverGenerationUnknown,
+      _SyncGenerationState.matches => currentL10n.generationMatches,
+      _SyncGenerationState.mismatch => currentL10n.generationMismatch,
+    };
 
 String _topBarSyncLabel(String status, int pendingCount) {
   if ((status == 'idle' || status == 'pending') && pendingCount > 0) {

@@ -19018,4 +19018,92 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get webUpdateDownloading =>
       '新しい Web バージョンをバックグラウンドでダウンロードしています。そのまま作業を続けられます。ダウンロードが完了して再読み込みするまで、このページは現在のバージョンのままです。';
+
+  @override
+  String get syncUpToDate => '最新の状態';
+
+  @override
+  String get syncHealthAllSynced =>
+      'このデバイスでの変更はすべてサーバーに届き、ほかのデバイスの最新の変更もここに同期されています。';
+
+  @override
+  String get syncHealthSyncingNow => 'サーバーと暗号化された変更をやり取りしています…';
+
+  @override
+  String get syncHealthReadOnlyHint =>
+      'この保管庫はここでは読み取り専用のため、ローカルの編集はアップロードされません。';
+
+  @override
+  String syncHealthChangesWaiting(int count) {
+    return '$count 件のローカルの変更がアップロードを待っています。';
+  }
+
+  @override
+  String get syncOutboxCaption => 'アップロード待ちの暗号化された変更';
+
+  @override
+  String syncChangesReceived(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '前回の同期で受け取った変更',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get syncConflictsCaption => '保持する版を下で選んでください';
+
+  @override
+  String get syncSavedCheckpoint => '保存済みのチェックポイント';
+
+  @override
+  String get syncLastVerifiedServer => '最後に検証したサーバー';
+
+  @override
+  String get syncIssueSignInRequired => '再サインインが必要';
+
+  @override
+  String get syncJustNow => 'たった今';
+
+  @override
+  String syncMinutesAgo(int count) {
+    return '$count 分前';
+  }
+
+  @override
+  String syncHoursAgo(int count) {
+    return '$count 時間前';
+  }
+
+  @override
+  String get syncHintSignIn =>
+      'このサーバーへのサインインの有効期限が切れました。もう一度サインインすると同期が再開します。それまでローカルの変更は送信トレイに残ります。';
+
+  @override
+  String get syncHintRevoked =>
+      'このデバイスの保管庫へのアクセス権が取り消されたため、ここでの変更はアップロードされなくなりました。';
+
+  @override
+  String get syncHintOffline =>
+      'サーバーに接続できません。作業はそのまま続けられ、接続が戻ると変更は自動でアップロードされます。';
+
+  @override
+  String get syncHintRetry => '前回の同期は完了しませんでした。自動で再試行されますが、今すぐ同期することもできます。';
+
+  @override
+  String get syncHintError =>
+      'エラーのため同期が停止しました。もう一度お試しください。失敗が続く場合は、匿名の診断情報をエクスポートしてサポートに送れます。';
+
+  @override
+  String get syncHintSnapshot =>
+      '同期を続けるには、このデバイスのコピーを検証済みのスナップショットから再構築する必要があります。';
+
+  @override
+  String get syncHintSnapshotTooLarge =>
+      'サーバー上のこの保管庫のスナップショットは、このクライアントで読み込めるサイズを超えています。';
+
+  @override
+  String get syncHintKeyUpdate =>
+      '保管庫の鍵またはメンバーが変更されました。このデバイスが最新の鍵の状態を受け取ると同期が再開し、それまでは自動で再試行します。';
 }

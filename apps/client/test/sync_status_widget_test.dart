@@ -214,7 +214,9 @@ void main() {
           ..notifyListeners();
         await tester.pumpAndSettle();
         expect(find.text('Other sync issue'), findsOneWidget);
-        expect(find.text('Sync error'), findsNWidgets(2));
+        // The summary card names the status once; the top bar no longer
+        // carries a sync label.
+        expect(find.text('Sync error'), findsOneWidget);
         expect(find.textContaining(unknownErrorCode), findsNothing);
         expect(find.textContaining('PRIVATE_CURSOR_SENTINEL'), findsNothing);
 

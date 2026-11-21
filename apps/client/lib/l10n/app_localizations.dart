@@ -31905,6 +31905,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'A new Web version is being downloaded in the background. You can keep working; this page stays on the current version until the download is complete and you reload.'**
   String get webUpdateDownloading;
+
+  /// No description provided for @syncUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to date'**
+  String get syncUpToDate;
+
+  /// No description provided for @syncHealthAllSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Every change made on this device has reached the server, and the latest changes from your other devices are here.'**
+  String get syncHealthAllSynced;
+
+  /// No description provided for @syncHealthSyncingNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Exchanging encrypted changes with the server…'**
+  String get syncHealthSyncingNow;
+
+  /// No description provided for @syncHealthReadOnlyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This Vault is read-only here, so local edits are not uploaded.'**
+  String get syncHealthReadOnlyHint;
+
+  /// No description provided for @syncHealthChangesWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 local change is waiting to upload.} other{{count} local changes are waiting to upload.}}'**
+  String syncHealthChangesWaiting(int count);
+
+  /// No description provided for @syncOutboxCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted changes waiting to upload'**
+  String get syncOutboxCaption;
+
+  /// No description provided for @syncChangesReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{change received in the last sync} other{changes received in the last sync}}'**
+  String syncChangesReceived(int count);
+
+  /// No description provided for @syncConflictsCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which version to keep below'**
+  String get syncConflictsCaption;
+
+  /// No description provided for @syncSavedCheckpoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved checkpoint'**
+  String get syncSavedCheckpoint;
+
+  /// No description provided for @syncLastVerifiedServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Last verified server'**
+  String get syncLastVerifiedServer;
+
+  /// No description provided for @syncIssueSignInRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in required'**
+  String get syncIssueSignInRequired;
+
+  /// No description provided for @syncJustNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Just now'**
+  String get syncJustNow;
+
+  /// No description provided for @syncMinutesAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 minute ago} other{{count} minutes ago}}'**
+  String syncMinutesAgo(int count);
+
+  /// No description provided for @syncHoursAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 hour ago} other{{count} hours ago}}'**
+  String syncHoursAgo(int count);
+
+  /// No description provided for @syncHintSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Your sign-in to this server has expired. Sign in again to resume sync; local changes stay in the outbox until then.'**
+  String get syncHintSignIn;
+
+  /// No description provided for @syncHintRevoked.
+  ///
+  /// In en, this message translates to:
+  /// **'This device\'s access to the Vault was revoked, so changes made here are no longer uploaded.'**
+  String get syncHintRevoked;
+
+  /// No description provided for @syncHintOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'The server can\'t be reached. You can keep working; changes upload automatically when the connection is back.'**
+  String get syncHintOffline;
+
+  /// No description provided for @syncHintRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'The last attempt did not finish. Sync tries again on its own, or you can start it now.'**
+  String get syncHintRetry;
+
+  /// No description provided for @syncHintError.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync stopped because of an error. Try again; if it keeps failing, export the anonymous diagnostics for support.'**
+  String get syncHintError;
+
+  /// No description provided for @syncHintSnapshot.
+  ///
+  /// In en, this message translates to:
+  /// **'This device\'s copy has to be rebuilt from a verified snapshot before sync can continue.'**
+  String get syncHintSnapshot;
+
+  /// No description provided for @syncHintSnapshotTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'The server\'s snapshot of this Vault is larger than this client can load.'**
+  String get syncHintSnapshotTooLarge;
+
+  /// No description provided for @syncHintKeyUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'The Vault\'s keys or members changed. Sync resumes once this device has the current key state; it keeps retrying on its own.'**
+  String get syncHintKeyUpdate;
 }
 
 class _AppLocalizationsDelegate

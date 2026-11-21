@@ -18084,4 +18084,83 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get webUpdateDownloading =>
       '正在后台加载新版本的 Web。你可以继续使用；在新版本加载完毕并由你重新加载之前，此页面一直沿用当前版本。';
+
+  @override
+  String get syncUpToDate => '已是最新';
+
+  @override
+  String get syncHealthAllSynced => '此设备上的所有更改都已到达服务器，其他设备的最新更改也已同步到这里。';
+
+  @override
+  String get syncHealthSyncingNow => '正在与服务器交换加密更改…';
+
+  @override
+  String get syncHealthReadOnlyHint => '此保险库在这里是只读的，本地编辑不会上传。';
+
+  @override
+  String syncHealthChangesWaiting(int count) {
+    return '$count 项本地更改正在等待上传。';
+  }
+
+  @override
+  String get syncOutboxCaption => '等待上传的加密更改';
+
+  @override
+  String syncChangesReceived(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '上次同步收到的更改',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get syncConflictsCaption => '请在下方选择要保留的版本';
+
+  @override
+  String get syncSavedCheckpoint => '已保存的检查点';
+
+  @override
+  String get syncLastVerifiedServer => '上次验证的服务器';
+
+  @override
+  String get syncIssueSignInRequired => '需要重新登录';
+
+  @override
+  String get syncJustNow => '刚刚';
+
+  @override
+  String syncMinutesAgo(int count) {
+    return '$count 分钟前';
+  }
+
+  @override
+  String syncHoursAgo(int count) {
+    return '$count 小时前';
+  }
+
+  @override
+  String get syncHintSignIn => '你在此服务器上的登录已过期。重新登录即可继续同步，在此之前本地更改会保留在发件箱中。';
+
+  @override
+  String get syncHintRevoked => '此设备对保险库的访问权限已被撤销，这里的更改不会再上传。';
+
+  @override
+  String get syncHintOffline => '无法连接到服务器。你可以继续工作，连接恢复后更改会自动上传。';
+
+  @override
+  String get syncHintRetry => '上一次同步没有完成。稍后会自动重试，你也可以现在就同步。';
+
+  @override
+  String get syncHintError => '同步因错误而停止。请重试；如果一直失败，可以导出匿名诊断信息用于排查。';
+
+  @override
+  String get syncHintSnapshot => '需要先从经过验证的快照重建此设备上的副本，才能继续同步。';
+
+  @override
+  String get syncHintSnapshotTooLarge => '服务器上此保险库的快照超出了此客户端能加载的大小。';
+
+  @override
+  String get syncHintKeyUpdate => '保险库的密钥或成员已变更。本设备获得最新的密钥状态后就会继续同步，期间会自动重试。';
 }
