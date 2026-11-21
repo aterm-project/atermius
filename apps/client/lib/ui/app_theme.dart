@@ -549,8 +549,13 @@ ThemeData buildAppTheme({
     chipTheme: base.chipTheme.copyWith(
       backgroundColor: p.surfaceRaised,
       selectedColor: p.accentContainer,
-      labelStyle: TextStyle(color: p.text),
-      secondaryLabelStyle: TextStyle(color: p.onAccentContainer),
+      // A chip label style replaces the text theme's, so it carries the
+      // language's font fallbacks itself (Han glyph forms, Cyrillic).
+      labelStyle: TextStyle(color: p.text, fontFamilyFallback: fallback),
+      secondaryLabelStyle: TextStyle(
+        color: p.onAccentContainer,
+        fontFamilyFallback: fallback,
+      ),
       checkmarkColor: p.onAccentContainer,
       side: BorderSide(color: p.line),
       shape: appleSquircleBorder(radiusSm, platform: effectivePlatform),
