@@ -1,0 +1,300 @@
+---
+import '@fontsource-variable/space-grotesk';
+import '@fontsource-variable/jetbrains-mono';
+import '../styles/global.css';
+import Mark from './Mark.astro';
+import Shot from './Shot.astro';
+import { REPO, RELEASES, DOCS, shotCaptions, type Copy } from '../i18n';
+
+interface Props { t: Copy }
+const { t } = Astro.props;
+
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const available = new Set(
+  Object.keys(import.meta.glob('../assets/shots/*.png')).map((p) => p.split('/').pop()!.replace('.png', '')),
+);
+const features = t.showcase.features.filter((f) => available.has(f.shot));
+const gallery = Object.entries(shotCaptions[t.lang]).filter(([name]) => available.has(name) && !name.startsWith('mobile-'));
+const phones = ['mobile-home', 'mobile-terminal', 'mobile-files'].filter((n) => available.has(n));
+const canonical = new URL(base + (t.lang === 'zh' ? 'zh/' : ''), Astro.site).href;
+const compose = [
+  { c: 'git clone https://github.com/aterm-project/atermius.git && cd atermius' },
+  { c: 'cp deploy/.env.example deploy/.env' },
+  { c: 'docker compose --env-file deploy/.env -f deploy/compose.yaml \\\n    run --build --rm --no-deps server \\\n    database-key-generate --out /keys/database.key' },
+  { c: 'docker compose --env-file deploy/.env -f deploy/compose.yaml \\\n    -f deploy/compose.web.yaml up -d --build' },
+];
+---
+<!doctype html>
+<html lang={t.htmlLang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{t.title}</title>
+    <meta name="description" content={t.description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="en" href={new URL(base, Astro.site).href} />
+    <link rel="alternate" hreflang="zh-CN" href={new URL(base + 'zh/', Astro.site).href} />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+    <meta name="theme-color" content="#060914" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={t.title} />
+    <meta property="og:description" content={t.description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL(base + 'og.png', Astro.site).href} />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <canvas class="field" aria-hidden="true"></canvas>
+    <div class="glow glow-a" aria-hidden="true"></div>
+    <div class="glow glow-b" aria-hidden="true"></div>
+    <div class="progress" aria-hidden="true"><i></i></div>
+
+    <noscript set:html={'<style>.intro{display:none}</style>'} />
+    <div class="intro" aria-hidden="true">
+      <Mark size={96} draw />
+      <span class="intro-word">atermius</span>
+    </div>
+
+    <header class="nav">
+      <a class="brand" href={t.lang === 'zh' ? `${base}zh/` : base} aria-label="Atermius">
+        <Mark size={30} />
+        <span>Atermius</span>
+      </a>
+      <nav aria-label="Primary">
+        <a href="#features">{t.nav.features}</a>
+        <a href="#security">{t.nav.security}</a>
+        <a href="#self-host">{t.nav.selfHost}</a>
+        <a href="#download">{t.nav.download}</a>
+      </nav>
+      <div class="nav-side">
+        <a class="lang" href={`${base}${t.nav.otherHref}`} lang={t.lang === 'zh' ? 'en' : 'zh-CN'}>{t.nav.other}</a>
+        <a class="btn btn-small" href={REPO} data-magnetic>GitHub</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" id="top">
+        <div class="hero-copy">
+          <p class="eyebrow" data-scramble>{t.hero.eyebrow}</p>
+          <h1 class="hero-title">
+            {t.hero.lines.map((line, i) => (
+              <span class:list={['line', { accent: i === 1 }]}><span class="line-inner" data-split>{line}</span></span>
+            ))}
+          </h1>
+          <p class="hero-sub">{t.hero.sub}</p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href={`${RELEASES}/latest`} data-magnetic><span>{t.hero.primary}</span><i aria-hidden="true">↓</i></a>
+            <a class="btn" href={REPO} data-magnetic><span>{t.hero.secondary}</span><i aria-hidden="true">↗</i></a>
+          </div>
+        </div>
+        {available.has('home') && (
+          <div class="hero-stage">
+            <figure class="window hero-window" data-tilt>
+              <div class="window-bar"><i></i><i></i><i></i><span>{t.hero.caption}</span></div>
+              <Shot name="home" alt={t.hero.caption} eager sizes="(min-width: 1100px) 78vw, 96vw" />
+              <div class="window-shine" aria-hidden="true"></div>
+            </figure>
+          </div>
+        )}
+        <div class="scroll-hint" aria-hidden="true"><span>{t.hero.hint}</span><i></i></div>
+      </section>
+
+      <section class="marquee" aria-label="Platforms">
+        <div class="marquee-track" data-marquee>
+          {[0, 1, 2].map((n) => (
+            <div class="marquee-group" aria-hidden={n ? 'true' : undefined}>
+              {t.platforms.map((p) => (<Fragment><span>{p}</span><b aria-hidden="true">✦</b></Fragment>))}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section class="showcase" id="features">
+        <div class="section-head">
+          <p class="eyebrow" data-scramble>{t.showcase.eyebrow}</p>
+          <h2 data-reveal-words>{t.showcase.title}</h2>
+        </div>
+        <div class="showcase-pin">
+          <div class="showcase-copy">
+            <ol class="showcase-rail" aria-hidden="true">
+              {features.map((_, i) => (<li><i></i><span>{String(i + 1).padStart(2, '0')}</span></li>))}
+            </ol>
+            <div class="showcase-texts">
+              {features.map((f) => (
+                <article class="feature" data-feature={f.key}>
+                  <p class="feature-tag">{f.tag}</p>
+                  <h3>{f.title}</h3>
+                  <p class="feature-body">{f.body}</p>
+                  <ul>{f.points.map((p) => (<li>{p}</li>))}</ul>
+                  <figure class="window feature-inline">
+                    <div class="window-bar"><i></i><i></i><i></i><span>{f.tag}</span></div>
+                    <Shot name={f.shot} alt={f.title} sizes="94vw" />
+                  </figure>
+                </article>
+              ))}
+            </div>
+          </div>
+          <div class="showcase-stage" aria-hidden="true">
+            {features.map((f) => (
+              <figure class="window stage-window" data-stage={f.key}>
+                <div class="window-bar"><i></i><i></i><i></i><span>{f.tag}</span></div>
+                <Shot name={f.shot} alt="" sizes="(min-width: 1100px) 58vw, 94vw" />
+              </figure>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section class="stats">
+        {t.stats.map((s) => (
+          <div class="stat">
+            <p class="stat-value"><span data-count={s.value}>{s.value.toLocaleString('en-US')}</span>{s.suffix}</p>
+            <p class="stat-label">{s.label}</p>
+          </div>
+        ))}
+      </section>
+
+      <section class="security" id="security">
+        <div class="section-head">
+          <p class="eyebrow" data-scramble>{t.security.eyebrow}</p>
+          <h2 data-reveal-words>{t.security.title}</h2>
+          <p class="lede" data-reveal>{t.security.body}</p>
+        </div>
+        <div class="wire">
+          <div class="wire-node wire-device">
+            <p class="wire-label">{t.security.nodes.device}</p>
+            <div class="pre wire-plain">{t.security.plain.map((l) => (<span>{l}</span>))}</div>
+          </div>
+          <div class="wire-link">
+            <svg viewBox="0 0 200 60" preserveAspectRatio="none" aria-hidden="true"><path class="wire-path" d="M0 30 C 60 0, 140 60, 200 30" /></svg>
+            <span class="wire-packet" data-cipher>{t.security.nodes.cipher}</span>
+          </div>
+          <div class="wire-node wire-server">
+            <p class="wire-label">{t.security.nodes.server}</p>
+            <div class="pre wire-cipher" aria-hidden="true">{t.security.plain.map((l) => (<span data-cipher-line>{l}</span>))}</div>
+          </div>
+          <div class="wire-link">
+            <svg viewBox="0 0 200 60" preserveAspectRatio="none" aria-hidden="true"><path class="wire-path" d="M0 30 C 60 60, 140 0, 200 30" /></svg>
+            <span class="wire-packet" data-cipher>{t.security.nodes.cipher}</span>
+          </div>
+          <div class="wire-node wire-other">
+            <p class="wire-label">{t.security.nodes.other}</p>
+            <div class="pre wire-plain">{t.security.plain.map((l) => (<span>{l}</span>))}</div>
+          </div>
+        </div>
+        <div class="security-points">
+          {t.security.points.map((p, i) => (
+            <article class="point" data-batch>
+              <span class="point-n">{String(i + 1).padStart(2, '0')}</span>
+              <h3>{p.title}</h3>
+              <p>{p.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section class="bento">
+        <div class="section-head">
+          <p class="eyebrow" data-scramble>{t.bento.eyebrow}</p>
+          <h2 data-reveal-words>{t.bento.title}</h2>
+        </div>
+        <div class="bento-grid">
+          {t.bento.cards.map((c) => (
+            <article class="card" data-batch data-spot>
+              <span class="card-glyph" aria-hidden="true">{c.glyph}</span>
+              <h3>{c.title}</h3>
+              <p>{c.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {gallery.length > 0 && (
+        <section class="gallery">
+          <div class="section-head">
+            <p class="eyebrow" data-scramble>{t.gallery.eyebrow}</p>
+            <h2 data-reveal-words>{t.gallery.title}</h2>
+          </div>
+          <div class="gallery-pin">
+            <div class="gallery-track">
+              {gallery.map(([name, caption], i) => (
+                <figure class="gallery-item">
+                  <div class="window">
+                    <div class="window-bar"><i></i><i></i><i></i><span>{String(i + 1).padStart(2, '0')} / {String(gallery.length).padStart(2, '0')}</span></div>
+                    <Shot name={name} alt={caption} sizes="(min-width: 1100px) 62vw, 88vw" />
+                  </div>
+                  <figcaption>{caption}</figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {phones.length > 0 && (
+        <section class="mobile">
+          <div class="mobile-copy">
+            <p class="eyebrow" data-scramble>{t.mobile.eyebrow}</p>
+            <h2 data-reveal-words>{t.mobile.title}</h2>
+            <p class="lede" data-reveal>{t.mobile.body}</p>
+          </div>
+          <div class="phones">
+            {phones.map((name, i) => (
+              <figure class="phone" data-phone={i}>
+                <Shot name={name} alt={shotCaptions[t.lang][name] ?? t.mobile.title} widths={[390, 780, 1170]} sizes="(min-width: 900px) 280px, 44vw" />
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section class="selfhost" id="self-host">
+        <div class="selfhost-copy">
+          <p class="eyebrow" data-scramble>{t.selfHost.eyebrow}</p>
+          <h2 data-reveal-words>{t.selfHost.title}</h2>
+          <p class="lede" data-reveal>{t.selfHost.body}</p>
+          <p class="fine" data-reveal>{t.selfHost.note}</p>
+          <a class="btn" href={`${REPO}/blob/main/docs/install/server.en.md`} data-magnetic data-reveal><span>{t.selfHost.link}</span><i aria-hidden="true">↗</i></a>
+        </div>
+        <div class="code" data-code>
+          <div class="window-bar"><i></i><i></i><i></i><span>bash</span></div>
+          <div class="pre">{compose.map((l) => (<code class="code-line"><b aria-hidden="true">$ </b><span>{l.c}</span></code>))}</div>
+        </div>
+      </section>
+
+      <section class="download" id="download">
+        <h2 class="download-title">
+          {t.download.title.map((line, i) => (
+            <span class:list={['line', { accent: i === 1 }]}><span class="line-inner" data-split-scroll>{line}</span></span>
+          ))}
+        </h2>
+        <p class="lede" data-reveal>{t.download.body}</p>
+        <div class="hero-cta" data-reveal>
+          <a class="btn btn-primary" href={`${RELEASES}/latest`} data-magnetic><span>{t.download.primary}</span><i aria-hidden="true">↓</i></a>
+          <a class="btn" href={DOCS} data-magnetic><span>{t.download.secondary}</span><i aria-hidden="true">↗</i></a>
+        </div>
+        <ul class="builds">
+          {t.download.rows.map((r) => (
+            <li data-batch><a href={RELEASES}><strong>{r.name}</strong><span>{r.detail}</span><i aria-hidden="true">→</i></a></li>
+          ))}
+        </ul>
+        <p class="fine" data-reveal>{t.download.note}</p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="brand"><Mark size={26} /><span>Atermius</span></div>
+      <p>{t.footer.tagline}</p>
+      <nav aria-label="Footer">
+        <a href={DOCS}>{t.footer.docs}</a>
+        <a href={RELEASES}>{t.footer.releases}</a>
+        <a href={REPO}>{t.footer.source}</a>
+        <a href={`${REPO}/blob/main/docs/PRIVACY_POLICY.md`}>{t.footer.privacy}</a>
+      </nav>
+    </footer>
+
+    <script>
+      import '../scripts/motion.ts';
+    </script>
+  </body>
+</html>

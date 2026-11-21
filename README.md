@@ -3,7 +3,9 @@
 <h1 align="center">Atermius</h1>
 
 <p align="center">An encrypted SSH workspace for Android, iOS, Windows, macOS, Linux and the browser, with an optional self-hosted sync server.</p>
-<p align="center"><a href="README.zh-CN.md">简体中文</a> · <a href="docs/INSTALLATION.en.md">Install</a> · <a href="docs/README.md">Documentation</a> · <a href="https://github.com/aterm-project/atermius/releases">Releases</a> · <a href="https://github.com/aterm-project/atermius/actions">CI</a></p>
+<p align="center"><a href="https://aterm-project.github.io/atermius/">Website</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="docs/INSTALLATION.en.md">Install</a> · <a href="docs/README.md">Documentation</a> · <a href="https://github.com/aterm-project/atermius/releases">Releases</a> · <a href="https://github.com/aterm-project/atermius/actions">CI</a></p>
+
+<p align="center"><a href="https://aterm-project.github.io/atermius/"><img src="site/src/assets/shots/terminal.png" width="880" alt="An SSH session in the browser build of Atermius"></a></p>
 
 The optional [workspace agent](workspace-agent/README.md) connects external servers outbound and can provision and cold-migrate Debian workspaces between nodes.
 
@@ -84,8 +86,6 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml run --build --rm --
 docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.web.yaml up -d --build
 ```
 
-This repository is currently private; your GitHub account needs access to clone it or download private artifacts.
-
 ## Daily builds
 
 Daily builds are published as pre-releases on the [Releases](https://github.com/aterm-project/atermius/releases) page with tags `<platform>-daily-YYYYMMDD.N-<sha12>`, where the platform is `android`, `desktop`, `ios` or `web`. Each one carries `evidence-<platform>.json` and `SHA256SUMS`. A build runs at most once per UTC day and only when product inputs changed; see [`.github/daily-build/README.md`](.github/daily-build/README.md). Releases from before the merge stay on the archived repositories.
@@ -104,6 +104,7 @@ Daily builds are published as pre-releases on the [Releases](https://github.com/
 | `tools/` | Flutter SDK helper, integration-workspace assembly and nginx proxy verification |
 | `scripts/` | One-step macOS and iOS build scripts |
 | `docs/` | User, operator and developer documentation |
+| `site/` | The introduction website (Astro), published to GitHub Pages |
 
 ## Support boundaries
 

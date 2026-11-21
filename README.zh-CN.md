@@ -3,7 +3,9 @@
 <h1 align="center">Atermius</h1>
 
 <p align="center">覆盖 Android、iOS、Windows、macOS、Linux 与浏览器的加密 SSH 工作区，可选自托管同步服务端。</p>
-<p align="center"><a href="README.md">English</a> · <a href="docs/INSTALLATION.md">安装指南</a> · <a href="docs/README.md">文档导航</a> · <a href="https://github.com/aterm-project/atermius/releases">Releases</a> · <a href="https://github.com/aterm-project/atermius/actions">CI</a></p>
+<p align="center"><a href="https://aterm-project.github.io/atermius/zh/">官网</a> · <a href="README.md">English</a> · <a href="docs/INSTALLATION.md">安装指南</a> · <a href="docs/README.md">文档导航</a> · <a href="https://github.com/aterm-project/atermius/releases">Releases</a> · <a href="https://github.com/aterm-project/atermius/actions">CI</a></p>
+
+<p align="center"><a href="https://aterm-project.github.io/atermius/zh/"><img src="site/src/assets/shots/terminal.png" width="880" alt="浏览器版 Atermius 中的 SSH 会话"></a></p>
 
 [可选工作区 Agent](workspace-agent/README.md) 支持外挂服务器主动连回、按需开通 Debian 工具工作区，以及保留文件和 SSH 身份的跨节点停机迁移。
 
@@ -84,8 +86,6 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml run --build --rm --
 docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.web.yaml up -d --build
 ```
 
-仓库目前为私有仓库，克隆和下载私有构建资产需要 GitHub 访问权限。
-
 ## 每日构建
 
 每日构建以预发布形式发布在 [Releases](https://github.com/aterm-project/atermius/releases) 页面，标签为 `<平台>-daily-YYYYMMDD.N-<sha12>`，平台为 `android`、`desktop`、`ios` 或 `web`，每个预发布附带 `evidence-<平台>.json` 与 `SHA256SUMS`。每个 UTC 日最多构建一次，且只在产品输入有变化时构建，详见 [`.github/daily-build/README.md`](.github/daily-build/README.md)。合并前的旧版本仍保留在已归档的原仓库中。
@@ -104,6 +104,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.w
 | `tools/` | Flutter SDK 安装脚本、集成测试工作区组装与 nginx 代理验证 |
 | `scripts/` | macOS 与 iOS 一键构建脚本 |
 | `docs/` | 用户、运维与开发文档 |
+| `site/` | 介绍网站（Astro），发布到 GitHub Pages |
 
 ## 支持范围
 

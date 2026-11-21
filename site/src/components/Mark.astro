@@ -1,0 +1,9 @@
+---
+const { size = 32, draw = false } = Astro.props;
+---
+<svg class:list={['mark', { 'mark-draw': draw }]} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+  <rect class="mark-bg" width="64" height="64" rx="18" fill="#315bcc" />
+  <rect class="mark-line" x="15" y="19" width="34" height="26" rx="3" fill="none" stroke="#fff" stroke-width="3" />
+  <path class="mark-line" d="m22 26 6 6-6 6" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <path class="mark-line mark-caret" d="M33 38h8" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" />
+</svg>
