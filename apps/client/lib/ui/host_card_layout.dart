@@ -84,10 +84,7 @@ class HostCardMetrics {
 
   static AppPalette _paletteOf(BuildContext context) {
     final theme = Theme.of(context);
-    return theme.extension<AppPalette>() ??
-        (theme.brightness == Brightness.dark
-            ? AppPalette.dark
-            : AppPalette.light);
+    return theme.extension<AppPalette>() ?? AppPalette.fallback(theme.brightness);
   }
 
   /// Resolves the host card outline border: a continuous-curvature squircle

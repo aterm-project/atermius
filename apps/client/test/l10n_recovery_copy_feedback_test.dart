@@ -265,10 +265,9 @@ Future<void> _expectStableCopyFeedback(
   await tester.pumpAndSettle();
 
   final dialogTheme = Theme.of(tester.element(find.text(code)));
-  final expectedColor = copySucceeds
-      ? AppColors.teal
-      : dialogTheme.colorScheme.error;
-  expect(AppColors.teal, isNot(dialogTheme.colorScheme.error));
+  final teal = dialogTheme.extension<AppPalette>()!.teal;
+  final expectedColor = copySucceeds ? teal : dialogTheme.colorScheme.error;
+  expect(teal, isNot(dialogTheme.colorScheme.error));
 
   final en = copySucceeds ? enSuccess : enFailure;
   expect(find.text(en), findsOneWidget);

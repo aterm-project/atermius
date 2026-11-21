@@ -51,19 +51,20 @@ String appAccentLabel(AppLocalizations l10n, AppAccent accent) =>
       AppAccent.graphite => l10n.themeAccentGraphite,
     };
 
-/// The stored record is the theme code alone for the default color scheme (as
-/// every earlier version wrote it), else `<theme>:<scheme>`.
+/// The stored record is `<theme>:<scheme>`. A record with the theme code alone
+/// (written by versions whose default scheme was emerald) or none at all means
+/// [defaultAppAccent], so every platform starts on the same scheme. The scheme
+/// is always written out, so an explicit choice survives a later change of
+/// the default.
 const _accentSeparator = ':';
 
 AppAccent parseStoredAppAccent(String? value) {
   final at = value?.indexOf(_accentSeparator) ?? -1;
-  return at < 0 ? AppAccent.emerald : AppAccent.parse(value!.substring(at + 1));
+  return at < 0 ? defaultAppAccent : AppAccent.parse(value!.substring(at + 1));
 }
 
 String encodeAppTheme(AppThemePreference preference, AppAccent accent) =>
-    accent == AppAccent.emerald
-    ? preference.code
-    : '${preference.code}$_accentSeparator${accent.code}';
+    '${preference.code}$_accentSeparator${accent.code}';
 
 /// Color Flutter publishes to the browser via its application title.
 Color? browserThemeColor(BuildContext context, ThemeMode mode) {
@@ -96,7 +97,7 @@ class AppThemeController extends ChangeNotifier {
 
   AppThemeStore? _store;
   AppThemePreference _preference = defaultAppThemePreference;
-  AppAccent _accent = AppAccent.emerald;
+  AppAccent _accent = defaultAppAccent;
   bool _writeFailed = false;
   int _writeRevision = 0;
   Future<void> _writeChain = Future<void>.value();
@@ -113,7 +114,7 @@ class AppThemeController extends ChangeNotifier {
   bool get writeFailed => _writeFailed;
 
   /// Reads the stored preference. Missing, invalid or failing reads keep the
-  /// dark default and the emerald color scheme.
+  /// dark default and the default color scheme.
   Future<void> load(AppThemeStore store) async {
     _store = store;
     AppThemePreference next;
@@ -124,7 +125,7 @@ class AppThemeController extends ChangeNotifier {
       accent = parseStoredAppAccent(stored);
     } on Object {
       next = defaultAppThemePreference;
-      accent = AppAccent.emerald;
+      accent = defaultAppAccent;
     }
     if (next != _preference || accent != _accent) {
       _preference = next;

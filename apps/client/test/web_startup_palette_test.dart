@@ -28,7 +28,11 @@ void main() {
     };
     expect(jsonDecode(table), expected);
 
-    final defaults = expected['dark']!['emerald']!;
+    // A record without a scheme, or none at all, starts on the default one.
+    final code = defaultAppAccent.code;
+    expect(script, contains("colon < 0 ? '$code'"));
+    expect(script, contains(': scheme.$code;'));
+    final defaults = expected['dark']![code]!;
     final manifest = jsonDecode(File('web/manifest.json').readAsStringSync());
     expect(manifest['background_color'], defaults.first);
     expect(manifest['theme_color'], defaults.first);

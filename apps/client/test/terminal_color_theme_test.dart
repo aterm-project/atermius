@@ -80,7 +80,7 @@ void main() {
   });
 
   test('app theme uses the emerald-teal emphasis with legible on-colors', () {
-    final scheme = buildAppTheme().colorScheme;
+    final scheme = buildAppTheme(accent: AppAccent.emerald).colorScheme;
     expect(scheme.primary.toARGB32(), 0xFF0F7B6C);
     expect(scheme.secondary.toARGB32(), 0xFF4FD8C4);
     expect(AppColors.accentText.toARGB32(), 0xFF4FD8C4);

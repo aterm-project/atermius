@@ -10,10 +10,7 @@ import 'responsive_layout.dart';
 
 AppPalette _settingsPaletteOf(BuildContext context) {
   final theme = Theme.of(context);
-  return theme.extension<AppPalette>() ??
-      (theme.brightness == Brightness.dark
-          ? AppPalette.dark
-          : AppPalette.light);
+  return theme.extension<AppPalette>() ?? AppPalette.fallback(theme.brightness);
 }
 
 /// 标记子组件在 iOS Phone 模式下自行管理分组卡片内边距（如通栏行与左缩进分割线），

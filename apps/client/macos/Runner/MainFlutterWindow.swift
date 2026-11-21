@@ -243,7 +243,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     NSWindow.allowsAutomaticWindowTabbing = false
     self.tabbingMode = .disallowed
     self.appearance = NSAppearance(named: .darkAqua)
-    self.backgroundColor = NSColor(srgbRed: 0x0B / 255.0, green: 0x0F / 255.0, blue: 0x10 / 255.0, alpha: 1.0)
+    self.backgroundColor = NSColor(srgbRed: 0x0C / 255.0, green: 0x0E / 255.0, blue: 0x11 / 255.0, alpha: 1.0)
 
     let project = FlutterDartProject()
     let dartArgs = Self.extractDartEntrypointArguments(CommandLine.arguments)

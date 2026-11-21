@@ -14,25 +14,40 @@ double _contrast(Color a, Color b) {
 
 void main() {
   group('buildAppTheme', () {
-    test('default callers keep the historic dark theme', () {
+    test('default callers get the dark ocean theme', () {
+      expect(defaultAppAccent, AppAccent.ocean);
       final theme = buildAppTheme();
+      final ocean = AppPalette.resolve(AppAccent.ocean, Brightness.dark);
       expect(theme.brightness, Brightness.dark);
+      expect(theme.scaffoldBackgroundColor, const Color(0xFF0C0E11));
+      expect(theme.scaffoldBackgroundColor, ocean.background);
+      expect(theme.colorScheme.primary, ocean.accent);
+      expect(theme.colorScheme.surface, ocean.surface);
+      expect(theme.extension<AppPalette>(), same(ocean));
+      expect(AppPalette.fallback(), same(ocean));
+      // R7 density stays installed.
+      expect(theme.extension<AppDensity>(), isNotNull);
+    });
+
+    test('the emerald scheme keeps the historic dark theme', () {
+      final theme = buildAppTheme(accent: AppAccent.emerald);
       expect(theme.scaffoldBackgroundColor, AppColors.background);
       expect(theme.colorScheme.primary, AppColors.accent);
       expect(theme.colorScheme.surface, AppColors.surface);
       expect(theme.extension<AppPalette>(), same(AppPalette.dark));
-      // R7 density stays installed.
-      expect(theme.extension<AppDensity>(), isNotNull);
     });
 
     test('light theme: white canvas, same accent, readable text roles', () {
       final theme = buildAppTheme(brightness: Brightness.light);
       final p = theme.extension<AppPalette>()!;
       expect(theme.brightness, Brightness.light);
-      expect(p, same(AppPalette.light));
+      expect(p, same(AppPalette.resolve(defaultAppAccent, Brightness.light)));
       expect(theme.scaffoldBackgroundColor, const Color(0xFFFFFFFF));
       expect(theme.cardTheme.color, const Color(0xFFFFFFFF));
-      expect(theme.colorScheme.primary, AppColors.accent);
+      expect(
+        theme.colorScheme.primary,
+        AppPalette.resolve(defaultAppAccent, Brightness.dark).accent,
+      );
       for (final role in [p.text, p.muted, p.accentText, p.orange, p.red]) {
         expect(_contrast(role, p.surface), greaterThanOrEqualTo(4.5));
         expect(_contrast(role, p.surfaceRaised), greaterThanOrEqualTo(4.5));
@@ -124,6 +139,7 @@ void main() {
         await controller.load(MemoryAppThemeStore(stored));
         expect(controller.preference, AppThemePreference.dark);
         expect(controller.themeMode, ThemeMode.dark);
+        expect(controller.accent, AppAccent.ocean);
       }
     });
 
@@ -134,23 +150,25 @@ void main() {
       expect(controller.themeMode, ThemeMode.light);
       await controller.setPreference(AppThemePreference.system);
       expect(controller.themeMode, ThemeMode.system);
-      expect(store.value, 'system');
+      expect(store.value, 'system:ocean');
       expect(controller.writeFailed, isFalse);
     });
 
     test(
-      'the color scheme is stored after the theme, emerald as before',
+      'the color scheme is stored after the theme, ocean by default',
       () async {
+        // A bare theme code (what versions with the emerald default wrote)
+        // now means the default scheme.
         final store = MemoryAppThemeStore('light');
         final controller = AppThemeController();
         await controller.load(store);
-        expect(controller.accent, AppAccent.emerald);
-        await controller.setAccent(AppAccent.ocean);
         expect(controller.accent, AppAccent.ocean);
+        await controller.setAccent(AppAccent.violet);
+        expect(controller.accent, AppAccent.violet);
         expect(controller.themeMode, ThemeMode.light);
-        expect(store.value, 'light:ocean');
+        expect(store.value, 'light:violet');
         await controller.setPreference(AppThemePreference.system);
-        expect(store.value, 'system:ocean');
+        expect(store.value, 'system:violet');
         for (final accent in AppAccent.values) {
           expect(
             encodeAppTheme(AppThemePreference.system, accent).length,
@@ -160,12 +178,16 @@ void main() {
 
         final restored = AppThemeController();
         await restored.load(store);
-        expect(restored.accent, AppAccent.ocean);
+        expect(restored.accent, AppAccent.violet);
         expect(restored.preference, AppThemePreference.system);
 
-        // Back to the default scheme: exactly what earlier versions wrote.
+        // An explicit emerald choice is written out, so it is kept (and older
+        // versions read it as emerald too).
         await restored.setAccent(AppAccent.emerald);
-        expect(store.value, 'system');
+        expect(store.value, 'system:emerald');
+        final again = AppThemeController();
+        await again.load(store);
+        expect(again.accent, AppAccent.emerald);
       },
     );
 
@@ -174,7 +196,7 @@ void main() {
         final controller = AppThemeController();
         await controller.load(MemoryAppThemeStore(stored));
         expect(controller.preference, AppThemePreference.light, reason: stored);
-        expect(controller.accent, AppAccent.emerald, reason: stored);
+        expect(controller.accent, AppAccent.ocean, reason: stored);
       }
       final controller = AppThemeController();
       await controller.load(MemoryAppThemeStore('neon:violet'));

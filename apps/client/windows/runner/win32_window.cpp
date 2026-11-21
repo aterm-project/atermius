@@ -267,8 +267,9 @@ Win32Window::MessageHandler(HWND hwnd, UINT const message, WPARAM const wparam,
 
   case WM_ERASEBKGND: {
     if (background_brush_ == nullptr) {
-      // Matches macOS MainFlutterWindow (`#0B0F10`) and AppColors.background.
-      background_brush_ = CreateSolidBrush(RGB(0x0B, 0x0F, 0x10));
+      // Matches macOS MainFlutterWindow (`#0C0E11`) and the background of the
+      // default (ocean) dark palette.
+      background_brush_ = CreateSolidBrush(RGB(0x0C, 0x0E, 0x11));
     }
     if (background_brush_ != nullptr) {
       RECT rc{};

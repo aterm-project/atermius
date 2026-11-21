@@ -34,11 +34,12 @@
     const record = preference.length <= 16 ? preference.toLowerCase() : '';
     const colon = record.indexOf(':');
     const mode = (colon < 0 ? record : record.slice(0, colon)).trim();
-    const accent = colon < 0 ? 'emerald' : record.slice(colon + 1).trim();
+    // Same default scheme as defaultAppAccent in app_theme.dart.
+    const accent = colon < 0 ? 'ocean' : record.slice(colon + 1).trim();
     const light = mode === 'light' || (mode === 'system' && !systemDark.matches);
     const scheme = light ? palettes.light : palettes.dark;
     const [background, text, progress, warning] =
-      Object.prototype.hasOwnProperty.call(scheme, accent) ? scheme[accent] : scheme.emerald;
+      Object.prototype.hasOwnProperty.call(scheme, accent) ? scheme[accent] : scheme.ocean;
     root.style.colorScheme = light ? 'light' : 'dark';
     root.style.setProperty('--app-background', background);
     root.style.setProperty('--app-text', text);

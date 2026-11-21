@@ -45,6 +45,7 @@ abstract final class AppColors {
 /// tinted neutrals take the accent's hue and [neutralChroma]. Lightness is
 /// kept, so each scheme has the contrast of the emerald one (text roles stay
 /// WCAG AA). Status colors (info, warning, error) are the same in all schemes.
+/// The scheme of an install that never picked one is [defaultAppAccent].
 enum AppAccent {
   emerald('emerald', 0, 1, 1),
   ocean('ocean', 72, 1.25, 1),
@@ -70,13 +71,16 @@ enum AppAccent {
     for (final accent in values) {
       if (accent.code == normalized) return accent;
     }
-    return emerald;
+    return defaultAppAccent;
   }
 
   /// A neutral chrome color of the emerald palette in this scheme.
   Color neutral(Color color) =>
       this == emerald ? color : _retint(color, this, accent: false);
 }
+
+/// Color scheme used on every platform until the user picks another one.
+const defaultAppAccent = AppAccent.ocean;
 
 /// OKLCH hue of the emerald accent; tinted neutrals of the other schemes sit
 /// on the rotated accent hue.
@@ -156,7 +160,8 @@ Color _retint(Color color, AppAccent scheme, {required bool accent}) {
 ///
 /// Installed by [buildAppTheme] as a [ThemeExtension]; read it with
 /// `context.palette`. [AppPalette.dark] carries exactly the historic
-/// [AppColors] values so the default dark theme is unchanged. Terminal text,
+/// [AppColors] (emerald) values; every scheme, the default [defaultAppAccent]
+/// included, is derived from it by [AppPalette.resolve]. Terminal text,
 /// ANSI and custom terminal palettes, and remote-desktop framebuffers are
 /// deliberately not derived from this palette.
 @immutable
@@ -345,8 +350,13 @@ class AppPalette extends ThemeExtension<AppPalette> {
     );
   }
 
+  /// The palette of the default color scheme for [brightness]; for widgets
+  /// built without an app theme.
+  static AppPalette fallback([Brightness brightness = Brightness.dark]) =>
+      resolve(defaultAppAccent, brightness);
+
   static AppPalette of(BuildContext context) =>
-      Theme.of(context).extension<AppPalette>() ?? dark;
+      Theme.of(context).extension<AppPalette>() ?? fallback();
 
   @override
   AppPalette copyWith() => this;
@@ -393,7 +403,8 @@ extension AppPaletteContext on BuildContext {
   ///
   /// Unmounted contexts (late async callbacks) get the dark palette instead of
   /// an ancestor-lookup assertion; callers should still check `mounted`.
-  AppPalette get palette => mounted ? AppPalette.of(this) : AppPalette.dark;
+  AppPalette get palette =>
+      mounted ? AppPalette.of(this) : AppPalette.fallback();
 }
 
 /// UI font fallbacks per display language. They only apply to glyphs the
@@ -432,12 +443,12 @@ List<String> appFontFallback(Locale? locale) => switch (locale?.languageCode) {
 /// Builds the app theme. The default (no [brightness]) is the historic dark
 /// theme; [Brightness.light] builds the white/light UI chrome theme. Both
 /// share the R7 density, motion and font fallbacks. [accent] picks the color
-/// scheme (emerald by default).
+/// scheme ([defaultAppAccent] by default).
 ThemeData buildAppTheme({
   Locale? locale,
   TargetPlatform? platform,
   Brightness brightness = Brightness.dark,
-  AppAccent accent = AppAccent.emerald,
+  AppAccent accent = defaultAppAccent,
 }) {
   final dark = brightness == Brightness.dark;
   final p = AppPalette.resolve(accent, brightness);

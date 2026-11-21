@@ -12,10 +12,7 @@ import 'password_field.dart';
 
 AppPalette _lockedPaletteOf(BuildContext context) {
   final theme = Theme.of(context);
-  return theme.extension<AppPalette>() ??
-      (theme.brightness == Brightness.dark
-          ? AppPalette.dark
-          : AppPalette.light);
+  return theme.extension<AppPalette>() ?? AppPalette.fallback(theme.brightness);
 }
 
 class LockedWorkspaceScreen extends StatefulWidget {
