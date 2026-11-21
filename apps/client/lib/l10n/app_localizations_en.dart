@@ -20311,4 +20311,151 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get syncHintKeyUpdate =>
       'The Vault\'s keys or members changed. Sync resumes once this device has the current key state; it keeps retrying on its own.';
+
+  @override
+  String get recordHistoryTitle => 'Version history';
+
+  @override
+  String recordHistoryTitleFor(String name) {
+    return 'Version history · $name';
+  }
+
+  @override
+  String get recordHistoryRestoreThis => 'Restore this version';
+
+  @override
+  String get recordHistoryCurrent => 'Current';
+
+  @override
+  String get recordHistoryUnreadable =>
+      'This version could not be verified, so its content is not shown.';
+
+  @override
+  String get recordHistoryEmpty =>
+      'The server keeps no versions of this record yet. They appear once the record has synced.';
+
+  @override
+  String get recordHistoryNotAvailable =>
+      'Version history is not available on this server.';
+
+  @override
+  String recordHistoryKeepsLimit(int count) {
+    return 'The server keeps the latest $count versions of each record.';
+  }
+
+  @override
+  String get recordHistoryOpCreated => 'Created';
+
+  @override
+  String get recordHistoryOpUpdated => 'Edited';
+
+  @override
+  String get recordHistoryOpDeleted => 'Deleted';
+
+  @override
+  String get recordHistoryOpRestored => 'Restored';
+
+  @override
+  String get recordHistoryThisDevice => 'This device';
+
+  @override
+  String recordHistoryNode(String id) {
+    return 'Node $id';
+  }
+
+  @override
+  String recordHistoryChangedFields(String fields) {
+    return 'Changed: $fields';
+  }
+
+  @override
+  String get recordHistoryNoFieldChanges => 'No field changes';
+
+  @override
+  String get recordHistoryEarliestKept => 'Earliest kept version';
+
+  @override
+  String get recordHistoryRestoreConfirmTitle => 'Restore this version?';
+
+  @override
+  String recordHistoryRestoreConfirmBody(String time) {
+    return 'The content from $time is saved as a new version on top of the current one. Nothing is removed from the history.';
+  }
+
+  @override
+  String get recordHistoryRestored => 'Restored as a new version.';
+
+  @override
+  String get recordHistoryReadOnly =>
+      'This Vault is read-only, so versions cannot be restored.';
+
+  @override
+  String get recordHistoryVersionCannotBeRestored =>
+      'This version cannot be restored.';
+
+  @override
+  String get recordHistoryRecordNoLongerExists =>
+      'This record no longer exists. Restore it from the recycle bin first.';
+
+  @override
+  String get syncPolicyTitle => 'Record version history';
+
+  @override
+  String get syncPolicyDescription =>
+      'When two devices edit the same record, the latest version wins and the earlier versions stay on the server. Choose how many versions the server keeps for each record; older ones are removed, oldest first.';
+
+  @override
+  String get syncPolicyLimitLabel => 'Versions kept per record';
+
+  @override
+  String syncPolicyLimitHint(int min, int max) {
+    return 'Whole number from $min to $max';
+  }
+
+  @override
+  String syncPolicyDefaultLine(int count) {
+    return 'Server default: $count';
+  }
+
+  @override
+  String syncPolicyLimitOutOfRange(int min, int max) {
+    return 'Enter a whole number from $min to $max.';
+  }
+
+  @override
+  String get syncPolicySaved => 'History limit saved.';
+
+  @override
+  String get syncPolicyChangedElsewhere =>
+      'The history limit was changed elsewhere. The latest value is shown; check it and save again.';
+
+  @override
+  String get syncPolicyLoadFailed => 'Couldn\'t load the history limit.';
+
+  @override
+  String get syncPolicySaveFailed => 'Couldn\'t save the history limit.';
+
+  @override
+  String get syncPolicyLoadBeforeSaving =>
+      'Load the current history limit before saving.';
+
+  @override
+  String get syncPolicyNotAvailableOnServer =>
+      'This server does not support the history limit setting.';
+
+  @override
+  String get syncPolicyLoading => 'Loading history limit…';
+
+  @override
+  String get syncPolicySave => 'Save history limit';
+
+  @override
+  String get syncPolicyLoad => 'Load history limit';
+
+  @override
+  String get syncNodeId => 'Node ID';
+
+  @override
+  String get anAdministratorChangedTheRecordHistoryLimit =>
+      'An administrator changed the per-record version history limit';
 }

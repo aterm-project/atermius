@@ -1313,6 +1313,50 @@ paths:
         '403': {description: INSTANCE_ADMIN_REQUIRED}
         '409': {description: RELAY_POLICY_CONFLICT when expected_revision is stale}
         '422': {description: 'RELAY_POLICY_UNAVAILABLE when the deployment gate is incomplete, or RELAY_POLICY_OUTSIDE_LIMITS when a selected target exceeds its immutable ceiling'}
+  /admin/sync-policy:
+    get:
+      summary: Read the instance sync policy
+      description: >-
+        Requires the caller's current active authenticated session and the
+        current instance-admin allowlist. record_history_limit is the number
+        of revisions the server keeps per record. When no policy row exists,
+        this response reports revision 0, updated_at null, and the deployment
+        default (ATERMIUS_RECORD_HISTORY_LIMIT, 20 when unset) without writing
+        a row. Available in the SQLite and restricted PostgreSQL runtimes.
+      responses:
+        '200':
+          description: Effective limit, deployment default, allowed range, and revision
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminSyncPolicy'}
+        '401': {description: AUTH_REQUIRED}
+        '403': {description: INSTANCE_ADMIN_REQUIRED}
+    put:
+      summary: Replace the instance sync policy
+      description: >-
+        Requires the caller's current active authenticated session and the
+        current instance-admin allowlist. The exact request body carries the
+        revision observed by the caller. A changed value increments revision
+        and writes the instance audit event admin.sync_policy_updated
+        atomically. An unchanged value is idempotent and creates no audit
+        event. A lowered limit is applied to each record at its next commit or
+        by the next Maintenance pass; a raised limit does not restore pruned
+        revisions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminSyncPolicyRequest'}
+      responses:
+        '200':
+          description: Effective limit, deployment default, allowed range, and revision
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminSyncPolicy'}
+        '400': {description: 'INVALID_SYNC_POLICY_REQUEST for a malformed body or negative expected_revision; RECORD_HISTORY_LIMIT_OUT_OF_RANGE when record_history_limit is outside 2 through 1000'}
+        '401': {description: AUTH_REQUIRED}
+        '403': {description: INSTANCE_ADMIN_REQUIRED}
+        '409': {description: SYNC_POLICY_CONFLICT when expected_revision is stale}
   /admin/relay-policy/users/{user_id}:
     parameters:
       - name: user_id
@@ -3312,6 +3356,24 @@ paths:
         '409': {description: VAULT_CLIENT_CAPABILITY_REQUIRED}
         '410': {description: RECORD_REDACTED; proof is in error.details.redaction and the envelope is omitted}
         '426': {description: CLIENT_REDACTION_CAPABILITY_REQUIRED}
+  /vaults/{vault_id}/records/{record_id}/revisions:
+    get:
+      summary: Read the retained revisions of one record
+      description: Returns the record's retained revisions newest first, with the exact signed opaque envelopes. The server keeps at most record_history_limit revisions per record; the response holds at most that many rows and at most the newest prefix that fits the 4194304-byte page budget. There is no cursor. A newest revision that cannot fit alone returns 413 PAYLOAD_TOO_LARGE. Authentication, Vault membership, capability-marker and redaction-marker checks match the single-revision read. A request without marker v2 receives 409 VAULT_CLIENT_CAPABILITY_REQUIRED when a returned envelope uses schema 2. A redacted record returns 410 RECORD_REDACTED with a signed proof and no envelope.
+      parameters:
+        - {$ref: '#/components/parameters/ClientCapabilityMarker'}
+        - {$ref: '#/components/parameters/ClientRedactionMarker'}
+        - {name: vault_id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: record_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Retained revisions newest first, content: {application/json: {schema: {$ref: '#/components/schemas/RecordRevisionList'}}}}
+        '404': {description: Vault unavailable to caller or record has no retained revision}
+        '409': {description: VAULT_CLIENT_CAPABILITY_REQUIRED}
+        '410': {description: RECORD_REDACTED; proof is in error.details.redaction and the envelopes are omitted}
+        '413':
+          description: PAYLOAD_TOO_LARGE; the newest revision exceeds the response page budget
+          content: {application/json: {schema: {$ref: '#/components/schemas/SyncPageTooLargeError'}}}
+        '426': {description: CLIENT_REDACTION_CAPABILITY_REQUIRED}
   /vaults/{vault_id}/conflicts:
     get:
       summary: Read paginated encrypted conflict branches
@@ -4574,6 +4636,49 @@ components:
         max_connections_per_user: {type: integer, minimum: 1, description: Per-user active Relay connection ceiling; read-only deployment/server setting.}
         revision: {type: integer, format: int64, minimum: 0}
         updated_at: {type: [string, 'null'], format: date-time}
+    AdminSyncPolicyRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, record_history_limit]
+      properties:
+        expected_revision: {type: integer, format: int64, minimum: 0}
+        record_history_limit: {type: integer, minimum: 2, maximum: 1000, description: Number of revisions kept per record.}
+    AdminSyncPolicy:
+      type: object
+      additionalProperties: false
+      required: [record_history_limit, default_record_history_limit, min_record_history_limit, max_record_history_limit, revision, updated_at]
+      properties:
+        record_history_limit: {type: integer, minimum: 2, maximum: 1000, description: Effective number of revisions kept per record.}
+        default_record_history_limit: {type: integer, minimum: 2, maximum: 1000, description: Deployment default from ATERMIUS_RECORD_HISTORY_LIMIT; 20 when unset or invalid.}
+        min_record_history_limit: {type: integer, const: 2}
+        max_record_history_limit: {type: integer, const: 1000}
+        revision: {type: integer, format: int64, minimum: 0}
+        updated_at: {type: [string, 'null'], format: date-time}
+    RecordRevisionList:
+      type: object
+      additionalProperties: false
+      required: [vault_id, record_id, record_history_limit, revisions]
+      properties:
+        vault_id: {type: string, format: uuid}
+        record_id: {type: string, format: uuid}
+        record_history_limit: {type: integer, minimum: 2, maximum: 1000}
+        revisions:
+          type: array
+          description: Newest first by commit_seq.
+          items:
+            type: object
+            additionalProperties: false
+            required: [revision_id, base_revision_id, commit_seq, device_id, operation, deleted, created_at, restore_until, envelope]
+            properties:
+              revision_id: {type: string, format: uuid}
+              base_revision_id: {type: [string, 'null'], format: uuid, description: May name a revision that has been pruned.}
+              commit_seq: {type: string, pattern: '^[1-9][0-9]*$'}
+              device_id: {type: string}
+              operation: {type: string, enum: [create, update, delete, restore]}
+              deleted: {type: boolean, description: True when this revision is a tombstone.}
+              created_at: {type: string, format: date-time}
+              restore_until: {type: [string, 'null'], format: date-time}
+              envelope: {type: object, description: Exact signed opaque record envelope.}
     AdminRelayUserPolicyRequest:
       type: object
       additionalProperties: false
@@ -5169,11 +5274,12 @@ components:
     InstanceLimits:
       type: object
       additionalProperties: false
-      required: [max_object_bytes, max_upload_chunk_bytes, max_record_object_refs]
+      required: [max_object_bytes, max_upload_chunk_bytes, max_record_object_refs, record_history_limit]
       properties:
         max_object_bytes: {type: integer, format: int64, minimum: 1, description: Maximum declared size for one opaque object upload; default server configuration is 67108864 bytes.}
         max_upload_chunk_bytes: {type: integer, minimum: 1, description: Maximum request-body size for one uploaded object chunk; currently 1048576 bytes.}
         max_record_object_refs: {type: integer, minimum: 1, description: Maximum number of strictly sorted object references in one signed record header; currently 1024.}
+        record_history_limit: {type: integer, minimum: 2, maximum: 1000, description: Effective number of revisions the server keeps per record; older revisions are pruned at commit and by Maintenance.}
     DeviceCapabilityReport:
       type: object
       additionalProperties: false

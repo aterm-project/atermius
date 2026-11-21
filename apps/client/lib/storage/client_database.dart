@@ -3334,14 +3334,34 @@ class ClientDatabase extends _$ClientDatabase {
   /// signed three-way merge based on the current remote head. Returns false
   /// when another tab changed the outbox or cached head while the merge was
   /// being prepared; callers should reread and reconcile the event again.
+  ///
+  /// With [latestWins] the same replacement carries a "latest version wins"
+  /// rebase: the chain may also hold delete and restore operations and the
+  /// replacement may be an update, a delete, or a restore of a remote
+  /// tombstone. When both sides deleted the record, pass no
+  /// [replacementEnvelope] and the [adoptBaseCommitSeq] of the remote
+  /// tombstone; the local chain is then superseded and the remote tombstone
+  /// becomes the committed head.
   Future<bool> replaceOutboxWithMergedOperation({
     required String vaultId,
     required String recordId,
     required List<PendingOperation> original,
     required String baseRevisionId,
     required Map<String, dynamic> baseEnvelope,
-    required Map<String, dynamic> replacementEnvelope,
+    required Map<String, dynamic>? replacementEnvelope,
+    bool latestWins = false,
+    String? adoptBaseCommitSeq,
   }) async {
+    const mergeOperations = {'update'};
+    const latestWinsOperations = {'update', 'delete', 'restore'};
+    final allowedOperations = latestWins
+        ? latestWinsOperations
+        : mergeOperations;
+    if ((replacementEnvelope == null) != (adoptBaseCommitSeq != null) ||
+        (replacementEnvelope == null && !latestWins)) {
+      throw const FormatException('Merged outbox replacement is malformed.');
+    }
+    if (adoptBaseCommitSeq != null) _compareDecimalSeq(adoptBaseCommitSeq, '0');
     if (original.isEmpty ||
         original.map((item) => item.opId).toSet().length != original.length) {
       throw const FormatException('Merged outbox chain is malformed.');
@@ -3356,22 +3376,42 @@ class ClientDatabase extends _$ClientDatabase {
       throw const FormatException('Merged outbox chain crosses server scopes.');
     }
     final baseRawHeader = baseEnvelope['header'];
-    final replacementRawHeader = replacementEnvelope['header'];
-    if (baseRawHeader is! Map || replacementRawHeader is! Map) {
+    final replacementRawHeader = replacementEnvelope?['header'];
+    if (baseRawHeader is! Map ||
+        (replacementEnvelope != null && replacementRawHeader is! Map)) {
       throw const FormatException('Merged envelopes have invalid headers.');
     }
     final baseHeader = Map<String, dynamic>.from(baseRawHeader);
-    final replacementHeader = Map<String, dynamic>.from(replacementRawHeader);
+    final replacementHeader = replacementRawHeader is Map
+        ? Map<String, dynamic>.from(replacementRawHeader)
+        : null;
     final baseEnvelopeJson = jsonEncode(baseEnvelope);
-    final replacementEnvelopeJson = jsonEncode(replacementEnvelope);
-    final replacementOpId = replacementHeader['op_id'];
-    final replacementRevisionId = replacementHeader['revision_id'];
+    final replacementEnvelopeJson = replacementEnvelope == null
+        ? null
+        : jsonEncode(replacementEnvelope);
+    final replacementOpId = replacementHeader?['op_id'];
+    final replacementRevisionId = replacementHeader?['revision_id'];
+    final replacementOperation = replacementHeader?['operation'];
+    final baseDeleted = baseHeader['operation'] == 'delete';
     if (baseHeader['vault_id'] != vaultId ||
         baseHeader['record_id'] != recordId ||
-        baseHeader['revision_id'] != baseRevisionId ||
+        baseHeader['revision_id'] != baseRevisionId) {
+      throw const FormatException('Merged operation does not match its head.');
+    }
+    if (replacementEnvelope == null) {
+      // Only a tombstone can replace a local delete without a new revision.
+      if (!baseDeleted) {
+        throw const FormatException(
+          'Merged operation does not match its head.',
+        );
+      }
+    } else if (replacementHeader == null ||
         replacementHeader['vault_id'] != vaultId ||
         replacementHeader['record_id'] != recordId ||
-        replacementHeader['operation'] != 'update' ||
+        !allowedOperations.contains(replacementOperation) ||
+        // A tombstone is only ever followed by a restore, and a restore only
+        // ever follows a tombstone.
+        (replacementOperation == 'restore') != baseDeleted ||
         replacementHeader['base_revision_id'] != baseRevisionId ||
         replacementOpId is! String ||
         replacementRevisionId is! String ||
@@ -3438,7 +3478,7 @@ class ClientDatabase extends _$ClientDatabase {
         final header = Map<String, dynamic>.from(raw['header'] as Map);
         if (header['vault_id'] != vaultId ||
             header['record_id'] != recordId ||
-            header['operation'] != 'update' ||
+            !allowedOperations.contains(header['operation']) ||
             header['base_revision_id'] != expected.baseRevisionId) {
           throw const FormatException(
             'Pending merge operation has an invalid base.',
@@ -3515,10 +3555,11 @@ class ClientDatabase extends _$ClientDatabase {
         serverSpaceId: serverSpaceId,
       );
       if (openConflicts.isNotEmpty) return false;
-      if (await (select(pendingOperations)
-                ..where((row) => row.opId.equals(replacementOpId)))
-              .getSingleOrNull() !=
-          null) {
+      if (replacementOpId is String &&
+          await (select(pendingOperations)
+                    ..where((row) => row.opId.equals(replacementOpId)))
+                  .getSingleOrNull() !=
+              null) {
         throw const FormatException('Merged operation ID is already in use.');
       }
 
@@ -3530,9 +3571,27 @@ class ClientDatabase extends _$ClientDatabase {
           const PendingOperationsCompanion(status: Value('superseded')),
         );
       }
+      if (replacementEnvelopeJson == null) {
+        // Both sides deleted the record: nothing is left to push, and the
+        // remote tombstone is the committed head.
+        await into(encryptedRecords).insertOnConflictUpdate(
+          EncryptedRecordsCompanion.insert(
+            vaultId: vaultId,
+            recordId: recordId,
+            instanceId: Value(instanceId),
+            serverSpaceId: Value(serverSpaceId),
+            revisionId: baseRevisionId,
+            envelopeJson: baseEnvelopeJson,
+            isDeleted: const Value(true),
+            commitSeq: Value(adoptBaseCommitSeq),
+            updatedAt: now,
+          ),
+        );
+        return true;
+      }
       await into(pendingOperations).insert(
         PendingOperationsCompanion.insert(
-          opId: replacementOpId,
+          opId: replacementOpId as String,
           vaultId: vaultId,
           recordId: recordId,
           instanceId: Value(instanceId),
@@ -3550,9 +3609,9 @@ class ClientDatabase extends _$ClientDatabase {
           recordId: recordId,
           instanceId: Value(instanceId),
           serverSpaceId: Value(serverSpaceId),
-          revisionId: replacementRevisionId,
+          revisionId: replacementRevisionId as String,
           envelopeJson: replacementEnvelopeJson,
-          isDeleted: const Value(false),
+          isDeleted: Value(replacementOperation == 'delete'),
           commitSeq: const Value(null),
           updatedAt: now,
         ),

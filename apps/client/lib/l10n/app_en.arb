@@ -16916,5 +16916,211 @@
   "syncHintSnapshotTooLarge": "The server's snapshot of this Vault is larger than this client can load.",
   "@syncHintSnapshotTooLarge": {},
   "syncHintKeyUpdate": "The Vault's keys or members changed. Sync resumes once this device has the current key state; it keeps retrying on its own.",
-  "@syncHintKeyUpdate": {}
+  "@syncHintKeyUpdate": {},
+  "recordHistoryTitle": "Version history",
+  "@recordHistoryTitle": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryTitleFor": "Version history · {name}",
+  "@recordHistoryTitleFor": {
+    "description": "App-owned UI text.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "recordHistoryRestoreThis": "Restore this version",
+  "@recordHistoryRestoreThis": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryCurrent": "Current",
+  "@recordHistoryCurrent": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryUnreadable": "This version could not be verified, so its content is not shown.",
+  "@recordHistoryUnreadable": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryEmpty": "The server keeps no versions of this record yet. They appear once the record has synced.",
+  "@recordHistoryEmpty": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryNotAvailable": "Version history is not available on this server.",
+  "@recordHistoryNotAvailable": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryKeepsLimit": "The server keeps the latest {count} versions of each record.",
+  "@recordHistoryKeepsLimit": {
+    "description": "App-owned UI text.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "recordHistoryOpCreated": "Created",
+  "@recordHistoryOpCreated": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryOpUpdated": "Edited",
+  "@recordHistoryOpUpdated": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryOpDeleted": "Deleted",
+  "@recordHistoryOpDeleted": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryOpRestored": "Restored",
+  "@recordHistoryOpRestored": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryThisDevice": "This device",
+  "@recordHistoryThisDevice": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryNode": "Node {id}",
+  "@recordHistoryNode": {
+    "description": "App-owned UI text.",
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "recordHistoryChangedFields": "Changed: {fields}",
+  "@recordHistoryChangedFields": {
+    "description": "App-owned UI text.",
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "recordHistoryNoFieldChanges": "No field changes",
+  "@recordHistoryNoFieldChanges": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryEarliestKept": "Earliest kept version",
+  "@recordHistoryEarliestKept": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryRestoreConfirmTitle": "Restore this version?",
+  "@recordHistoryRestoreConfirmTitle": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryRestoreConfirmBody": "The content from {time} is saved as a new version on top of the current one. Nothing is removed from the history.",
+  "@recordHistoryRestoreConfirmBody": {
+    "description": "App-owned UI text.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "recordHistoryRestored": "Restored as a new version.",
+  "@recordHistoryRestored": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryReadOnly": "This Vault is read-only, so versions cannot be restored.",
+  "@recordHistoryReadOnly": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryVersionCannotBeRestored": "This version cannot be restored.",
+  "@recordHistoryVersionCannotBeRestored": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryRecordNoLongerExists": "This record no longer exists. Restore it from the recycle bin first.",
+  "@recordHistoryRecordNoLongerExists": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicyTitle": "Record version history",
+  "@syncPolicyTitle": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicyDescription": "When two devices edit the same record, the latest version wins and the earlier versions stay on the server. Choose how many versions the server keeps for each record; older ones are removed, oldest first.",
+  "@syncPolicyDescription": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicyLimitLabel": "Versions kept per record",
+  "@syncPolicyLimitLabel": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicyLimitHint": "Whole number from {min} to {max}",
+  "@syncPolicyLimitHint": {
+    "description": "App-owned UI text.",
+    "placeholders": {
+      "min": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "syncPolicyDefaultLine": "Server default: {count}",
+  "@syncPolicyDefaultLine": {
+    "description": "App-owned UI text.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "syncPolicyLimitOutOfRange": "Enter a whole number from {min} to {max}.",
+  "@syncPolicyLimitOutOfRange": {
+    "description": "App-owned UI text.",
+    "placeholders": {
+      "min": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "syncPolicySaved": "History limit saved.",
+  "@syncPolicySaved": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicyChangedElsewhere": "The history limit was changed elsewhere. The latest value is shown; check it and save again.",
+  "@syncPolicyChangedElsewhere": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicyLoadFailed": "Couldn't load the history limit.",
+  "@syncPolicyLoadFailed": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicySaveFailed": "Couldn't save the history limit.",
+  "@syncPolicySaveFailed": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicyLoadBeforeSaving": "Load the current history limit before saving.",
+  "@syncPolicyLoadBeforeSaving": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicyNotAvailableOnServer": "This server does not support the history limit setting.",
+  "@syncPolicyNotAvailableOnServer": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicyLoading": "Loading history limit…",
+  "@syncPolicyLoading": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicySave": "Save history limit",
+  "@syncPolicySave": {
+    "description": "App-owned UI text."
+  },
+  "syncPolicyLoad": "Load history limit",
+  "@syncPolicyLoad": {
+    "description": "App-owned UI text."
+  },
+  "syncNodeId": "Node ID",
+  "@syncNodeId": {
+    "description": "App-owned UI text."
+  },
+  "anAdministratorChangedTheRecordHistoryLimit": "An administrator changed the per-record version history limit",
+  "@anAdministratorChangedTheRecordHistoryLimit": {
+    "description": "App-owned UI text."
+  }
 }

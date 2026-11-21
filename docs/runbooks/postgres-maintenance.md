@@ -129,6 +129,14 @@ Vault. The counter floor update and deletion of that exact prefix commit in
 the same transaction. A recent or missing event at the floor stops compaction;
 later events are not skipped. Idle Vaults do not consume the due-work batch.
 
+Per-record history is bounded by the instance sync policy (migration `0042`;
+deployment default `ATERMIUS_RECORD_HISTORY_LIMIT`, 20 when unset, valid range
+2–1000). A pass examines at most 5,000 records that hold more revisions than
+the limit, prunes at most 500 of them, and removes at most 256 revisions per
+record. It skips a Vault whose row is locked by another writer, redacted
+records, current heads, and bases of unresolved conflicts. Objects left
+without a reference get the normal `ATERMIUS_OBJECT_GC_GRACE_SECONDS` deadline.
+
 Expired snapshots are first changed to an empty manifest with format
 `expired`. A pass claims at most eight snapshots per claimed Vault and deletes
 at most 1,000 snapshot child rows across the entire pass. It keeps the parent

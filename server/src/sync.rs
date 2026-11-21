@@ -952,6 +952,7 @@ async fn push_inner(
     if let Some(gate) = test_pause.as_ref() {
         gate.pause().await;
     }
+    let record_history_limit = crate::sync_policy::effective_record_history_limit(&state).await?;
     let response = state
         .sync_repository
         .commit_batch(crate::sync_repository::PushCommit {
@@ -962,6 +963,8 @@ async fn push_inner(
             request_digest: digest,
             operations: checked,
             restore_retention_days: state.config.record_restore_retention_days,
+            record_history_limit,
+            object_gc_grace_seconds: state.config.object_gc_grace_seconds,
         })
         .await?;
     Ok(Json(response))
@@ -1345,6 +1348,27 @@ async fn get_revision_for_user(
             user: user.clone(),
             vault_id: vault.to_owned(),
             revision_id: revision.to_owned(),
+        })
+        .await?;
+    Ok(Json(response))
+}
+
+/// Returns the retained revisions of one record, newest first, bounded by the
+/// instance's per-record history limit and the sync page byte budget.
+pub async fn record_revisions(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((vault, record)): Path<(String, String)>,
+) -> Result<Json<Value>, ApiError> {
+    let user = current_sync_user(&state, &headers).await?;
+    let record_history_limit = crate::sync_policy::effective_record_history_limit(&state).await?;
+    let response = state
+        .sync_repository
+        .read_record_revisions(crate::sync_repository::ReadRecordRevisionsCommand {
+            user,
+            vault_id: vault,
+            record_id: record,
+            record_history_limit,
         })
         .await?;
     Ok(Json(response))
@@ -1850,6 +1874,7 @@ mod tests {
             account_deletion_grace_seconds: 7 * 24 * 60 * 60,
             audit_retention_days: 365,
             object_gc_grace_seconds: 7 * 24 * 60 * 60,
+            record_history_limit: 20,
             admin_usernames: Vec::new(),
             auth_rate_limits: crate::AuthRateLimits::default(),
         }
@@ -1960,6 +1985,8 @@ mod tests {
                         request_digest: format!("request-{batch_id}"),
                         operations: vec![operation],
                         restore_retention_days,
+                        record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+                        object_gc_grace_seconds: 7 * 24 * 60 * 60,
                     })
             };
 
@@ -6182,6 +6209,7 @@ mod tests {
             account_deletion_grace_seconds: 7 * 24 * 60 * 60,
             audit_retention_days: 365,
             object_gc_grace_seconds: 7 * 24 * 60 * 60,
+            record_history_limit: 20,
             admin_usernames: Vec::new(),
             auth_rate_limits: crate::AuthRateLimits::default(),
         };
@@ -6897,6 +6925,8 @@ mod tests {
                 request_digest: "redacted-replay".to_owned(),
                 operations: vec![make_redacted_operation("create")],
                 restore_retention_days: 30,
+                record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+                object_gc_grace_seconds: 7 * 24 * 60 * 60,
             })
             .await
             .unwrap_err();
@@ -6914,6 +6944,8 @@ mod tests {
                 request_digest: "markerless-create".to_owned(),
                 operations: vec![make_redacted_operation("create")],
                 restore_retention_days: 30,
+                record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+                object_gc_grace_seconds: 7 * 24 * 60 * 60,
             })
             .await
             .unwrap_err();
@@ -6931,6 +6963,8 @@ mod tests {
                 request_digest: "redacted-replay".to_owned(),
                 operations: vec![make_redacted_operation("create")],
                 restore_retention_days: 30,
+                record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+                object_gc_grace_seconds: 7 * 24 * 60 * 60,
             })
             .await
             .unwrap_err();
@@ -6946,6 +6980,8 @@ mod tests {
                 request_digest: "redacted-restore".to_owned(),
                 operations: vec![make_redacted_operation("restore")],
                 restore_retention_days: 30,
+                record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+                object_gc_grace_seconds: 7 * 24 * 60 * 60,
             })
             .await
             .unwrap_err();

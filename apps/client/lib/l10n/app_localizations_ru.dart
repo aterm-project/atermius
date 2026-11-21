@@ -20385,4 +20385,153 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get syncHintKeyUpdate =>
       'Ключи или участники сейфа изменились. Синхронизация продолжится, когда это устройство получит текущее состояние ключей; до тех пор она повторяется сама.';
+
+  @override
+  String get recordHistoryTitle => 'История версий';
+
+  @override
+  String recordHistoryTitleFor(String name) {
+    return 'История версий · $name';
+  }
+
+  @override
+  String get recordHistoryRestoreThis => 'Восстановить эту версию';
+
+  @override
+  String get recordHistoryCurrent => 'Текущая';
+
+  @override
+  String get recordHistoryUnreadable =>
+      'Эту версию не удалось проверить, поэтому её содержимое не показано.';
+
+  @override
+  String get recordHistoryEmpty =>
+      'На сервере пока нет версий этой записи. Они появятся после синхронизации.';
+
+  @override
+  String get recordHistoryNotAvailable =>
+      'История версий недоступна на этом сервере.';
+
+  @override
+  String recordHistoryKeepsLimit(int count) {
+    return 'Сервер хранит последние версии каждой записи: $count.';
+  }
+
+  @override
+  String get recordHistoryOpCreated => 'Создание';
+
+  @override
+  String get recordHistoryOpUpdated => 'Изменение';
+
+  @override
+  String get recordHistoryOpDeleted => 'Удаление';
+
+  @override
+  String get recordHistoryOpRestored => 'Восстановление';
+
+  @override
+  String get recordHistoryThisDevice => 'Это устройство';
+
+  @override
+  String recordHistoryNode(String id) {
+    return 'Узел $id';
+  }
+
+  @override
+  String recordHistoryChangedFields(String fields) {
+    return 'Изменено: $fields';
+  }
+
+  @override
+  String get recordHistoryNoFieldChanges => 'Поля не изменились';
+
+  @override
+  String get recordHistoryEarliestKept => 'Самая ранняя сохранённая версия';
+
+  @override
+  String get recordHistoryRestoreConfirmTitle => 'Восстановить эту версию?';
+
+  @override
+  String recordHistoryRestoreConfirmBody(String time) {
+    return 'Содержимое от $time будет сохранено как новая версия поверх текущей. Из истории ничего не удаляется.';
+  }
+
+  @override
+  String get recordHistoryRestored => 'Восстановлено как новая версия.';
+
+  @override
+  String get recordHistoryReadOnly =>
+      'Этот Vault доступен только для чтения, поэтому версии нельзя восстановить.';
+
+  @override
+  String get recordHistoryVersionCannotBeRestored =>
+      'Эту версию нельзя восстановить.';
+
+  @override
+  String get recordHistoryRecordNoLongerExists =>
+      'Эта запись больше не существует. Сначала восстановите её из корзины.';
+
+  @override
+  String get syncPolicyTitle => 'История версий записей';
+
+  @override
+  String get syncPolicyDescription =>
+      'Когда два устройства изменяют одну запись, действует последняя версия, а предыдущие остаются на сервере. Укажите, сколько версий каждой записи хранит сервер; лишние удаляются, начиная с самых старых.';
+
+  @override
+  String get syncPolicyLimitLabel => 'Число хранимых версий каждой записи';
+
+  @override
+  String syncPolicyLimitHint(int min, int max) {
+    return 'Целое число от $min до $max';
+  }
+
+  @override
+  String syncPolicyDefaultLine(int count) {
+    return 'Значение сервера по умолчанию: $count';
+  }
+
+  @override
+  String syncPolicyLimitOutOfRange(int min, int max) {
+    return 'Введите целое число от $min до $max.';
+  }
+
+  @override
+  String get syncPolicySaved => 'Число хранимых версий сохранено.';
+
+  @override
+  String get syncPolicyChangedElsewhere =>
+      'Число хранимых версий изменили в другом месте. Показано актуальное значение; проверьте его и сохраните снова.';
+
+  @override
+  String get syncPolicyLoadFailed =>
+      'Не удалось загрузить число хранимых версий.';
+
+  @override
+  String get syncPolicySaveFailed =>
+      'Не удалось сохранить число хранимых версий.';
+
+  @override
+  String get syncPolicyLoadBeforeSaving =>
+      'Перед сохранением загрузите текущее число хранимых версий.';
+
+  @override
+  String get syncPolicyNotAvailableOnServer =>
+      'Этот сервер не поддерживает настройку числа хранимых версий.';
+
+  @override
+  String get syncPolicyLoading => 'Загрузка числа хранимых версий…';
+
+  @override
+  String get syncPolicySave => 'Сохранить число версий';
+
+  @override
+  String get syncPolicyLoad => 'Загрузить число версий';
+
+  @override
+  String get syncNodeId => 'ID узла';
+
+  @override
+  String get anAdministratorChangedTheRecordHistoryLimit =>
+      'Администратор изменил число хранимых версий каждой записи';
 }

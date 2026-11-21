@@ -1254,7 +1254,8 @@ both Nginx and Caddy in a separate Web deployment. This setting applies only
 to IPs displayed in the account device list.
 
 PostgreSQL deployments apply `server/migrations/postgres/0041_device_activity.sql`
-before upgrading the server. SQLite applies its migration at startup.
+and `server/migrations/postgres/0042_instance_sync_policy.sql` before upgrading
+the server. SQLite applies its migration at startup.
 
 The named volume survives container replacement. The server has encrypted
 backup and staged restore commands. Create a separate 32-byte operator key and

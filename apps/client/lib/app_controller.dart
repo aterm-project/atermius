@@ -1713,6 +1713,13 @@ class AppController extends ChangeNotifier {
   String? instanceAdminBackupScheduleSaveError;
   String? instanceAdminBackupScheduleNotice;
   int _instanceAdminBackupScheduleRequestGeneration = 0;
+  InstanceAdminSyncPolicy? instanceAdminSyncPolicy;
+  bool instanceAdminSyncPolicyLoading = false;
+  bool instanceAdminSyncPolicySaving = false;
+  String? instanceAdminSyncPolicyError;
+  String? instanceAdminSyncPolicySaveError;
+  String? instanceAdminSyncPolicyNotice;
+  int _instanceAdminSyncPolicyRequestGeneration = 0;
   static const int adminVaultPageSize = 50;
   AdminVaultPage? adminVaultsPage;
   bool adminVaultsLoading = false;
@@ -11005,6 +11012,86 @@ class AppController extends ChangeNotifier {
     return repository.loadRecycleBin();
   }
 
+  /// Whether records of this workspace have a server-side version history.
+  bool get recordHistorySupported => _repository != null && activeVault != null;
+
+  /// The versions the server keeps for one record, newest first. Entries the
+  /// repository could not verify carry no content.
+  Future<RecordHistory> loadRecordHistory(String recordId) async {
+    final targetVaultId = activeVault?.id;
+    if (targetVaultId == null) throw StateError(currentL10n.chooseAVaultFirst);
+    final repository = _requireRepository();
+    if (repository.vaultId != targetVaultId) {
+      throw StateError(currentL10n.theVaultWasSwitchedReopenThe3);
+    }
+    return repository.loadRecordHistory(recordId);
+  }
+
+  /// How many versions the server keeps per record, when it says so.
+  int? get recordHistoryLimit => instance?.recordHistoryLimit;
+
+  /// Display name of a device ("node") known from the account's device list
+  /// or the current Vault's device directory; null when unknown.
+  String? deviceDisplayName(String deviceId) {
+    for (final device in [...devices, ...vaultDeviceRows]) {
+      final name = device['name'];
+      if (device['device_id'] == deviceId &&
+          name is String &&
+          name.trim().isNotEmpty) {
+        return name.trim();
+      }
+    }
+    return null;
+  }
+
+  /// Saves the content of an older, verified version as a new update on top
+  /// of the current head, through the same save path as an edit. The restore
+  /// is therefore itself a new history entry and nothing is removed.
+  Future<void> restoreRecordVersion({
+    required String recordId,
+    required RecordHistoryEntry version,
+  }) async {
+    _assertEditsAllowed(requireWritableVault: true);
+    final plaintext = version.plaintext;
+    if (!version.verified || plaintext == null || version.deleted) {
+      throw StateError(currentL10n.recordHistoryVersionCannotBeRestored);
+    }
+    if (plaintext['id'] != recordId) {
+      throw StateError(currentL10n.recordHistoryVersionCannotBeRestored);
+    }
+    final json = Map<String, dynamic>.from(plaintext);
+    switch (plaintext['type']) {
+      case 'host':
+        final current = hosts
+            .where((host) => host.id == recordId)
+            .firstOrNull;
+        if (current == null) {
+          throw StateError(currentL10n.recordHistoryRecordNoLongerExists);
+        }
+        await saveHostFromEditor(
+          original: current,
+          edited: HostRecord.fromJson(json),
+        );
+      case 'credential':
+        if (!credentials.any((credential) => credential.id == recordId)) {
+          throw StateError(currentL10n.recordHistoryRecordNoLongerExists);
+        }
+        await saveCredential(CredentialRecord.fromJson(json));
+      case 'group':
+        if (!groups.any((group) => group.id == recordId)) {
+          throw StateError(currentL10n.recordHistoryRecordNoLongerExists);
+        }
+        await saveGroup(GroupRecord.fromJson(json));
+      case 'snippet':
+        if (!snippets.any((snippet) => snippet.id == recordId)) {
+          throw StateError(currentL10n.recordHistoryRecordNoLongerExists);
+        }
+        await saveSnippet(SnippetRecord.fromJson(json));
+      default:
+        throw StateError(currentL10n.recordHistoryVersionCannotBeRestored);
+    }
+  }
+
   /// Changes future-purge consent for exactly the selected tombstone.
   /// Vault owners can opt in; bounded Maintenance may purge an opted-in
   /// tombstone after its restore deadline and required checks.
@@ -12389,6 +12476,150 @@ class AppController extends ChangeNotifier {
     }
     return currentL10n.theServerCouldNotVerifyAccess;
   }
+
+  Future<void> loadInstanceAdminSyncPolicy() async {
+    if (!isInstanceAdmin) {
+      _resetInstanceAdminSyncPolicy();
+      instanceAdminSyncPolicyError =
+          currentL10n.theCurrentAccountDoesntHaveInstance;
+      notifyListeners();
+      return;
+    }
+    if (instanceAdminSyncPolicySaving) return;
+    final client = api;
+    if (client == null) {
+      instanceAdminSyncPolicyError = currentL10n.connectToTheServerFirst;
+      notifyListeners();
+      return;
+    }
+    final requestGeneration = ++_instanceAdminSyncPolicyRequestGeneration;
+    instanceAdminSyncPolicyLoading = true;
+    instanceAdminSyncPolicyError = null;
+    instanceAdminSyncPolicySaveError = null;
+    instanceAdminSyncPolicyNotice = null;
+    notifyListeners();
+    try {
+      final policy = await client.instanceAdminSyncPolicy();
+      if (requestGeneration != _instanceAdminSyncPolicyRequestGeneration ||
+          !isInstanceAdmin) {
+        return;
+      }
+      instanceAdminSyncPolicy = policy;
+    } catch (error) {
+      if (requestGeneration != _instanceAdminSyncPolicyRequestGeneration) {
+        return;
+      }
+      instanceAdminSyncPolicyError = _syncPolicyUnsupported(error)
+          ? currentL10n.syncPolicyNotAvailableOnServer
+          : currentL10n.syncPolicyLoadFailed;
+    } finally {
+      if (requestGeneration == _instanceAdminSyncPolicyRequestGeneration) {
+        instanceAdminSyncPolicyLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Saves how many versions of each record the server keeps. When another
+  /// admin changed the policy first, the latest value is loaded and the admin
+  /// is told to check it before saving again.
+  Future<bool> saveInstanceAdminSyncPolicy(int recordHistoryLimit) async {
+    if (!isInstanceAdmin) {
+      _resetInstanceAdminSyncPolicy();
+      instanceAdminSyncPolicySaveError =
+          currentL10n.theCurrentAccountDoesntHaveInstance;
+      notifyListeners();
+      return false;
+    }
+    final current = instanceAdminSyncPolicy;
+    if (current == null) {
+      instanceAdminSyncPolicySaveError = currentL10n.syncPolicyLoadBeforeSaving;
+      notifyListeners();
+      return false;
+    }
+    if (recordHistoryLimit < current.minRecordHistoryLimit ||
+        recordHistoryLimit > current.maxRecordHistoryLimit) {
+      instanceAdminSyncPolicySaveError = currentL10n.syncPolicyLimitOutOfRange(
+        current.minRecordHistoryLimit,
+        current.maxRecordHistoryLimit,
+      );
+      instanceAdminSyncPolicyNotice = null;
+      notifyListeners();
+      return false;
+    }
+    if (instanceAdminSyncPolicyLoading || instanceAdminSyncPolicySaving) {
+      return false;
+    }
+    final client = api;
+    if (client == null) {
+      instanceAdminSyncPolicySaveError = currentL10n.connectToTheServerFirst;
+      notifyListeners();
+      return false;
+    }
+    final requestGeneration = ++_instanceAdminSyncPolicyRequestGeneration;
+    instanceAdminSyncPolicySaving = true;
+    instanceAdminSyncPolicyError = null;
+    instanceAdminSyncPolicySaveError = null;
+    instanceAdminSyncPolicyNotice = null;
+    notifyListeners();
+    try {
+      final updated = await client.updateInstanceAdminSyncPolicy(
+        expectedRevision: current.revision,
+        recordHistoryLimit: recordHistoryLimit,
+      );
+      if (requestGeneration != _instanceAdminSyncPolicyRequestGeneration ||
+          !isInstanceAdmin) {
+        return false;
+      }
+      instanceAdminSyncPolicy = updated;
+      instanceAdminSyncPolicyNotice = currentL10n.syncPolicySaved;
+      return true;
+    } catch (error) {
+      if (requestGeneration != _instanceAdminSyncPolicyRequestGeneration) {
+        return false;
+      }
+      if (error is ApiException && error.code == 'SYNC_POLICY_CONFLICT') {
+        instanceAdminSyncPolicySaveError =
+            currentL10n.syncPolicyChangedElsewhere;
+        try {
+          final latest = await client.instanceAdminSyncPolicy();
+          if (requestGeneration != _instanceAdminSyncPolicyRequestGeneration ||
+              !isInstanceAdmin) {
+            return false;
+          }
+          instanceAdminSyncPolicy = latest;
+        } catch (_) {
+          if (requestGeneration != _instanceAdminSyncPolicyRequestGeneration) {
+            return false;
+          }
+          // The stale revision can no longer be saved; require a reload.
+          instanceAdminSyncPolicy = null;
+          instanceAdminSyncPolicyError = currentL10n.syncPolicyLoadFailed;
+        }
+      } else if (error is ApiException &&
+          error.code == 'INVALID_SYNC_POLICY_REQUEST') {
+        instanceAdminSyncPolicySaveError = currentL10n
+            .syncPolicyLimitOutOfRange(
+              current.minRecordHistoryLimit,
+              current.maxRecordHistoryLimit,
+            );
+      } else {
+        instanceAdminSyncPolicySaveError = _syncPolicyUnsupported(error)
+            ? currentL10n.syncPolicyNotAvailableOnServer
+            : currentL10n.syncPolicySaveFailed;
+      }
+      return false;
+    } finally {
+      if (requestGeneration == _instanceAdminSyncPolicyRequestGeneration) {
+        instanceAdminSyncPolicySaving = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  bool _syncPolicyUnsupported(Object error) =>
+      error is ApiException &&
+      const {404, 405, 501}.contains(error.statusCode);
 
   Future<void> loadInstanceAdminBackupSchedule() async {
     if (!isInstanceAdmin) {
@@ -15119,6 +15350,7 @@ class AppController extends ChangeNotifier {
     _resetInstanceAdminBackupStatus();
     _resetInstanceAdminBackupReplication();
     _resetInstanceAdminBackupSchedule();
+    _resetInstanceAdminSyncPolicy();
     _resetAdminRestoreStage();
     _adminVaultsRequestGeneration++;
     adminVaultsPage = null;
@@ -15190,6 +15422,16 @@ class AppController extends ChangeNotifier {
     instanceAdminBackupBucketAccessCheckLoading = false;
     instanceAdminBackupBucketAccessCheckError = null;
     instanceAdminBackupBucketAccessCheckNotice = null;
+  }
+
+  void _resetInstanceAdminSyncPolicy() {
+    _instanceAdminSyncPolicyRequestGeneration++;
+    instanceAdminSyncPolicy = null;
+    instanceAdminSyncPolicyLoading = false;
+    instanceAdminSyncPolicySaving = false;
+    instanceAdminSyncPolicyError = null;
+    instanceAdminSyncPolicySaveError = null;
+    instanceAdminSyncPolicyNotice = null;
   }
 
   void _resetInstanceAdminBackupSchedule() {

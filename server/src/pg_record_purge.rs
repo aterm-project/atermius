@@ -18,6 +18,70 @@ use crate::{
     record_purge_actor::RecordPurgeActor,
 };
 
+/// Starts the delayed-collection grace period for each listed object that no
+/// longer has any revision or conflict reference, and revokes its completed
+/// upload receipt. Shared by permanent purge and per-record history pruning so
+/// both release attachments under one rule. `object_ids` must be sorted.
+pub(crate) async fn schedule_unreferenced_objects_gc_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    vault_id: &str,
+    object_ids: &[String],
+    object_gc_grace_seconds: i64,
+) -> Result<(), ApiError> {
+    // Lock blob rows in stable object-ID order. A collector may finish an
+    // already-due object first, or this transaction may move it into the
+    // normal grace window; neither path can delete a still-referenced
+    // attachment. Completed upload retries are revoked only when the
+    // final Vault reference is gone.
+    if !object_ids.is_empty() {
+        let blob_rows = sqlx::query(
+            "SELECT object_id FROM blob_objects WHERE vault_id=$1 AND object_id=ANY($2::text[]) \
+             ORDER BY object_id FOR UPDATE",
+        )
+        .bind(vault_id)
+        .bind(object_ids)
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(ApiError::internal)?;
+        if blob_rows.len() != object_ids.len() {
+            return Err(ApiError::internal("record object catalogue row is missing"));
+        }
+    }
+    let gc_now: DateTime<Utc> = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(ApiError::internal)?;
+    let gc_after = gc_now
+        .timestamp()
+        .saturating_add(object_gc_grace_seconds.max(0));
+    for object_id in object_ids {
+        sqlx::query(
+            "UPDATE blob_objects SET gc_after=$1 WHERE vault_id=$2 AND object_id=$3 \
+             AND storage_state='available' \
+             AND NOT EXISTS(SELECT 1 FROM object_references r \
+                 WHERE r.vault_id=blob_objects.vault_id AND r.object_id=blob_objects.object_id)",
+        )
+        .bind(gc_after)
+        .bind(vault_id)
+        .bind(object_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::internal)?;
+        sqlx::query(
+            "UPDATE uploads SET state='collected' WHERE vault_id=$1 AND object_id=$2 \
+             AND state='completed' \
+             AND NOT EXISTS(SELECT 1 FROM object_references r \
+                 WHERE r.vault_id=uploads.vault_id AND r.object_id=uploads.object_id)",
+        )
+        .bind(vault_id)
+        .bind(object_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::internal)?;
+    }
+    Ok(())
+}
+
 #[derive(Clone)]
 pub(crate) struct PgRecordPurgeRepository {
     pool: PgPool,
@@ -757,57 +821,13 @@ impl PgRecordPurgeRepository {
             return Err(ApiError::internal("record object reference count changed"));
         }
 
-        // Lock blob rows in stable object-ID order. A collector may finish an
-        // already-due object first, or this transaction may move it into the
-        // normal grace window; neither path can delete a still-referenced
-        // attachment. Completed upload retries are revoked only when the
-        // final Vault reference is gone.
-        if !object_ids.is_empty() {
-            let blob_rows = sqlx::query(
-                "SELECT object_id FROM blob_objects WHERE vault_id=$1 AND object_id=ANY($2::text[]) \
-                 ORDER BY object_id FOR UPDATE",
-            )
-            .bind(vault_id)
-            .bind(&object_ids)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(ApiError::internal)?;
-            if blob_rows.len() != object_ids.len() {
-                return Err(ApiError::internal("record object catalogue row is missing"));
-            }
-        }
-        let gc_now: DateTime<Utc> = sqlx::query_scalar("SELECT clock_timestamp()")
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(ApiError::internal)?;
-        let gc_after = gc_now
-            .timestamp()
-            .saturating_add(object_gc_grace_seconds.max(0));
-        for object_id in &object_ids {
-            sqlx::query(
-                "UPDATE blob_objects SET gc_after=$1 WHERE vault_id=$2 AND object_id=$3 \
-                 AND storage_state='available' \
-                 AND NOT EXISTS(SELECT 1 FROM object_references r \
-                     WHERE r.vault_id=blob_objects.vault_id AND r.object_id=blob_objects.object_id)",
-            )
-            .bind(gc_after)
-            .bind(vault_id)
-            .bind(object_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(ApiError::internal)?;
-            sqlx::query(
-                "UPDATE uploads SET state='collected' WHERE vault_id=$1 AND object_id=$2 \
-                 AND state='completed' \
-                 AND NOT EXISTS(SELECT 1 FROM object_references r \
-                     WHERE r.vault_id=uploads.vault_id AND r.object_id=uploads.object_id)",
-            )
-            .bind(vault_id)
-            .bind(object_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(ApiError::internal)?;
-        }
+        schedule_unreferenced_objects_gc_tx(
+            &mut tx,
+            vault_id,
+            &object_ids,
+            object_gc_grace_seconds,
+        )
+        .await?;
 
         let deleted_head = sqlx::query(
             "DELETE FROM record_heads WHERE vault_id=$1 AND record_id=$2 \

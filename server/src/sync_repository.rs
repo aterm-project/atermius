@@ -88,6 +88,14 @@ pub(crate) struct ReadRevisionCommand {
     pub(crate) revision_id: String,
 }
 
+pub(crate) struct ReadRecordRevisionsCommand {
+    pub(crate) user: AuthUser,
+    pub(crate) vault_id: String,
+    pub(crate) record_id: String,
+    /// Effective per-record history limit; also the maximum row count.
+    pub(crate) record_history_limit: i64,
+}
+
 pub(crate) struct CreateSnapshotCommand {
     pub(crate) user: AuthUser,
     pub(crate) vault_id: String,
@@ -113,6 +121,10 @@ pub(crate) struct PushCommit {
     pub(crate) request_digest: String,
     pub(crate) operations: Vec<VerifiedOperation>,
     pub(crate) restore_retention_days: i64,
+    /// Effective per-record history limit applied after each new revision.
+    pub(crate) record_history_limit: i64,
+    /// Grace period before an attachment released by pruning is collected.
+    pub(crate) object_gc_grace_seconds: i64,
 }
 
 pub(crate) type RepositoryFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -179,6 +191,15 @@ pub(crate) trait SyncRepository: SyncCommitRepository + Send + Sync {
     fn read_revision(
         &self,
         command: ReadRevisionCommand,
+    ) -> RepositoryFuture<'_, Result<Value, ApiError>>;
+
+    /// Reads the retained revisions of one record, newest first, with the
+    /// same authorization and redaction checks as `read_revision` in the
+    /// same transaction. The response is the newest prefix that fits the
+    /// sync page byte budget.
+    fn read_record_revisions(
+        &self,
+        command: ReadRecordRevisionsCommand,
     ) -> RepositoryFuture<'_, Result<Value, ApiError>>;
 
     /// Captures the record and conflict watermarks, verifies that every
@@ -384,6 +405,8 @@ impl SqliteSyncRepository {
             request_digest,
             operations,
             restore_retention_days,
+            record_history_limit,
+            object_gc_grace_seconds,
         } = command;
 
         let mut tx = self.pool.begin().await.map_err(ApiError::internal)?;
@@ -727,6 +750,18 @@ impl SqliteSyncRepository {
                         "operation or device sequence is already committed",
                     )
                 })?;
+            // Keep at most the configured number of revisions for this
+            // record. The new head and conflict bases are never removed.
+            crate::sync_policy::prune_record_history_tx(
+                &mut tx,
+                &vault_id,
+                &item.record_id,
+                record_history_limit,
+                chrono::Utc::now()
+                    .timestamp()
+                    .saturating_add(object_gc_grace_seconds),
+            )
+            .await?;
             newly_committed += 1;
             results.push(CommitResult {
                 op_id: item.op_id,
@@ -1495,6 +1530,93 @@ impl SqliteSyncRepository {
             "digest": row.get::<String, _>("digest"),
             "commit_seq": row.get::<i64, _>("commit_seq").to_string(),
         });
+        tx.commit().await.map_err(ApiError::internal)?;
+        Ok(response)
+    }
+
+    async fn read_record_revisions_sqlite(
+        &self,
+        command: ReadRecordRevisionsCommand,
+    ) -> Result<Value, ApiError> {
+        let ReadRecordRevisionsCommand {
+            user,
+            vault_id,
+            record_id,
+            record_history_limit,
+        } = command;
+        let mut tx = self.pool.begin().await.map_err(ApiError::internal)?;
+        crate::require_vault_read_tx(&mut tx, &user.user_id, &vault_id).await?;
+        crate::require_active_session_device_read_tx(&mut tx, &user).await?;
+        crate::require_redaction_client_for_vault_tx(
+            &mut tx,
+            &vault_id,
+            user.declares_sync_redaction_v1,
+        )
+        .await?;
+        if let Some(row) = sqlx::query(
+            "SELECT redaction_id,vault_id,record_id,deleted_revision_id,deleted_seq,redaction_seq \
+             FROM record_redactions WHERE vault_id=? AND record_id=?",
+        )
+        .bind(&vault_id)
+        .bind(&record_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(ApiError::internal)?
+        {
+            let proof = self.redaction_proof(&Self::redaction_from_row(&row)?)?;
+            return Err(ApiError::gone(
+                "RECORD_REDACTED",
+                "the requested revision belongs to a redacted record",
+            )
+            .with_details(json!({"redaction":proof})));
+        }
+        let mut rows = sqlx::query(
+            "SELECT revision_id,base_revision_id,commit_seq,device_id,operation,created_at,\
+                    restore_until,envelope \
+             FROM record_versions WHERE vault_id=? AND record_id=? \
+             ORDER BY commit_seq DESC LIMIT ?",
+        )
+        .bind(&vault_id)
+        .bind(&record_id)
+        .bind(record_history_limit)
+        .fetch(&mut *tx);
+        let mut revisions = Vec::new();
+        let mut budget = SyncPageBudget::default();
+        while let Some(row) = rows.try_next().await.map_err(ApiError::internal)? {
+            let operation: String = row.get("operation");
+            let envelope = serde_json::from_str::<Value>(&row.get::<String, _>("envelope"))
+                .map_err(ApiError::internal)?;
+            ensure_envelope_readable(user.declares_record_schema2, &envelope)?;
+            let revision = json!({
+                "revision_id": row.get::<String, _>("revision_id"),
+                "base_revision_id": row.get::<Option<String>, _>("base_revision_id"),
+                "commit_seq": row.get::<i64, _>("commit_seq").to_string(),
+                "device_id": row.get::<String, _>("device_id"),
+                "operation": operation,
+                "deleted": operation == "delete",
+                "created_at": row.get::<String, _>("created_at"),
+                "restore_until": row.get::<Option<String>, _>("restore_until"),
+                "envelope": envelope,
+            });
+            if !budget.try_add(&revision)? {
+                if revisions.is_empty() {
+                    return Err(sync_page_item_too_large());
+                }
+                break;
+            }
+            revisions.push(revision);
+        }
+        drop(rows);
+        if revisions.is_empty() {
+            return Err(ApiError::not_found());
+        }
+        let response = json!({
+            "vault_id": vault_id,
+            "record_id": record_id,
+            "record_history_limit": record_history_limit,
+            "revisions": revisions,
+        });
+        ensure_sync_page_response_fits(&response)?;
         tx.commit().await.map_err(ApiError::internal)?;
         Ok(response)
     }
@@ -2276,6 +2398,13 @@ impl SyncRepository for SqliteSyncRepository {
         command: ReadRevisionCommand,
     ) -> RepositoryFuture<'_, Result<Value, ApiError>> {
         Box::pin(self.read_revision_sqlite(command))
+    }
+
+    fn read_record_revisions(
+        &self,
+        command: ReadRecordRevisionsCommand,
+    ) -> RepositoryFuture<'_, Result<Value, ApiError>> {
+        Box::pin(self.read_record_revisions_sqlite(command))
     }
 
     fn create_snapshot(

@@ -37,6 +37,39 @@ fn conflict_creation_and_incremental_feed_match_the_router_paths() {
 }
 
 #[test]
+fn sync_policy_and_record_history_routes_match_the_router_paths() {
+    let mut policy_operations = operations_for_path("/admin/sync-policy");
+    policy_operations.sort_unstable();
+    assert_eq!(policy_operations, ["get", "put"]);
+    assert_eq!(
+        operations_for_path("/vaults/{vault_id}/records/{record_id}/revisions"),
+        ["get"]
+    );
+    for schema in [
+        "AdminSyncPolicy",
+        "AdminSyncPolicyRequest",
+        "RecordRevisionList",
+    ] {
+        assert!(
+            OPENAPI.contains(&format!("    {schema}:\n")),
+            "sync policy schema {schema} is missing"
+        );
+    }
+    for stable in [
+        "ATERMIUS_RECORD_HISTORY_LIMIT",
+        "SYNC_POLICY_CONFLICT",
+        "RECORD_HISTORY_LIMIT_OUT_OF_RANGE",
+        "INVALID_SYNC_POLICY_REQUEST",
+        "admin.sync_policy_updated",
+    ] {
+        assert!(OPENAPI.contains(stable), "{stable} is not documented");
+    }
+    assert!(OPENAPI.contains(
+        "required: [max_object_bytes, max_upload_chunk_bytes, max_record_object_refs, record_history_limit]"
+    ));
+}
+
+#[test]
 fn account_recovery_routes_and_schemas_are_documented() {
     let mut configure_operations = operations_for_path("/auth/recovery");
     configure_operations.sort_unstable();

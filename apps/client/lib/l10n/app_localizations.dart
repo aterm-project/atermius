@@ -32091,6 +32091,246 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The Vault\'s keys or members changed. Sync resumes once this device has the current key state; it keeps retrying on its own.'**
   String get syncHintKeyUpdate;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Version history'**
+  String get recordHistoryTitle;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Version history · {name}'**
+  String recordHistoryTitleFor(String name);
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore this version'**
+  String get recordHistoryRestoreThis;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Current'**
+  String get recordHistoryCurrent;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'This version could not be verified, so its content is not shown.'**
+  String get recordHistoryUnreadable;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'The server keeps no versions of this record yet. They appear once the record has synced.'**
+  String get recordHistoryEmpty;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Version history is not available on this server.'**
+  String get recordHistoryNotAvailable;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'The server keeps the latest {count} versions of each record.'**
+  String recordHistoryKeepsLimit(int count);
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Created'**
+  String get recordHistoryOpCreated;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Edited'**
+  String get recordHistoryOpUpdated;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get recordHistoryOpDeleted;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored'**
+  String get recordHistoryOpRestored;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get recordHistoryThisDevice;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Node {id}'**
+  String recordHistoryNode(String id);
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Changed: {fields}'**
+  String recordHistoryChangedFields(String fields);
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'No field changes'**
+  String get recordHistoryNoFieldChanges;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Earliest kept version'**
+  String get recordHistoryEarliestKept;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore this version?'**
+  String get recordHistoryRestoreConfirmTitle;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'The content from {time} is saved as a new version on top of the current one. Nothing is removed from the history.'**
+  String recordHistoryRestoreConfirmBody(String time);
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored as a new version.'**
+  String get recordHistoryRestored;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'This Vault is read-only, so versions cannot be restored.'**
+  String get recordHistoryReadOnly;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'This version cannot be restored.'**
+  String get recordHistoryVersionCannotBeRestored;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'This record no longer exists. Restore it from the recycle bin first.'**
+  String get recordHistoryRecordNoLongerExists;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Record version history'**
+  String get syncPolicyTitle;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'When two devices edit the same record, the latest version wins and the earlier versions stay on the server. Choose how many versions the server keeps for each record; older ones are removed, oldest first.'**
+  String get syncPolicyDescription;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Versions kept per record'**
+  String get syncPolicyLimitLabel;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Whole number from {min} to {max}'**
+  String syncPolicyLimitHint(int min, int max);
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Server default: {count}'**
+  String syncPolicyDefaultLine(int count);
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a whole number from {min} to {max}.'**
+  String syncPolicyLimitOutOfRange(int min, int max);
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'History limit saved.'**
+  String get syncPolicySaved;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'The history limit was changed elsewhere. The latest value is shown; check it and save again.'**
+  String get syncPolicyChangedElsewhere;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load the history limit.'**
+  String get syncPolicyLoadFailed;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save the history limit.'**
+  String get syncPolicySaveFailed;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Load the current history limit before saving.'**
+  String get syncPolicyLoadBeforeSaving;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'This server does not support the history limit setting.'**
+  String get syncPolicyNotAvailableOnServer;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading history limit…'**
+  String get syncPolicyLoading;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Save history limit'**
+  String get syncPolicySave;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Load history limit'**
+  String get syncPolicyLoad;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Node ID'**
+  String get syncNodeId;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'An administrator changed the per-record version history limit'**
+  String get anAdministratorChangedTheRecordHistoryLimit;
 }
 
 class _AppLocalizationsDelegate

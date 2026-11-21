@@ -98,6 +98,8 @@ import 'ssh_forwarding_cloud_source.dart';
 import 'ssh_forwarding_page.dart';
 import 'ssh_port_forwarding_dialog.dart';
 import 'account_mfa_panel.dart';
+import 'admin_sync_policy_card.dart';
+import 'record_history_dialog.dart';
 import 'browser_storage_status_card.dart';
 import 'host_attachments_dialog.dart';
 import 'host_editor_panel.dart';
@@ -4075,6 +4077,14 @@ class _HostsPageState extends State<_HostsPage> {
                             app: app,
                             host: host,
                           ),
+                          onHistory: app.recordHistorySupported
+                              ? () => showRecordHistoryDialog(
+                                  context,
+                                  app: app,
+                                  recordId: host.id,
+                                  recordName: host.name,
+                                )
+                              : null,
                           onShare: _cloudShareAvailable(app)
                               ? () => showCloudShareDialog(
                                   context,
@@ -5141,16 +5151,39 @@ class _GroupsPageState extends State<_GroupsPage> {
                   trailing: PopupMenuButton<String>(
                     popUpAnimationStyle: AppMotion.menuStyle(context),
                     key: ValueKey('server_group_actions_${group.id}'),
-                    enabled: canWrite,
+                    enabled: canWrite || app.recordHistorySupported,
                     tooltip: context.l10n.groupActionsName2(group.name),
                     onSelected: (value) {
                       if (value == 'edit') unawaited(_editGroup(group));
                       if (value == 'delete') unawaited(_deleteGroup(group));
+                      if (value == 'history') {
+                        unawaited(
+                          showRecordHistoryDialog(
+                            context,
+                            app: app,
+                            recordId: group.id,
+                            recordName: group.name,
+                          ),
+                        );
+                      }
                     },
                     itemBuilder: (context) => [
-                      appMenuItem(context,value: 'edit', child: Text(context.l10n.editGroup2)),
+                      appMenuItem(
+                        context,
+                        value: 'edit',
+                        enabled: canWrite,
+                        child: Text(context.l10n.editGroup2),
+                      ),
+                      if (app.recordHistorySupported)
+                        appMenuItem(
+                          context,
+                          key: ValueKey('server_group_history_${group.id}'),
+                          value: 'history',
+                          child: Text(context.l10n.recordHistoryTitle),
+                        ),
                       appMenuItem(context,
                         value: 'delete',
+                        enabled: canWrite,
                         child: Text(context.l10n.deleteGroup3),
                       ),
                     ],
@@ -5445,6 +5478,7 @@ class _HostCard extends StatelessWidget {
     required this.onDelete,
     required this.onFavorite,
     required this.onAttachments,
+    this.onHistory,
     this.onShare,
     this.onPutInVault,
   });
@@ -5463,6 +5497,9 @@ class _HostCard extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onFavorite;
   final VoidCallback onAttachments;
+
+  /// "Version history" (null when the workspace keeps no server history).
+  final VoidCallback? onHistory;
 
   /// Cloud access "Share…" (null when the server offers no sharing).
   final VoidCallback? onShare;
@@ -5530,6 +5567,13 @@ class _HostCard extends StatelessWidget {
               Icons.attach_file,
               onAttachments,
             ),
+            if (onHistory != null)
+              WorkspaceAction(
+                'host-history-${host.id}',
+                context.l10n.recordHistoryTitle,
+                Icons.history_rounded,
+                onHistory!,
+              ),
             if (onShare != null)
               WorkspaceAction(
                 'host-share-${host.id}',
@@ -5689,6 +5733,13 @@ class _HostCard extends StatelessWidget {
                             Icons.attach_file,
                             onAttachments,
                           ),
+                          if (onHistory != null)
+                            WorkspaceAction(
+                              'host-history-${host.id}',
+                              context.l10n.recordHistoryTitle,
+                              Icons.history_rounded,
+                              onHistory!,
+                            ),
                           if (onShare != null)
                             WorkspaceAction(
                               'host-share-${host.id}',
@@ -5939,6 +5990,13 @@ class _CredentialsPageState extends State<_CredentialsPage> {
                       onSelected: (value) async {
                         if (value == 'view') {
                           await _viewCredential(context, credential);
+                        } else if (value == 'history') {
+                          await showRecordHistoryDialog(
+                            context,
+                            app: app,
+                            recordId: credential.id,
+                            recordName: credential.name,
+                          );
                         } else if (value == 'delete') {
                           if (await _confirmDelete(context, credential.name) ==
                               true)
@@ -5965,8 +6023,16 @@ class _CredentialsPageState extends State<_CredentialsPage> {
                             value: 'view',
                             child: Text(context.l10n.keychainViewCredential),
                           ),
-                        if (canWrite) ...[
+                        if (canWrite)
                           appMenuItem(context,value: 'edit', child: Text(context.l10n.edit2)),
+                        if (app.recordHistorySupported)
+                          appMenuItem(
+                            context,
+                            key: ValueKey('credential_history_${credential.id}'),
+                            value: 'history',
+                            child: Text(context.l10n.recordHistoryTitle),
+                          ),
+                        if (canWrite) ...[
                           // Referenced credentials cannot be deleted (no silent
                           // relink); AppController enforces the same rule.
                           appMenuItem(context,
@@ -6361,6 +6427,22 @@ class _SnippetsPage extends StatelessWidget {
                             ),
                             _Tag(label: snippet.shell),
                             const SizedBox(width: 8),
+                            if (app.recordHistorySupported)
+                              IconButton(
+                                key: ValueKey('snippet_history_${snippet.id}'),
+                                tooltip: context.l10n.recordHistoryTitle,
+                                onPressed: () => showRecordHistoryDialog(
+                                  context,
+                                  app: app,
+                                  recordId: snippet.id,
+                                  recordName: snippet.title,
+                                ),
+                                icon: Icon(
+                                  Icons.history_rounded,
+                                  size: 18,
+                                  color: context.palette.muted,
+                                ),
+                              ),
                             IconButton(
                               tooltip: context.l10n.edit2,
                               onPressed: canWrite
@@ -13023,6 +13105,12 @@ class _SyncPage extends StatelessWidget {
               label: context.l10n.currentVault2,
               value: app.currentVaultId,
             ),
+            if (app.identity?.deviceId case final nodeId?)
+              SyncDetailRow(
+                key: const ValueKey('sync_node_id'),
+                label: context.l10n.syncNodeId,
+                value: nodeId,
+              ),
             SyncDetailRow(
               label: context.l10n.cursorPolicy,
               value: context.l10n.advanceOnlyAfterEachPageIs,
@@ -15017,6 +15105,7 @@ String _instanceAdminAuditActionLabel(String action) => switch (action) {
   'admin.maintenance_requested' => currentL10n.anAdministratorRequestedAMaintenanceJob,
   'admin.maintenance_started' => currentL10n.adminMaintenanceJobStarted,
   'admin.relay_policy_updated' => currentL10n.anAdministratorUpdatedTheSshRelay,
+  'admin.sync_policy_updated' => currentL10n.anAdministratorChangedTheRecordHistoryLimit,
   'admin.relay_group_created' => currentL10n.anAdministratorCreatedAnSshRelay,
   'admin.relay_group_renamed' => currentL10n.anAdministratorRenamedAnSshRelay,
   'admin.relay_group_deleted' => currentL10n.anAdministratorDeletedAnSshRelay,
@@ -16605,7 +16694,12 @@ List<AdminPanelSection> _adminPanelSections(
     icon: Icons.folder_shared_outlined,
     title: (l10n) => l10n.adminPanelVaultsTitle,
     description: (l10n) => l10n.adminPanelVaultsDescription,
-    builder: (_, app) => SettingsCards(children: [_AdminVaultsCard(app: app)]),
+    builder: (_, app) => SettingsCards(
+      children: [
+        _AdminVaultsCard(app: app),
+        InstanceAdminSyncPolicyCard(app: app),
+      ],
+    ),
   ),
   AdminPanelSection(
     id: 'backup',

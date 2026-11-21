@@ -100,6 +100,13 @@ class InstanceInfo {
   /// (`private` | `admin_visible`), present only with that capability.
   final String? credentialVisibilityDefault;
 
+  /// How many versions the server keeps per record, when it says so. Older
+  /// servers omit it.
+  int? get recordHistoryLimit {
+    final value = limits['record_history_limit'];
+    return value is int && value > 0 ? value : null;
+  }
+
   factory InstanceInfo.fromJson(Map<String, dynamic> json) {
     final rawTransitions = json['signing_key_transitions'] ?? const <dynamic>[];
     if (rawTransitions is! List) {
@@ -2651,6 +2658,70 @@ class InstanceAdminBackupReplicationAttempt {
       completedAt: completedAt?.toUtc(),
       archiveBytes: archiveBytes as int?,
       failureCategory: failureCategory as String?,
+    );
+  }
+}
+
+/// The instance-wide sync policy: how many versions of each record the server
+/// keeps. [revision] is the server's optimistic-concurrency token; it is kept
+/// in the form received (integer or decimal string) and sent back unchanged.
+class InstanceAdminSyncPolicy {
+  const InstanceAdminSyncPolicy({
+    required this.recordHistoryLimit,
+    required this.defaultRecordHistoryLimit,
+    required this.minRecordHistoryLimit,
+    required this.maxRecordHistoryLimit,
+    required this.revision,
+    required this.updatedAt,
+  });
+
+  final int recordHistoryLimit;
+  final int defaultRecordHistoryLimit;
+  final int minRecordHistoryLimit;
+  final int maxRecordHistoryLimit;
+
+  /// An `int` or a canonical decimal `String`, exactly as the server sent it.
+  final Object revision;
+  final DateTime? updatedAt;
+
+  static bool isValidRevision(Object? value) =>
+      (value is int && value >= 0) ||
+      (value is String && RegExp(r'^(0|[1-9][0-9]{0,18})$').hasMatch(value));
+
+  factory InstanceAdminSyncPolicy.fromJson(Map<String, dynamic> json) {
+    final limit = json['record_history_limit'];
+    final defaultLimit = json['default_record_history_limit'];
+    final minLimit = json['min_record_history_limit'];
+    final maxLimit = json['max_record_history_limit'];
+    final revision = json['revision'];
+    final rawUpdatedAt = json['updated_at'];
+    if (limit is! int ||
+        defaultLimit is! int ||
+        minLimit is! int ||
+        maxLimit is! int ||
+        minLimit < 1 ||
+        maxLimit < minLimit ||
+        limit < minLimit ||
+        limit > maxLimit ||
+        defaultLimit < minLimit ||
+        defaultLimit > maxLimit ||
+        !isValidRevision(revision) ||
+        (rawUpdatedAt != null && rawUpdatedAt is! String)) {
+      throw const FormatException('Invalid admin sync policy response.');
+    }
+    final updatedAt = rawUpdatedAt == null
+        ? null
+        : DateTime.tryParse(rawUpdatedAt as String);
+    if (rawUpdatedAt != null && updatedAt == null) {
+      throw const FormatException('Invalid admin sync policy timestamp.');
+    }
+    return InstanceAdminSyncPolicy(
+      recordHistoryLimit: limit,
+      defaultRecordHistoryLimit: defaultLimit,
+      minRecordHistoryLimit: minLimit,
+      maxRecordHistoryLimit: maxLimit,
+      revision: revision as Object,
+      updatedAt: updatedAt?.toUtc(),
     );
   }
 }
@@ -5625,6 +5696,37 @@ class ApiClient {
         ),
       );
 
+  Future<InstanceAdminSyncPolicy> instanceAdminSyncPolicy() async =>
+      InstanceAdminSyncPolicy.fromJson(await get('/api/v1/admin/sync-policy'));
+
+  /// [expectedRevision] is the `revision` of the policy being replaced, in
+  /// the form the server sent it.
+  Future<InstanceAdminSyncPolicy> updateInstanceAdminSyncPolicy({
+    required Object expectedRevision,
+    required int recordHistoryLimit,
+  }) async {
+    if (!InstanceAdminSyncPolicy.isValidRevision(expectedRevision)) {
+      throw ArgumentError.value(
+        expectedRevision,
+        'expectedRevision',
+        'Must be a non-negative integer or decimal string.',
+      );
+    }
+    if (recordHistoryLimit < 1) {
+      throw ArgumentError.value(
+        recordHistoryLimit,
+        'recordHistoryLimit',
+        'Must be positive.',
+      );
+    }
+    return InstanceAdminSyncPolicy.fromJson(
+      await put('/api/v1/admin/sync-policy', {
+        'expected_revision': expectedRevision,
+        'record_history_limit': recordHistoryLimit,
+      }),
+    );
+  }
+
   Future<InstanceAdminBackupSchedule> instanceAdminBackupSchedule() async =>
       InstanceAdminBackupSchedule.fromJson(
         await get('/api/v1/admin/backup-schedule'),
@@ -6416,6 +6518,16 @@ class ApiClient {
     String revisionId,
   ) => get(
     '/api/v1/vaults/${Uri.encodeComponent(vaultId)}/revisions/${Uri.encodeComponent(revisionId)}',
+  );
+
+  /// Lists the versions the server still keeps for one record, newest first.
+  /// The envelopes are untrusted until the sync repository has verified each
+  /// signature and bound it to this Vault, record and revision.
+  Future<Map<String, dynamic>> recordRevisions(
+    String vaultId,
+    String recordId,
+  ) => get(
+    '/api/v1/vaults/${Uri.encodeComponent(vaultId)}/records/${Uri.encodeComponent(recordId)}/revisions',
   );
 
   Future<VaultHistoryPage<VaultConflictEntry>> conflicts(

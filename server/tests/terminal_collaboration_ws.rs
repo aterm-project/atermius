@@ -83,6 +83,7 @@ impl TestServer {
             account_deletion_grace_seconds: 7 * 24 * 60 * 60,
             audit_retention_days: 365,
             object_gc_grace_seconds: 60,
+            record_history_limit: 20,
             admin_usernames: vec!["live-admin@example.test".to_owned()],
             auth_rate_limits: AuthRateLimits::default(),
         };

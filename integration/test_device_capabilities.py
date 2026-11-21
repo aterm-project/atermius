@@ -369,6 +369,7 @@ def test_device_reports_are_signed_monotonic_and_gate_schema_two(
         "max_object_bytes": 64 * 1024 * 1024,
         "max_upload_chunk_bytes": 1024 * 1024,
         "max_record_object_refs": 1024,
+        "record_history_limit": 20,
     }
 
     devices_path = "/api/v1/devices"

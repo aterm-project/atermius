@@ -96,6 +96,8 @@ impl PgSyncCommitRepository {
             request_digest,
             operations,
             restore_retention_days,
+            record_history_limit,
+            object_gc_grace_seconds,
         } = command;
 
         if device_id != user.device_id {
@@ -463,6 +465,17 @@ impl PgSyncCommitRepository {
                 .execute(&mut *tx)
                 .await
                 .map_err(map_receipt_insert_error)?;
+
+            // Keep at most the configured number of revisions for this
+            // record. The new head and conflict bases are never removed.
+            crate::pg_sync_policy::prune_record_history_tx(
+                &mut tx,
+                &vault_id,
+                &operation.record_id,
+                record_history_limit,
+                object_gc_grace_seconds,
+            )
+            .await?;
 
             newly_committed += 1;
             results.push(CommitResult {
@@ -1104,6 +1117,8 @@ mod tests {
             request_digest: format!("request-{batch_id}"),
             operations,
             restore_retention_days: 30,
+            record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+            object_gc_grace_seconds: 7 * 24 * 60 * 60,
         }
     }
 

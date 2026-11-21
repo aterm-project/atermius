@@ -161,7 +161,7 @@ struct SourceFile {
     memory: Option<Zeroizing<Vec<u8>>>,
 }
 
-pub(crate) const PG_BACKUP_SCHEMA_VERSION: i64 = 41;
+pub(crate) const PG_BACKUP_SCHEMA_VERSION: i64 = 42;
 const MIN_SUPPORTED_PG_ARCHIVE_SCHEMA_VERSION: i64 = 25;
 const PG_BACKUP_SCHEDULE_MIGRATION: &str =
     include_str!("../migrations/postgres/0026_instance_backup_schedule.sql");
@@ -193,6 +193,8 @@ const PG_PASSWORD_KEYRING_MIGRATION: &str =
     include_str!("../migrations/postgres/0040_password_keyring.sql");
 const PG_DEVICE_ACTIVITY_MIGRATION: &str =
     include_str!("../migrations/postgres/0041_device_activity.sql");
+const PG_SYNC_POLICY_MIGRATION: &str =
+    include_str!("../migrations/postgres/0042_instance_sync_policy.sql");
 const PG_PUSH_DELIVERY_DAILY_MIGRATION: &str =
     include_str!("../migrations/postgres/0039_mobile_push_delivery_daily.sql");
 const PG_RESTORE_CONTROL_SCHEMA: &str = "atermius_restore_control";
@@ -2615,6 +2617,16 @@ async fn upgrade_restored_postgres_archive(
     if marker_after_password_keyring == 40 {
         let migration = format!(
             "BEGIN; SET LOCAL search_path TO {quoted_schema}; {PG_DEVICE_ACTIVITY_MIGRATION}; COMMIT;"
+        );
+        sqlx::raw_sql(&migration).execute(pool).await.map_err(ApiError::internal)?;
+    }
+    let marker_after_device_activity: i64 = sqlx::query_scalar(&marker_sql)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::internal)?;
+    if marker_after_device_activity == 41 {
+        let migration = format!(
+            "BEGIN; SET LOCAL search_path TO {quoted_schema}; {PG_SYNC_POLICY_MIGRATION}; COMMIT;"
         );
         sqlx::raw_sql(&migration).execute(pool).await.map_err(ApiError::internal)?;
     }
@@ -8086,7 +8098,8 @@ mod tests {
         assert!(!supported_pg_archive_schema_version(24));
         assert!(supported_pg_archive_schema_version(40));
         assert!(supported_pg_archive_schema_version(41));
-        assert!(!supported_pg_archive_schema_version(42));
+        assert!(supported_pg_archive_schema_version(42));
+        assert!(!supported_pg_archive_schema_version(43));
     }
 
     #[test]
@@ -9375,6 +9388,7 @@ mod tests {
             account_deletion_grace_seconds: 604800,
             audit_retention_days: 365,
             object_gc_grace_seconds: 604800,
+            record_history_limit: 20,
             admin_usernames: Vec::new(),
             auth_rate_limits: AuthRateLimits::default(),
         }

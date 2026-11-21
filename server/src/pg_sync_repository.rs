@@ -32,9 +32,9 @@ use crate::{
     pg_sync_snapshots::{PgSyncSnapshotsRepository, SyncSnapshotsRepository},
     sync_repository::{
         ChangesPageCommand, ConflictChangesPageCommand, CreateConflictCommand,
-        CreateSnapshotCommand, HistoryPageCommand, PushCommit, ReadRevisionCommand,
-        ReadSnapshotCommand, RepositoryFuture, ResolveConflictCommand, SyncCommitRepository,
-        SyncRepository,
+        CreateSnapshotCommand, HistoryPageCommand, PushCommit, ReadRecordRevisionsCommand,
+        ReadRevisionCommand, ReadSnapshotCommand, RepositoryFuture, ResolveConflictCommand,
+        SyncCommitRepository, SyncRepository,
     },
 };
 
@@ -131,6 +131,13 @@ impl SyncRepository for PgSyncRepository {
         command: ReadRevisionCommand,
     ) -> RepositoryFuture<'_, Result<Value, ApiError>> {
         self.history.read_revision(command)
+    }
+
+    fn read_record_revisions(
+        &self,
+        command: ReadRecordRevisionsCommand,
+    ) -> RepositoryFuture<'_, Result<Value, ApiError>> {
+        self.history.read_record_revisions(command)
     }
 
     fn create_snapshot(

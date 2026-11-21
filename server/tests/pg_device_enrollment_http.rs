@@ -65,6 +65,7 @@ const MIGRATIONS: &[&str] = &[
     "0039_mobile_push_delivery_daily.sql",
     "0040_password_keyring.sql",
     "0041_device_activity.sql",
+    "0042_instance_sync_policy.sql",
 ];
 
 struct TestDatabase {

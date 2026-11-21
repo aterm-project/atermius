@@ -372,7 +372,7 @@ void main() {
   );
 
   test(
-    'same-base Host edits auto-merge both commit orders and retain sensitive conflicts',
+    'same-base Host edits auto-merge both commit orders and the latest version wins a sensitive field',
     () async {
       Future<void> verifyAutoMerge({required bool localRenames}) async {
         final localIdentity = DeviceIdentity.create(sodium);
@@ -589,22 +589,27 @@ void main() {
 
       final result = await repository.synchronize();
 
-      expect(result.conflictCount, 1);
-      expect(api.conflictUploadRequests, hasLength(1));
-      expect(api.pushRequests, isEmpty);
+      // The address is not a field the safe merge may combine. The local edit
+      // is rebased onto the remote head instead of becoming a conflict.
+      expect(result.status, 'idle');
+      expect(result.conflictCount, 0);
+      expect(api.conflictUploadRequests, isEmpty);
+      expect(await database.scopedOpenConflicts(_vaultId), isEmpty);
+      expect(api.pushRequests, hasLength(1));
+      final rebasedHeader =
+          _onlyEnvelope(api.pushRequests.single)['header']
+              as Map<String, dynamic>;
+      expect(rebasedHeader['operation'], 'update');
+      expect(rebasedHeader['base_revision_id'], remoteRevisionId);
+      expect(rebasedHeader['device_id'], localIdentity.deviceId);
+      expect(await database.scopedAllPendingOperations(_vaultId), isEmpty);
+      expect(await database.scopedSupersededOperations(_vaultId), hasLength(1));
+      final cached = await database.cachedEnvelope(_vaultId, _recordA);
+      expect(cached?.revisionId, rebasedHeader['revision_id']);
+      expect(cached?.commitSeq, '3');
       expect(
-        (await database.scopedOpenConflicts(_vaultId)).single.kind,
-        'concurrent_edit',
-      );
-      expect(
-        (await database.cachedEnvelope(_vaultId, _recordA))?.revisionId,
-        remoteRevisionId,
-      );
-      expect(
-        (await database.scopedAllPendingOperations(
-          _vaultId,
-        )).singleWhere((operation) => operation.status == 'conflict').status,
-        'conflict',
+        (await repository.loadRecords()).single['address'],
+        'local.example',
       );
 
       await database.close();
@@ -616,7 +621,7 @@ void main() {
   );
 
   test(
-    'single-record atomic revision conflict preserves the local branch after signed refresh',
+    'single-record atomic revision conflict rebases the local edit onto the refreshed head',
     () async {
       final localIdentity = DeviceIdentity.create(sodium);
       final remoteIdentity = DeviceIdentity.create(sodium);
@@ -696,9 +701,9 @@ void main() {
             competingEnvelope['header'] as Map<String, dynamic>;
         final competingRevisionId = competingHeader['revision_id'] as String;
         expect(result.status, 'idle');
-        expect(result.conflictCount, 1);
-        expect(api.pushRequests, hasLength(1));
-        expect(api.pushRequests.single['operations'], [localEnvelope]);
+        expect(result.conflictCount, 0);
+        expect(api.pushRequests, hasLength(2));
+        expect(api.pushRequests.first['operations'], [localEnvelope]);
         expect(api.changesRequestCursors, [null, null]);
         expect(api.rejectedLedgerSnapshots, hasLength(1));
         expect(api.rejectedLedgerSnapshots.single['serverCommitCount'], 2);
@@ -709,37 +714,35 @@ void main() {
           baseHeader['op_id'],
           competingHeader['op_id'],
         });
-        expect(api.serverCommitCount, 2);
+        // The rejected envelope is never sent again. Its content is re-signed
+        // on top of the competing revision and committed as the newest one.
         expect(
           api._committedOperations.containsKey(localHeader['op_id']),
           isFalse,
         );
+        final rebased = _onlyEnvelope(api.pushRequests.last);
+        final rebasedHeader = rebased['header'] as Map<String, dynamic>;
+        expect(rebasedHeader['operation'], 'update');
+        expect(rebasedHeader['base_revision_id'], competingRevisionId);
+        expect(rebasedHeader['op_id'], isNot(localHeader['op_id']));
+        expect(rebasedHeader['revision_id'], isNot(localHeader['revision_id']));
+        expect(api.serverCommitCount, 3);
 
-        expect(api.conflictUploadRequests, hasLength(1));
-        expect(api.conflictUploadRequests.single['envelope'], localEnvelope);
-        final pending = await database.scopedAllPendingOperations(_vaultId);
-        expect(pending, hasLength(1));
-        expect(pending.single.status, 'conflict');
-        expect(pending.single.envelopeJson, jsonEncode(localEnvelope));
-        final conflicts = await database.scopedOpenConflicts(_vaultId);
-        expect(conflicts, hasLength(1));
-        expect(conflicts.single.kind, 'concurrent_edit');
-        expect(conflicts.single.branchEnvelopeJson, jsonEncode(localEnvelope));
-        expect(
-          conflicts.single.remoteEnvelopeJson,
-          jsonEncode(competingEnvelope),
-        );
+        expect(api.conflictUploadRequests, isEmpty);
+        expect(await database.scopedOpenConflicts(_vaultId), isEmpty);
+        expect(await database.scopedAllPendingOperations(_vaultId), isEmpty);
+        final superseded = await database.scopedSupersededOperations(_vaultId);
+        expect(superseded.single.opId, localHeader['op_id']);
         final cached = await database.cachedEnvelope(_vaultId, _recordA);
-        expect(cached?.revisionId, competingRevisionId);
-        expect(cached?.envelopeJson, jsonEncode(competingEnvelope));
-        expect(cached?.commitSeq, '2');
+        expect(cached?.revisionId, rebasedHeader['revision_id']);
+        expect(cached?.commitSeq, '3');
         expect(
           (await database.scopedCheckpoint(_vaultId))?.cursor,
           'event-cursor',
         );
         expect(
           (await repository.loadRecords()).single['name'],
-          'Remote concurrent name',
+          'Local concurrent name',
         );
       } finally {
         await database.close();
@@ -956,7 +959,7 @@ void main() {
   );
 
   test(
-    'atomic multi-record revision conflict refreshes signed changes and pushes independent work',
+    'atomic multi-record revision conflict rebases the stale record and pushes independent work',
     () async {
       final localIdentity = DeviceIdentity.create(sodium);
       final remoteIdentity = DeviceIdentity.create(sodium);
@@ -1079,14 +1082,13 @@ void main() {
         final competingHeader =
             competingEnvelope['header'] as Map<String, dynamic>;
         expect(result.status, 'idle');
-        expect(result.conflictCount, 1);
-        expect(api.conflictUploadRequests, hasLength(1));
-        expect(api.conflictUploadRequests.single['envelope'], localA);
+        expect(result.conflictCount, 0);
+        expect(api.conflictUploadRequests, isEmpty);
         expect(
           api.pushRequests.map((request) {
             return (request['operations'] as List<dynamic>).length;
           }),
-          [2, 1],
+          [2, 2],
         );
         expect(api.changesRequestCursors, [null, null]);
         expect(api.rejectedLedgerSnapshots, hasLength(1));
@@ -1100,7 +1102,7 @@ void main() {
           baseBHeader['op_id'],
           competingHeader['op_id'],
         });
-        expect(api.serverCommitCount, 4);
+        expect(api.serverCommitCount, 5);
         expect(
           api._committedOperations.containsKey(localAHeader['op_id']),
           isFalse,
@@ -1113,28 +1115,36 @@ void main() {
         final rejectedBatch = (api.pushRequests.first['operations'] as List)
             .cast<Map<String, dynamic>>();
         expect(rejectedBatch, [localA, localB]);
-        expect(_onlyEnvelope(api.pushRequests.last), localB);
-        final pending = await database.scopedAllPendingOperations(_vaultId);
-        expect(pending, hasLength(1));
-        expect(pending.single.opId, localAHeader['op_id']);
-        expect(pending.single.status, 'conflict');
-        expect(pending.single.envelopeJson, jsonEncode(localA));
-        final conflicts = await database.scopedOpenConflicts(_vaultId);
-        expect(conflicts, hasLength(1));
-        expect(conflicts.single.kind, 'concurrent_edit');
-        expect(conflicts.single.branchEnvelopeJson, jsonEncode(localA));
-        expect(
-          conflicts.single.remoteEnvelopeJson,
-          jsonEncode(competingEnvelope),
+        // Record A is re-signed on top of the competing revision and goes out
+        // with the untouched record B in the retried batch.
+        final retriedBatch = (api.pushRequests.last['operations'] as List)
+            .cast<Map<String, dynamic>>();
+        expect(retriedBatch, containsAll([localB]));
+        final rebasedA = retriedBatch.singleWhere(
+          (envelope) => (envelope['header'] as Map)['record_id'] == _recordA,
         );
+        final rebasedAHeader = rebasedA['header'] as Map<String, dynamic>;
+        expect(rebasedAHeader['operation'], 'update');
         expect(
-          (await database.cachedEnvelope(_vaultId, _recordA))?.revisionId,
+          rebasedAHeader['base_revision_id'],
           competingHeader['revision_id'],
+        );
+        expect(rebasedAHeader['op_id'], isNot(localAHeader['op_id']));
+        expect(await database.scopedAllPendingOperations(_vaultId), isEmpty);
+        expect(await database.scopedOpenConflicts(_vaultId), isEmpty);
+        final cachedA = await database.cachedEnvelope(_vaultId, _recordA);
+        expect(cachedA?.revisionId, rebasedAHeader['revision_id']);
+        expect(cachedA?.commitSeq, isNotNull);
+        expect(
+          (await repository.loadRecords()).singleWhere(
+            (record) => record['id'] == _recordA,
+          )['address'],
+          'local-a.example',
         );
         final cachedB = await database.cachedEnvelope(_vaultId, _recordB);
         expect(cachedB?.revisionId, localBHeader['revision_id']);
         expect(cachedB?.envelopeJson, jsonEncode(localB));
-        expect(cachedB?.commitSeq, '4');
+        expect(cachedB?.commitSeq, isNotNull);
         expect(
           (await database.scopedCheckpoint(_vaultId))?.cursor,
           'event-cursor',

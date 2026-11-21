@@ -18191,4 +18191,142 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get syncHintKeyUpdate => '保险库的密钥或成员已变更。本设备获得最新的密钥状态后就会继续同步，期间会自动重试。';
+
+  @override
+  String get recordHistoryTitle => '版本历史';
+
+  @override
+  String recordHistoryTitleFor(String name) {
+    return '版本历史 · $name';
+  }
+
+  @override
+  String get recordHistoryRestoreThis => '恢复到此版本';
+
+  @override
+  String get recordHistoryCurrent => '当前';
+
+  @override
+  String get recordHistoryUnreadable => '此版本无法验证，因此不显示其内容。';
+
+  @override
+  String get recordHistoryEmpty => '服务器尚未保留此记录的任何版本。记录同步后会出现在这里。';
+
+  @override
+  String get recordHistoryNotAvailable => '此服务器不提供版本历史。';
+
+  @override
+  String recordHistoryKeepsLimit(int count) {
+    return '服务器为每条记录保留最近 $count 个版本。';
+  }
+
+  @override
+  String get recordHistoryOpCreated => '创建';
+
+  @override
+  String get recordHistoryOpUpdated => '修改';
+
+  @override
+  String get recordHistoryOpDeleted => '删除';
+
+  @override
+  String get recordHistoryOpRestored => '恢复';
+
+  @override
+  String get recordHistoryThisDevice => '本机';
+
+  @override
+  String recordHistoryNode(String id) {
+    return '节点 $id';
+  }
+
+  @override
+  String recordHistoryChangedFields(String fields) {
+    return '修改了：$fields';
+  }
+
+  @override
+  String get recordHistoryNoFieldChanges => '字段无变化';
+
+  @override
+  String get recordHistoryEarliestKept => '保留的最早版本';
+
+  @override
+  String get recordHistoryRestoreConfirmTitle => '恢复到此版本？';
+
+  @override
+  String recordHistoryRestoreConfirmBody(String time) {
+    return '$time 的内容将作为新版本保存在当前版本之上，历史中的任何版本都不会被移除。';
+  }
+
+  @override
+  String get recordHistoryRestored => '已恢复为新版本。';
+
+  @override
+  String get recordHistoryReadOnly => '此 Vault 为只读，无法恢复版本。';
+
+  @override
+  String get recordHistoryVersionCannotBeRestored => '此版本无法恢复。';
+
+  @override
+  String get recordHistoryRecordNoLongerExists => '此记录已不存在，请先从回收站恢复。';
+
+  @override
+  String get syncPolicyTitle => '记录版本历史';
+
+  @override
+  String get syncPolicyDescription =>
+      '两台设备修改同一条记录时，以最新版本为准，较早的版本保留在服务器上。在此设置服务器为每条记录保留多少个版本；超出的版本从最旧的开始移除。';
+
+  @override
+  String get syncPolicyLimitLabel => '每条记录保留的历史版本数';
+
+  @override
+  String syncPolicyLimitHint(int min, int max) {
+    return '$min 到 $max 之间的整数';
+  }
+
+  @override
+  String syncPolicyDefaultLine(int count) {
+    return '服务器默认值：$count';
+  }
+
+  @override
+  String syncPolicyLimitOutOfRange(int min, int max) {
+    return '请输入 $min 到 $max 之间的整数。';
+  }
+
+  @override
+  String get syncPolicySaved => '历史版本数已保存。';
+
+  @override
+  String get syncPolicyChangedElsewhere => '历史版本数已在别处被修改。现在显示的是最新值，请确认后重新保存。';
+
+  @override
+  String get syncPolicyLoadFailed => '无法读取历史版本数。';
+
+  @override
+  String get syncPolicySaveFailed => '无法保存历史版本数。';
+
+  @override
+  String get syncPolicyLoadBeforeSaving => '请先读取当前的历史版本数再保存。';
+
+  @override
+  String get syncPolicyNotAvailableOnServer => '此服务器不支持设置历史版本数。';
+
+  @override
+  String get syncPolicyLoading => '正在读取历史版本数…';
+
+  @override
+  String get syncPolicySave => '保存历史版本数';
+
+  @override
+  String get syncPolicyLoad => '读取历史版本数';
+
+  @override
+  String get syncNodeId => '节点 ID';
+
+  @override
+  String get anAdministratorChangedTheRecordHistoryLimit =>
+      '管理员已修改每条记录保留的历史版本数';
 }

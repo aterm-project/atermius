@@ -54,6 +54,10 @@ bool _hasExactKeys(Map<String, dynamic> actual, Set<String> expected) =>
 
 enum _AutoMergeAttempt { notEligible, retry, merged }
 
+/// Outcome of rebasing a local edit onto a concurrent remote revision so the
+/// local edit becomes the newest version ("latest version wins").
+enum _LatestWinsAttempt { notEligible, retry, converged }
+
 bool _sameBytes(List<int> left, List<int> right) {
   if (left.length != right.length) return false;
   var difference = 0;
@@ -309,6 +313,68 @@ class RecycleBinRecord {
   final String? unavailableReason;
   final bool autoPurgeEnabled;
   final String autoPurgeRevision;
+}
+
+/// One kept version of a record, as listed by the server's history route.
+///
+/// [verified] entries passed the same checks as a pulled change: a trusted
+/// device signed the envelope, it is bound to this Vault, record and revision,
+/// and it decrypted. Everything else about an unverified entry is the server's
+/// claim only; such an entry has no [plaintext] and cannot be restored.
+class RecordHistoryEntry {
+  const RecordHistoryEntry({
+    required this.revisionId,
+    required this.commitSeq,
+    required this.createdAt,
+    required this.verified,
+    required this.isCurrent,
+    this.baseRevisionId,
+    this.deviceId,
+    this.operation,
+    this.deleted = false,
+    this.plaintext,
+  });
+
+  final String revisionId;
+  final String commitSeq;
+  final DateTime createdAt;
+  final bool verified;
+
+  /// Whether this is the version this device currently shows for the record.
+  final bool isCurrent;
+  final String? baseRevisionId;
+
+  /// The signing device ("node"), from the signed header.
+  final String? deviceId;
+  final String? operation;
+  final bool deleted;
+
+  /// Decrypted content; may hold secrets and must not be rendered as is.
+  final Map<String, dynamic>? plaintext;
+}
+
+class RecordHistory {
+  const RecordHistory({
+    required this.recordId,
+    required this.entries,
+    this.historyLimit,
+  });
+
+  final String recordId;
+
+  /// Newest first.
+  final List<RecordHistoryEntry> entries;
+
+  /// How many versions the server keeps per record, when it said so.
+  final int? historyLimit;
+}
+
+/// The connected server has no per-record history route.
+class RecordHistoryUnavailableException implements Exception {
+  const RecordHistoryUnavailableException();
+
+  @override
+  String toString() => 'Version history is not available on this server.';
 }
 
 class RecycleBinHistoryLimitException implements Exception {
@@ -1708,6 +1774,137 @@ class SyncRepository {
       }
     }),
   );
+
+  /// Reads the versions the server keeps for [recordId], newest first, and
+  /// verifies each one like a pulled change. An entry whose envelope is
+  /// missing, unsigned by a trusted device, bound to something else, or not
+  /// decryptable is returned unverified and without content.
+  Future<RecordHistory> loadRecordHistory(String recordId) =>
+      _withKeyOperation(() async {
+        if (!_canonicalUuid.hasMatch(recordId)) {
+          throw const FormatException('Record history selection is invalid.');
+        }
+        await refreshSignerDirectory();
+        late final Map<String, dynamic> response;
+        try {
+          response = await api.recordRevisions(vaultId, recordId);
+        } on ApiException catch (error) {
+          if (const {404, 405, 501}.contains(error.statusCode)) {
+            throw const RecordHistoryUnavailableException();
+          }
+          rethrow;
+        }
+        final rawRevisions = response['revisions'];
+        final rawLimit = response['record_history_limit'];
+        if (response['vault_id'] != vaultId ||
+            response['record_id'] != recordId ||
+            rawRevisions is! List ||
+            rawRevisions.length > _maxRecordHistoryEntries ||
+            (rawLimit != null && (rawLimit is! int || rawLimit < 1))) {
+          throw const FormatException('Record history response is invalid.');
+        }
+        final head = await database.cachedEnvelope(
+          vaultId,
+          recordId,
+          instanceId: instanceId,
+          serverSpaceId: serverSpaceId,
+        );
+        final entries = <RecordHistoryEntry>[];
+        final seenRevisions = <String>{};
+        String? previousCommitSeq;
+        for (final raw in rawRevisions) {
+          if (raw is! Map || raw.keys.any((key) => key is! String)) {
+            throw const FormatException('Record history entry is malformed.');
+          }
+          final item = Map<String, dynamic>.from(raw);
+          final revisionId = item['revision_id'];
+          final baseRevisionId = item['base_revision_id'];
+          final commitSeq = item['commit_seq'];
+          final deviceId = item['device_id'];
+          final operation = item['operation'];
+          final deleted = item['deleted'];
+          final rawCreatedAt = item['created_at'];
+          final rawEnvelope = item['envelope'];
+          final createdAt = rawCreatedAt is String
+              ? DateTime.tryParse(rawCreatedAt)
+              : null;
+          if (revisionId is! String ||
+              !_canonicalUuid.hasMatch(revisionId) ||
+              !seenRevisions.add(revisionId) ||
+              (baseRevisionId != null && baseRevisionId is! String) ||
+              commitSeq is! String ||
+              !_canonicalPositiveDecimal.hasMatch(commitSeq) ||
+              !_isI64Decimal(commitSeq) ||
+              (previousCommitSeq != null &&
+                  _compareDecimalSeq(commitSeq, previousCommitSeq) >= 0) ||
+              (deviceId != null && deviceId is! String) ||
+              operation is! String ||
+              deleted is! bool ||
+              createdAt == null ||
+              (rawEnvelope != null && rawEnvelope is! Map)) {
+            throw const FormatException('Record history entry is malformed.');
+          }
+          previousCommitSeq = commitSeq;
+          final isCurrent = head != null && head.revisionId == revisionId;
+          _VerifiedRecycleBinRevision? verified;
+          if (rawEnvelope is Map &&
+              const {
+                'create',
+                'update',
+                'delete',
+                'restore',
+              }.contains(operation)) {
+            try {
+              final candidate = await _verifyRecycleBinRevision(
+                envelope: Map<String, dynamic>.from(rawEnvelope),
+                expectedRecordId: recordId,
+                expectedRevisionId: revisionId,
+                expectedOperation: operation,
+                expectedDeleted: deleted,
+              );
+              // The listed metadata must be what the device signed.
+              if (candidate.header['base_revision_id'] == baseRevisionId &&
+                  candidate.header['device_id'] == deviceId) {
+                verified = candidate;
+              }
+            } on FormatException {
+              verified = null;
+            } on SodiumException {
+              verified = null;
+            }
+          }
+          entries.add(
+            verified == null
+                ? RecordHistoryEntry(
+                    revisionId: revisionId,
+                    commitSeq: commitSeq,
+                    createdAt: createdAt.toUtc(),
+                    verified: false,
+                    isCurrent: isCurrent,
+                  )
+                : RecordHistoryEntry(
+                    revisionId: revisionId,
+                    commitSeq: commitSeq,
+                    createdAt: createdAt.toUtc(),
+                    verified: true,
+                    isCurrent: isCurrent,
+                    baseRevisionId: baseRevisionId as String?,
+                    deviceId: verified.header['device_id'] as String,
+                    operation: operation,
+                    deleted: deleted,
+                    plaintext: verified.plaintext,
+                  ),
+          );
+        }
+        return RecordHistory(
+          recordId: recordId,
+          entries: List.unmodifiable(entries),
+          historyLimit: rawLimit as int?,
+        );
+      });
+
+  /// The server keeps at most 1000 versions per record.
+  static const _maxRecordHistoryEntries = 1000;
 
   Future<_RecycleBinSnapshot> _createVerifiedRecycleBinSnapshot() async {
     await refreshSignerDirectory();
@@ -4923,6 +5120,21 @@ class SyncRepository {
           // latest local intent before falling back to a visible conflict.
           continue;
         }
+        // No field-wise merge applies. The local edit was made last from this
+        // device's point of view, so put it on top of the remote head and let
+        // the server order decide; the replaced remote version stays in the
+        // server's record history.
+        final latestWins = await _tryLatestWinsRebase(
+          localOperations: recordOperations,
+          remoteEnvelope: envelope,
+          remoteCommitSeq: commitSeq,
+        );
+        if (latestWins == _LatestWinsAttempt.converged) return;
+        if (latestWins == _LatestWinsAttempt.retry && mergeRaceRetries++ < 3) {
+          continue;
+        }
+        // The rebase could not be proven safe; keep both versions for an
+        // explicit decision rather than dropping the local edit.
         await _recordConflict(
           localOperations: recordOperations,
           local: recordOperations.last,
@@ -5085,6 +5297,180 @@ class SyncRepository {
     }
   }
 
+  /// Converges a concurrent edit without asking the user: the newest local
+  /// intent for the record is re-signed on top of the remote revision and
+  /// stays queued, so it becomes the latest version once the server accepts
+  /// it. "Latest" is the server's arrival order, never a device clock.
+  ///
+  /// * local update, remote update: the local content as an update;
+  /// * local delete, remote update: the delete, on top of the new head;
+  /// * local update, remote delete: a restore that carries the local content;
+  /// * both deleted: the remote tombstone is adopted and nothing is pushed.
+  ///
+  /// Anything that cannot be rebased safely returns
+  /// [_LatestWinsAttempt.notEligible] and the caller parks the local edit as a
+  /// conflict branch, exactly as before.
+  Future<_LatestWinsAttempt> _tryLatestWinsRebase({
+    required List<PendingOperation> localOperations,
+    required Map<String, dynamic> remoteEnvelope,
+    required String remoteCommitSeq,
+  }) async {
+    if (!canWrite ||
+        deletionPending ||
+        localOperations.isEmpty ||
+        _localWritesFrozen ||
+        _recoveryRequests > 0) {
+      return _LatestWinsAttempt.notEligible;
+    }
+    final remoteHeader = Map<String, dynamic>.from(
+      remoteEnvelope['header'] as Map,
+    );
+    final recordId = localOperations.first.recordId;
+    final remoteRevisionId = remoteHeader['revision_id'];
+    final sharedBaseRevisionId = remoteHeader['base_revision_id'];
+    final remoteOperation = remoteHeader['operation'];
+    if (remoteRevisionId is! String ||
+        // A remote create of an ID this device also has pending is not a
+        // concurrent edit of one record.
+        sharedBaseRevisionId is! String ||
+        !const {'update', 'delete', 'restore'}.contains(remoteOperation) ||
+        remoteHeader['vault_id'] != vaultId ||
+        remoteHeader['record_id'] != recordId ||
+        remoteHeader['key_epoch'] != keyEpoch ||
+        remoteHeader['membership_version'] != membershipVersion ||
+        localOperations.any(
+          (operation) =>
+              operation.recordId != recordId ||
+              (operation.status != 'queued' && operation.status != 'sent'),
+        )) {
+      return _LatestWinsAttempt.notEligible;
+    }
+    try {
+      final chain = _orderPendingChain(localOperations);
+      final first = chain.first;
+      final firstBaseJson = first.baseEnvelopeJson;
+      if (first.baseRevisionId == null || firstBaseJson == null) {
+        return _LatestWinsAttempt.notEligible;
+      }
+      if (first.baseRevisionId != sharedBaseRevisionId) {
+        final decodedBase = jsonDecode(firstBaseJson);
+        if (decodedBase is Map &&
+            decodedBase['header'] is Map &&
+            (decodedBase['header'] as Map)['base_revision_id'] ==
+                remoteRevisionId) {
+          // A replayed page: this remote revision is the parent of the head
+          // the local edit is already based on. It changes nothing.
+          return _LatestWinsAttempt.converged;
+        }
+        // The remote revision is not a sibling of the local edit, so the
+        // local chain does not describe one linear history with it.
+        return _LatestWinsAttempt.notEligible;
+      }
+      final chainIds = chain.map((operation) => operation.opId).toSet();
+      if ((await database.listFeedConflictResolutions(
+            vaultId,
+          )).any((target) => chainIds.contains(target.opId)) ||
+          (await database.openConflicts(
+            vaultId,
+            instanceId: instanceId,
+            serverSpaceId: serverSpaceId,
+          )).any((conflict) => conflict.recordId == recordId)) {
+        // A reviewed decision is attached to this record; leave it to the
+        // existing conflict flow.
+        return _LatestWinsAttempt.notEligible;
+      }
+      for (final operation in chain) {
+        final envelope = jsonDecode(operation.envelopeJson);
+        if (envelope is! Map || envelope['header'] is! Map) {
+          return _LatestWinsAttempt.notEligible;
+        }
+        final header = Map<String, dynamic>.from(envelope['header'] as Map);
+        if (header['op_id'] != operation.opId ||
+            header['vault_id'] != vaultId ||
+            header['server_space_id'] != serverSpaceId ||
+            header['record_id'] != recordId ||
+            header['device_id'] != identity.deviceId ||
+            header['key_epoch'] != keyEpoch ||
+            header['membership_version'] != membershipVersion ||
+            header['base_revision_id'] != operation.baseRevisionId ||
+            !const {
+              'update',
+              'delete',
+              'restore',
+            }.contains(header['operation'])) {
+          return _LatestWinsAttempt.notEligible;
+        }
+      }
+      final latestEnvelope =
+          jsonDecode(chain.last.envelopeJson) as Map<String, dynamic>;
+      final latestHeader = Map<String, dynamic>.from(
+        latestEnvelope['header'] as Map,
+      );
+      late final Map<String, dynamic> plaintext;
+      final keyBytes = Uint8List.fromList(vaultKey);
+      try {
+        plaintext = await crypto.decryptRecord(
+          vaultKey: keyBytes,
+          envelope: latestEnvelope,
+          authorPublicKey: identity.signing.publicKey,
+        );
+      } on Object {
+        // Missing key or a local envelope that no longer authenticates.
+        return _LatestWinsAttempt.notEligible;
+      } finally {
+        keyBytes.fillRange(0, keyBytes.length, 0);
+      }
+      final localDeleted = latestHeader['operation'] == 'delete';
+      final remoteDeleted = remoteOperation == 'delete';
+      final recordType = plaintext['type'];
+      if (plaintext['id'] != recordId ||
+          recordType is! String ||
+          !RecordKind.values.any((kind) => kind.name == recordType) ||
+          (plaintext.containsKey('deleted') && plaintext['deleted'] is! bool) ||
+          (plaintext['deleted'] == true) != localDeleted ||
+          // A KnownHost revision is a trust decision. Two devices that
+          // disagree about a host key must be reviewed, not overwritten.
+          recordType == RecordKind.knownHost.name) {
+        return _LatestWinsAttempt.notEligible;
+      }
+
+      _beginLocalWrite();
+      try {
+        final replacement = localDeleted && remoteDeleted
+            ? null
+            : Map<String, dynamic>.from(
+                await _encryptOperation(
+                  recordId: recordId,
+                  plaintext: Map<String, Object?>.from(plaintext),
+                  baseRevisionId: remoteRevisionId,
+                  operation: localDeleted
+                      ? 'delete'
+                      : remoteDeleted
+                      ? 'restore'
+                      : 'update',
+                ),
+              );
+        final replaced = await database.replaceOutboxWithMergedOperation(
+          vaultId: vaultId,
+          recordId: recordId,
+          original: chain,
+          baseRevisionId: remoteRevisionId,
+          baseEnvelope: remoteEnvelope,
+          replacementEnvelope: replacement,
+          latestWins: true,
+          adoptBaseCommitSeq: replacement == null ? remoteCommitSeq : null,
+        );
+        return replaced
+            ? _LatestWinsAttempt.converged
+            : _LatestWinsAttempt.retry;
+      } finally {
+        _endLocalWrite();
+      }
+    } on FormatException {
+      return _LatestWinsAttempt.notEligible;
+    }
+  }
+
   /// Reconstructs a record's pending operation order from the signed revision
   /// links. Millisecond timestamps and random operation IDs cannot establish
   /// the order of two edits created in the same millisecond.
@@ -5174,7 +5560,7 @@ class SyncRepository {
     }
   }
 
-  Future<void> _recordConflict({
+  Future<bool> _recordConflict({
     required List<PendingOperation> localOperations,
     required PendingOperation local,
     required Map<String, dynamic> remoteEnvelope,
@@ -5202,10 +5588,11 @@ class SyncRepository {
       instanceId: instanceId,
       serverSpaceId: serverSpaceId,
     );
-    if (!recorded) return;
+    if (!recorded) return false;
     // Keep the local revision in ConflictBranches; the main head now follows
     // the server, and no branch is silently discarded.
     assert(localHeader['record_id'] == local.recordId);
+    return true;
   }
 
   Future<void> _requireV2RecordReaders() async {
@@ -5281,6 +5668,10 @@ class SyncRepository {
     }
   }
 
+  /// How often one push pass refreshes and retries after the server reports
+  /// `REVISION_CONFLICT`. Two busy devices cannot keep each other in one pass.
+  static const _maxRevisionConflictRefreshesPerPass = 3;
+
   Future<bool> _pushQueued({bool allowSnapshotRecovery = false}) async {
     final allowStaleOutboxRewrap = _staleOutboxRewrapAuthorized;
     _staleOutboxRewrapAuthorized = false;
@@ -5299,7 +5690,8 @@ class SyncRepository {
     required bool allowStaleOutboxRewrap,
   }) async {
     if (!canWrite) return false;
-    var revisionConflictRefreshUsed = false;
+    var revisionConflictRefreshes = 0;
+    var lastRefreshChangedOutbox = true;
     while (true) {
       if (_recoveryRequests > 0 && !allowSnapshotRecovery) return false;
       if (!canWrite) return false;
@@ -5455,18 +5847,39 @@ class SyncRepository {
         if (error.statusCode == 409 &&
             error.code == 'REVISION_CONFLICT' &&
             !isFeedAdoption) {
-          if (revisionConflictRefreshUsed) return false;
+          // Another device can keep committing while this one rebases. Give
+          // up for this pass after a bounded number of refreshes, or as soon
+          // as a refresh left the rejected operations untouched; the outbox
+          // is kept and the next pass continues from it.
+          if (revisionConflictRefreshes >=
+                  _maxRevisionConflictRefreshesPerPass ||
+              !lastRefreshChangedOutbox) {
+            return false;
+          }
           // A single operation or batch can race a competing commit after
           // this pass's initial pull. The server rejects the push atomically,
           // so refresh only from the signed main feed, then rebuild from
           // durable local state. Never identify a record from the 409 body or
           // mutate the attempted envelopes based on that response.
-          revisionConflictRefreshUsed = true;
+          revisionConflictRefreshes++;
           await _pullMainChangesAfterCas();
-          // A signed refresh can preserve the stale record as a new local
-          // conflict branch. Upload that branch before continuing with
-          // independent queued records, matching the normal pre-push order.
+          // The signed refresh either rebased the stale record onto the new
+          // head (latest version wins) or preserved it as a new local
+          // conflict branch. Upload such a branch before continuing with the
+          // queued records, matching the normal pre-push order.
           await _publishPendingConflicts();
+          final stillQueued =
+              (await database.queuedOperations(
+                    vaultId,
+                    instanceId: instanceId,
+                    serverSpaceId: serverSpaceId,
+                  ))
+                  .where((operation) => operation.status != 'cas_wait')
+                  .map((operation) => operation.opId)
+                  .toSet();
+          lastRefreshChangedOutbox = attemptedBatch.any(
+            (operation) => !stillQueued.contains(operation.opId),
+          );
           continue;
         }
         if (error.code != 'REVISION_CONFLICT' ||
@@ -5575,6 +5988,16 @@ class SyncRepository {
           expectedOperation: 'restore',
           expectedDeleted: false,
         );
+        if (await _parkExpiredLatestWinsRestore(
+          restore: operation,
+          tombstoneEnvelope: tombstone.envelope,
+          tombstoneCommitSeq: tombstone.commitSeq!,
+        )) {
+          // The restore carried a local edit that exists nowhere else. It is
+          // now a conflict branch next to the server tombstone.
+          await _publishPendingConflicts();
+          continue;
+        }
         final rolledBack = await database
             .rejectExpiredRestoreAndInstallServerTombstone(
               vaultId: vaultId,
@@ -5591,6 +6014,70 @@ class SyncRepository {
         rethrow;
       }
     }
+  }
+
+  /// A restore created by [_tryLatestWinsRebase] carries a local edit, unlike
+  /// a recycle-bin restore whose content is already in the server history.
+  /// When the server refuses it because the restore window closed, keep the
+  /// edit as a conflict branch instead of rolling it back.
+  ///
+  /// Such a restore is recognised by the local chain it replaced: a
+  /// superseded edit of the same record that was based on the revision the
+  /// tombstone deleted.
+  Future<bool> _parkExpiredLatestWinsRestore({
+    required PendingOperation restore,
+    required Map<String, dynamic> tombstoneEnvelope,
+    required String tombstoneCommitSeq,
+  }) async {
+    final rawTombstoneHeader = tombstoneEnvelope['header'];
+    if (rawTombstoneHeader is! Map) return false;
+    final deletedRevisionId = rawTombstoneHeader['base_revision_id'];
+    if (deletedRevisionId is! String) return false;
+    final superseded = await database.supersededOperations(
+      vaultId,
+      instanceId: instanceId,
+      serverSpaceId: serverSpaceId,
+    );
+    final replacedLocalEdit = superseded.any((operation) {
+      if (operation.recordId != restore.recordId ||
+          operation.baseRevisionId != deletedRevisionId) {
+        return false;
+      }
+      try {
+        final envelope = jsonDecode(operation.envelopeJson);
+        final header = envelope is Map ? envelope['header'] : null;
+        return header is Map &&
+            header['device_id'] == identity.deviceId &&
+            const {'update', 'restore'}.contains(header['operation']);
+      } on FormatException {
+        return false;
+      }
+    });
+    if (!replacedLocalEdit) return false;
+    final recordOperations =
+        (await database.queuedOperations(
+              vaultId,
+              instanceId: instanceId,
+              serverSpaceId: serverSpaceId,
+            ))
+            .where((operation) => operation.recordId == restore.recordId)
+            .toList(growable: false);
+    if (!recordOperations.any((operation) => operation.opId == restore.opId)) {
+      return false;
+    }
+    late final List<PendingOperation> chain;
+    try {
+      chain = _orderPendingChain(recordOperations);
+    } on FormatException {
+      return false;
+    }
+    return _recordConflict(
+      localOperations: chain,
+      local: chain.last,
+      remoteEnvelope: tombstoneEnvelope,
+      kind: 'delete_edit',
+      remoteCommitSeq: tombstoneCommitSeq,
+    );
   }
 
   bool _isStaleOutboxVersion(ApiException error) =>

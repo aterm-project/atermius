@@ -107,6 +107,7 @@ mod pg_record_redaction;
 mod pg_record_auto_purge_scan;
 mod pg_redaction_capabilities;
 mod pg_relay;
+mod pg_sync_policy;
 mod record_purge;
 mod record_purge_actor;
 // Bounded automatic tombstone purge scanner for the local SQLite runtime.
@@ -150,6 +151,7 @@ mod share_gateway;
 mod share_guest;
 mod share_links;
 mod sync;
+mod sync_policy;
 mod sync_repository;
 
 use std::{
@@ -357,6 +359,10 @@ pub struct Config {
     pub account_deletion_grace_seconds: i64,
     pub audit_retention_days: i64,
     pub object_gc_grace_seconds: i64,
+    /// Deployment default for the number of revisions kept per record
+    /// (`ATERMIUS_RECORD_HISTORY_LIMIT`). An administrator-selected sync
+    /// policy overrides it.
+    pub record_history_limit: i64,
     /// Normalized account usernames permitted to view instance administration data.
     pub admin_usernames: Vec<String>,
     pub auth_rate_limits: AuthRateLimits,
@@ -666,6 +672,12 @@ impl Config {
             60,
             90 * 24 * 60 * 60,
         );
+        let record_history_limit = bounded_env(
+            "ATERMIUS_RECORD_HISTORY_LIMIT",
+            sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+            sync_policy::MIN_RECORD_HISTORY_LIMIT,
+            sync_policy::MAX_RECORD_HISTORY_LIMIT,
+        );
         let admin_usernames =
             parse_admin_usernames(std::env::var("ATERMIUS_ADMIN_USERNAMES").ok().as_deref());
         Self {
@@ -699,6 +711,7 @@ impl Config {
             account_deletion_grace_seconds,
             audit_retention_days,
             object_gc_grace_seconds,
+            record_history_limit,
             admin_usernames,
             auth_rate_limits: AuthRateLimits::from_env(),
         }
@@ -755,6 +768,8 @@ pub struct InstanceLimits {
     pub max_object_bytes: i64,
     pub max_upload_chunk_bytes: usize,
     pub max_record_object_refs: usize,
+    /// Effective number of revisions the server keeps per record.
+    pub record_history_limit: i64,
 }
 
 pub async fn open_state(database_url: &str, config: Config) -> Result<AppState, ApiError> {
@@ -1218,6 +1233,12 @@ pub async fn run_maintenance(state: &AppState) -> Result<(), ApiError> {
             pg_record_auto_purge_scan::PgRecordAutoPurgeScanRepository::new(pool.clone(), purge)
                 .scan_batch(32, 4, 300, state.config.object_gc_grace_seconds)
                 .await?;
+            pg_sync_policy::prune_excess_record_history(
+                pool,
+                sync_policy::effective_record_history_limit(state).await?,
+                state.config.object_gc_grace_seconds,
+            )
+            .await?;
             Ok(())
         }
         .await;
@@ -1251,6 +1272,7 @@ pub async fn run_maintenance(state: &AppState) -> Result<(), ApiError> {
     )
     .await?;
     sync::compact_expired_history(state).await?;
+    sync_policy::prune_excess_record_history(state).await?;
     if let Some(retention_count) = retention_count {
         backup::prune_configured_admin_backups(state, retention_count).await?;
     }
@@ -1478,6 +1500,10 @@ pub async fn router(state: AppState) -> Router {
             get(sync::get_revision),
         )
         .route(
+            "/api/v1/vaults/{vault_id}/records/{record_id}/revisions",
+            get(sync::record_revisions),
+        )
+        .route(
             "/api/v1/vaults/{vault_id}/revisions",
             get(sync::revision_history)
                 .route_layer(axum::middleware::from_fn(sync::guard_sync_query_length)),
@@ -1534,6 +1560,10 @@ pub async fn router(state: AppState) -> Router {
     if state.pg_sync_only {
         app = app
             .route(
+                "/api/v1/admin/sync-policy",
+                get(pg_sync_policy::get_admin_policy).put(pg_sync_policy::update_admin_policy),
+            )
+            .route(
                 "/api/v1/admin/relay-policy",
                 get(pg_relay::get_admin_policy).put(pg_relay::update_admin_policy),
             )
@@ -1568,6 +1598,10 @@ pub async fn router(state: AppState) -> Router {
         app = cloud_routes(app);
         app = credential_visibility::routes(app);
         app = app
+            .route(
+                "/api/v1/admin/sync-policy",
+                get(sync_policy::get_admin_policy).put(sync_policy::update_admin_policy),
+            )
             .route(
                 "/api/v1/admin/relay-policy",
                 get(relay::get_admin_policy).put(relay::update_admin_policy),
@@ -1734,7 +1768,7 @@ fn pg_sync_route_is_supported(method: &Method, path: &str) -> bool {
     if path == "/api/v1/admin/workspace-agents" {
         return method == Method::GET || method == Method::POST;
     }
-    if path == "/api/v1/admin/relay-policy" {
+    if path == "/api/v1/admin/relay-policy" || path == "/api/v1/admin/sync-policy" {
         return method == Method::GET || method == Method::PUT;
     }
     if path == "/api/v1/admin/metrics" {
@@ -1945,6 +1979,7 @@ fn pg_sync_route_is_supported(method: &Method, path: &str) -> bool {
         | (&Method::GET, ["api", "v1", "snapshots", _])
         | (&Method::GET, ["api", "v1", "vaults", _, "revisions"])
         | (&Method::GET, ["api", "v1", "vaults", _, "revisions", _])
+        | (&Method::GET, ["api", "v1", "vaults", _, "records", _, "revisions"])
         | (&Method::GET, ["api", "v1", "vaults", _, "conflicts"])
         | (&Method::POST, ["api", "v1", "vaults", _, "conflicts"])
         | (&Method::GET, ["api", "v1", "vaults", _, "conflict-changes"])
@@ -2065,6 +2100,8 @@ mod pg_sync_scope_tests {
             (Method::GET, "/relay/v1/connect"),
             (Method::GET, "/api/v1/admin/relay-policy"),
             (Method::PUT, "/api/v1/admin/relay-policy"),
+            (Method::GET, "/api/v1/admin/sync-policy"),
+            (Method::PUT, "/api/v1/admin/sync-policy"),
             (
                 Method::GET,
                 "/api/v1/admin/relay-policy/users/123e4567-e89b-12d3-a456-426614174000",
@@ -2140,6 +2177,7 @@ mod pg_sync_scope_tests {
             (Method::GET, "/api/v1/snapshots/s"),
             (Method::GET, "/api/v1/vaults/v/revisions"),
             (Method::GET, "/api/v1/vaults/v/revisions/r"),
+            (Method::GET, "/api/v1/vaults/v/records/r/revisions"),
             (Method::GET, "/api/v1/vaults/v/conflicts"),
             (Method::POST, "/api/v1/vaults/v/conflicts"),
             (Method::GET, "/api/v1/vaults/v/conflict-changes"),
@@ -2208,6 +2246,9 @@ mod pg_sync_scope_tests {
             (Method::GET, "/relay/v1/connect/"),
             (Method::GET, "/relay/v1/connect/extra"),
             (Method::POST, "/api/v1/admin/relay-policy"),
+            (Method::POST, "/api/v1/admin/sync-policy"),
+            (Method::GET, "/api/v1/admin/sync-policy/"),
+            (Method::POST, "/api/v1/vaults/v/records/r/revisions"),
             (Method::GET, "/api/v1/admin/relay-policy/"),
             (Method::GET, "/api/v1/admin/relay-groups/"),
             (Method::GET, "/api/v1/admin/relay-groups//members"),
@@ -2964,6 +3005,7 @@ async fn instance_info(
     };
     let credential_visibility_default =
         credential_visibility::public_instance_default(&state).await?;
+    let record_history_limit = sync_policy::effective_record_history_limit(&state).await?;
     Ok(axum::Json(InstanceResponse {
         instance_id: state.instance.instance_id.clone(),
         server_space_id: state.instance.server_space_id.clone(),
@@ -3051,6 +3093,7 @@ async fn instance_info(
             max_object_bytes: state.config.max_object_bytes,
             max_upload_chunk_bytes: objects::CHUNK_SIZE_BYTES,
             max_record_object_refs: sync::MAX_OBJECT_REFS,
+            record_history_limit,
         },
     }))
 }

@@ -144,6 +144,8 @@ PostgreSQL 云端路由仍保持关闭。PostgreSQL 同步核心另有密钥、�
 
 **升级提示：数据库加密。** 本版本新增 `/keys` 卷（`ATERMIUS_KEYS_VOLUME_NAME`，默认 `atermius-keys`）和 `ATERMIUS_DATABASE_KEY_FILE`。已有实例在完成[为已有实例启用加密](../runbooks/database-encryption.md#enable-encryption-on-an-existing-instance)之前仍使用明文数据库（管理员概览显示未加密，服务启动时记录一条警告）：先备份，生成密钥，停止服务，执行 `database-encrypt --server-stopped`，再启动并重新备份。不要直接把新 `.env.example` 中的 `ATERMIUS_DATABASE_KEY_FILE` 复制到已有的 `deploy/.env`：数据库加密完成前，服务会以 `DATABASE_NOT_ENCRYPTED` 拒绝启动。加密是单向操作，旧版本无法打开加密后的数据库及其备份归档。重新构建时还会编译 SQLCipher 与 OpenSSL，首次构建会多花几分钟。PostgreSQL 同步核心数据不在此范围内，请为 PostgreSQL 使用存储层加密。
 
+**升级提示：单条记录历史上限。** 服务端现在每条同步记录最多保留 20 个修订，更早的修订在提交时和每小时维护中清理；升级后已有的更长历史会随之缩短。在服务端环境中设置 `ATERMIUS_RECORD_HISTORY_LIMIT`（2 到 1000，默认 20）可修改部署默认值，实例管理员也可在运行时通过 `PUT /api/v1/admin/sync-policy` 修改。PostgreSQL sync-core 部署需在启动本版本前应用 `server/migrations/postgres/0042_instance_sync_policy.sql`。
+
 用 `ps`、`/health/ready`、外部 Web 页面与脱敏日志区分 API、代理、策略及目标问题。直接复制运行中 SQLite 卷不是完整实例备份。MFA、对象存储、推送和监控等高级选项见[部署参考](../../deploy/README.md)。
 
 从合并前的 `server` + `web` 并列克隆迁移时：先按备份手册完成备份，把原 `deploy/.env` 复制到新克隆的 `deploy/.env` 并保持 `chmod 600`，沿用原来的数据卷名称、Compose 项目名（如曾显式指定）和完整覆盖文件列表，再在新克隆中重建同一栈。不要对已有实例重新执行 bootstrap。

@@ -75,6 +75,7 @@ fn config(data_dir: &Path, key_file: Option<&Path>) -> Config {
         account_deletion_grace_seconds: 604800,
         audit_retention_days: 365,
         object_gc_grace_seconds: 604800,
+        record_history_limit: 20,
         admin_usernames: vec!["dbenc-admin@example.test".to_owned()],
         auth_rate_limits: AuthRateLimits::default(),
     }

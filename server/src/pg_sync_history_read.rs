@@ -24,7 +24,9 @@ use crate::{
         ensure_sync_page_response_fits, foreign_generation_history_cursor_claim, history_cursor,
         parse_history_cursor, sync_page_item_too_large,
     },
-    sync_repository::{HistoryPageCommand, ReadRevisionCommand, RepositoryFuture},
+    sync_repository::{
+        HistoryPageCommand, ReadRecordRevisionsCommand, ReadRevisionCommand, RepositoryFuture,
+    },
 };
 
 /// Separate capability for the PostgreSQL snapshot history reads. It does not
@@ -38,6 +40,11 @@ pub(crate) trait SyncHistoryReadRepository: Send + Sync {
     fn read_revision(
         &self,
         command: ReadRevisionCommand,
+    ) -> RepositoryFuture<'_, Result<Value, ApiError>>;
+
+    fn read_record_revisions(
+        &self,
+        command: ReadRecordRevisionsCommand,
     ) -> RepositoryFuture<'_, Result<Value, ApiError>>;
 }
 
@@ -506,6 +513,106 @@ impl PgSyncHistoryReadRepository {
         tx.commit().await.map_err(ApiError::internal)?;
         Ok(response)
     }
+
+    async fn read_record_revisions(
+        &self,
+        command: ReadRecordRevisionsCommand,
+    ) -> Result<Value, ApiError> {
+        let ReadRecordRevisionsCommand {
+            user,
+            vault_id,
+            record_id,
+            record_history_limit,
+        } = command;
+        let mut tx = self.pool.begin().await.map_err(ApiError::internal)?;
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::internal)?;
+
+        require_active_account_read(&mut tx, &user.user_id).await?;
+        require_vault_membership_read(&mut tx, &user.user_id, &vault_id).await?;
+        require_active_session_device_read(&mut tx, &user).await?;
+        require_redaction_client_for_vault_tx(&mut tx, &vault_id, &user).await?;
+
+        let record_redaction_columns = redaction_columns("rr");
+        let redaction_sql = format!(
+            "SELECT {record_redaction_columns} FROM record_redactions rr \
+             WHERE rr.vault_id=$1 AND rr.record_id=$2"
+        );
+        if let Some(row) = sqlx::query(&redaction_sql)
+            .bind(&vault_id)
+            .bind(&record_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(ApiError::internal)?
+        {
+            let statement = redaction_from_join_row(&row)?
+                .ok_or_else(|| ApiError::internal("redaction statement is incomplete"))?;
+            let signer = self
+                .proof_signer
+                .as_ref()
+                .ok_or_else(|| ApiError::internal("redaction proof signer is unavailable"))?;
+            return Err(record_redacted_error(signer, &statement)?);
+        }
+
+        let mut rows = sqlx::query(
+            "SELECT revision_id,base_revision_id,commit_seq,device_id,operation,\
+                    to_char(created_at AT TIME ZONE 'UTC',\
+                            'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS created_at,\
+                    CASE WHEN restore_until IS NULL THEN NULL ELSE \
+                      to_char(restore_until AT TIME ZONE 'UTC',\
+                              'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') END AS restore_until,\
+                    envelope \
+             FROM record_versions WHERE vault_id=$1 AND record_id=$2 \
+             ORDER BY commit_seq DESC LIMIT $3",
+        )
+        .bind(&vault_id)
+        .bind(&record_id)
+        .bind(record_history_limit)
+        .fetch(&mut *tx);
+        let mut revisions = Vec::new();
+        let mut budget = SyncPageBudget::default();
+        while let Some(row) = rows.try_next().await.map_err(ApiError::internal)? {
+            let operation: String = row.get("operation");
+            let encoded: Option<String> = row.get("envelope");
+            let encoded =
+                encoded.ok_or_else(|| ApiError::internal("revision envelope is missing"))?;
+            let envelope = serde_json::from_str::<Value>(&encoded).map_err(ApiError::internal)?;
+            ensure_envelope_readable(user.declares_record_schema2, &envelope)?;
+            let revision = json!({
+                "revision_id": row.get::<String, _>("revision_id"),
+                "base_revision_id": row.get::<Option<String>, _>("base_revision_id"),
+                "commit_seq": row.get::<i64, _>("commit_seq").to_string(),
+                "device_id": row.get::<String, _>("device_id"),
+                "operation": operation,
+                "deleted": operation == "delete",
+                "created_at": row.get::<String, _>("created_at"),
+                "restore_until": row.get::<Option<String>, _>("restore_until"),
+                "envelope": envelope,
+            });
+            if !budget.try_add(&revision)? {
+                if revisions.is_empty() {
+                    return Err(sync_page_item_too_large());
+                }
+                break;
+            }
+            revisions.push(revision);
+        }
+        drop(rows);
+        if revisions.is_empty() {
+            return Err(ApiError::not_found());
+        }
+        let response = json!({
+            "vault_id": vault_id,
+            "record_id": record_id,
+            "record_history_limit": record_history_limit,
+            "revisions": revisions,
+        });
+        ensure_sync_page_response_fits(&response)?;
+        tx.commit().await.map_err(ApiError::internal)?;
+        Ok(response)
+    }
 }
 
 impl SyncHistoryReadRepository for PgSyncHistoryReadRepository {
@@ -523,6 +630,15 @@ impl SyncHistoryReadRepository for PgSyncHistoryReadRepository {
         command: ReadRevisionCommand,
     ) -> RepositoryFuture<'_, Result<Value, ApiError>> {
         Box::pin(PgSyncHistoryReadRepository::read_revision(self, command))
+    }
+
+    fn read_record_revisions(
+        &self,
+        command: ReadRecordRevisionsCommand,
+    ) -> RepositoryFuture<'_, Result<Value, ApiError>> {
+        Box::pin(PgSyncHistoryReadRepository::read_record_revisions(
+            self, command,
+        ))
     }
 }
 

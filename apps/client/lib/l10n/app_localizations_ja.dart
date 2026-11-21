@@ -19135,4 +19135,145 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get syncHintKeyUpdate =>
       '保管庫の鍵またはメンバーが変更されました。このデバイスが最新の鍵の状態を受け取ると同期が再開し、それまでは自動で再試行します。';
+
+  @override
+  String get recordHistoryTitle => 'バージョン履歴';
+
+  @override
+  String recordHistoryTitleFor(String name) {
+    return 'バージョン履歴 · $name';
+  }
+
+  @override
+  String get recordHistoryRestoreThis => 'このバージョンに復元';
+
+  @override
+  String get recordHistoryCurrent => '現在';
+
+  @override
+  String get recordHistoryUnreadable => 'このバージョンは検証できなかったため、内容は表示されません。';
+
+  @override
+  String get recordHistoryEmpty =>
+      'サーバーにはこのレコードのバージョンがまだ保存されていません。同期が完了すると表示されます。';
+
+  @override
+  String get recordHistoryNotAvailable => 'このサーバーではバージョン履歴を利用できません。';
+
+  @override
+  String recordHistoryKeepsLimit(int count) {
+    return 'サーバーは各レコードの最新 $count 件のバージョンを保持します。';
+  }
+
+  @override
+  String get recordHistoryOpCreated => '作成';
+
+  @override
+  String get recordHistoryOpUpdated => '編集';
+
+  @override
+  String get recordHistoryOpDeleted => '削除';
+
+  @override
+  String get recordHistoryOpRestored => '復元';
+
+  @override
+  String get recordHistoryThisDevice => 'このデバイス';
+
+  @override
+  String recordHistoryNode(String id) {
+    return 'ノード $id';
+  }
+
+  @override
+  String recordHistoryChangedFields(String fields) {
+    return '変更: $fields';
+  }
+
+  @override
+  String get recordHistoryNoFieldChanges => 'フィールドの変更なし';
+
+  @override
+  String get recordHistoryEarliestKept => '保持されている最も古いバージョン';
+
+  @override
+  String get recordHistoryRestoreConfirmTitle => 'このバージョンに復元しますか？';
+
+  @override
+  String recordHistoryRestoreConfirmBody(String time) {
+    return '$time の内容が、現在のバージョンの上に新しいバージョンとして保存されます。履歴から削除されるものはありません。';
+  }
+
+  @override
+  String get recordHistoryRestored => '新しいバージョンとして復元しました。';
+
+  @override
+  String get recordHistoryReadOnly => 'この Vault は読み取り専用のため、バージョンを復元できません。';
+
+  @override
+  String get recordHistoryVersionCannotBeRestored => 'このバージョンは復元できません。';
+
+  @override
+  String get recordHistoryRecordNoLongerExists =>
+      'このレコードは存在しません。先にごみ箱から復元してください。';
+
+  @override
+  String get syncPolicyTitle => 'レコードのバージョン履歴';
+
+  @override
+  String get syncPolicyDescription =>
+      '2 台のデバイスが同じレコードを編集した場合は最新のバージョンが採用され、以前のバージョンはサーバーに残ります。サーバーが各レコードについて保持するバージョン数を設定します。超過分は古いものから削除されます。';
+
+  @override
+  String get syncPolicyLimitLabel => 'レコードごとに保持するバージョン数';
+
+  @override
+  String syncPolicyLimitHint(int min, int max) {
+    return '$min〜$max の整数';
+  }
+
+  @override
+  String syncPolicyDefaultLine(int count) {
+    return 'サーバーの既定値: $count';
+  }
+
+  @override
+  String syncPolicyLimitOutOfRange(int min, int max) {
+    return '$min〜$max の整数を入力してください。';
+  }
+
+  @override
+  String get syncPolicySaved => '履歴の保持数を保存しました。';
+
+  @override
+  String get syncPolicyChangedElsewhere =>
+      '履歴の保持数が別の場所で変更されました。最新の値を表示しています。確認してからもう一度保存してください。';
+
+  @override
+  String get syncPolicyLoadFailed => '履歴の保持数を読み込めませんでした。';
+
+  @override
+  String get syncPolicySaveFailed => '履歴の保持数を保存できませんでした。';
+
+  @override
+  String get syncPolicyLoadBeforeSaving => '保存する前に現在の履歴の保持数を読み込んでください。';
+
+  @override
+  String get syncPolicyNotAvailableOnServer => 'このサーバーは履歴の保持数の設定に対応していません。';
+
+  @override
+  String get syncPolicyLoading => '履歴の保持数を読み込み中…';
+
+  @override
+  String get syncPolicySave => '履歴の保持数を保存';
+
+  @override
+  String get syncPolicyLoad => '履歴の保持数を読み込む';
+
+  @override
+  String get syncNodeId => 'ノード ID';
+
+  @override
+  String get anAdministratorChangedTheRecordHistoryLimit =>
+      '管理者がレコードごとの履歴バージョン数を変更しました';
 }

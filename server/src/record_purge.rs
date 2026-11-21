@@ -18,6 +18,49 @@ use crate::{
     record_purge_actor::RecordPurgeActor,
 };
 
+/// Starts the delayed-collection grace period for each listed object that no
+/// longer has any revision or conflict reference, and revokes its completed
+/// upload receipt. Shared by permanent purge and per-record history pruning so
+/// both release attachments under one rule.
+pub(crate) async fn schedule_unreferenced_objects_gc_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    vault_id: &str,
+    object_ids: &[String],
+    gc_after: i64,
+) -> Result<(), ApiError> {
+    for object_id in object_ids {
+        sqlx::query(
+            "UPDATE blob_objects SET gc_after=? WHERE vault_id=? AND object_id=? \
+             AND storage_state='available' \
+             AND NOT EXISTS(SELECT 1 FROM object_references r \
+                            WHERE r.vault_id=blob_objects.vault_id \
+                              AND r.object_id=blob_objects.object_id)",
+        )
+        .bind(gc_after)
+        .bind(vault_id)
+        .bind(object_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::internal)?;
+        // A completed upload receipt is also a narrowly scoped object read
+        // grant for retrying sync before a live revision reference exists.
+        // Revoke that grant when the final reference is removed; the bytes
+        // remain available only to the delayed collector, not to object GET.
+        sqlx::query(
+            "UPDATE uploads SET state='collected' WHERE vault_id=? AND object_id=? \
+             AND state='completed' \
+             AND NOT EXISTS(SELECT 1 FROM object_references r \
+                            WHERE r.vault_id=uploads.vault_id AND r.object_id=uploads.object_id)",
+        )
+        .bind(vault_id)
+        .bind(object_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::internal)?;
+    }
+    Ok(())
+}
+
 pub(crate) fn parse_positive_sequence(value: &str) -> Result<i64, ApiError> {
     if value.is_empty()
         || !value.bytes().all(|byte| byte.is_ascii_digit())
@@ -744,36 +787,7 @@ async fn purge_record_sqlite_actor(
     let gc_after = chrono::Utc::now()
         .timestamp()
         .saturating_add(state.config.object_gc_grace_seconds);
-    for object_id in object_ids {
-        sqlx::query(
-            "UPDATE blob_objects SET gc_after=? WHERE vault_id=? AND object_id=? \
-             AND storage_state='available' \
-             AND NOT EXISTS(SELECT 1 FROM object_references r \
-                            WHERE r.vault_id=blob_objects.vault_id \
-                              AND r.object_id=blob_objects.object_id)",
-        )
-        .bind(gc_after)
-        .bind(vault_id)
-        .bind(&object_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(ApiError::internal)?;
-        // A completed upload receipt is also a narrowly scoped object read
-        // grant for retrying sync before a live revision reference exists.
-        // Revoke that grant when purge removes the final reference; the bytes
-        // remain available only to the delayed collector, not to object GET.
-        sqlx::query(
-            "UPDATE uploads SET state='collected' WHERE vault_id=? AND object_id=? \
-             AND state='completed' \
-             AND NOT EXISTS(SELECT 1 FROM object_references r \
-                            WHERE r.vault_id=uploads.vault_id AND r.object_id=uploads.object_id)",
-        )
-        .bind(vault_id)
-        .bind(&object_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(ApiError::internal)?;
-    }
+    schedule_unreferenced_objects_gc_tx(&mut tx, vault_id, &object_ids, gc_after).await?;
 
     let deleted_head = sqlx::query("DELETE FROM record_heads WHERE vault_id=? AND record_id=? AND revision_id=? AND commit_seq=? AND deleted=1")
         .bind(vault_id)
