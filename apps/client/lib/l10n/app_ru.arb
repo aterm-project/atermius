@@ -5431,5 +5431,13 @@
   "syncPolicySave": "Сохранить число версий",
   "syncPolicyLoad": "Загрузить число версий",
   "syncNodeId": "ID узла",
-  "anAdministratorChangedTheRecordHistoryLimit": "Администратор изменил число хранимых версий каждой записи"
+  "anAdministratorChangedTheRecordHistoryLimit": "Администратор изменил число хранимых версий каждой записи",
+  "groupsSummaryGroups": "{count, plural, one{{count} группа} few{{count} группы} many{{count} групп} other{{count} группы}}",
+  "groupsSummaryGroupedHosts": "{count, plural, one{{count} хост в группах} few{{count} хоста в группах} many{{count} хостов в группах} other{{count} хоста в группах}}",
+  "groupsSummaryUngroupedHosts": "{count, plural, one{{count} хост без группы} few{{count} хоста без группы} many{{count} хостов без группы} other{{count} хоста без группы}}",
+  "groupsNoHostsYet": "Хостов пока нет",
+  "groupsNoDefaultCredential": "Учётные данные по умолчанию не заданы",
+  "groupsDeleteConfirmBody": "Группа «{name}» будет удалена из этого сейфа, и это изменение синхронизируется на его авторизованные устройства.",
+  "keychainTypeCertificate": "Сертификат",
+  "keychainNoMatchesHint": "Измените запрос или покажите все типы."
 }

@@ -5431,5 +5431,13 @@
   "syncPolicySave": "履歴の保持数を保存",
   "syncPolicyLoad": "履歴の保持数を読み込む",
   "syncNodeId": "ノード ID",
-  "anAdministratorChangedTheRecordHistoryLimit": "管理者がレコードごとの履歴バージョン数を変更しました"
+  "anAdministratorChangedTheRecordHistoryLimit": "管理者がレコードごとの履歴バージョン数を変更しました",
+  "groupsSummaryGroups": "{count, plural, other{{count} 個のグループ}}",
+  "groupsSummaryGroupedHosts": "{count, plural, other{グループ内のホスト {count} 台}}",
+  "groupsSummaryUngroupedHosts": "{count, plural, other{グループ未設定のホスト {count} 台}}",
+  "groupsNoHostsYet": "ホストはまだありません",
+  "groupsNoDefaultCredential": "既定の認証情報は未設定",
+  "groupsDeleteConfirmBody": "「{name}」はこの保管庫から削除され、承認済みのデバイスにも同期されます。",
+  "keychainTypeCertificate": "証明書",
+  "keychainNoMatchesHint": "別のキーワードで検索するか、すべての種類を表示してください。"
 }

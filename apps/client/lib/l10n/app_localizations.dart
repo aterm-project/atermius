@@ -32331,6 +32331,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'An administrator changed the per-record version history limit'**
   String get anAdministratorChangedTheRecordHistoryLimit;
+
+  /// No description provided for @groupsSummaryGroups.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 group} other{{count} groups}}'**
+  String groupsSummaryGroups(int count);
+
+  /// No description provided for @groupsSummaryGroupedHosts.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 host in groups} other{{count} hosts in groups}}'**
+  String groupsSummaryGroupedHosts(int count);
+
+  /// No description provided for @groupsSummaryUngroupedHosts.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 host without a group} other{{count} hosts without a group}}'**
+  String groupsSummaryUngroupedHosts(int count);
+
+  /// No description provided for @groupsNoHostsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No hosts yet'**
+  String get groupsNoHostsYet;
+
+  /// No description provided for @groupsNoDefaultCredential.
+  ///
+  /// In en, this message translates to:
+  /// **'No default credential'**
+  String get groupsNoDefaultCredential;
+
+  /// No description provided for @groupsDeleteConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'“{name}” will be deleted from this Vault and synced to its authorized devices.'**
+  String groupsDeleteConfirmBody(String name);
+
+  /// No description provided for @keychainTypeCertificate.
+  ///
+  /// In en, this message translates to:
+  /// **'Certificate'**
+  String get keychainTypeCertificate;
+
+  /// No description provided for @keychainNoMatchesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Try another search, or show all types.'**
+  String get keychainNoMatchesHint;
 }
 
 class _AppLocalizationsDelegate

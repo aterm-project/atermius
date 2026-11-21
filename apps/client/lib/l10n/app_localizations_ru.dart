@@ -20534,4 +20534,61 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get anAdministratorChangedTheRecordHistoryLimit =>
       'Администратор изменил число хранимых версий каждой записи';
+
+  @override
+  String groupsSummaryGroups(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count группы',
+      many: '$count групп',
+      few: '$count группы',
+      one: '$count группа',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupsSummaryGroupedHosts(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count хоста в группах',
+      many: '$count хостов в группах',
+      few: '$count хоста в группах',
+      one: '$count хост в группах',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupsSummaryUngroupedHosts(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count хоста без группы',
+      many: '$count хостов без группы',
+      few: '$count хоста без группы',
+      one: '$count хост без группы',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get groupsNoHostsYet => 'Хостов пока нет';
+
+  @override
+  String get groupsNoDefaultCredential =>
+      'Учётные данные по умолчанию не заданы';
+
+  @override
+  String groupsDeleteConfirmBody(String name) {
+    return 'Группа «$name» будет удалена из этого сейфа, и это изменение синхронизируется на его авторизованные устройства.';
+  }
+
+  @override
+  String get keychainTypeCertificate => 'Сертификат';
+
+  @override
+  String get keychainNoMatchesHint => 'Измените запрос или покажите все типы.';
 }

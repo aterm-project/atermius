@@ -5431,5 +5431,13 @@
   "syncPolicySave": "保存历史版本数",
   "syncPolicyLoad": "读取历史版本数",
   "syncNodeId": "节点 ID",
-  "anAdministratorChangedTheRecordHistoryLimit": "管理员已修改每条记录保留的历史版本数"
+  "anAdministratorChangedTheRecordHistoryLimit": "管理员已修改每条记录保留的历史版本数",
+  "groupsSummaryGroups": "{count, plural, other{{count} 个分组}}",
+  "groupsSummaryGroupedHosts": "{count, plural, other{{count} 台主机已分组}}",
+  "groupsSummaryUngroupedHosts": "{count, plural, other{{count} 台主机未分组}}",
+  "groupsNoHostsYet": "暂无主机",
+  "groupsNoDefaultCredential": "未设置默认凭据",
+  "groupsDeleteConfirmBody": "“{name}”将从此保险库中删除，并同步到其已授权的设备。",
+  "keychainTypeCertificate": "证书",
+  "keychainNoMatchesHint": "换个关键词，或显示全部类型。"
 }

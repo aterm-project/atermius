@@ -4992,8 +4992,12 @@ class _GroupsPageState extends State<_GroupsPage> {
         title: Text(context.l10n.deleteGroup4),
         content: Text(
           hasReferences
-              ? context.l10n.moveOrUnassignHostcountHostS(hostCount, childCount, group.name)
-              : '“${group.name}” will be deleted from this Vault and synced to its authorized devices.',
+              ? context.l10n.moveOrUnassignHostcountHostS(
+                  hostCount,
+                  childCount,
+                  group.name,
+                )
+              : context.l10n.groupsDeleteConfirmBody(group.name),
         ),
         actions: [
           TextButton(
@@ -5023,6 +5027,7 @@ class _GroupsPageState extends State<_GroupsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     final groups = [...app.groups]
       ..sort(
         (left, right) =>
@@ -5035,10 +5040,14 @@ class _GroupsPageState extends State<_GroupsPage> {
     final canWrite =
         app.activeVault?.canWrite == true &&
         app.activeVault?.status == 'active';
+    final groupIds = {for (final group in groups) group.id};
+    final groupedHostCount = app.hosts
+        .where((host) => groupIds.contains(host.groupId))
+        .length;
     return SingleChildScrollView(
       padding: AppDensity.of(context).pagePadding,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _PageHeading(
             title: context.l10n.hostGroups,
@@ -5050,149 +5059,746 @@ class _GroupsPageState extends State<_GroupsPage> {
               label: Text(context.l10n.newGroup2),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
+          if (groups.isNotEmpty) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _PageSummaryPill(
+                  icon: Icons.folder_outlined,
+                  tone: palette.teal,
+                  label: context.l10n.groupsSummaryGroups(groups.length),
+                ),
+                _PageSummaryPill(
+                  icon: Icons.dns_outlined,
+                  tone: palette.hostBlue,
+                  label: context.l10n.groupsSummaryGroupedHosts(
+                    groupedHostCount,
+                  ),
+                ),
+                _PageSummaryPill(
+                  icon: Icons.inbox_outlined,
+                  tone: palette.muted,
+                  label: context.l10n.groupsSummaryUngroupedHosts(
+                    app.hosts.length - groupedHostCount,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ],
           if (groupsNeedingParentRepair.isNotEmpty) ...[
-            Card(
+            _GroupsRepairNotice(
               key: const ValueKey('server_group_graph_repair_warning'),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              message: context.l10n.countGroupParentRelationshipSAre(
+                groupsNeedingParentRepair.length,
+              ),
+              action: TextButton.icon(
+                key: const ValueKey('server_group_graph_repair_action'),
+                onPressed: canWrite
+                    ? () => _editGroup(groupsNeedingParentRepair.first)
+                    : null,
+                icon: const Icon(Icons.build_outlined, size: 16),
+                label: Text(context.l10n.repairAGroup),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+          if (groups.isEmpty)
+            _PageEmptyPanel(
+              child: _EmptyState(
+                icon: Icons.folder_copy_outlined,
+                title: context.l10n.noHostGroupsYet,
+                body: context.l10n.createAGroupToOrganizeRelated,
+                action: canWrite
+                    ? FilledButton.icon(
+                        key: const ValueKey('server_group_create_empty'),
+                        onPressed: () => _editGroup(),
+                        icon: const Icon(Icons.create_new_folder_outlined),
+                        label: Text(context.l10n.createYourFirstGroup),
+                      )
+                    : null,
+              ),
+            )
+          else
+            _GroupCardGrid(
+              count: groups.length,
+              itemBuilder: (index, {required compact, required fill}) =>
+                  _groupCard(
+                    context,
+                    group: groups[index],
+                    groups: groups,
+                    canWrite: canWrite,
+                    parentNeedsRepair: groupsNeedingParentRepairIds.contains(
+                      groups[index].id,
+                    ),
+                    compact: compact,
+                    fill: fill,
+                  ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _groupCard(
+    BuildContext context, {
+    required GroupRecord group,
+    required List<GroupRecord> groups,
+    required bool canWrite,
+    required bool parentNeedsRepair,
+    required bool compact,
+    required bool fill,
+  }) {
+    final parent = groups
+        .where((candidate) => candidate.id == group.parentId)
+        .firstOrNull;
+    final hosts = app.hosts.where((host) => host.groupId == group.id).toList();
+    final childCount = groups
+        .where((candidate) => candidate.parentId == group.id)
+        .length;
+    final defaultCredential = app.credentials
+        .where((credential) => credential.id == group.defaultCredentialId)
+        .firstOrNull;
+    return _GroupCard(
+      key: ValueKey('server_group_${group.id}'),
+      name: group.name,
+      color: _groupBadgeColor(context, group.color),
+      parentLabel: parentNeedsRepair || parent == null
+          ? null
+          : context.l10n.groupInsideParent(parent.name),
+      parentNeedsRepair: parentNeedsRepair,
+      hostCount: hosts.length,
+      childCount: childCount,
+      protocols: {
+        for (final protocol in HostProtocol.values)
+          if (hosts.any((host) => host.protocol == protocol))
+            protocol: hosts.where((host) => host.protocol == protocol).length,
+      },
+      defaultCredentialSet: group.defaultCredentialId != null,
+      defaultCredentialName: defaultCredential?.name,
+      onTap: canWrite ? () => _editGroup(group) : null,
+      compact: compact,
+      fill: fill,
+      menu: PopupMenuButton<String>(
+        popUpAnimationStyle: AppMotion.menuStyle(context),
+        key: ValueKey('server_group_actions_${group.id}'),
+        enabled: canWrite || app.recordHistorySupported,
+        tooltip: context.l10n.groupActionsName2(group.name),
+        icon: Icon(Icons.more_vert, size: 18, color: context.palette.muted),
+        onSelected: (value) {
+          if (value == 'edit') unawaited(_editGroup(group));
+          if (value == 'delete') unawaited(_deleteGroup(group));
+          if (value == 'history') {
+            unawaited(
+              showRecordHistoryDialog(
+                context,
+                app: app,
+                recordId: group.id,
+                recordName: group.name,
+              ),
+            );
+          }
+        },
+        itemBuilder: (context) => [
+          appMenuItem(
+            context,
+            value: 'edit',
+            enabled: canWrite,
+            child: AppMenuLabel(Icons.edit_outlined, context.l10n.editGroup2),
+          ),
+          if (app.recordHistorySupported)
+            appMenuItem(
+              context,
+              key: ValueKey('server_group_history_${group.id}'),
+              value: 'history',
+              child: AppMenuLabel(
+                Icons.history_rounded,
+                context.l10n.recordHistoryTitle,
+              ),
+            ),
+          appMenuItem(
+            context,
+            value: 'delete',
+            enabled: canWrite,
+            child: AppMenuLabel(
+              Icons.delete_outline,
+              context.l10n.deleteGroup3,
+              color: context.palette.red,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The colour a Group is shown in: its own RGB colour, the accent for "no
+/// colour", and the host palette for small palette indexes (imported data).
+Color _groupBadgeColor(BuildContext context, int color) {
+  if (color <= 0) return context.palette.teal;
+  if (color < 0x10) return _hostColor(context, color);
+  return Color(0xFF000000 | (color & 0x00FFFFFF));
+}
+
+/// Lays the Group cards out in as many columns as fit; every card of a row
+/// is as tall as the tallest one.
+class _GroupCardGrid extends StatelessWidget {
+  const _GroupCardGrid({required this.count, required this.itemBuilder});
+
+  final int count;
+
+  /// Builds card [index]; [compact] when a column is too narrow for the
+  /// text beside the badge, [fill] when the card must fill its row height.
+  final Widget Function(int index, {required bool compact, required bool fill})
+  itemBuilder;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final columns = box.maxWidth >= 1040
+          ? 3
+          : box.maxWidth >= 600
+          ? 2
+          : 1;
+      const gap = 12.0;
+      final columnWidth = (box.maxWidth - gap * (columns - 1)) / columns;
+      final textScale = MediaQuery.textScalerOf(context).scale(10) / 10;
+      final compact = columnWidth < 280 * textScale;
+      final rows = <Widget>[];
+      for (var start = 0; start < count; start += columns) {
+        if (rows.isNotEmpty) rows.add(const SizedBox(height: gap));
+        if (columns == 1) {
+          rows.add(itemBuilder(start, compact: compact, fill: false));
+          continue;
+        }
+        rows.add(
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < columns; i++) ...[
+                  if (i > 0) const SizedBox(width: gap),
+                  Expanded(
+                    child: start + i < count
+                        ? itemBuilder(start + i, compact: compact, fill: true)
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: rows,
+      );
+    },
+  );
+}
+
+/// One Group: its colour and name, where it sits, what it holds and which
+/// credential its hosts fall back to.
+class _GroupCard extends StatelessWidget {
+  const _GroupCard({
+    required this.name,
+    required this.color,
+    required this.parentLabel,
+    required this.parentNeedsRepair,
+    required this.hostCount,
+    required this.childCount,
+    required this.protocols,
+    required this.defaultCredentialSet,
+    required this.defaultCredentialName,
+    required this.onTap,
+    required this.menu,
+    required this.compact,
+    required this.fill,
+    super.key,
+  });
+
+  final String name;
+  final Color color;
+  final String? parentLabel;
+  final bool parentNeedsRepair;
+  final int hostCount;
+  final int childCount;
+  final Map<HostProtocol, int> protocols;
+  final bool defaultCredentialSet;
+  final String? defaultCredentialName;
+  final VoidCallback? onTap;
+  final Widget menu;
+
+  /// The parent line moves under the badge instead of beside it.
+  final bool compact;
+
+  /// The footer is pushed to the bottom of a card stretched to its row.
+  final bool fill;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final radius = BorderRadius.circular(AppDensity.of(context).radiusLg + 2);
+    final credentialMissing =
+        defaultCredentialSet && defaultCredentialName == null;
+    final credentialLabel = !defaultCredentialSet
+        ? context.l10n.groupsNoDefaultCredential
+        : credentialMissing
+        ? context.l10n.groupDefaultCredentialUnavailable
+        : context.l10n.groupDefaultCredentialName(defaultCredentialName!);
+    final credentialTone = !defaultCredentialSet
+        ? palette.hint
+        : credentialMissing
+        ? palette.orange
+        : palette.muted;
+    final Widget? placement = parentNeedsRepair
+        ? _ToneChip(
+            icon: Icons.warning_amber_rounded,
+            label: context.l10n.groupParentNeedsRepair,
+            tone: palette.orange,
+          )
+        : parentLabel == null
+        ? null
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.subdirectory_arrow_right_rounded,
+                size: 14,
+                color: palette.hint,
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  parentLabel!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: palette.muted),
+                ),
+              ),
+            ],
+          );
+    final title = Text(
+      name,
+      maxLines: compact ? 3 : 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 14.5,
+        height: 1.3,
+        fontWeight: FontWeight.w600,
+        color: palette.text,
+      ),
+    );
+    final header = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .16),
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: color.withValues(alpha: .4)),
+          ),
+          child: Icon(Icons.folder_copy_outlined, size: 20, color: color),
+        ),
+        SizedBox(width: compact ? 10 : 12),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                if (placement != null && !compact) ...[
+                  SizedBox(height: parentNeedsRepair ? 5 : 3),
+                  placement,
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 2),
+        SizedBox(width: 36, height: 36, child: Center(child: menu)),
+      ],
+    );
+    // One node for screen readers: name, place, contents and credential;
+    // the actions button keeps a node of its own.
+    return Semantics(
+      container: true,
+      button: onTap != null,
+      child: Material(
+        color: palette.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: palette.line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color.alphaBlend(
+                    color.withValues(alpha: .09),
+                    palette.surface,
+                  ),
+                  palette.surface,
+                ],
+                stops: const [0, .6],
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 6, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  if (placement != null && compact) ...[
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: placement,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Wrap(
+                      spacing: 14,
+                      runSpacing: 6,
+                      children: [
+                        _GroupStat(
+                          icon: Icons.dns_outlined,
+                          label: hostCount == 0
+                              ? context.l10n.groupsNoHostsYet
+                              : context.l10n.groupHostCount(hostCount),
+                          strong: hostCount > 0,
+                        ),
+                        if (childCount > 0)
+                          _GroupStat(
+                            icon: Icons.account_tree_outlined,
+                            label: context.l10n.groupSubgroupCount(childCount),
+                            strong: true,
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (protocols.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final entry in protocols.entries)
+                            _ProtocolCountChip(
+                              protocol: entry.key,
+                              count: entry.value,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (fill) const Spacer(),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Divider(height: 1, color: palette.line),
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.warning_amber_rounded),
-                        const SizedBox(width: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Icon(
+                            credentialMissing
+                                ? Icons.key_off_outlined
+                                : Icons.key_outlined,
+                            size: 14,
+                            color: credentialTone,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            context.l10n.countGroupParentRelationshipSAre(groupsNeedingParentRepair.length),
+                            credentialLabel,
+                            maxLines: compact ? 3 : 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: credentialTone,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        key: const ValueKey('server_group_graph_repair_action'),
-                        onPressed: canWrite
-                            ? () => _editGroup(groupsNeedingParentRepair.first)
-                            : null,
-                        child: Text(context.l10n.repairAGroup),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-          ],
-          if (groups.isEmpty)
-            _EmptyState(
-              icon: Icons.folder_copy_outlined,
-              title: context.l10n.noHostGroupsYet,
-              body: context.l10n.createAGroupToOrganizeRelated,
-              action: canWrite
-                  ? FilledButton.icon(
-                      key: const ValueKey('server_group_create_empty'),
-                      onPressed: () => _editGroup(),
-                      icon: const Icon(Icons.create_new_folder_outlined),
-                      label: Text(context.l10n.createYourFirstGroup),
-                    )
-                  : null,
-            )
-          else
-            ...groups.map((group) {
-              final parent = groups
-                  .where((candidate) => candidate.id == group.parentId)
-                  .firstOrNull;
-              final hostCount = app.hosts
-                  .where((host) => host.groupId == group.id)
-                  .length;
-              final childCount = groups
-                  .where((candidate) => candidate.parentId == group.id)
-                  .length;
-              final parentNeedsRepair = groupsNeedingParentRepairIds.contains(
-                group.id,
-              );
-              final defaultCredential = app.credentials
-                  .where(
-                    (credential) => credential.id == group.defaultCredentialId,
-                  )
-                  .firstOrNull;
-              return Card(
-                child: ListTile(
-                  key: ValueKey('server_group_${group.id}'),
-                  leading: Icon(
-                    Icons.folder_copy_outlined,
-                    color: group.color == 0
-                        ? context.palette.teal
-                        : Color(0xFF000000 | group.color),
-                  ),
-                  title: Text(group.name),
-                  subtitle: Text(
-                    [
-                      if (parentNeedsRepair)
-                        context.l10n.groupParentNeedsRepair
-                      else if (parent != null)
-                        context.l10n.groupInsideParent(parent.name),
-                      context.l10n.groupHostCount(hostCount),
-                      if (childCount > 0)
-                        context.l10n.groupSubgroupCount(childCount),
-                      if (group.defaultCredentialId != null)
-                        defaultCredential == null
-                            ? context.l10n.groupDefaultCredentialUnavailable
-                            : context.l10n.groupDefaultCredentialName(
-                                defaultCredential.name,
-                              ),
-                    ].join(' · '),
-                  ),
-                  onTap: canWrite ? () => _editGroup(group) : null,
-                  trailing: PopupMenuButton<String>(
-                    popUpAnimationStyle: AppMotion.menuStyle(context),
-                    key: ValueKey('server_group_actions_${group.id}'),
-                    enabled: canWrite || app.recordHistorySupported,
-                    tooltip: context.l10n.groupActionsName2(group.name),
-                    onSelected: (value) {
-                      if (value == 'edit') unawaited(_editGroup(group));
-                      if (value == 'delete') unawaited(_deleteGroup(group));
-                      if (value == 'history') {
-                        unawaited(
-                          showRecordHistoryDialog(
-                            context,
-                            app: app,
-                            recordId: group.id,
-                            recordName: group.name,
-                          ),
-                        );
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      appMenuItem(
-                        context,
-                        value: 'edit',
-                        enabled: canWrite,
-                        child: Text(context.l10n.editGroup2),
-                      ),
-                      if (app.recordHistorySupported)
-                        appMenuItem(
-                          context,
-                          key: ValueKey('server_group_history_${group.id}'),
-                          value: 'history',
-                          child: Text(context.l10n.recordHistoryTitle),
-                        ),
-                      appMenuItem(context,
-                        value: 'delete',
-                        enabled: canWrite,
-                        child: Text(context.l10n.deleteGroup3),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupStat extends StatelessWidget {
+  const _GroupStat({
+    required this.icon,
+    required this.label,
+    required this.strong,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool strong;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: strong ? palette.muted : palette.hint),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: strong ? FontWeight.w600 : FontWeight.w400,
+              color: strong ? palette.text : palette.hint,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "SSH 3": how many hosts of a Group use one protocol.
+class _ProtocolCountChip extends StatelessWidget {
+  const _ProtocolCountChip({required this.protocol, required this.count});
+
+  final HostProtocol protocol;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final (icon, tone) = switch (protocol) {
+      HostProtocol.ssh => (Icons.terminal_rounded, palette.teal),
+      HostProtocol.telnet => (Icons.settings_ethernet_rounded, palette.orange),
+      HostProtocol.rdp => (AtermiusIcons.remoteDesktop, palette.hostBlue),
+      HostProtocol.vnc => (Icons.desktop_mac_outlined, palette.info),
+    };
+    return Container(
+      padding: const EdgeInsets.fromLTRB(7, 3, 8, 3),
+      decoration: BoxDecoration(
+        color: palette.surfaceRaised,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.line.withValues(alpha: .7)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: tone),
+          const SizedBox(width: 5),
+          Text(
+            protocol.label,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: palette.text,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 11.5,
+              color: palette.muted,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Orange notice that some Group parents are missing or cyclic, with the
+/// action that opens the first affected Group.
+class _GroupsRepairNotice extends StatelessWidget {
+  const _GroupsRepairNotice({
+    required this.message,
+    required this.action,
+    super.key,
+  });
+
+  final String message;
+  final Widget action;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final tone = palette.orange;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(tone.withValues(alpha: .09), palette.surface),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusLg),
+        border: Border.all(color: tone.withValues(alpha: .35)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 16, 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.warning_amber_rounded, color: tone, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: palette.text,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  action,
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A small coloured label that wraps instead of overflowing a narrow card.
+class _ToneChip extends StatelessWidget {
+  const _ToneChip({
+    required this.icon,
+    required this.label,
+    required this.tone,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(7, 3, 9, 3),
+    decoration: BoxDecoration(
+      color: tone.withValues(alpha: .12),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 13, color: tone),
+        ),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.3,
+              fontWeight: FontWeight.w600,
+              color: tone,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// One counted fact of a page summary ("3 groups", "2 passwords").
+class _PageSummaryPill extends StatelessWidget {
+  const _PageSummaryPill({
+    required this.icon,
+    required this.tone,
+    required this.label,
+  });
+
+  final IconData icon;
+  final Color tone;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: palette.line),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: tone),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: palette.text,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Frames a page's empty state so it reads as the page's content area.
+class _PageEmptyPanel extends StatelessWidget {
+  const _PageEmptyPanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(
+          AppDensity.of(context).radiusLg + 2,
+        ),
+        border: Border.all(color: palette.line),
+      ),
+      child: child,
     );
   }
 }
@@ -5883,6 +6489,7 @@ class _CredentialsPage extends StatefulWidget {
 
 class _CredentialsPageState extends State<_CredentialsPage> {
   final _search = TextEditingController();
+  KeychainFilter _filter = KeychainFilter.all;
 
   AppController get app => widget.app;
 
@@ -5899,20 +6506,85 @@ class _CredentialsPageState extends State<_CredentialsPage> {
       if (group.defaultCredentialId == id) context.l10n.groupName(group.name),
   ];
 
+  /// "2 hosts · 1 group": how many records sign in with [id].
+  String? _usageCount(BuildContext context, String id) {
+    final hosts = app.hosts.where((host) => host.credentialId == id).length;
+    final groups = app.groups
+        .where((group) => group.defaultCredentialId == id)
+        .length;
+    if (hosts == 0 && groups == 0) return null;
+    return [
+      if (hosts > 0) context.l10n.groupHostCount(hosts),
+      if (groups > 0) context.l10n.groupsSummaryGroups(groups),
+    ].join(' · ');
+  }
+
+  Future<void> _onAction(
+    BuildContext context,
+    CredentialRecord credential,
+    String value,
+  ) async {
+    if (value == 'view') {
+      await _viewCredential(context, credential);
+    } else if (value == 'history') {
+      await showRecordHistoryDialog(
+        context,
+        app: app,
+        recordId: credential.id,
+        recordName: credential.name,
+      );
+    } else if (value == 'delete') {
+      if (await _confirmDelete(context, credential.name) != true) return;
+      try {
+        await app.deleteCredential(credential);
+      } catch (error) {
+        if (context.mounted) {
+          _snack(context, app.friendlyError(error), error: true);
+        }
+      }
+    } else {
+      await _editCredential(context, app, credential);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final canWrite = app.activeVault?.canWrite == true;
     final query = _search.text.trim().toLowerCase();
+    final kinds = {
+      for (final credential in app.credentials)
+        credential.id: _keychainKindOf(credential),
+    };
+    bool inFilter(KeychainFilter filter, CredentialRecord credential) =>
+        switch (filter) {
+          KeychainFilter.all => true,
+          KeychainFilter.passwords => credential.kind == AuthKind.password,
+          KeychainFilter.keys => credential.kind == AuthKind.privateKey,
+          KeychainFilter.certificates =>
+            kinds[credential.id] == _KeychainKind.certificate,
+        };
     final visible = app.credentials.where((credential) {
+      if (!inFilter(_filter, credential)) return false;
       if (query.isEmpty) return true;
       return credential.name.toLowerCase().contains(query) ||
           credential.username.toLowerCase().contains(query) ||
-          (credential.fingerprint?.toLowerCase().contains(query) ?? false);
+          (credential.fingerprint?.toLowerCase().contains(query) ?? false) ||
+          // The hint promises the names of the hosts (and groups) using it.
+          app.hosts.any(
+            (host) =>
+                host.credentialId == credential.id &&
+                host.name.toLowerCase().contains(query),
+          ) ||
+          app.groups.any(
+            (group) =>
+                group.defaultCredentialId == credential.id &&
+                group.name.toLowerCase().contains(query),
+          );
     }).toList();
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(22),
+      padding: AppDensity.of(context).pagePadding,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _PageHeading(
             title: context.l10n.r7NavKeychain,
@@ -5923,11 +6595,25 @@ class _CredentialsPageState extends State<_CredentialsPage> {
               label: Text(context.l10n.addCredential2),
             ),
           ),
-          const SizedBox(height: 14),
-          if (app.credentials.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: TextField(
+          const SizedBox(height: 18),
+          if (app.credentials.isEmpty)
+            _PageEmptyPanel(
+              child: _EmptyState(
+                icon: Icons.key_outlined,
+                title: context.l10n.noCredentialsSaved,
+                body: context.l10n.addAPasswordOrPrivateKey,
+                action: FilledButton.icon(
+                  onPressed: canWrite
+                      ? () => _editCredential(context, app)
+                      : null,
+                  icon: const Icon(Icons.add),
+                  label: Text(context.l10n.createCredential),
+                ),
+              ),
+            )
+          else ...[
+            _KeychainToolbar(
+              search: TextField(
                 key: const ValueKey('keychain_search'),
                 controller: _search,
                 onChanged: (_) => setState(() {}),
@@ -5935,170 +6621,660 @@ class _CredentialsPageState extends State<_CredentialsPage> {
                   isDense: true,
                   prefixIcon: const Icon(Icons.search, size: 18),
                   hintText: context.l10n.r7NavKeychainSearchHint,
+                  suffixIcon: _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: context.l10n.clearSearch,
+                          icon: const Icon(Icons.close_rounded, size: 16),
+                          onPressed: () => setState(_search.clear),
+                        ),
                 ),
               ),
-            ),
-          if (app.credentials.isEmpty)
-            _EmptyState(
-              icon: Icons.key_outlined,
-              title: context.l10n.noCredentialsSaved,
-              body: context.l10n.addAPasswordOrPrivateKey,
-              action: FilledButton.icon(
-                onPressed: canWrite
-                    ? () => _editCredential(context, app)
-                    : null,
-                icon: const Icon(Icons.add),
-                label: Text(context.l10n.createCredential),
-              ),
-            )
-          else
-            ...visible.map(
-              (credential) => Semantics(
-                container: true,
-                explicitChildNodes: true,
-                identifier: 'ssh-credential-${credential.id}',
-                label:
-                    context.l10n.credentialNameUsernameValuevalue(credential.name, credential.username, credential.kind == AuthKind.password ? context.l10n.password : context.l10n.privateKey),
-                child: Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 17,
-                      vertical: 7,
-                    ),
-                    leading: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: context.palette.teal.withValues(alpha: .1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        credential.kind == AuthKind.password
-                            ? Icons.password_rounded
-                            : Icons.key_rounded,
-                        color: context.palette.teal,
-                      ),
-                    ),
-                    title: Text(credential.name),
-                    subtitle: _CloudKeychainDetails(
-                      credential: credential,
-                      usedBy: _usedBy(context, credential.id),
-                    ),
-                    trailing: PopupMenuButton<String>(
-                      popUpAnimationStyle: AppMotion.menuStyle(context),
-                      tooltip: context.l10n.credentialActionsName(credential.name),
-                      onSelected: (value) async {
-                        if (value == 'view') {
-                          await _viewCredential(context, credential);
-                        } else if (value == 'history') {
-                          await showRecordHistoryDialog(
-                            context,
-                            app: app,
-                            recordId: credential.id,
-                            recordName: credential.name,
-                          );
-                        } else if (value == 'delete') {
-                          if (await _confirmDelete(context, credential.name) ==
-                              true)
-                            try {
-                              await app.deleteCredential(credential);
-                            } catch (error) {
-                              if (context.mounted) {
-                                _snack(
-                                  context,
-                                  app.friendlyError(error),
-                                  error: true,
-                                );
-                              }
-                            }
-                        } else {
-                          await _editCredential(context, app, credential);
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        // A read-only Vault can still read what it saved.
-                        if (!canWrite)
-                          appMenuItem(
-                            context,
-                            value: 'view',
-                            child: Text(context.l10n.keychainViewCredential),
-                          ),
-                        if (canWrite)
-                          appMenuItem(context,value: 'edit', child: Text(context.l10n.edit2)),
-                        if (app.recordHistorySupported)
-                          appMenuItem(
-                            context,
-                            key: ValueKey('credential_history_${credential.id}'),
-                            value: 'history',
-                            child: Text(context.l10n.recordHistoryTitle),
-                          ),
-                        if (canWrite) ...[
-                          // Referenced credentials cannot be deleted (no silent
-                          // relink); AppController enforces the same rule.
-                          appMenuItem(context,
-                            value: 'delete',
-                            enabled: _usedBy(context, credential.id).isEmpty,
-                            child: Text(context.l10n.delete2),
-                          ),
-                        ],
-                      ],
-                    ),
+              filters: [
+                for (final filter in KeychainFilter.values)
+                  _KeychainFilterChip(
+                    key: ValueKey('cloud_keychain_filter_${filter.name}'),
+                    icon: switch (filter) {
+                      KeychainFilter.all => Icons.apps_rounded,
+                      KeychainFilter.passwords => Icons.password_rounded,
+                      KeychainFilter.keys => Icons.key_rounded,
+                      KeychainFilter.certificates =>
+                        Icons.workspace_premium_outlined,
+                    },
+                    label: switch (filter) {
+                      KeychainFilter.all => context.l10n.r7NavLogFilterAll,
+                      KeychainFilter.passwords =>
+                        context.l10n.r7NavFilterPasswords,
+                      KeychainFilter.keys => context.l10n.r7NavFilterKeys,
+                      KeychainFilter.certificates =>
+                        context.l10n.r7NavFilterCertificates,
+                    },
+                    count: app.credentials
+                        .where((credential) => inFilter(filter, credential))
+                        .length,
+                    selected: _filter == filter,
+                    onTap: () => setState(() => _filter = filter),
                   ),
-                ),
-              ),
+              ],
             ),
+            const SizedBox(height: 14),
+            if (visible.isEmpty)
+              EmptyRow(
+                icon: Icons.search_off_rounded,
+                title: context.l10n.r7NavLogNoMatches,
+                body: context.l10n.keychainNoMatchesHint,
+              )
+            else
+              _KeychainList(
+                rows: [
+                  for (final credential in visible)
+                    Semantics(
+                      container: true,
+                      explicitChildNodes: true,
+                      identifier: 'ssh-credential-${credential.id}',
+                      label: context.l10n.credentialNameUsernameValuevalue(
+                        credential.name,
+                        credential.username,
+                        credential.kind == AuthKind.password
+                            ? context.l10n.password
+                            : context.l10n.privateKey,
+                      ),
+                      child: _CloudKeychainRow(
+                        credential: credential,
+                        kind: kinds[credential.id]!,
+                        usedBy: _usedBy(context, credential.id),
+                        usageCount: _usageCount(context, credential.id),
+                        onTap: canWrite
+                            ? () => _editCredential(context, app, credential)
+                            : () => _viewCredential(context, credential),
+                        menu: PopupMenuButton<String>(
+                          popUpAnimationStyle: AppMotion.menuStyle(context),
+                          tooltip: context.l10n.credentialActionsName(
+                            credential.name,
+                          ),
+                          icon: Icon(
+                            Icons.more_vert,
+                            size: 18,
+                            color: context.palette.muted,
+                          ),
+                          onSelected: (value) =>
+                              _onAction(context, credential, value),
+                          itemBuilder: (_) => [
+                            // A read-only Vault can still read what it saved.
+                            if (!canWrite)
+                              appMenuItem(
+                                context,
+                                value: 'view',
+                                child: AppMenuLabel(
+                                  Icons.visibility_outlined,
+                                  context.l10n.keychainViewCredential,
+                                ),
+                              ),
+                            if (canWrite)
+                              appMenuItem(
+                                context,
+                                value: 'edit',
+                                child: AppMenuLabel(
+                                  Icons.edit_outlined,
+                                  context.l10n.edit2,
+                                ),
+                              ),
+                            if (app.recordHistorySupported)
+                              appMenuItem(
+                                context,
+                                key: ValueKey(
+                                  'credential_history_${credential.id}',
+                                ),
+                                value: 'history',
+                                child: AppMenuLabel(
+                                  Icons.history_rounded,
+                                  context.l10n.recordHistoryTitle,
+                                ),
+                              ),
+                            if (canWrite) ...[
+                              // Referenced credentials cannot be deleted (no
+                              // silent relink); AppController enforces the
+                              // same rule.
+                              appMenuItem(
+                                context,
+                                value: 'delete',
+                                enabled: _usedBy(
+                                  context,
+                                  credential.id,
+                                ).isEmpty,
+                                child: AppMenuLabel(
+                                  Icons.delete_outline,
+                                  context.l10n.delete2,
+                                  color: _usedBy(context, credential.id).isEmpty
+                                      ? context.palette.red
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+          ],
         ],
       ),
     );
   }
 }
 
+enum _KeychainKind { password, key, certificate }
+
+_KeychainKind _keychainKindOf(CredentialRecord credential) =>
+    credential.kind == AuthKind.password
+    ? _KeychainKind.password
+    : tryParseCertificate(credential.certificate) != null
+    ? _KeychainKind.certificate
+    : _KeychainKind.key;
+
+/// Icon, colour and short name of a Keychain item's type.
+(IconData, Color, String) _keychainKindLook(
+  BuildContext context,
+  _KeychainKind kind,
+) => switch (kind) {
+  _KeychainKind.password => (
+    Icons.password_rounded,
+    context.palette.hostBlue,
+    context.l10n.password,
+  ),
+  _KeychainKind.key => (
+    Icons.key_rounded,
+    context.palette.teal,
+    context.l10n.sshKey,
+  ),
+  _KeychainKind.certificate => (
+    Icons.workspace_premium_outlined,
+    context.palette.orange,
+    context.l10n.keychainTypeCertificate,
+  ),
+};
+
+/// Search beside the type filters; the filters move under the search on a
+/// narrow page.
+class _KeychainToolbar extends StatelessWidget {
+  const _KeychainToolbar({required this.search, required this.filters});
+
+  final Widget search;
+  final List<Widget> filters;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final chips = Wrap(spacing: 6, runSpacing: 6, children: filters);
+      if (box.maxWidth < 820) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [search, const SizedBox(height: 10), chips],
+        );
+      }
+      return Row(
+        children: [
+          Expanded(child: search),
+          const SizedBox(width: 12),
+          chips,
+        ],
+      );
+    },
+  );
+}
+
+/// A type filter of the Keychain that also counts its items.
+class _KeychainFilterChip extends StatelessWidget {
+  const _KeychainFilterChip({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final IconData icon;
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final tone = selected ? palette.teal : palette.muted;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected
+            ? Color.alphaBlend(
+                palette.teal.withValues(alpha: .14),
+                palette.surface,
+              )
+            : palette.surface,
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: selected ? palette.teal.withValues(alpha: .5) : palette.line,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: tone),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      color: selected ? palette.text : palette.muted,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? palette.teal.withValues(alpha: .2)
+                        : palette.surfaceRaised,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? palette.teal : palette.muted,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The Keychain items as one bordered list with hairline separators.
+class _KeychainList extends StatelessWidget {
+  const _KeychainList({required this.rows});
+
+  final List<Widget> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Material(
+      color: palette.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(
+          AppDensity.of(context).radiusLg + 2,
+        ),
+        side: BorderSide(color: palette.line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0)
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: palette.line.withValues(alpha: .7),
+              ),
+            rows[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One Keychain item: type badge, name, sign-in details and where it is
+/// used. On a wide page the usage gets a column of its own.
+class _CloudKeychainRow extends StatelessWidget {
+  const _CloudKeychainRow({
+    required this.credential,
+    required this.kind,
+    required this.usedBy,
+    required this.usageCount,
+    required this.onTap,
+    required this.menu,
+  });
+
+  final CredentialRecord credential;
+  final _KeychainKind kind;
+  final List<String> usedBy;
+  final String? usageCount;
+  final VoidCallback onTap;
+  final Widget menu;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final (icon, tone, typeLabel) = _keychainKindLook(context, kind);
+    final storedHint = switch (kind) {
+      _KeychainKind.password => context.l10n.credentialPasswordStoredEncrypted,
+      _KeychainKind.key => context.l10n.credentialPrivateKeyStoredEncrypted,
+      _KeychainKind.certificate => context.l10n.r7NavKindKeyWithCertificate,
+    };
+    return InkWell(
+      onTap: onTap,
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final wide = box.maxWidth >= 720;
+          final badge = Tooltip(
+            message: storedHint,
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: tone.withValues(alpha: .14),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 19, color: tone),
+            ),
+          );
+          // A phone with large text: the details take the row's full width
+          // under the badge instead of a narrow column beside it.
+          final textScale = MediaQuery.textScalerOf(context).scale(10) / 10;
+          final compact = box.maxWidth < 280 * textScale;
+          final title = Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                credential.name,
+                maxLines: compact ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: palette.text,
+                ),
+              ),
+              _KeychainTypePill(label: typeLabel, tone: tone),
+            ],
+          );
+          final details = _CloudKeychainDetails(
+            credential: credential,
+            usedBy: usedBy,
+            showUsage: !wide,
+          );
+          if (compact) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      badge,
+                      const SizedBox(width: 10),
+                      Expanded(child: title),
+                      SizedBox(
+                        width: 40,
+                        height: 38,
+                        child: Center(child: menu),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: details,
+                  ),
+                ],
+              ),
+            );
+          }
+          final info = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [title, const SizedBox(height: 5), details],
+          );
+          return Padding(
+            padding: EdgeInsets.fromLTRB(wide ? 16 : 12, 12, 4, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                badge,
+                SizedBox(width: wide ? 14 : 12),
+                Expanded(flex: 5, child: info),
+                if (wide) ...[
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 3,
+                    child: _KeychainUsage(
+                      usedBy: usedBy,
+                      usageCount: usageCount,
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 4),
+                SizedBox(width: 40, height: 38, child: Center(child: menu)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _KeychainTypePill extends StatelessWidget {
+  const _KeychainTypePill({required this.label, required this.tone});
+
+  final String label;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    decoration: BoxDecoration(
+      color: tone.withValues(alpha: .12),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontSize: 11,
+        height: 1.3,
+        fontWeight: FontWeight.w600,
+        color: tone,
+      ),
+    ),
+  );
+}
+
+/// Wide-page usage column: how many hosts and groups sign in with the
+/// item, then their names.
+class _KeychainUsage extends StatelessWidget {
+  const _KeychainUsage({required this.usedBy, required this.usageCount});
+
+  final List<String> usedBy;
+  final String? usageCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final used = usageCount != null;
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  used ? Icons.link_rounded : Icons.link_off_rounded,
+                  size: 15,
+                  color: used ? palette.teal : palette.hint,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  usageCount ?? context.l10n.r7NavNotUsed,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: used ? FontWeight.w600 : FontWeight.w400,
+                    color: used ? palette.text : palette.hint,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (usedBy.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Padding(
+              padding: const EdgeInsets.only(left: 21),
+              child: Text(
+                usedBy.join(', '),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: palette.muted,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// User, key fingerprint, certificate facts and (unless the page shows it
+/// in a column of its own) where a Keychain item is used.
 class _CloudKeychainDetails extends StatelessWidget {
-  const _CloudKeychainDetails({required this.credential, required this.usedBy});
+  const _CloudKeychainDetails({
+    required this.credential,
+    required this.usedBy,
+    this.showUsage = true,
+  });
 
   final CredentialRecord credential;
   final List<String> usedBy;
+  final bool showUsage;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final palette = context.palette;
     final cert = tryParseCertificate(credential.certificate);
-    final muted = TextStyle(color: context.palette.muted, fontSize: 12);
+    final muted = TextStyle(color: palette.muted, fontSize: 12, height: 1.4);
+    final certValid = cert?.isValidAt(DateTime.now()) ?? true;
+    Widget line(IconData icon, Widget text, {Color? iconColor}) => Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(icon, size: 13, color: iconColor ?? palette.hint),
+        ),
+        const SizedBox(width: 5),
+        Flexible(child: text),
+      ],
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '${credential.username} · ${credential.kind == AuthKind.password ? l10n.credentialPasswordStoredEncrypted : cert != null ? l10n.r7NavKindKeyWithCertificate : l10n.credentialPrivateKeyStoredEncrypted}',
-          style: TextStyle(color: context.palette.muted),
+        Wrap(
+          spacing: 12,
+          runSpacing: 3,
+          children: [
+            if (credential.username.isNotEmpty)
+              line(
+                Icons.person_outline_rounded,
+                Text(
+                  credential.username,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: muted,
+                ),
+              ),
+            if (credential.fingerprint != null)
+              line(
+                Icons.fingerprint_rounded,
+                Text(
+                  credential.fingerprint!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: muted.copyWith(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: palette.hint,
+                  ),
+                ),
+              ),
+          ],
         ),
-        if (credential.fingerprint != null)
-          Text(
-            credential.fingerprint!,
-            style: muted.copyWith(fontFamily: 'monospace', fontSize: 11),
-          ),
-        if (cert != null)
-          Text(
-            [
-              if (cert.keyId.isNotEmpty) 'ID ${cert.keyId}',
-              cert.principals.isEmpty
-                  ? l10n.r7NavCertAnyPrincipal
-                  : l10n.r7NavCertPrincipals(cert.principals.join(', ')),
-              certificateValidityLabel(l10n, cert),
-            ].join(' · '),
-            style: muted.copyWith(
-              color: cert.isValidAt(DateTime.now())
-                  ? context.palette.muted
-                  : context.palette.orange,
+        if (cert != null) ...[
+          const SizedBox(height: 4),
+          line(
+            certValid ? Icons.verified_outlined : Icons.error_outline_rounded,
+            iconColor: certValid ? palette.hint : palette.orange,
+            Text(
+              [
+                if (cert.keyId.isNotEmpty) 'ID ${cert.keyId}',
+                cert.principals.isEmpty
+                    ? l10n.r7NavCertAnyPrincipal
+                    : l10n.r7NavCertPrincipals(cert.principals.join(', ')),
+                certificateValidityLabel(l10n, cert),
+              ].join(' · '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: muted.copyWith(
+                color: certValid ? palette.muted : palette.orange,
+              ),
             ),
           ),
-        Text(
-          usedBy.isEmpty
-              ? l10n.r7NavNotUsed
-              : l10n.r7NavUsedBy(usedBy.length, usedBy.take(3).join(', ')),
-          style: muted,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
+        ],
+        if (showUsage) ...[
+          const SizedBox(height: 4),
+          line(
+            usedBy.isEmpty ? Icons.link_off_rounded : Icons.link_rounded,
+            iconColor: usedBy.isEmpty ? palette.hint : palette.teal,
+            Text(
+              usedBy.isEmpty
+                  ? l10n.r7NavNotUsed
+                  : l10n.r7NavUsedBy(usedBy.length, usedBy.take(3).join(', ')),
+              style: muted.copyWith(
+                color: usedBy.isEmpty ? palette.hint : palette.muted,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ],
     );
   }

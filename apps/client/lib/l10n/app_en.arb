@@ -17122,5 +17122,21 @@
   "anAdministratorChangedTheRecordHistoryLimit": "An administrator changed the per-record version history limit",
   "@anAdministratorChangedTheRecordHistoryLimit": {
     "description": "App-owned UI text."
-  }
+  },
+  "groupsSummaryGroups": "{count, plural, =1{1 group} other{{count} groups}}",
+  "@groupsSummaryGroups": {"placeholders": {"count": {"type": "int"}}},
+  "groupsSummaryGroupedHosts": "{count, plural, =1{1 host in groups} other{{count} hosts in groups}}",
+  "@groupsSummaryGroupedHosts": {"placeholders": {"count": {"type": "int"}}},
+  "groupsSummaryUngroupedHosts": "{count, plural, =1{1 host without a group} other{{count} hosts without a group}}",
+  "@groupsSummaryUngroupedHosts": {"placeholders": {"count": {"type": "int"}}},
+  "groupsNoHostsYet": "No hosts yet",
+  "@groupsNoHostsYet": {},
+  "groupsNoDefaultCredential": "No default credential",
+  "@groupsNoDefaultCredential": {},
+  "groupsDeleteConfirmBody": "“{name}” will be deleted from this Vault and synced to its authorized devices.",
+  "@groupsDeleteConfirmBody": {"placeholders": {"name": {"type": "String"}}},
+  "keychainTypeCertificate": "Certificate",
+  "@keychainTypeCertificate": {},
+  "keychainNoMatchesHint": "Try another search, or show all types.",
+  "@keychainNoMatchesHint": {}
 }

@@ -18329,4 +18329,51 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get anAdministratorChangedTheRecordHistoryLimit =>
       '管理员已修改每条记录保留的历史版本数';
+
+  @override
+  String groupsSummaryGroups(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个分组',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupsSummaryGroupedHosts(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台主机已分组',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupsSummaryUngroupedHosts(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 台主机未分组',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get groupsNoHostsYet => '暂无主机';
+
+  @override
+  String get groupsNoDefaultCredential => '未设置默认凭据';
+
+  @override
+  String groupsDeleteConfirmBody(String name) {
+    return '“$name”将从此保险库中删除，并同步到其已授权的设备。';
+  }
+
+  @override
+  String get keychainTypeCertificate => '证书';
+
+  @override
+  String get keychainNoMatchesHint => '换个关键词，或显示全部类型。';
 }

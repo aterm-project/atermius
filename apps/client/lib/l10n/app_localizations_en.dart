@@ -20458,4 +20458,54 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get anAdministratorChangedTheRecordHistoryLimit =>
       'An administrator changed the per-record version history limit';
+
+  @override
+  String groupsSummaryGroups(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count groups',
+      one: '1 group',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupsSummaryGroupedHosts(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count hosts in groups',
+      one: '1 host in groups',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupsSummaryUngroupedHosts(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count hosts without a group',
+      one: '1 host without a group',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get groupsNoHostsYet => 'No hosts yet';
+
+  @override
+  String get groupsNoDefaultCredential => 'No default credential';
+
+  @override
+  String groupsDeleteConfirmBody(String name) {
+    return '“$name” will be deleted from this Vault and synced to its authorized devices.';
+  }
+
+  @override
+  String get keychainTypeCertificate => 'Certificate';
+
+  @override
+  String get keychainNoMatchesHint => 'Try another search, or show all types.';
 }

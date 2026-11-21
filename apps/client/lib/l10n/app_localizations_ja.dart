@@ -19276,4 +19276,51 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get anAdministratorChangedTheRecordHistoryLimit =>
       '管理者がレコードごとの履歴バージョン数を変更しました';
+
+  @override
+  String groupsSummaryGroups(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 個のグループ',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupsSummaryGroupedHosts(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'グループ内のホスト $count 台',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupsSummaryUngroupedHosts(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'グループ未設定のホスト $count 台',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get groupsNoHostsYet => 'ホストはまだありません';
+
+  @override
+  String get groupsNoDefaultCredential => '既定の認証情報は未設定';
+
+  @override
+  String groupsDeleteConfirmBody(String name) {
+    return '「$name」はこの保管庫から削除され、承認済みのデバイスにも同期されます。';
+  }
+
+  @override
+  String get keychainTypeCertificate => '証明書';
+
+  @override
+  String get keychainNoMatchesHint => '別のキーワードで検索するか、すべての種類を表示してください。';
 }
