@@ -2857,7 +2857,8 @@ class _SideNavigation extends StatelessWidget {
       Icons.view_quilt_outlined,
       _NavLabel.workspaces,
     ),
-    _NavItem(WorkspacePage.terminal, Icons.terminal_rounded, _NavLabel.terminal),
+    // No Terminal destination: the terminal page is where sessions land
+    // after a connect and is reached through the tab row, not the sidebar.
     _NavItem(WorkspacePage.sftp, Icons.folder_open_outlined, _NavLabel.files),
     _NavItem(WorkspacePage.sync, Icons.sync_rounded, _NavLabel.sync),
     _NavItem(WorkspacePage.audit, Icons.history_rounded, _NavLabel.audit),
@@ -3400,7 +3401,6 @@ enum _NavLabel {
   keychain,
   snippets,
   workspaces,
-  terminal,
   files,
   sync,
   audit,
@@ -3436,7 +3436,6 @@ class _NavItem {
     _NavLabel.keychain => l10n.r7NavKeychain,
     _NavLabel.snippets => l10n.r7NavSnippets,
     _NavLabel.workspaces => l10n.workspaceLayouts,
-    _NavLabel.terminal => l10n.terminal2,
     _NavLabel.files => l10n.files,
     _NavLabel.sync => l10n.syncAndConflicts,
     _NavLabel.audit => l10n.auditLog2,
@@ -8288,10 +8287,12 @@ class _SavedWorkspacesPage extends StatelessWidget {
                       label: Text(context.l10n.saveCurrentTabs),
                     )
                   : OutlinedButton.icon(
+                      // Sessions start from a host; the empty terminal page
+                      // is no destination of its own.
                       onPressed: () =>
-                          app.showWorkspacePage(WorkspacePage.terminal),
-                      icon: const Icon(Icons.terminal_rounded),
-                      label: Text(context.l10n.openTerminal),
+                          app.showWorkspacePage(WorkspacePage.hosts),
+                      icon: const Icon(Icons.dns_outlined),
+                      label: Text(context.l10n.hosts),
                     ),
             )
           else
@@ -14815,9 +14816,9 @@ class _SftpPage extends StatelessWidget {
                     fill: true,
                     action: FilledButton.icon(
                       onPressed: () =>
-                          app.showWorkspacePage(WorkspacePage.terminal),
-                      icon: const Icon(Icons.terminal_rounded),
-                      label: Text(context.l10n.openTerminal2),
+                          app.showWorkspacePage(WorkspacePage.hosts),
+                      icon: const Icon(Icons.dns_outlined),
+                      label: Text(context.l10n.hosts),
                     ),
                   )
                 : Card(
