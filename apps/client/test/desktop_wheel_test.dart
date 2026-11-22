@@ -11,6 +11,7 @@ import 'package:aterm_client/desktop/direct/rfb.dart';
 import 'package:aterm_client/desktop/keyboard_capture.dart';
 import 'package:aterm_client/desktop/window/desktop_window.dart';
 import 'package:aterm_client/domain/models.dart';
+import 'package:aterm_client/platform/android_trackpad.dart';
 import 'package:aterm_client/terminal/live_terminal_window.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -837,29 +838,83 @@ void main() {
       ]);
     });
 
-    testWidgets('Android keeps its discrete wheel handling', (tester) async {
+    testWidgets('Android sends discrete vertical and horizontal wheel notches', (tester) async {
       final session = await _mount(tester, platform: TargetPlatform.android);
       final mouse = TestPointer(3, PointerDeviceKind.mouse);
       await tester.sendEventToBinding(mouse.hover(_centre));
       session.sent.clear();
-      // One vertical notch per event whatever the delta, as before.
+      // One notch per axis, regardless of the discrete signal's magnitude.
       await tester.sendEventToBinding(mouse.scroll(const Offset(0, 300)));
       await tester.sendEventToBinding(mouse.scroll(const Offset(0, -5)));
-      await tester.sendEventToBinding(mouse.scale(2));
+      await tester.sendEventToBinding(mouse.scroll(const Offset(25, 0)));
+      await tester.sendEventToBinding(mouse.scroll(Offset.zero));
       expect(session.sent, [
-        ['mouse', 500, 400, 16],
-        ['mouse', 500, 400, 0],
-        ['mouse', 500, 400, 8],
-        ['mouse', 500, 400, 0],
+        ['wheel', 500, 400, 0, -120],
+        ['wheel', 500, 400, 0, 120],
+        ['wheel', 500, 400, 120, 0],
       ]);
+    });
+
+    testWidgets('Android forwards Flutter trackpad pan and zoom events', (tester) async {
+      final session = await _mount(tester, platform: TargetPlatform.android);
       session.sent.clear();
       final touchpad = TestPointer(7, PointerDeviceKind.trackpad);
       await tester.sendEventToBinding(touchpad.panZoomStart(_centre));
       await tester.sendEventToBinding(
-        touchpad.panZoomUpdate(_centre, pan: const Offset(80, 200), scale: 2),
+        touchpad.panZoomUpdate(_centre, pan: const Offset(80, 200)),
       );
       await tester.sendEventToBinding(touchpad.panZoomEnd());
-      expect(session.sent, isEmpty);
+      await tester.sendEventToBinding(touchpad.panZoomStart(_centre));
+      await tester.sendEventToBinding(
+        touchpad.panZoomUpdate(_centre, scale: 1.2),
+      );
+      await tester.sendEventToBinding(touchpad.panZoomEnd());
+      expect(session.sent, [
+        ['wheel', 500, 400, -96, 240],
+        ['wheel', 500, 400, 0, 0],
+        ['key', 0xffe3, 1],
+        ['wheel', 500, 400, 0, 120],
+        ['key', 0xffe3, 0],
+      ]);
+    });
+
+    testWidgets('Android native gestures are hit-tested at the cursor', (tester) async {
+      final session = await _mount(
+        tester,
+        platform: TargetPlatform.android,
+        devicePixelRatio: 2,
+      );
+      initializeAndroidTrackpad();
+      const channel = MethodChannel('atermius/android_trackpad');
+      addTearDown(() => channel.setMethodCallHandler(null));
+      Future<void> send(String method, List<Object> args) =>
+          tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+            channel.name,
+            const StandardMethodCodec().encodeMethodCall(MethodCall(method, args)),
+            (_) {},
+          );
+
+      session.sent.clear();
+      await send('start', [9, 10, 800.0, 640.0]);
+      await send('pan', [9, 20, 880.0, 540.0]);
+      await send('end', [9, 30]);
+      await send('start', [9, 40, 800.0, 640.0]);
+      await send('pinch', [9, 50, 1.1]);
+      await send('pinch', [9, 60, 1.1]);
+      await send('end', [9, 70]);
+      await send('pinch', [9, 80, 2.0]);
+
+      // A stream that starts outside the surface stays outside it.
+      await send('start', [9, 90, -100.0, -100.0]);
+      await send('pan', [9, 100, 800.0, 640.0]);
+      await send('end', [9, 110]);
+      expect(session.sent, [
+        ['wheel', 500, 400, -48, -60],
+        ['wheel', 500, 400, 0, 0],
+        ['key', 0xffe3, 1],
+        ['wheel', 500, 400, 0, 120],
+        ['key', 0xffe3, 0],
+      ]);
     });
   });
 

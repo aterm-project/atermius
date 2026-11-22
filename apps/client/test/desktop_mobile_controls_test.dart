@@ -182,6 +182,42 @@ void main() {
     },
   );
 
+  testWidgets('Android RDP taps, holds, then drags from the remote cursor', (
+    tester,
+  ) async {
+    final session = await _mount(tester);
+    await tester.tap(find.byKey(const ValueKey('desktop_pointer_mode_toggle')));
+    await tester.pump();
+    session.sent.clear();
+    const start = Offset(300, 300);
+    final tap = await tester.startGesture(start);
+    await tap.up(timeStamp: const Duration(milliseconds: 40));
+    expect(session.sent, [
+      ['mouse', 500, 400, 1],
+      ['mouse', 500, 400, 0],
+    ]);
+    session.sent.clear();
+
+    // A second contact lands farther away and the finger rests before dragging.
+    final drag = await tester.createGesture();
+    await drag.down(
+      const Offset(460, 270),
+      timeStamp: const Duration(milliseconds: 440),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(session.sent.where((event) => event.first == 'mouse'), isEmpty);
+    await drag.moveBy(
+      const Offset(45, 30),
+      timeStamp: const Duration(milliseconds: 1140),
+    );
+    await drag.up(timeStamp: const Duration(milliseconds: 1200));
+    expect(session.sent.where((event) => event.first == 'mouse'), [
+      ['mouse', 500, 400, 1],
+      ['mouse', 560, 440, 1],
+      ['mouse', 560, 440, 0],
+    ]);
+  });
+
   testWidgets(
     'IME preedit stays local; committed CJK, uppercase and emoji send once',
     (tester) async {
@@ -1219,18 +1255,21 @@ void main() {
   group('relative touchpad', () {
     late Offset point;
     late List<(Offset, int)> events;
+    late List<(Offset, int, int)> wheel;
     late DesktopTouchInput input;
     void handle(PointerEvent e) =>
         input.handle(e, bounds: const Rect.fromLTWH(0, 0, 500, 500), scale: 2);
     setUp(() {
       point = const Offset(100, 100);
       events = [];
+      wheel = [];
       input = DesktopTouchInput(
         pointer: () => point,
         send: (p, b) {
           point = p;
           events.add((p, b));
         },
+        scroll: (p, dx, dy) => wheel.add((p, dx, dy)),
       )..trackpad = true;
     });
     tearDown(() => input.dispose());
@@ -1249,19 +1288,35 @@ void main() {
         (const Offset(100, 100), 0),
       ]);
     });
-    test('two fingers tap right-clicks; two fingers move scrolls', () {
+    test('a two-finger tap after a click only sends the right button', () {
+      handle(const PointerDownEvent(pointer: 1, position: Offset(300, 300)));
+      handle(const PointerUpEvent(pointer: 1));
+      events.clear();
       handle(const PointerDownEvent(pointer: 1, position: Offset(300, 300)));
       handle(const PointerDownEvent(pointer: 2, position: Offset(320, 300)));
       handle(const PointerUpEvent(pointer: 1));
       handle(const PointerUpEvent(pointer: 2));
       expect(events.map((e) => e.$2), [4, 0]);
-      events.clear();
+      expect(wheel, isEmpty);
+    });
+    test('two-finger scrolling follows the fingers and locks to one axis', () {
       handle(const PointerDownEvent(pointer: 1, position: Offset(300, 300)));
       handle(const PointerDownEvent(pointer: 2, position: Offset(320, 300)));
       handle(const PointerMoveEvent(pointer: 1, position: Offset(300, 345)));
+      handle(const PointerMoveEvent(pointer: 2, position: Offset(375, 300)));
       handle(const PointerUpEvent(pointer: 1));
       handle(const PointerUpEvent(pointer: 2));
-      expect(events.map((e) => e.$2), [16, 0]);
+      expect(wheel, [(const Offset(100, 100), 0, 120)]);
+
+      handle(const PointerDownEvent(pointer: 1, position: Offset(300, 300)));
+      handle(const PointerDownEvent(pointer: 2, position: Offset(320, 300)));
+      handle(const PointerMoveEvent(pointer: 1, position: Offset(345, 290)));
+      handle(const PointerUpEvent(pointer: 2));
+      handle(const PointerMoveEvent(pointer: 1, position: Offset(400, 300)));
+      handle(const PointerUpEvent(pointer: 1));
+      expect(wheel.last, (const Offset(100, 100), -120, 0));
+      expect(wheel, hasLength(2));
+      expect(events, isEmpty);
     });
     test('second tap and drag holds button; cancel releases and clears it', () {
       handle(const PointerDownEvent(pointer: 1, position: Offset(300, 300)));

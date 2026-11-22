@@ -73,10 +73,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
   bool get _mobilePlatform =>
       Theme.of(context).platform == TargetPlatform.android ||
       Theme.of(context).platform == TargetPlatform.iOS;
-  bool get _useLegacyWheel =>
-      Theme.of(context).platform == TargetPlatform.android;
   void _sendMouse(Offset point, int buttons) {
-    _buttons = buttons;
     session.display.movePointer(point);
     session.send(['mouse', point.dx.round(), point.dy.round(), buttons]);
   }
@@ -84,7 +81,6 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) {
-      _touch.reset();
       _directTouch.reset();
       _release();
     } else if (_focus.hasFocus) {
@@ -144,7 +140,6 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
   /// Only a connected session takes the system shortcuts away from the OS.
   void _captureSessionChanged() =>
       _capture.update(enabled: session.state == 'connected');
-  int _buttons = 0;
   Size? _lastSize;
   int _generation = -1;
   Offset _panLimit = Offset.zero;
@@ -300,6 +295,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     _touch = DesktopTouchInput(
       pointer: () => session.display.pointer,
       send: _sendMouse,
+      scroll: _sendWheel,
     );
     _focus.addListener(_focusChanged);
     _capture = KeyboardCaptureController.instance.register(
@@ -556,15 +552,12 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
         false,
         focus: _focus,
       );
-      _touch.reset();
       _directTouch.reset();
       _release();
     }
   }
 
-  // Touchpad gestures and the high-resolution wheel of desktop platforms and
-  // the web. Android and iOS never get here: their touch input has its own
-  // scrolling and a wheel there keeps sending single notches.
+  // Physical touchpad gestures and high-resolution scroll signals.
   final _wheel = DesktopWheelAccumulator();
   final _touchpad = DesktopTouchpadGesture();
 
@@ -604,14 +597,12 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     final whole = _wheel.add(units.$1, units.$2);
     if (whole == null) return;
     _wheelOpen = true;
+    _sendWheel(point, whole.$1, whole.$2);
+  }
+
+  void _sendWheel(Offset point, int dx, int dy) {
     session.display.movePointer(point);
-    session.send([
-      'wheel',
-      point.dx.round(),
-      point.dy.round(),
-      whole.$1,
-      whole.$2,
-    ]);
+    session.send(['wheel', point.dx.round(), point.dy.round(), dx, dy]);
   }
 
   /// Zooms by [steps] the way Windows reports a touchpad pinch to
@@ -628,14 +619,11 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
       session.send(['key', _controlLeft, 1]);
       _pinchControl = true;
     }
-    session.display.movePointer(point);
-    session.send([
-      'wheel',
-      point.dx.round(),
-      point.dy.round(),
+    _sendWheel(
+      point,
       0,
       steps.clamp(-32, 32).toInt() * DesktopWheelUnits.notch,
-    ]);
+    );
     if (!hold) {
       _releasePinchControl(session);
     } else if (_pinchControl) {
@@ -677,12 +665,12 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
 
   void _release([DesktopSession? target]) {
     final receiver = target ?? session;
+    _touch.reset(release: false);
     _endWheel(receiver);
     for (final key in _pressed.values) {
       receiver.send(['key', key, 0]);
     }
     _pressed.clear();
-    _buttons = 0;
     receiver.send([
       'mouse',
       receiver.display.pointer.dx.round(),
@@ -705,7 +693,6 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_clipboardChanges?.cancel());
     _directTouch.reset();
-    _touch.dispose();
     _capture.unregister();
     _paneSlot?.detach(this);
     _paneSlot = null;
@@ -1136,7 +1123,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                             math.max(0, size.height - 1),
                           ),
                         );
-                    void mouse(PointerEvent event, {int? wheel}) {
+                    void mouse(PointerEvent event) {
                       if (_mobilePlatform &&
                           _touch.trackpad &&
                           event.kind == PointerDeviceKind.touch) {
@@ -1177,24 +1164,12 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                         return;
                       }
                       if (event is PointerDownEvent) _focusAfterActivation();
-                      _buttons =
-                          (event.buttons & kPrimaryButton != 0 ? 1 : 0) |
-                          (event.buttons & kSecondaryButton != 0 ? 4 : 0) |
-                          (event.buttons & kMiddleMouseButton != 0 ? 2 : 0);
-                      session.display.movePointer(point);
-                      session.send([
-                        'mouse',
-                        point.dx.round(),
-                        point.dy.round(),
-                        _buttons | (wheel ?? 0),
-                      ]);
-                      if (wheel != null)
-                        session.send([
-                          'mouse',
-                          point.dx.round(),
-                          point.dy.round(),
-                          _buttons,
-                        ]);
+                      _sendMouse(
+                        point,
+                        (event.buttons & kPrimaryButton != 0 ? 1 : 0) |
+                            (event.buttons & kSecondaryButton != 0 ? 4 : 0) |
+                            (event.buttons & kMiddleMouseButton != 0 ? 2 : 0),
+                      );
                     }
 
                     final limit = actual ? maxPan : Offset.zero;
@@ -1237,7 +1212,6 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                           onPointerMove: mouse,
                           onPointerHover: mouse,
                           onPointerCancel: (_) {
-                            _touch.reset();
                             _directTouch.reset();
                             _release();
                           },
@@ -1246,20 +1220,27 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                                 GestureBinding.instance.pointerSignalResolver;
                             if (e is PointerScrollEvent) {
                               signals.register(e, (_) {
-                                if (_useLegacyWheel) {
-                                  // Android's discrete wheel events use one
-                                  // vertical notch per event.
-                                  mouse(
-                                    e,
-                                    wheel: e.scrollDelta.dy < 0 ? 8 : 16,
-                                  );
+                                final point = remote(e.localPosition);
+                                if (fourWay &&
+                                    e.kind != PointerDeviceKind.trackpad) {
+                                  // Android also delivers discrete scroll
+                                  // signals from mice and some touchpads.
+                                  final delta = e.scrollDelta;
+                                  if (delta != Offset.zero && delta.isFinite) {
+                                    const notch = DesktopWheelUnits.notch;
+                                    _sendWheel(
+                                      point,
+                                      delta.dx.sign.toInt() * notch,
+                                      -delta.dy.sign.toInt() * notch,
+                                    );
+                                  }
                                   return;
                                 }
                                 // Wheels, tilt wheels and touchpads without
                                 // gesture events: as far as the device said,
                                 // on both axes.
                                 _turnWheel(
-                                  remote(e.localPosition),
+                                  point,
                                   _wheelScale().ofScroll(
                                     e.scrollDelta,
                                     wheelClick:
@@ -1267,8 +1248,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                                   ),
                                 );
                               });
-                            } else if (e is PointerScaleEvent &&
-                                !_useLegacyWheel) {
+                            } else if (e is PointerScaleEvent) {
                               // iPadOS and browsers can deliver scale signals
                               // without a corresponding end event.
                               signals.register(
@@ -1281,19 +1261,15 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                               );
                             }
                           },
-                          // Touchpad gestures (Windows precision touchpads,
-                          // Apple and Linux touchpads): two fingers scroll,
-                          // a pinch zooms. Taps and pointer movement arrive
-                          // as mouse events above.
+                          // Two fingers scroll or pinch. Taps and pointer
+                          // movement arrive as mouse events above.
                           onPointerPanZoomStart: (_) {
-                            if (_useLegacyWheel) return;
                             _endWheel(session);
                             _touchpad.start();
                           },
                           onPointerPanZoomUpdate: (e) {
-                            if (_useLegacyWheel) return;
                             final step = _touchpad.update(
-                              e.pan,
+                              e.localPan,
                               e.scale,
                               reach: _windowDiagonal(),
                             );
@@ -1304,7 +1280,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                             _zoom(point, step.zoom, hold: true);
                           },
                           onPointerPanZoomEnd: (_) {
-                            if (!_useLegacyWheel) _endWheel(session);
+                            _endWheel(session);
                           },
                           child: ClipRect(
                             child: CustomPaint(
@@ -1440,7 +1416,6 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
                     },
                     onTogglePointer: () {
                       _focusAfterActivation();
-                      _touch.reset();
                       _directTouch.reset();
                       _release();
                       setState(() => _touch.trackpad = !_touch.trackpad);

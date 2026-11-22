@@ -14,7 +14,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart'
     show CupertinoActivityIndicator, CupertinoButton;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/services.dart' show BrowserContextMenu;
 import 'package:sodium/sodium_sumo.dart';
 
@@ -24,6 +24,7 @@ import 'mcp/mcp_service.dart';
 import 'platform/mcp_foreground.dart';
 import 'desktop/window/desktop_window.dart';
 import 'desktop/window/desktop_window_page.dart';
+import 'platform/android_trackpad.dart';
 import 'platform/application_windows.dart';
 import 'platform/file_drop_region.dart' show initializeFileDrop;
 import 'platform/files_window_launch.dart';
@@ -87,6 +88,9 @@ import 'web/splash_bridge.dart';
 
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    initializeAndroidTrackpad();
+  }
   McpListenerLifecycle.install(
     McpService.instance,
     text: () => McpForegroundText(
