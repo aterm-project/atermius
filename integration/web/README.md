@@ -39,6 +39,32 @@ block (request, approve, import) only runs with
 offers manual enrollment, so a second profile signs in with the master
 password instead.
 
+### Concurrent edits: latest version wins (2026-11-21)
+
+Since commit 9d6b896 two devices that edit the same record no longer produce a
+conflict branch: the device that pushes second rebases its edit onto the other
+device's version and pushes it, the later push becomes the head, and the
+replaced version stays in the record's version history (the server keeps the
+newest 20 per record by default; an instance administrator can change that).
+An edit of a record the other device deleted is pushed as a restore on top of
+the tombstone. KnownHost records and edits that cannot be rebased safely (key
+epoch change, unreadable envelope, non-linear outbox) still use the conflict
+flow, and the server's conflict endpoints are unchanged.
+
+Scripts and what was done to them (status as of 2026-11-21):
+
+| Script | State |
+| --- | --- |
+| `test:sync-latest-wins` (`sync_latest_wins.cjs`, new) | Follows the current UI and runs to its end. Fails at the end on one product defect it records: Version history names another device only as `Node <ID prefix>` until the Devices page has been opened in the session. Everything else it asserts holds. |
+| `test:multi-vault-switch` | Its concurrent-edit stage was converted to latest-version-wins. Passes on the current bundle. |
+| `test:delete-edit-conflict` | Expectations from A's reconnect onwards rewritten (restore on B's tombstone, no conflict branch). Not run: the script still starts with the pre-hosted entry flow and stops at its first step. |
+| `test:credential-conflicts`, `test:host-security-conflicts` | Assert the replaced conflict-branch flow. Not rewritten; the modes refuse to start with a message saying so. |
+| `test:sync-same-profile-inbound-store-conflict`, `-remote-conflict`, `-credential-conflict`, `-credential-remote-conflict`, `-credential-crash-replay` | Assert the replaced conflict-branch flow. Not rewritten; the modes refuse to start. The other `same_profile_merge_race.cjs` modes (field-wise merge of disjoint fields) are unaffected. |
+| `pg_sync_host_conflict.cjs` and its pytest wrapper in `../test_pg_sync_http_acceptance.py` | Assert the replaced conflict-branch flow against two PostgreSQL nodes. Not rewritten; the runner refuses to start and the pytest test is skipped. |
+| `test:pg-sync-host-batch-revision-conflict`, `test:pg-sync-host-single-revision-conflict` | Unaffected: they expect the server's `REVISION_CONFLICT` followed by a field-wise merge of disjoint fields, which still happens before latest-version-wins. |
+| `test:knownhost-sync` | Unaffected by the change: KnownHost records keep the conflict flow. |
+| `test:profiles` (full `cross_profile_sync.cjs` run) | Its own conflict sections were written for the earlier behaviour and are not converted; the run stops before it reaches them (see above). |
+
 `test:local-profile`, `test:local-to-sync-migration` and
 `test:local-quota-recovery` exercise the browser's local mode, which the
 browser build no longer has. They cannot pass on the current bundle and are
@@ -119,6 +145,44 @@ npm run test:port-forward-sync
 npm run test:relay-cleanup
 ```
 
+## Latest version wins and the per-record history limit
+
+`WEB-SYNC-LATEST-WINS-01` (`sync_latest_wins.cjs`) runs one account on two
+devices (two isolated Chromium contexts) against a disposable local server and
+SQLite database. Device A registers the owner, who is an instance
+administrator, and saves a Host; device B signs in with the same account and
+master password as a new device. Both go offline and change the Host's
+address. B reconnects and pushes first; A reconnects afterwards. The script
+requires that:
+
+- both devices show A's address, the later push;
+- both Sync pages show `Open conflicts 0`, `No open conflicts`,
+  `No pending cross-device branches` and the device's Node ID, no device sends
+  a conflict upload, and the server's `conflicts` table is empty;
+- the server holds create(A) <- update(B) <- update(A, head) and the Host's
+  Version history dialog lists those three versions on both devices, the head
+  marked `Current`, each attributed to `This device` or to the other device.
+  The other device must be shown by its name; a dialog that shows it as
+  `Node <ID prefix>` is recorded as a product defect, the scenario continues,
+  and the run fails at the end listing the defects;
+- after A has made five versions, the administrator lowers "Versions kept per
+  record" from 20 to 3 in the admin console (Vaults and quotas); lowering does
+  not prune by itself, `GET /api/v1/instance` reports 3, the very next push
+  leaves exactly 3 versions on the server, and after further edits the dialog
+  on both devices lists exactly 3 and says the server keeps the latest 3.
+
+`ATERMIUS_SYNC_POLICY_VIA_API=1` changes the limit through
+`PUT /api/v1/admin/sync-policy` with device A's session instead of the admin
+console. `ATERMIUS_WEB_ROOT` and `ATERMIUS_SERVER_BINARY` point the script at a
+bundle and a server binary outside the checkout; by default it uses
+`apps/client/build/web` and `debug/atermius-server` below `CARGO_TARGET_DIR`
+or `server/target`. It does not build either. `ATERMIUS_WEB_SHOT_DIR` saves a
+screenshot of each step. It needs no SSH fixture and does not need root.
+
+```sh
+npm run test:sync-latest-wins
+```
+
 ## Multi-Vault switching and isolation acceptance
 
 `WEB-MULTI-VAULT-SWITCH-01` reuses the isolated two-profile server/browser
@@ -126,10 +190,13 @@ fixture and creates a second encrypted Vault before device approval, so both
 enrolled devices receive both Vault keys through the normal approval flow. It
 creates distinct Hosts and default-workspace preferences, switches A→B→A on
 both profiles, and checks each current Vault ID, Host list/count, and selected
-preference. It also creates a real stale cross-device Host conflict in Vault A,
-queues an offline A Host operation, then syncs a B operation while A remains
-pending. Route/body Vault IDs and operation record IDs are compared to ensure
-the pending A operation and A conflict traffic are not sent through B. The
+preference. It also has both devices edit the same Vault A Host while offline
+and reconnects the second device first: the owner's later push must become the
+head on both devices with no conflict branch in either Vault and both versions
+in one linear record history (latest version wins). It then queues an offline A
+Host operation and syncs a B operation while A remains pending. Route/body
+Vault IDs and operation record IDs are compared to ensure the pending A
+operation and Vault A traffic are not sent through B. The
 scenario records Relay ticket and WebSocket attempts and requires both to be
 zero. The dedicated entry point is:
 
@@ -896,8 +963,8 @@ npm run test:stale-outbox-membership
 ```
 
 This scenario covers membership-version change with the same key epoch.
-Changed-base conflicts after competing Host edits remain covered by the
-cross-profile conflict acceptance.
+Competing Host edits from two devices are resolved by latest-version-wins and
+are covered by `test:sync-latest-wins`.
 
 ## Password Credential outbox recovery after a membership change
 
@@ -928,6 +995,12 @@ npm run test:stale-credential-membership
 
 ## Concurrent Credential conflicts
 
+> Not valid for the current product. This section and `test:credential-conflicts`
+> describe the conflict-branch flow that latest-version-wins replaced (commit
+> 9d6b896): two devices editing one Credential no longer produce a conflict
+> branch. The mode refuses to start until it is rewritten; see "Concurrent
+> edits: latest version wins" above.
+
 `WEB-CREDENTIAL-CONFLICT-01` runs two approved, isolated Web profiles against a
 disposable server. A creates and commits one password Credential; both profiles
 then go offline and edit that same record with different names and passwords.
@@ -948,6 +1021,11 @@ npm run test:credential-conflicts
 ```
 
 ## Host connection tuple conflicts
+
+> Not valid for the current product, for the same reason as the Credential
+> section above: competing address/port edits of one Host are now resolved by
+> latest-version-wins without a review. `test:host-security-conflicts` refuses
+> to start until it is rewritten.
 
 `WEB-HOST-SECURITY-CONFLICT-01` runs two approved Web profiles against a
 disposable server. Both profiles edit the same Host while offline: A changes

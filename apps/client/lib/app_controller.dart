@@ -8378,6 +8378,7 @@ class AppController extends ChangeNotifier {
   /// Replays only the fields changed from the caller's Host snapshot onto the
   /// latest authenticated local cache head. This also protects card actions
   /// such as Favorite from overwriting unrelated edits made in another tab.
+  ///
   Future<void> saveHostFromEditor({
     required HostRecord original,
     required HostRecord edited,
@@ -8387,9 +8388,18 @@ class AppController extends ChangeNotifier {
 
   static const _hostEditorRebaseAttempts = 4;
 
+  /// With [restoreVersion], [edited] is an older version being restored:
+  /// the fields the editor does not own (colour, port forwards) are taken
+  /// from it as well, and nothing is written when the result equals the
+  /// latest head ([_NothingToRestore]). With [restoreAttachments] its
+  /// attachments and object references also replace the ones of the latest
+  /// head; the caller must first have made sure the server can still serve
+  /// every object they reference.
   Future<void> _saveHostFromEditor({
     required HostRecord original,
     required HostRecord edited,
+    bool restoreVersion = false,
+    bool restoreAttachments = false,
   }) async {
     _assertEditsAllowed(requireWritableVault: true);
     if (original.id != edited.id) {
@@ -8425,11 +8435,36 @@ class AppController extends ChangeNotifier {
         'id': original.id,
         'revision_id': latestRevisionId,
       });
-      final rebased = _rebaseHostEditorFields(
+      var rebased = _rebaseHostEditorFields(
         original: original,
         edited: edited,
         latest: latest,
+        restoreVersion: restoreVersion,
       );
+      if (restoreAttachments) {
+        // The availability check covered the attachments the caller saw. A
+        // sibling change to them is a same-field collision like any other.
+        if (!HostAttachmentService.sameAttachments(
+          latest.manifest,
+          original.manifest,
+        )) {
+          throw FormatException(
+            currentL10n.theHostsLabelFieldWasAlso(currentL10n.attachments),
+          );
+        }
+        final manifest = HostAttachmentService.withAttachmentsOf(
+          latest: latest.manifest,
+          version: edited.manifest,
+        );
+        rebased = rebased.copyWith(
+          manifest: manifest,
+          clearManifest: manifest == null,
+        );
+      }
+      if (restoreVersion &&
+          canonicalJson(rebased.toJson()) == canonicalJson(latest.toJson())) {
+        throw const _NothingToRestore();
+      }
       final jumpHostTopologyChanged = rebased.jumpHostId != latest.jumpHostId;
       final hostRelationshipChanged =
           jumpHostTopologyChanged ||
@@ -8521,6 +8556,7 @@ class AppController extends ChangeNotifier {
     required HostRecord original,
     required HostRecord edited,
     required HostRecord latest,
+    bool restoreVersion = false,
   }) {
     T choose<T>(String label, T originalValue, T editedValue, T latestValue) {
       final userChanged = editedValue != originalValue;
@@ -8547,6 +8583,44 @@ class AppController extends ChangeNotifier {
         throw FormatException(currentL10n.theHostsTagsFieldWasAlso);
       }
       return userChanged ? edited.tags : latest.tags;
+    }
+
+    bool sameForwards(
+      List<SshPortForwardProfile> left,
+      List<SshPortForwardProfile> right,
+    ) =>
+        left.length == right.length &&
+        List<bool>.generate(
+          left.length,
+          (index) => left[index] == right[index],
+        ).every((same) => same);
+
+    // The Host editor does not own these; only a version restore sets them.
+    List<SshPortForwardProfile> choosePortForwards() {
+      if (!restoreVersion) return latest.portForwardProfiles;
+      final userChanged = !sameForwards(
+        edited.portForwardProfiles,
+        original.portForwardProfiles,
+      );
+      final siblingChanged = !sameForwards(
+        latest.portForwardProfiles,
+        original.portForwardProfiles,
+      );
+      if (userChanged &&
+          siblingChanged &&
+          !sameForwards(
+            edited.portForwardProfiles,
+            latest.portForwardProfiles,
+          )) {
+        throw FormatException(
+          currentL10n.theHostsLabelFieldWasAlso(
+            currentL10n.r7NavPortForwarding,
+          ),
+        );
+      }
+      return userChanged
+          ? edited.portForwardProfiles
+          : latest.portForwardProfiles;
     }
 
     return HostRecord(
@@ -8608,8 +8682,15 @@ class AppController extends ChangeNotifier {
         edited.authKind,
         latest.authKind,
       ),
-      color: latest.color,
-      portForwardProfiles: latest.portForwardProfiles,
+      color: restoreVersion
+          ? choose(
+              currentL10n.color2,
+              original.color,
+              edited.color,
+              latest.color,
+            )
+          : latest.color,
+      portForwardProfiles: choosePortForwards(),
       isFavorite: choose(
         'Favorite',
         original.isFavorite,
@@ -11024,7 +11105,56 @@ class AppController extends ChangeNotifier {
     if (repository.vaultId != targetVaultId) {
       throw StateError(currentL10n.theVaultWasSwitchedReopenThe3);
     }
-    return repository.loadRecordHistory(recordId);
+    final history = await repository.loadRecordHistory(recordId);
+    await _learnRecordHistoryDeviceNames(targetVaultId, history);
+    return history;
+  }
+
+  /// Names of devices seen in a record's history, kept apart from the Devices
+  /// page state so opening a history never disturbs that page.
+  final Map<String, String> _recordHistoryDeviceNames = {};
+
+  /// The device lists are otherwise loaded only by the Devices page. Fetch
+  /// them when a history names a device this session has not seen, so the
+  /// version is attributed by name instead of by ID. Best effort: on failure
+  /// the dialog falls back to the node ID.
+  Future<void> _learnRecordHistoryDeviceNames(
+    String vaultId,
+    RecordHistory history,
+  ) async {
+    final unknown = history.entries
+        .map((entry) => entry.deviceId)
+        .whereType<String>()
+        .where(
+          (deviceId) =>
+              deviceId != identity?.deviceId &&
+              deviceDisplayName(deviceId) == null,
+        )
+        .toSet();
+    if (unknown.isEmpty) return;
+    final client = api;
+    final auth = session;
+    if (client == null || auth == null) return;
+    void remember(List<Map<String, dynamic>> rows) {
+      if (!identical(api, client) || session?.accountId != auth.accountId) {
+        return;
+      }
+      for (final row in rows) {
+        final deviceId = row['device_id'];
+        final name = row['name'];
+        if (deviceId is String && name is String && name.trim().isNotEmpty) {
+          _recordHistoryDeviceNames[deviceId] = name.trim();
+        }
+      }
+    }
+
+    try {
+      remember(await client.devices());
+      if (unknown.every(_recordHistoryDeviceNames.containsKey)) return;
+      remember(await client.vaultDevices(vaultId));
+    } catch (_) {
+      // The node ID stays visible; the history itself loaded fine.
+    }
   }
 
   /// How many versions the server keeps per record, when it says so.
@@ -11041,26 +11171,148 @@ class AppController extends ChangeNotifier {
         return name.trim();
       }
     }
-    return null;
+    return _recordHistoryDeviceNames[deviceId];
+  }
+
+  /// What restoring [version] would do, asked before the user confirms.
+  /// Nothing is saved.
+  Future<RecordRestoreOutcome> planRecordVersionRestore({
+    required String recordId,
+    required RecordHistoryEntry version,
+  }) async {
+    _assertEditsAllowed(requireWritableVault: true);
+    final json = _restorableVersionContent(recordId, version);
+    if (json['type'] != 'host') {
+      return _sameAsCurrentRecord(recordId, json)
+          ? RecordRestoreOutcome.nothingToRestore
+          : RecordRestoreOutcome.unchanged;
+    }
+    final current = hosts.where((host) => host.id == recordId).firstOrNull;
+    if (current == null) {
+      throw StateError(currentL10n.recordHistoryRecordNoLongerExists);
+    }
+    final edited = HostRecord.fromJson(json);
+    final attachments = await _hostRestoreAttachments(current, edited);
+    var restored = _rebaseHostEditorFields(
+      original: current,
+      edited: edited,
+      latest: current,
+      restoreVersion: true,
+    );
+    if (attachments == RecordRestoreOutcome.restored) {
+      final manifest = HostAttachmentService.withAttachmentsOf(
+        latest: current.manifest,
+        version: edited.manifest,
+      );
+      restored = restored.copyWith(
+        manifest: manifest,
+        clearManifest: manifest == null,
+      );
+    }
+    return canonicalJson(restored.toJson()) == canonicalJson(current.toJson())
+        ? _nothingToRestore(attachments)
+        : attachments;
+  }
+
+  RecordRestoreOutcome _nothingToRestore(RecordRestoreOutcome attachments) =>
+      attachments == RecordRestoreOutcome.keptCurrent
+      ? RecordRestoreOutcome.nothingToRestoreAttachmentsGone
+      : RecordRestoreOutcome.nothingToRestore;
+
+  /// Whether a credential, group or snippet version reads back as exactly
+  /// the record this device currently shows.
+  bool _sameAsCurrentRecord(String recordId, Map<String, dynamic> json) {
+    final (Map<String, Object?>? current, Map<String, Object?> restored) =
+        switch (json['type']) {
+          'credential' => (
+            credentials.where((item) => item.id == recordId).firstOrNull
+                ?.toJson(),
+            CredentialRecord.fromJson(json).toJson(),
+          ),
+          'group' => (
+            groups.where((item) => item.id == recordId).firstOrNull?.toJson(),
+            GroupRecord.fromJson(json).toJson(),
+          ),
+          'snippet' => (
+            snippets.where((item) => item.id == recordId).firstOrNull
+                ?.toJson(),
+            SnippetRecord.fromJson(json).toJson(),
+          ),
+          _ => throw StateError(
+            currentL10n.recordHistoryVersionCannotBeRestored,
+          ),
+        };
+    if (current == null) {
+      throw StateError(currentL10n.recordHistoryRecordNoLongerExists);
+    }
+    return canonicalJson(current) == canonicalJson(restored);
+  }
+
+  Map<String, dynamic> _restorableVersionContent(
+    String recordId,
+    RecordHistoryEntry version,
+  ) {
+    final plaintext = version.plaintext;
+    if (!version.verified ||
+        plaintext == null ||
+        version.deleted ||
+        plaintext['id'] != recordId) {
+      throw StateError(currentL10n.recordHistoryVersionCannotBeRestored);
+    }
+    return Map<String, dynamic>.from(plaintext);
+  }
+
+  /// Whether the attachments of [version] can replace those of [current].
+  ///
+  /// A new revision may only reference objects the server still has;
+  /// otherwise its push is refused with `409 OBJECT_REFERENCE_UNAVAILABLE`.
+  /// The server has no object metadata route, so every object the old
+  /// version references and the current one does not is probed with a
+  /// one-byte ranged read. A failure other than "not found" is rethrown and
+  /// nothing is restored, rather than guessing.
+  Future<RecordRestoreOutcome> _hostRestoreAttachments(
+    HostRecord current,
+    HostRecord version,
+  ) async {
+    if (HostAttachmentService.sameAttachments(
+      version.manifest,
+      current.manifest,
+    )) {
+      return RecordRestoreOutcome.unchanged;
+    }
+    final vaultId = activeVault?.id;
+    if (vaultId == null) throw StateError(currentL10n.chooseAVaultFirst);
+    final currentRefs = current.manifest?['object_refs'];
+    final available = await _hostAttachmentService().attachmentObjectsAvailable(
+      vaultId: vaultId,
+      version: version,
+      alreadyReferenced: {
+        if (currentRefs is List) ...currentRefs.whereType<String>(),
+      },
+    );
+    return available
+        ? RecordRestoreOutcome.restored
+        : RecordRestoreOutcome.keptCurrent;
   }
 
   /// Saves the content of an older, verified version as a new update on top
   /// of the current head, through the same save path as an edit. The restore
   /// is therefore itself a new history entry and nothing is removed.
-  Future<void> restoreRecordVersion({
+  ///
+  /// Every field the history can list as changed is restored, a Host's
+  /// colour and port forwards included. A Host's attachments are restored
+  /// with it when the server still has every object they reference;
+  /// otherwise the fields are restored and the current attachments stay.
+  /// When the result would equal the current version, nothing is written.
+  /// The outcome says which happened.
+  Future<RecordRestoreOutcome> restoreRecordVersion({
     required String recordId,
     required RecordHistoryEntry version,
   }) async {
     _assertEditsAllowed(requireWritableVault: true);
-    final plaintext = version.plaintext;
-    if (!version.verified || plaintext == null || version.deleted) {
-      throw StateError(currentL10n.recordHistoryVersionCannotBeRestored);
-    }
-    if (plaintext['id'] != recordId) {
-      throw StateError(currentL10n.recordHistoryVersionCannotBeRestored);
-    }
-    final json = Map<String, dynamic>.from(plaintext);
-    switch (plaintext['type']) {
+    final json = _restorableVersionContent(recordId, version);
+    var outcome = RecordRestoreOutcome.unchanged;
+    switch (json['type']) {
       case 'host':
         final current = hosts
             .where((host) => host.id == recordId)
@@ -11068,28 +11320,60 @@ class AppController extends ChangeNotifier {
         if (current == null) {
           throw StateError(currentL10n.recordHistoryRecordNoLongerExists);
         }
-        await saveHostFromEditor(
-          original: current,
-          edited: HostRecord.fromJson(json),
-        );
+        final edited = HostRecord.fromJson(json);
+        final vaultId = activeVault?.id;
+        outcome = await _hostRestoreAttachments(current, edited);
+        final restoreAttachments = outcome == RecordRestoreOutcome.restored;
+        try {
+          await _serializeGroupMutation(
+            () => _saveHostFromEditor(
+              original: current,
+              edited: edited,
+              restoreVersion: true,
+              restoreAttachments: restoreAttachments,
+            ),
+          );
+        } on _NothingToRestore {
+          return _nothingToRestore(outcome);
+        }
+        final saved = hosts.where((host) => host.id == recordId).firstOrNull;
+        if (restoreAttachments &&
+            saved != null &&
+            vaultId != null &&
+            activeVault?.id == vaultId) {
+          try {
+            await _hostAttachmentService().discardTransfersDroppedByRestore(
+              vaultId: vaultId,
+              previous: current,
+              restored: saved,
+            );
+          } on FormatException {
+            // The replaced manifest could not be parsed; it has no tasks to
+            // look up and the restore itself is already saved.
+          }
+          // The first sync attempt may have found the record held back by a
+          // transfer task that is gone now.
+          _automaticSync.scheduleEdit();
+        }
       case 'credential':
-        if (!credentials.any((credential) => credential.id == recordId)) {
-          throw StateError(currentL10n.recordHistoryRecordNoLongerExists);
+        if (_sameAsCurrentRecord(recordId, json)) {
+          return RecordRestoreOutcome.nothingToRestore;
         }
         await saveCredential(CredentialRecord.fromJson(json));
       case 'group':
-        if (!groups.any((group) => group.id == recordId)) {
-          throw StateError(currentL10n.recordHistoryRecordNoLongerExists);
+        if (_sameAsCurrentRecord(recordId, json)) {
+          return RecordRestoreOutcome.nothingToRestore;
         }
         await saveGroup(GroupRecord.fromJson(json));
       case 'snippet':
-        if (!snippets.any((snippet) => snippet.id == recordId)) {
-          throw StateError(currentL10n.recordHistoryRecordNoLongerExists);
+        if (_sameAsCurrentRecord(recordId, json)) {
+          return RecordRestoreOutcome.nothingToRestore;
         }
         await saveSnippet(SnippetRecord.fromJson(json));
       default:
         throw StateError(currentL10n.recordHistoryVersionCannotBeRestored);
     }
+    return outcome;
   }
 
   /// Changes future-purge consent for exactly the selected tombstone.
@@ -24759,6 +25043,7 @@ class AppController extends ChangeNotifier {
     // These collections may come from immutable API/Drift snapshots. Replace
     // the references so logout/deletion cleanup works for fixed-size lists.
     devices = [];
+    _recordHistoryDeviceNames.clear();
     _clearVaultDeviceRows();
     vaultMembers = [];
     openConflicts = [];
@@ -24955,6 +25240,7 @@ class AppController extends ChangeNotifier {
     preferenceError = null;
     _resetDefaultSectionConflictRepair();
     devices = [];
+    _recordHistoryDeviceNames.clear();
     _clearVaultDeviceRows();
     vaultMembers = [];
     openConflicts = [];
@@ -25796,4 +26082,9 @@ class AppController extends ChangeNotifier {
     }
     super.dispose();
   }
+}
+
+/// A version restore whose result equals the latest head; nothing to write.
+class _NothingToRestore implements Exception {
+  const _NothingToRestore();
 }

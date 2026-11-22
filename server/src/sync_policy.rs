@@ -146,6 +146,23 @@ async fn read_policy_tx(
     snapshot_from_row(row, state.config.record_history_limit)
 }
 
+/// Reads the per-record history limit inside the caller's SQLite transaction:
+/// the administrator's selection, or `default_limit` without a policy row.
+///
+/// The push commit calls this after it holds SQLite's writer reservation, so
+/// a policy update that committed before the push became the writer is the
+/// one the push enforces.
+pub(crate) async fn effective_record_history_limit_tx(
+    tx: &mut Transaction<'_, Sqlite>,
+    default_limit: i64,
+) -> Result<i64, ApiError> {
+    let row = sqlx::query_as::<_, (i64, i64, String)>(READ_POLICY_SQL)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::internal)?;
+    Ok(snapshot_from_row(row, default_limit)?.record_history_limit)
+}
+
 /// Returns the per-record history limit currently in force on either backend:
 /// the administrator's selection, or the deployment default without one.
 pub(crate) async fn effective_record_history_limit(state: &AppState) -> Result<i64, ApiError> {
@@ -389,6 +406,8 @@ pub(crate) async fn prune_excess_record_history(state: &AppState) -> Result<u64,
         let candidates = sqlx::query(
             "SELECT v.vault_id,v.record_id FROM record_versions v \
              WHERE (v.vault_id,v.record_id)>(?,?) \
+               AND NOT EXISTS(SELECT 1 FROM record_redactions rr \
+                              WHERE rr.vault_id=v.vault_id AND rr.record_id=v.record_id) \
              GROUP BY v.vault_id,v.record_id HAVING COUNT(*)>? \
              ORDER BY v.vault_id,v.record_id LIMIT ?",
         )
@@ -636,7 +655,7 @@ mod tests {
                     batch_id,
                     operations: vec![operation],
                     restore_retention_days: 30,
-                    record_history_limit,
+                    default_record_history_limit: record_history_limit,
                     object_gc_grace_seconds: GC_GRACE_SECONDS,
                 })
                 .await
@@ -904,6 +923,116 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_changed_limit_applies_to_the_next_push_without_lag() {
+        let state = test_state("immediate").await;
+        let (admin, admin_access) = seed_session(&state, ADMIN_USERNAME).await;
+        let vault_id = seed_owned_vault(&state, &admin).await;
+        let record_id = Uuid::new_v4().to_string();
+        let uri = format!("/api/v1/vaults/{vault_id}/records/{record_id}/revisions");
+        let mut writer = Writer {
+            state: &state,
+            user: &admin,
+            vault_id: &vault_id,
+            device_seq: 0,
+        };
+        // Ten revisions under the deployment default; nothing is pruned.
+        let mut revisions = writer.history(&record_id, 9, 20).await;
+        assert_eq!(retained(&state, &vault_id, &record_id).await, revisions);
+
+        let (status, updated) = call(
+            &state,
+            "PUT",
+            "/api/v1/admin/sync-policy",
+            Some(&admin_access),
+            Some(json!({"expected_revision":0,"record_history_limit":3})),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(updated["record_history_limit"], 3);
+        assert_eq!(retained(&state, &vault_id, &record_id).await, revisions);
+
+        // The very next push prunes to the new limit. The writer still passes
+        // the deployment default of 20: the commit transaction reads the
+        // policy row itself, so no earlier read can be stale.
+        let next = writer
+            .commit(
+                &record_id,
+                revisions.last().map(String::as_str),
+                "update",
+                &[],
+                20,
+            )
+            .await;
+        revisions.push(next);
+        assert_eq!(
+            retained(&state, &vault_id, &record_id).await,
+            revisions[8..].to_vec(),
+            "one push after the policy change keeps exactly the new limit"
+        );
+
+        // The history route and the public instance document report the same
+        // policy row.
+        let (status, history) = call(&state, "GET", &uri, Some(&admin_access), None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(history["record_history_limit"], 3);
+        assert_eq!(history["revisions"].as_array().unwrap().len(), 3);
+        let (_, instance) = call(&state, "GET", "/api/v1/instance", None, None).await;
+        assert_eq!(instance["limits"]["record_history_limit"], 3);
+
+        // Lowering it again also applies to the next push.
+        let (status, _) = call(
+            &state,
+            "PUT",
+            "/api/v1/admin/sync-policy",
+            Some(&admin_access),
+            Some(json!({"expected_revision":1,"record_history_limit":2})),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let next = writer
+            .commit(
+                &record_id,
+                revisions.last().map(String::as_str),
+                "update",
+                &[],
+                20,
+            )
+            .await;
+        revisions.push(next);
+        assert_eq!(
+            retained(&state, &vault_id, &record_id).await,
+            revisions[10..].to_vec()
+        );
+        let (_, history) = call(&state, "GET", &uri, Some(&admin_access), None).await;
+        assert_eq!(history["record_history_limit"], 2);
+        assert_eq!(history["revisions"].as_array().unwrap().len(), 2);
+
+        // Without a policy row the deployment default passed by the caller
+        // is the fallback.
+        sqlx::query("DELETE FROM instance_sync_policy")
+            .execute(&state.db)
+            .await
+            .unwrap();
+        for _ in 0..3 {
+            let next = writer
+                .commit(
+                    &record_id,
+                    revisions.last().map(String::as_str),
+                    "update",
+                    &[],
+                    4,
+                )
+                .await;
+            revisions.push(next);
+        }
+        assert_eq!(
+            retained(&state, &vault_id, &record_id).await,
+            revisions[revisions.len() - 4..].to_vec()
+        );
+        close_state(state).await;
+    }
+
+    #[tokio::test]
     async fn lowering_the_limit_prunes_at_maintenance_and_skips_redacted_records() {
         let state = test_state("maintenance").await;
         let (admin, admin_access) = seed_session(&state, ADMIN_USERNAME).await;
@@ -1003,6 +1132,15 @@ mod tests {
             ],
             "the conflict base is kept in addition to the newest two revisions"
         );
+        // The policy row drives Maintenance; store the limit used above.
+        sqlx::query(
+            "INSERT INTO instance_sync_policy(policy_id,record_history_limit,revision,updated_at) \
+             VALUES(1,2,1,?)",
+        )
+        .bind(now_rfc3339())
+        .execute(&state.db)
+        .await
+        .unwrap();
         assert_eq!(super::prune_excess_record_history(&state).await.unwrap(), 0);
 
         sqlx::query(
@@ -1012,15 +1150,6 @@ mod tests {
         .bind(&revisions[4])
         .bind(now_rfc3339())
         .bind(&conflict_id)
-        .execute(&state.db)
-        .await
-        .unwrap();
-        // The policy row drives Maintenance; store the limit used above.
-        sqlx::query(
-            "INSERT INTO instance_sync_policy(policy_id,record_history_limit,revision,updated_at) \
-             VALUES(1,2,1,?)",
-        )
-        .bind(now_rfc3339())
         .execute(&state.db)
         .await
         .unwrap();

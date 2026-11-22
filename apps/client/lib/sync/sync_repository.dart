@@ -13,6 +13,7 @@ import '../domain/credential_conflict_merge.dart';
 import '../domain/conflict_feed.dart';
 import '../domain/host_security_conflict_merge.dart';
 import '../domain/known_host.dart';
+import '../domain/latest_wins_merge.dart';
 import '../domain/merge.dart';
 import '../domain/models.dart';
 import '../domain/record_redaction.dart';
@@ -367,6 +368,29 @@ class RecordHistory {
 
   /// How many versions the server keeps per record, when it said so.
   final int? historyLimit;
+}
+
+/// What restoring an older version of a record does, or did.
+enum RecordRestoreOutcome {
+  /// The fields are restored. The version has the same attachments as the
+  /// current one, or the record is not a Host.
+  unchanged,
+
+  /// The fields are restored and the version's attachments replace the
+  /// current ones.
+  restored,
+
+  /// The server no longer has every object the version's attachments
+  /// reference, so only the fields are restored.
+  keptCurrent,
+
+  /// The version has the same content as the current one; nothing is
+  /// written.
+  nothingToRestore,
+
+  /// Only the attachments differ and the server no longer has every object
+  /// they reference; nothing is written.
+  nothingToRestoreAttachmentsGone,
 }
 
 /// The connected server has no per-record history route.
@@ -1109,29 +1133,114 @@ class SyncRepository {
   }) async {
     _beginLocalWrite();
     try {
-      final envelope = await _encryptOperation(
-        recordId: recordId,
-        plaintext: plaintext,
-        baseRevisionId: baseRevisionId,
-        operation: operation,
-      );
-      await database.putLocalOperation(
-        vaultId: vaultId,
-        recordId: recordId,
-        instanceId: instanceId,
-        serverSpaceId: serverSpaceId,
-        baseRevisionId: baseRevisionId,
-        envelope: envelope,
-        deleted: operation == 'delete',
-        expectedCachedHeadRevisionId: expectedCachedHeadRevisionId,
-        expectedVaultHeadRevisionIds: expectedVaultHeadRevisionIds,
-        preserveOutboxChain: preserveOutboxChain,
-        cleanupAttachmentJobsOnDelete: cleanupAttachmentJobsOnDelete,
-      );
-      return envelope;
+      for (var attempt = 0; ; attempt++) {
+        // A save on top of this record's own never-sent operation replaces
+        // it. The server only knows the base that operation was made from,
+        // so the replacement is signed against that base, as the same kind
+        // of change the replaced operation was to the server.
+        final compacted = preserveOutboxChain
+            ? null
+            : await _compactionTarget(
+                recordId: recordId,
+                baseRevisionId: baseRevisionId,
+                operation: operation,
+              );
+        final signedBaseRevisionId = compacted == null
+            ? baseRevisionId
+            : compacted.baseRevisionId;
+        final signedOperation = compacted == null
+            ? operation
+            : compacted.operation;
+        final envelope = await _encryptOperation(
+          recordId: recordId,
+          plaintext: plaintext,
+          baseRevisionId: signedBaseRevisionId,
+          operation: signedOperation,
+        );
+        try {
+          await database.putLocalOperation(
+            vaultId: vaultId,
+            recordId: recordId,
+            instanceId: instanceId,
+            serverSpaceId: serverSpaceId,
+            baseRevisionId: signedBaseRevisionId,
+            envelope: envelope,
+            deleted: operation == 'delete',
+            expectedCachedHeadRevisionId: expectedCachedHeadRevisionId,
+            expectedVaultHeadRevisionIds: expectedVaultHeadRevisionIds,
+            preserveOutboxChain: preserveOutboxChain,
+            cleanupAttachmentJobsOnDelete: cleanupAttachmentJobsOnDelete,
+            expectedCompactedOpId: compacted?.opId,
+          );
+        } on LocalRecordHeadChangedException {
+          // The operation this envelope was signed to replace was sent or
+          // replaced meanwhile (a push, or another tab). Look again.
+          if (compacted == null || attempt >= 3) rethrow;
+          final current = await database.compactableOperation(
+            vaultId,
+            recordId,
+            instanceId: instanceId,
+            serverSpaceId: serverSpaceId,
+          );
+          if (current?.opId == compacted.opId) rethrow;
+          continue;
+        }
+        return envelope;
+      }
     } finally {
       _endLocalWrite();
     }
+  }
+
+  /// The never-sent operation a save on [baseRevisionId] takes the place of,
+  /// with the base and operation kind the replacement must be signed with;
+  /// null when the save is queued as it is.
+  Future<({String opId, String? baseRevisionId, String operation})?>
+  _compactionTarget({
+    required String recordId,
+    required String? baseRevisionId,
+    required String operation,
+  }) async {
+    if (baseRevisionId == null) return null;
+    final queued = await database.compactableOperation(
+      vaultId,
+      recordId,
+      instanceId: instanceId,
+      serverSpaceId: serverSpaceId,
+    );
+    if (queued == null) return null;
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(queued.envelopeJson);
+    } on FormatException {
+      return null;
+    }
+    if (decoded is! Map || decoded['header'] is! Map) return null;
+    final header = Map<String, dynamic>.from(decoded['header'] as Map);
+    final replacedOperation = header['operation'];
+    if (header['revision_id'] != baseRevisionId ||
+        header['op_id'] != queued.opId ||
+        header['base_revision_id'] != queued.baseRevisionId ||
+        replacedOperation is! String) {
+      return null;
+    }
+    // create + update is still a create, restore + update still a restore,
+    // update + update an update, update + delete a delete of the same base.
+    // Every other pair (anything after a delete, a delete after a create or
+    // a restore) stays two operations.
+    final signedOperation = switch ((replacedOperation, operation)) {
+      ('create', 'update') => 'create',
+      ('restore', 'update') => 'restore',
+      ('update', 'update') => 'update',
+      ('update', 'delete') => 'delete',
+      _ => null,
+    };
+    if (signedOperation == null) return null;
+    return (
+      opId: queued.opId,
+      baseRevisionId: queued.baseRevisionId,
+      operation: signedOperation,
+    );
   }
 
   Future<List<Map<String, dynamic>>> loadRecords({
@@ -3658,6 +3767,12 @@ class SyncRepository {
         );
       }
 
+      // An outbox row left by an older client with a base the server never
+      // saw is repaired before any event is applied, so that a remote
+      // revision of its record meets a row the latest-wins rebase can use
+      // instead of parking it as a conflict.
+      await _repairMisbasedOutboxOperations();
+
       // Locked receiver pages contain only signature-verified opaque events.
       // Replay them through the ordinary keyed path before fetching any newer
       // page; a crash during replay leaves the page durable and idempotent.
@@ -5109,9 +5224,15 @@ class SyncRepository {
           // encrypted local working copy; it will be pushed after this pull.
           return;
         }
+        if (_isAtOrBeforePendingBase(recordOperations, revisionId, commitSeq)) {
+          // A replayed page: the pending chain already sits on a revision
+          // the server committed after this one. It changes nothing.
+          return;
+        }
         final mergeAttempt = await _tryAutoMergeConcurrentUpdate(
           localOperations: recordOperations,
           remoteEnvelope: envelope,
+          remoteCommitSeq: commitSeq,
         );
         if (mergeAttempt == _AutoMergeAttempt.merged) return;
         if (mergeAttempt == _AutoMergeAttempt.retry && mergeRaceRetries++ < 3) {
@@ -5170,9 +5291,37 @@ class SyncRepository {
     }
   }
 
+  /// Whether a pulled main-feed event of this record is the revision the
+  /// pending chain is based on, or one the server committed before it.
+  ///
+  /// The chain's first operation records the commit sequence its base had in
+  /// this Vault's feed. The feed assigns strictly increasing sequences in
+  /// commit order, and a record's main line is linear, so an event of the
+  /// same record with a lower sequence is an ancestor of that base however
+  /// many revisions lie in between, and a revision committed after the base
+  /// always has a higher sequence and is never taken for a replay. Without a
+  /// recorded sequence (a base that was never committed, or a row from before
+  /// the sequence was stored) the answer is no and the caller decides.
+  bool _isAtOrBeforePendingBase(
+    List<PendingOperation> recordOperations,
+    String revisionId,
+    String commitSeq,
+  ) {
+    try {
+      final root = _orderPendingChain(recordOperations).first;
+      final baseCommitSeq = root.baseCommitSeq;
+      if (root.baseRevisionId == null || baseCommitSeq == null) return false;
+      final order = _compareDecimalSeq(commitSeq, baseCommitSeq);
+      return order < 0 || (order == 0 && root.baseRevisionId == revisionId);
+    } on FormatException {
+      return false;
+    }
+  }
+
   Future<_AutoMergeAttempt> _tryAutoMergeConcurrentUpdate({
     required List<PendingOperation> localOperations,
     required Map<String, dynamic> remoteEnvelope,
+    required String remoteCommitSeq,
   }) async {
     if (!canWrite || deletionPending || localOperations.isEmpty) {
       return _AutoMergeAttempt.notEligible;
@@ -5286,6 +5435,7 @@ class SyncRepository {
           baseRevisionId: remoteRevisionId,
           baseEnvelope: remoteEnvelope,
           replacementEnvelope: replacement,
+          baseCommitSeq: remoteCommitSeq,
         );
         if (!replaced) return _AutoMergeAttempt.retry;
       } finally {
@@ -5434,6 +5584,23 @@ class SyncRepository {
         return _LatestWinsAttempt.notEligible;
       }
 
+      // Two updates of one base are merged field by field, so the local edit
+      // only overrides what it actually changed. Everything else (a delete or
+      // restore on either side, a type without merge units, a base that
+      // cannot be authenticated, an invalid result) keeps the whole local
+      // record, as before.
+      final replacementPlaintext =
+          (latestHeader['operation'] == 'update' && remoteOperation == 'update'
+              ? await _latestWinsFieldMerge(
+                  recordId: recordId,
+                  baseRevisionId: sharedBaseRevisionId,
+                  baseEnvelopeJson: firstBaseJson,
+                  remoteEnvelope: remoteEnvelope,
+                  local: plaintext,
+                )
+              : null) ??
+          Map<String, Object?>.from(plaintext);
+
       _beginLocalWrite();
       try {
         final replacement = localDeleted && remoteDeleted
@@ -5441,7 +5608,7 @@ class SyncRepository {
             : Map<String, dynamic>.from(
                 await _encryptOperation(
                   recordId: recordId,
-                  plaintext: Map<String, Object?>.from(plaintext),
+                  plaintext: replacementPlaintext,
                   baseRevisionId: remoteRevisionId,
                   operation: localDeleted
                       ? 'delete'
@@ -5459,6 +5626,7 @@ class SyncRepository {
           replacementEnvelope: replacement,
           latestWins: true,
           adoptBaseCommitSeq: replacement == null ? remoteCommitSeq : null,
+          baseCommitSeq: replacement == null ? null : remoteCommitSeq,
         );
         return replaced
             ? _LatestWinsAttempt.converged
@@ -5468,6 +5636,114 @@ class SyncRepository {
       }
     } on FormatException {
       return _LatestWinsAttempt.notEligible;
+    }
+  }
+
+  /// The field-level merge of the newest [local] content with the remote
+  /// update, both made from the revision in [baseEnvelopeJson]; see
+  /// [mergeLatestWinsFields]. Null when the base or the remote revision does
+  /// not authenticate and decrypt, the type is not merged field by field, or
+  /// the merged record is not a valid record of its type.
+  Future<Map<String, Object?>?> _latestWinsFieldMerge({
+    required String recordId,
+    required String baseRevisionId,
+    required String baseEnvelopeJson,
+    required Map<String, dynamic> remoteEnvelope,
+    required Map<String, dynamic> local,
+  }) async {
+    try {
+      final decodedBase = jsonDecode(baseEnvelopeJson);
+      if (decodedBase is! Map || decodedBase['header'] is! Map) return null;
+      final baseEnvelope = Map<String, dynamic>.from(decodedBase);
+      final baseHeader = Map<String, dynamic>.from(
+        baseEnvelope['header'] as Map,
+      );
+      if (baseHeader['vault_id'] != vaultId ||
+          baseHeader['server_space_id'] != serverSpaceId ||
+          baseHeader['record_id'] != recordId ||
+          baseHeader['revision_id'] != baseRevisionId) {
+        return null;
+      }
+      final base = await _decryptFromKnownSigner(baseEnvelope);
+      final remote = await _decryptFromKnownSigner(remoteEnvelope);
+      if (base == null || remote == null) return null;
+      final merged = mergeLatestWinsFields(
+        base: base,
+        local: local,
+        remote: remote,
+      );
+      if (merged == null ||
+          !_isValidLatestWinsMergedRecord(recordId: recordId, value: merged)) {
+        return null;
+      }
+      return merged;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// Decrypts an envelope signed by a device of the trusted directory with
+  /// the Vault key of its epoch; null when either is missing or the envelope
+  /// does not authenticate.
+  Future<Map<String, dynamic>?> _decryptFromKnownSigner(
+    Map<String, dynamic> envelope,
+  ) async {
+    final rawHeader = envelope['header'];
+    if (rawHeader is! Map) return null;
+    final signer = _signers[rawHeader['device_id']];
+    final epoch = rawHeader['key_epoch'];
+    final membership = rawHeader['membership_version'];
+    if (signer == null || epoch is! String || membership is! String) {
+      return null;
+    }
+    final key =
+        vaultKeysByVersion['$epoch:$membership'] ??
+        (epoch == keyEpoch && membership == membershipVersion
+            ? vaultKey
+            : null);
+    if (key == null) return null;
+    final keyBytes = Uint8List.fromList(key);
+    try {
+      return await crypto.decryptRecord(
+        vaultKey: keyBytes,
+        envelope: envelope,
+        authorPublicKey: Uint8List.fromList(signer),
+      );
+    } on Object {
+      return null;
+    } finally {
+      keyBytes.fillRange(0, keyBytes.length, 0);
+    }
+  }
+
+  /// A field-merged record must be one its own editor could have saved.
+  bool _isValidLatestWinsMergedRecord({
+    required String recordId,
+    required Map<String, Object?> value,
+  }) {
+    if (!_isValidAutomaticallyMergedRecord(recordId: recordId, value: value)) {
+      return false;
+    }
+    try {
+      final json = Map<String, dynamic>.from(value);
+      switch (value['type']) {
+        case 'credential':
+          final credential = CredentialRecord.fromJson(json);
+          return credential.name.trim().isNotEmpty &&
+              credential.username.trim().isNotEmpty &&
+              AuthKind.values.any((kind) => kind.name == json['kind']) &&
+              (credential.kind == AuthKind.password
+                  ? (credential.secret ?? '').isNotEmpty &&
+                        credential.privateKey == null
+                  : (credential.privateKey ?? '').isNotEmpty &&
+                        credential.secret == null);
+        case 'snippet':
+          return SnippetRecord.fromJson(json).title.trim().isNotEmpty;
+        default:
+          return true;
+      }
+    } on Object {
+      return false;
     }
   }
 
@@ -5679,15 +5955,212 @@ class SyncRepository {
       return await _pushQueuedPass(
         allowSnapshotRecovery: allowSnapshotRecovery,
         allowStaleOutboxRewrap: allowStaleOutboxRewrap,
+        heldRecordIds: await _repairMisbasedOutboxOperations(),
       );
     } finally {
       _staleOutboxRewrapAuthorized = false;
     }
   }
 
+  /// Repairs outbox rows whose signed header names another base than the row
+  /// does, and returns the records that must be held out of this push.
+  ///
+  /// Clients before schema 15 replaced a never-sent operation with one signed
+  /// on top of it, but kept the replaced operation's base on the row. The
+  /// revision in such a header never reached the server, so the server
+  /// refuses the operation on every push, and with it the whole batch.
+  ///
+  /// A row is repaired only when all of this holds: this device signed it,
+  /// it is the end of the record's pending chain and the visible head, no
+  /// conflict or reviewed resolution is attached to the record, and the
+  /// server answers "not found" for the revision in the header. That answer
+  /// proves the operation was never committed and never can be, which is
+  /// what makes replacing an already attempted operation safe. The same
+  /// content is then signed again on the row's base, as the kind of change
+  /// the server expects there (a create when there is no base, a restore on
+  /// a tombstone), and goes through the normal push and latest-wins rebase.
+  /// A delete of a record that was never sent has nothing to follow; that
+  /// record is forgotten instead.
+  ///
+  /// A row the server confirmed as unknown but that cannot be repaired (it
+  /// does not decrypt, or its base is not known well enough to pick the
+  /// kind) is left as it is and its record is held out of the push, so the
+  /// other records are no longer rejected with it.
+  Future<Set<String>> _repairMisbasedOutboxOperations() async {
+    if (!canWrite ||
+        deletionPending ||
+        _localWritesFrozen ||
+        _recoveryRequests > 0) {
+      return const {};
+    }
+    final operations =
+        (await database.allPendingOperations(
+              vaultId,
+              instanceId: instanceId,
+              serverSpaceId: serverSpaceId,
+            ))
+            .where((operation) => operation.status != 'superseded')
+            .toList(growable: false);
+    final held = <String>{};
+    Set<String>? feedTargetOpIds;
+    for (final operation in operations) {
+      if (operation.status != 'queued' && operation.status != 'sent') continue;
+      final Map<String, dynamic> envelope;
+      final Map<String, dynamic> header;
+      try {
+        final decoded = jsonDecode(operation.envelopeJson);
+        if (decoded is! Map || decoded['header'] is! Map) continue;
+        envelope = Map<String, dynamic>.from(decoded);
+        header = Map<String, dynamic>.from(decoded['header'] as Map);
+      } on FormatException {
+        continue;
+      }
+      final signedBase = header['base_revision_id'];
+      final revisionId = header['revision_id'];
+      if (signedBase == operation.baseRevisionId ||
+          signedBase is! String ||
+          revisionId is! String ||
+          header['op_id'] != operation.opId ||
+          header['vault_id'] != vaultId ||
+          header['record_id'] != operation.recordId ||
+          header['device_id'] != identity.deviceId) {
+        continue;
+      }
+      final recordOperations = operations
+          .where((item) => item.recordId == operation.recordId)
+          .toList(growable: false);
+      feedTargetOpIds ??= {
+        for (final target in await database.listFeedConflictResolutions(
+          vaultId,
+        ))
+          ?target.opId,
+      };
+      if (recordOperations.any(
+            (item) =>
+                (item.status != 'queued' && item.status != 'sent') ||
+                item.baseRevisionId == revisionId ||
+                feedTargetOpIds!.contains(item.opId),
+          ) ||
+          (await database.openConflicts(
+            vaultId,
+            instanceId: instanceId,
+            serverSpaceId: serverSpaceId,
+          )).any((conflict) => conflict.recordId == operation.recordId)) {
+        continue;
+      }
+      try {
+        await api.revision(vaultId, signedBase);
+        // The server has that revision: this is not the legacy row.
+        continue;
+      } on ApiException catch (error) {
+        if (error.statusCode != 404) continue;
+      }
+      // From here on the row can never be accepted as it is.
+      held.add(operation.recordId);
+
+      final epoch = header['key_epoch'];
+      final membership = header['membership_version'];
+      final key =
+          vaultKeysByVersion['$epoch:$membership'] ??
+          (epoch == keyEpoch && membership == membershipVersion
+              ? vaultKey
+              : null);
+      if (key == null) continue;
+      final Map<String, dynamic> plaintext;
+      final keyBytes = Uint8List.fromList(key);
+      try {
+        plaintext = await crypto.decryptRecord(
+          vaultKey: keyBytes,
+          envelope: envelope,
+          authorPublicKey: identity.signing.publicKey,
+        );
+      } on Object {
+        continue;
+      } finally {
+        keyBytes.fillRange(0, keyBytes.length, 0);
+      }
+      final deleted = header['operation'] == 'delete';
+      if (plaintext['id'] != operation.recordId ||
+          (plaintext['deleted'] == true) != deleted) {
+        continue;
+      }
+
+      _beginLocalWrite();
+      try {
+        if (operation.baseRevisionId == null) {
+          if (deleted) {
+            if (await database.forgetNeverSentRecord(operation)) {
+              held.remove(operation.recordId);
+            }
+            continue;
+          }
+        }
+        final String kind;
+        if (operation.baseRevisionId == null) {
+          kind = 'create';
+        } else {
+          final baseOperation = _envelopeOperation(
+            operation.baseEnvelopeJson,
+            expectedRevisionId: operation.baseRevisionId!,
+          );
+          if (baseOperation == null) continue;
+          final baseDeleted = baseOperation == 'delete';
+          if (deleted && baseDeleted) continue;
+          kind = deleted
+              ? 'delete'
+              : baseDeleted
+              ? 'restore'
+              : 'update';
+        }
+        final replacement = await _encryptOperation(
+          recordId: operation.recordId,
+          plaintext: Map<String, Object?>.from(plaintext),
+          baseRevisionId: operation.baseRevisionId,
+          operation: kind,
+        );
+        if (await database.replaceMisbasedOperation(
+          original: operation,
+          replacementEnvelope: Map<String, dynamic>.from(replacement),
+        )) {
+          held.remove(operation.recordId);
+        }
+      } on FormatException {
+        continue;
+      } finally {
+        _endLocalWrite();
+      }
+    }
+    return held;
+  }
+
+  /// The operation kind of a stored base envelope, when it is the envelope
+  /// of [expectedRevisionId] for this Vault; null otherwise.
+  String? _envelopeOperation(
+    String? envelopeJson, {
+    required String expectedRevisionId,
+  }) {
+    if (envelopeJson == null) return null;
+    try {
+      final decoded = jsonDecode(envelopeJson);
+      if (decoded is! Map || decoded['header'] is! Map) return null;
+      final header = decoded['header'] as Map;
+      final operation = header['operation'];
+      if (header['vault_id'] != vaultId ||
+          header['revision_id'] != expectedRevisionId ||
+          operation is! String ||
+          !const {'create', 'update', 'delete', 'restore'}.contains(operation)) {
+        return null;
+      }
+      return operation;
+    } on FormatException {
+      return null;
+    }
+  }
+
   Future<bool> _pushQueuedPass({
     required bool allowSnapshotRecovery,
     required bool allowStaleOutboxRewrap,
+    Set<String> heldRecordIds = const {},
   }) async {
     if (!canWrite) return false;
     var revisionConflictRefreshes = 0;
@@ -5695,12 +6168,18 @@ class SyncRepository {
     while (true) {
       if (_recoveryRequests > 0 && !allowSnapshotRecovery) return false;
       if (!canWrite) return false;
-      final rows = await database.pushableOperations(
+      final pushable = await database.pushableOperations(
         vaultId,
         instanceId: instanceId,
         serverSpaceId: serverSpaceId,
       );
-      if (rows.isEmpty) return true;
+      if (pushable.isEmpty) return true;
+      // See [_repairMisbasedOutboxOperations]: a record whose operation the
+      // server can never accept must not take the rest of the batch with it.
+      final rows = pushable
+          .where((row) => !heldRecordIds.contains(row.recordId))
+          .toList(growable: false);
+      if (rows.isEmpty) return false;
       final allOperations = await database.allPendingOperations(
         vaultId,
         instanceId: instanceId,

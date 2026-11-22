@@ -952,7 +952,6 @@ async fn push_inner(
     if let Some(gate) = test_pause.as_ref() {
         gate.pause().await;
     }
-    let record_history_limit = crate::sync_policy::effective_record_history_limit(&state).await?;
     let response = state
         .sync_repository
         .commit_batch(crate::sync_repository::PushCommit {
@@ -963,7 +962,8 @@ async fn push_inner(
             request_digest: digest,
             operations: checked,
             restore_retention_days: state.config.record_restore_retention_days,
-            record_history_limit,
+            // Fallback only: the commit transaction reads the policy row.
+            default_record_history_limit: state.config.record_history_limit,
             object_gc_grace_seconds: state.config.object_gc_grace_seconds,
         })
         .await?;
@@ -1361,14 +1361,13 @@ pub async fn record_revisions(
     Path((vault, record)): Path<(String, String)>,
 ) -> Result<Json<Value>, ApiError> {
     let user = current_sync_user(&state, &headers).await?;
-    let record_history_limit = crate::sync_policy::effective_record_history_limit(&state).await?;
     let response = state
         .sync_repository
         .read_record_revisions(crate::sync_repository::ReadRecordRevisionsCommand {
             user,
             vault_id: vault,
             record_id: record,
-            record_history_limit,
+            default_record_history_limit: state.config.record_history_limit,
         })
         .await?;
     Ok(Json(response))
@@ -1973,22 +1972,23 @@ mod tests {
                     signature: "signature".to_owned(),
                 },
             };
-        let commit =
-            |batch_id: &str, operation: super::VerifiedOperation, restore_retention_days: i64| {
-                state
-                    .sync_repository
-                    .commit_batch(crate::sync_repository::PushCommit {
-                        user: user.clone(),
-                        vault_id: vault_id.clone(),
-                        device_id: device_id.clone(),
-                        batch_id: batch_id.to_owned(),
-                        request_digest: format!("request-{batch_id}"),
-                        operations: vec![operation],
-                        restore_retention_days,
-                        record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
-                        object_gc_grace_seconds: 7 * 24 * 60 * 60,
-                    })
-            };
+        let commit = |batch_id: &str,
+                      operation: super::VerifiedOperation,
+                      restore_retention_days: i64| {
+            state
+                .sync_repository
+                .commit_batch(crate::sync_repository::PushCommit {
+                    user: user.clone(),
+                    vault_id: vault_id.clone(),
+                    device_id: device_id.clone(),
+                    batch_id: batch_id.to_owned(),
+                    request_digest: format!("request-{batch_id}"),
+                    operations: vec![operation],
+                    restore_retention_days,
+                    default_record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+                    object_gc_grace_seconds: 7 * 24 * 60 * 60,
+                })
+        };
 
         let restorable_record = Uuid::new_v4().to_string();
         let first_revision = Uuid::new_v4().to_string();
@@ -6925,7 +6925,7 @@ mod tests {
                 request_digest: "redacted-replay".to_owned(),
                 operations: vec![make_redacted_operation("create")],
                 restore_retention_days: 30,
-                record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+                default_record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
                 object_gc_grace_seconds: 7 * 24 * 60 * 60,
             })
             .await
@@ -6944,7 +6944,7 @@ mod tests {
                 request_digest: "markerless-create".to_owned(),
                 operations: vec![make_redacted_operation("create")],
                 restore_retention_days: 30,
-                record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+                default_record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
                 object_gc_grace_seconds: 7 * 24 * 60 * 60,
             })
             .await
@@ -6963,7 +6963,7 @@ mod tests {
                 request_digest: "redacted-replay".to_owned(),
                 operations: vec![make_redacted_operation("create")],
                 restore_retention_days: 30,
-                record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+                default_record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
                 object_gc_grace_seconds: 7 * 24 * 60 * 60,
             })
             .await
@@ -6980,7 +6980,7 @@ mod tests {
                 request_digest: "redacted-restore".to_owned(),
                 operations: vec![make_redacted_operation("restore")],
                 restore_retention_days: 30,
-                record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+                default_record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
                 object_gc_grace_seconds: 7 * 24 * 60 * 60,
             })
             .await

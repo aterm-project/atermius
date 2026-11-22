@@ -20766,4 +20766,35 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get workspacesReadOnlyNotice =>
       'Сейф доступен только для чтения. Сохранённые рабочие пространства можно просматривать, но нельзя сохранять, изменять или удалять.';
+
+  @override
+  String get recordHistoryFieldKeyFingerprint => 'Отпечаток ключа';
+
+  @override
+  String get recordHistoryRestoreAttachmentsRestored =>
+      'Вложения этой версии тоже будут восстановлены и заменят текущие.';
+
+  @override
+  String get recordHistoryRestoreAttachmentsKept =>
+      'На сервере больше нет части файлов вложений этой версии, поэтому будут восстановлены только поля. Текущие вложения останутся без изменений.';
+
+  @override
+  String get recordHistoryRestoreAttachmentsUnchanged =>
+      'Вложения не изменятся: в этой версии они те же, что и в текущей.';
+
+  @override
+  String get recordHistoryRestoredWithAttachments =>
+      'Восстановлено как новая версия вместе с вложениями.';
+
+  @override
+  String get recordHistoryRestoredKeptAttachments =>
+      'Поля восстановлены как новая версия. На сервере больше нет части файлов вложений той версии, поэтому текущие вложения сохранены.';
+
+  @override
+  String get recordHistoryNothingToRestore =>
+      'Содержимое этой версии совпадает с текущей. Ничего не изменено.';
+
+  @override
+  String get recordHistoryNothingToRestoreAttachmentsGone =>
+      'Эта версия отличается от текущей только вложениями, а части их файлов на сервере больше нет. Ничего не изменено.';
 }

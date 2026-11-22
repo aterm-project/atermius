@@ -1,9 +1,18 @@
 /*
  * WEB-DELETE-EDIT-01: A edits a Host offline while independently approved B
- * deletes the same committed Host. A must preserve its encrypted branch and
- * the remote tombstone until the user explicitly chooses to keep A's version.
- * The choice creates a new A-signed restore revision against B's tombstone.
+ * deletes the same committed Host. Since "latest version wins" (9d6b896) A
+ * settles this itself when it reconnects: its edit reaches the server last, so
+ * A re-signs it as a restore revision based on B's tombstone and pushes it.
+ * No conflict branch is uploaded, no conflict card is shown and nothing is
+ * resolved by hand; B's delete stays in the record's version history
+ * (create <- delete(B) <- restore(A, head)) and both devices show A's edit.
  * Two on-disk Chromium profiles, the server, database, and logs are disposable.
+ *
+ * Status: like most of integration/web (see README.md, "Entry flow and script
+ * status") this script still drives the pre-hosted entry flow and old labels
+ * and stops at its first step on the current bundle. The expectations from
+ * A's reconnect onwards were rewritten for 9d6b896 without being run; the
+ * Sync page labels used there are the ones sync_latest_wins.cjs reads.
  */
 
 'use strict';
@@ -290,7 +299,10 @@ async function visibleConflictProjectionFlags(page) {
       conflictEditOperationVisible: has('修改'),
       currentServerVersionLabelVisible: has('当前服务端版本'),
       conflictDeletedHeadVisible: has('已删除'),
-      noPendingCrossDeviceBranchVisible: has('没有待处理的跨设备分支'),
+      openConflictsTileZero: /Open conflicts\s+0(?!\d)/.test(visibleText),
+      noOpenConflictsVisible: has('No open conflicts'),
+      noPendingCrossDeviceBranchVisible: has('No pending cross-device branches') ||
+        has('没有待处理的跨设备分支'),
       unverifiedCrossDeviceBranchVisible: has('分支尚未通过验证'),
     };
   }).catch(() => null);
@@ -308,7 +320,7 @@ async function scrollMainContentUntilSemanticText(page, expected, maxScrolls = 8
     await page.mouse.wheel(0, Math.round(viewport.height * 0.7));
     await page.waitForTimeout(120);
   }
-  throw new Error(`main content did not expose the expected conflict text: ${expected}`);
+  throw new Error(`main content did not expose the expected Sync page text: ${expected}`);
 }
 
 async function visibleButton(page, label, timeoutMs = 20000) {
@@ -473,19 +485,6 @@ function safeOperation(value) {
     envelopeHash: typeof value?.ciphertext === 'string'
       ? crypto.createHash('sha256').update(value.ciphertext).digest('hex') : null,
   };
-}
-
-function canonicalJson(value) {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map((key) =>
-      `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function envelopeFingerprint(value) {
-  return crypto.createHash('sha256').update(canonicalJson(value)).digest('hex');
 }
 
 function attachApiObservation(page, profile) {
@@ -1007,179 +1006,59 @@ async function main() {
     const conflictSeqBeforeAReconnect = tombstone.conflictSeq;
     await secondContext.setOffline(true);
 
-    setStage('A reconnects; server commits the conflict branch but loses its acknowledgement');
-    const conflictRetry = {
-      droppedAcknowledgement: false,
-      attempts: [],
-    };
-    const conflictRoutePattern = '**/api/v1/vaults/*/conflicts';
-    const dropFirstConflictAcknowledgement = async (route) => {
-      const request = route.request();
-      if (request.method() !== 'POST') return route.continue();
-      let payload;
-      try { payload = JSON.parse(request.postData() || ''); } catch (_) {
-        return route.continue();
-      }
-      const operation = safeOperation(payload?.envelope);
-      if (operation.recordId !== createOp.recordId || operation.operation !== 'update') {
-        return route.continue();
-      }
-
-      const response = await route.fetch();
-      const successfulCommit = response.status() >= 200 && response.status() < 300;
-      const dropAcknowledgement = !conflictRetry.droppedAcknowledgement && successfulCommit;
-      conflictRetry.attempts.push({
-        operation,
-        envelopeFingerprint: envelopeFingerprint(payload.envelope),
-        serverStatus: response.status(),
-        droppedAcknowledgement: dropAcknowledgement,
-      });
-      if (dropAcknowledgement) {
-        conflictRetry.droppedAcknowledgement = true;
-        await route.abort('failed');
-      } else {
-        await route.fulfill({ response });
-      }
-    };
-    await ownerContext.route(conflictRoutePattern, dropFirstConflictAcknowledgement);
-    const conflictUploadStart = apiEvents.length;
+    // Latest version wins (9d6b896): A's edit reaches the server after B's
+    // delete, so A re-signs it as a restore based on B's tombstone. Whether A
+    // first pulls the tombstone or first has its stale update refused with
+    // REVISION_CONFLICT depends on timing; both end in the same restore push.
+    //
+    // This script used to drop the acknowledgement of A's conflict upload and
+    // require an identical retry. There is no conflict upload any more, and
+    // the equivalent fault on the restore push is not asserted here: after a
+    // lost push acknowledgement the client may either replay the envelope or
+    // adopt its own revision from the change feed, and which one happens was
+    // not established when this was rewritten.
+    setStage('A reconnects; its offline edit is re-signed as a restore on B’s tombstone');
+    const reconnectStart = apiEvents.length;
     await ownerContext.setOffline(false);
-    await waitFor(() => conflictRetry.droppedAcknowledgement,
-      'server commit followed by dropped conflict-upload acknowledgement');
-    const conflictRetrySucceeded = () => apiEvents.slice(conflictUploadStart).some((event) =>
-      event.profile === 'A' && event.route === 'conflict-create' &&
-      event.status === 200 && event.bodyRead &&
-      event.operations.some((item) => item.operation === 'update' &&
-        item.recordId === createOp.recordId));
-    // Let a scheduled sync retry run first. If this app build only retries on
-    // an explicit Sync action, drive that same client path after the lost ACK.
-    await waitFor(conflictRetrySucceeded, 'automatic retry after lost conflict acknowledgement', 5000)
+    const restoreCommitted = () =>
+      successfulPush('A', 'restore', createOp.recordId, reconnectStart) !== undefined;
+    // Let a scheduled sync pass run first. If this app build only syncs on an
+    // explicit Sync action after reconnecting, drive that same client path.
+    await waitFor(restoreCommitted, 'automatic latest-wins restore push', 5000)
       .catch(() => false);
-    if (!conflictRetrySucceeded()) {
-      setStage('A retries the unresolved conflict upload after the lost acknowledgement');
-      await syncNow(owner.page, conflictRetrySucceeded, 'A conflict-upload retry');
+    if (!restoreCommitted()) {
+      setStage('A syncs explicitly and pushes its latest-wins restore');
+      await syncNow(owner.page, restoreCommitted, 'A latest-wins restore commit');
     }
-    const conflictUpload = apiEvents.slice(conflictUploadStart).find((event) =>
-      event.profile === 'A' && event.route === 'conflict-create' &&
-      event.status === 200 && event.bodyRead &&
-      event.operations.some((item) => item.operation === 'update' &&
-        item.recordId === createOp.recordId));
-    await ownerContext.unroute(conflictRoutePattern, dropFirstConflictAcknowledgement);
-    const retryFingerprints = new Set(conflictRetry.attempts.map((attempt) =>
-      attempt.envelopeFingerprint));
-    assertThat(conflictRetry.droppedAcknowledgement && conflictRetry.attempts.length >= 2 &&
-      conflictRetry.attempts.filter((attempt) => attempt.droppedAcknowledgement).length === 1 &&
-      conflictRetry.attempts[0].serverStatus >= 200 && conflictRetry.attempts[0].serverStatus < 300 &&
-      retryFingerprints.size === 1 &&
-      conflictRetry.attempts.every((attempt) => attempt.operation.opId === conflictRetry.attempts[0].operation.opId &&
-        attempt.operation.revisionId === conflictRetry.attempts[0].operation.revisionId &&
-        attempt.operation.deviceId === conflictRetry.attempts[0].operation.deviceId),
-    'client did not retry the exact signed conflict envelope after the server committed it and lost the acknowledgement');
-    const conflictBranch = conflictUpload.operations.find((item) =>
-      item.recordId === createOp.recordId);
-    assertThat(conflictBranch?.baseRevisionId === createOp.revisionId &&
-      conflictBranch.revisionId !== deleteOp.revisionId &&
-      conflictUpload.conflictId,
-    'A conflict upload did not preserve its original signed update branch');
-    await syncNow(owner.page,
-      () => apiEvents.some((event) => event.profile === 'A' &&
-        event.route === 'conflict-changes' && event.status === 200 && event.bodyRead &&
-        event.changeEvents.some((item) => item.type === 'created' &&
-          item.conflictId === conflictUpload.conflictId)),
-      'A conflict inbox feed pull');
-    await click(owner.page, /^Sync & conflicts(?:\s+\d+)?$/);
-    await waitForSemanticText(owner.page, 'Conflict branches');
-    await waitForSemanticText(owner.page, 'delete edit');
-    await waitForSemanticText(owner.page, 'Local revision');
-    await waitForSemanticText(owner.page, 'Remote revision');
-    await scrollMainContentUntilSemanticText(owner.page, '分支操作');
-    await waitForSemanticText(owner.page, '修改');
-    const localOperationState = await visibleConflictProjectionFlags(owner.page);
-    assertThat(localOperationState?.conflictBranchOperationLabelVisible === true &&
-      localOperationState.conflictEditOperationVisible === true,
-    'verified local conflict card did not show its update operation');
-    await scrollMainContentUntilSemanticText(owner.page, '已删除');
-    await waitForSemanticText(owner.page, '已删除');
-    const localHeadState = await visibleConflictProjectionFlags(owner.page);
-    assertThat(localHeadState?.currentServerVersionLabelVisible === true &&
-      localHeadState.conflictDeletedHeadVisible === true,
-    'verified local conflict card did not show the deleted server head');
-    // The local CAS conflict card is the one visible representation of this
-    // same-record branch. Its verified operation/head metadata appears on the
-    // local card above; the cross-device inbox should omit the duplicate.
-    await scrollMainContentUntilSemanticText(owner.page, '没有待处理的跨设备分支');
-    await waitForSemanticText(owner.page, '没有待处理的跨设备分支');
-    const conflictProjection = await visibleConflictProjectionFlags(owner.page);
-    assertThat(conflictProjection?.noPendingCrossDeviceBranchVisible === true,
-    'the same-record feed branch was not deduplicated behind its local delete-edit conflict card');
-
-    const preResolution = readServerSnapshot(createOp.recordId);
-    assertThat(preResolution.commitSeq === committedBeforeAReconnect &&
-      BigInt(preResolution.conflictSeq) === BigInt(conflictSeqBeforeAReconnect) + 1n &&
-      preResolution.versions.length === 2 && preResolution.events.length === 2 &&
-      preResolution.receipts.length === 2 && preResolution.head.deleted === true &&
-      preResolution.graveyard?.revisionId === deleteOp.revisionId &&
-      preResolution.conflicts.length === 1 &&
-      preResolution.conflicts[0].resolvedRevisionId === null &&
-      preResolution.conflicts[0].branch.operation === 'update' &&
-      preResolution.conflicts[0].branch.revisionId === conflictBranch.revisionId &&
-      preResolution.conflicts[0].branch.baseRevisionId === createOp.revisionId &&
-      preResolution.conflicts[0].deviceId === ownerDeviceId &&
-      preResolution.conflicts[0].branch.deviceId === ownerDeviceId &&
-      preResolution.conflicts[0].branch.markerFree &&
-      preResolution.conflicts[0].branch.shapeValid,
-    'before user choice, server lost the branch, advanced the Host, or cleared its tombstone');
-    await click(owner.page, 'Hosts');
-    await waitHost(owner.page, HOST_ORIGINAL, false);
-    await waitHost(owner.page, HOST_EDITED, false);
-    await waitHost(second.page, HOST_ORIGINAL, false);
-    assertThat(apiEvents.filter((event) => event.profile === 'A' && event.route === 'push')
-      .flatMap((event) => event.operations)
-      .filter((operation) => operation.recordId === createOp.recordId &&
-        operation.operation === 'restore').length === 0,
-    'client silently restored the deleted Host before a user decision');
-
-    setStage('A explicitly keeps its offline version and confirms a new restore revision');
-    await click(owner.page, /^Sync & conflicts(?:\s+\d+)?$/);
-    const keepLocal = owner.page.getByRole('button', {
-      name: 'Keep this device version', exact: true,
-    }).first();
-    const useSynced = owner.page.getByRole('button', {
-      name: 'Use synced version', exact: true,
-    }).first();
-    await keepLocal.waitFor({ state: 'visible', timeout: 20000 });
-    await useSynced.waitFor({ state: 'visible', timeout: 20000 });
-    assertThat(await keepLocal.isEnabled() && await useSynced.isEnabled(),
-      'both local update and remote delete choices were not available for explicit review');
-    await keepLocal.click();
-    await waitForSemanticText(owner.page, 'Keep this device version?');
-    await click(owner.page, 'Create resolution');
-    const restorePush = await waitTrace((event) =>
-      event.profile === 'A' && event.route === 'push' && event.status === 200 && event.bodyRead &&
-      event.operations.some((item) => item.recordId === createOp.recordId &&
-        item.operation === 'restore'),
-    'A re-signed restore commit', 45000);
+    const restorePush = successfulPush('A', 'restore', createOp.recordId, reconnectStart);
     const restoreOp = restorePush.operations.find((item) =>
       item.recordId === createOp.recordId && item.operation === 'restore');
     const restoreReceipt = restorePush.receipts.find((item) => item.opId === restoreOp?.opId);
-    assertThat(restoreOp?.deviceId === ownerDeviceId &&
-      restoreOp?.baseRevisionId === deleteOp.revisionId &&
-      restoreOp.revisionId !== conflictBranch.revisionId &&
+    assertThat(restoreOp?.deviceId === ownerDeviceId && restorePush.deviceId === ownerDeviceId &&
+      restoreOp.baseRevisionId === deleteOp.revisionId &&
+      restoreOp.revisionId !== deleteOp.revisionId &&
+      restoreOp.revisionId !== createOp.revisionId &&
       restoreReceipt?.revisionId === restoreOp.revisionId &&
       restoreReceipt?.alreadyCommitted === false,
-    'A resolution did not produce a new A-signed restore based on B’s tombstone');
-    const resolvedResponse = await waitTrace((event) =>
-      event.profile === 'A' && event.route === 'conflict-resolve' && event.status === 200 && event.bodyRead &&
-      event.resolution?.resolvedRevisionId === restoreOp.revisionId,
-    'server conflict-resolution receipt', 30000);
-    assertThat(resolvedResponse.resolution?.alreadyResolved === false &&
-      /^[1-9][0-9]*$/.test(resolvedResponse.resolution?.resolutionSeq || ''),
-    'server did not record the explicit resolution against A’s new revision');
+    'A did not commit one A-signed restore based on B’s tombstone');
+    const ownerRecordCommits = apiEvents.slice(aPushStart)
+      .filter((event) => event.profile === 'A' && event.route === 'push' && event.status === 200)
+      .flatMap((event) => event.operations)
+      .filter((operation) => operation.recordId === createOp.recordId);
+    assertThat(ownerRecordCommits.length === 1 &&
+      ownerRecordCommits[0].operation === 'restore' &&
+      ownerRecordCommits[0].revisionId === restoreOp.revisionId,
+    'A committed its stale offline update, or more than the one restore, for the deleted Host');
+    // GET on the same path only lists conflicts; count the writes.
+    const conflictRequests = () => apiEvents.filter((event) => event.method === 'POST' &&
+      (event.route === 'conflict-create' || event.route === 'conflict-resolve'));
+    assertThat(conflictRequests().length === 0,
+      'a device uploaded or resolved a conflict branch instead of letting the latest version win');
     await click(owner.page, 'Hosts');
     await waitHost(owner.page, HOST_EDITED, true);
     await waitHost(owner.page, HOST_ORIGINAL, false);
 
-    setStage('verify exact server commit, tombstone removal and conflict resolution');
+    setStage('verify exact server commit, tombstone removal and absence of conflict rows');
     const finalServer = readServerSnapshot(createOp.recordId);
     assertTargetHistory(finalServer, ['create', 'delete', 'restore'], [
       ownerDeviceId,
@@ -1188,33 +1067,28 @@ async function main() {
     ]);
     assertThat(finalServer.versions[0].revisionId === createOp.revisionId &&
       finalServer.versions[1].revisionId === deleteOp.revisionId &&
+      finalServer.versions[1].baseRevisionId === createOp.revisionId &&
       finalServer.versions[2].revisionId === restoreOp.revisionId &&
       finalServer.versions[2].baseRevisionId === deleteOp.revisionId &&
       finalServer.versions[2].envelope.opId === restoreOp.opId &&
       finalServer.head?.revision_id === restoreOp.revisionId &&
       finalServer.head?.commit_seq === finalServer.versions[2].commitSeq &&
       finalServer.head.deleted === false && finalServer.graveyard === null,
-    'restored Host head did not replace the tombstone with the new resolution revision');
-    assertThat(BigInt(finalServer.commitSeq) === BigInt(emptyVaultBaseline.commitSeq) + 3n &&
-      finalServer.totalRecordVersionCount === emptyVaultBaseline.totalRecordVersionCount + 3 &&
-      BigInt(finalServer.conflictSeq) === BigInt(baseline.conflictSeq) + 2n,
-    'Vault commit/conflict sequence deltas were not exactly create+delete+restore and create+resolve');
-    assertThat(finalServer.conflicts.length === 1 &&
-      finalServer.conflicts[0].conflictId === conflictUpload.conflictId &&
-      finalServer.conflicts[0].conflictSeq === String(BigInt(baseline.conflictSeq) + 1n) &&
-      finalServer.conflicts[0].resolvedRevisionId === restoreOp.revisionId &&
-      finalServer.conflicts[0].resolutionSeq === String(BigInt(baseline.conflictSeq) + 2n) &&
-      finalServer.conflicts[0].resolutionSeq === resolvedResponse.resolution.resolutionSeq &&
-      finalServer.conflicts[0].branch.operation === 'update' &&
-      finalServer.conflicts[0].branch.revisionId === conflictBranch.revisionId &&
-      !finalServer.receipts.some((receipt) => receipt.opId === conflictBranch.opId),
-    'server did not retain one unresolved-then-resolved signed branch without committing it as a head');
+    'restored Host head did not replace the tombstone with A’s restore revision');
+    assertThat(BigInt(finalServer.commitSeq) === BigInt(committedBeforeAReconnect) + 1n &&
+      BigInt(finalServer.commitSeq) === BigInt(emptyVaultBaseline.commitSeq) + 3n &&
+      finalServer.totalRecordVersionCount === emptyVaultBaseline.totalRecordVersionCount + 3,
+    'Vault commit sequence delta was not exactly create+delete+restore');
+    assertThat(finalServer.conflicts.length === 0 &&
+      finalServer.conflictSeq === conflictSeqBeforeAReconnect &&
+      finalServer.conflictSeq === baseline.conflictSeq,
+    'server stored a conflict branch or advanced the conflict sequence for the delete-edit race');
     assertThat(finalServer.versions[0].commitSeq === String(BigInt(emptyVaultBaseline.commitSeq) + 1n) &&
       finalServer.versions[1].commitSeq === String(BigInt(emptyVaultBaseline.commitSeq) + 2n) &&
       finalServer.versions[2].commitSeq === String(BigInt(emptyVaultBaseline.commitSeq) + 3n),
     'record commit sequences did not align with the exact global Vault counter delta');
 
-    setStage('B reconnects and decrypts A’s explicit resolution');
+    setStage('B reconnects and decrypts A’s restored edit');
     await secondContext.setOffline(false);
     await syncNow(second.page,
       () => apiEvents.some((event) => event.profile === 'B' && event.route === 'changes' &&
@@ -1230,6 +1104,31 @@ async function main() {
     assertThat(await hostCard(owner.page, HOST_EDITED).count() === 1 &&
       await hostCard(second.page, HOST_EDITED).count() === 1,
     'A and B did not converge on exactly one edited Host card');
+
+    setStage('neither Sync page shows an open conflict');
+    for (const [profile, page] of [['A', owner.page], ['B', second.page]]) {
+      await click(page, /^Sync (?:&|and) conflicts(?:\s+\d+)?$/);
+      await waitFor(async () =>
+        (await visibleConflictProjectionFlags(page))?.openConflictsTileZero === true,
+      `device ${profile} Sync page "Open conflicts 0" tile`, 20000);
+      await scrollMainContentUntilSemanticText(page, 'No open conflicts');
+      const conflictListState = await visibleConflictProjectionFlags(page);
+      assertThat(conflictListState?.noOpenConflictsVisible === true &&
+        conflictListState.conflictBranchOperationLabelVisible === false &&
+        conflictListState.currentServerVersionLabelVisible === false &&
+        await page.getByRole('button', { name: 'Keep this device version', exact: true })
+          .count() === 0 &&
+        await page.getByRole('button', { name: 'Use synced version', exact: true })
+          .count() === 0,
+      `device ${profile} Sync page lists a conflict card for the delete-edit race`);
+      await scrollMainContentUntilSemanticText(page, 'No pending cross-device branches');
+      const crossDeviceState = await visibleConflictProjectionFlags(page);
+      assertThat(crossDeviceState?.noPendingCrossDeviceBranchVisible === true &&
+        crossDeviceState.unverifiedCrossDeviceBranchVisible === false,
+      `device ${profile} Sync page lists a cross-device conflict branch`);
+    }
+    assertThat(conflictRequests().length === 0,
+      'a device uploaded or resolved a conflict branch after both devices converged');
     const afterBPull = readServerSnapshot(createOp.recordId);
     assertThat(JSON.stringify(afterBPull) === JSON.stringify(finalServer),
       'Profile B pull changed the server record history or committed a duplicate');
@@ -1250,12 +1149,14 @@ async function main() {
       persistentIndependentProfiles: true,
       approvedSecondDevice: true,
       offlineUpdateRetained: true,
-      tombstoneRemainedUntilExplicitChoice: true,
-      deleteEditConflictResolvedByNewSignedRestore: true,
+      offlineEditRebasedAsSignedRestoreOnTombstone: true,
+      latestVersionWonWithoutConflictBranch: true,
+      conflictCreateOrResolveRequests: conflictRequests().length,
+      serverConflictRows: finalServer.conflicts.length,
+      deletedVersionKeptInRecordHistory: true,
       serverHeadGraveyardEventsReceiptsAndSequencesAligned: true,
       bothProfilesConvergedOnEditedHost: true,
-      lostConflictAcknowledgementRetriedSameEnvelope: true,
-      conflictUploadAttempts: conflictRetry.attempts.length,
+      syncPagesShowNoOpenConflict: true,
       serverAndVaultApiPlaintextMarkersAbsent: true,
       pageErrors: 0,
       fixtureCleanupComplete: true,

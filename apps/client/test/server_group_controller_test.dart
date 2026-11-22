@@ -97,7 +97,10 @@ void main() {
         final editedEnvelope =
             jsonDecode(afterEdit.envelopeJson) as Map<String, dynamic>;
         final editedHeader = editedEnvelope['header'] as Map<String, dynamic>;
-        expect(editedHeader['base_revision_id'], beforeRevision);
+        // The create was never sent, so the edit replaces it and is itself
+        // the create: the server has no revision an update could follow.
+        expect(editedHeader['operation'], 'create');
+        expect(editedHeader['base_revision_id'], isNull);
         final editedPlain = await repository.crypto.decryptRecord(
           vaultKey: key,
           envelope: editedEnvelope,
@@ -1106,7 +1109,8 @@ void main() {
         );
 
         expect(app.groups, isEmpty);
-        expect(await database.countPending(_vaultId), 3);
+        // Three creates, and a delete queued behind each Group's unsent one.
+        expect(await database.countPending(_vaultId), 5);
         final deletedRoot = await database.encryptedRecord(_vaultId, _rootId);
         expect(deletedRoot, isNotNull);
         final envelope =
@@ -1326,7 +1330,8 @@ void main() {
         await app.deleteGroup(group);
         expect(app.groups, isEmpty);
         expect(app.noticeMessage, contains('本地待同步队列'));
-        expect(await database.countPending(_vaultId), 1);
+        // The delete is queued behind the unsent create it follows.
+        expect(await database.countPending(_vaultId), 2);
         final tombstone = await database.encryptedRecord(_vaultId, _rootId);
         expect(tombstone, isNotNull);
       } finally {
@@ -1359,7 +1364,7 @@ void main() {
         await app.deleteHost(host);
         expect(app.hosts, isEmpty);
         expect(app.noticeMessage, contains('本地待同步队列'));
-        expect(await database.countPending(_vaultId), 1);
+        expect(await database.countPending(_vaultId), 2);
         final tombstone = await database.encryptedRecord(_vaultId, _thirdId);
         expect(tombstone, isNotNull);
         final envelope =
@@ -1398,7 +1403,7 @@ void main() {
         await app.deleteCredential(credential);
         expect(app.credentials, isEmpty);
         expect(app.noticeMessage, contains('本地待同步队列'));
-        expect(await database.countPending(_vaultId), 1);
+        expect(await database.countPending(_vaultId), 2);
         final tombstone = await database.encryptedRecord(
           _vaultId,
           _credentialOverrideId,

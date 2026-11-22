@@ -13,10 +13,11 @@ import 'app_density.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 
-/// Names of the fields that differ between two versions of one record.
+/// Plaintext keys of the fields that differ between two versions of one
+/// record, sorted.
 ///
-/// Only names are returned, never values: a record may hold a password or a
-/// private key, and this list is rendered as is.
+/// Only keys are returned, never values: a record may hold a password or a
+/// private key. [recordHistoryFieldLabel] turns a key into what is shown.
 List<String> recordHistoryChangedFields({
   required Map<String, dynamic> newer,
   required Map<String, dynamic> older,
@@ -26,11 +27,74 @@ List<String> recordHistoryChangedFields({
   for (final key in keys) {
     if (key == 'id' || key == 'type' || key == 'deleted') continue;
     if (canonicalJson(newer[key]) == canonicalJson(older[key])) continue;
-    names.add(
-      key == '_manifest' ? 'attachments' : key.replaceAll('_', ' ').trim(),
-    );
+    names.add(key);
   }
   return names;
+}
+
+/// The label the editor of a [recordType] record shows for the plaintext
+/// field [field], in the language of [l10n]. A field without an editor label
+/// (one a newer client added, say) falls back to its key with underscores
+/// turned into spaces. The label never includes the field's value.
+String recordHistoryFieldLabel(
+  AppLocalizations l10n,
+  Object? recordType,
+  String field,
+) {
+  if (field == '_manifest') return l10n.attachments;
+  final label = switch (recordType) {
+    'host' => switch (field) {
+      'name' => l10n.displayName,
+      'address' => l10n.hostnameOrIp,
+      'port' => l10n.port2,
+      'protocol' => l10n.protocol,
+      'rdp_cert_sha256' => l10n.rdpCertificateSha256Optional,
+      'username' => l10n.username,
+      'group_id' => l10n.group,
+      'credential_id' => l10n.r7NavKeychain,
+      'login' => l10n.r7NavSignInOwn,
+      'jump_host_id' => l10n.jumpHost,
+      'auth_kind' => l10n.authentication,
+      'color' => l10n.color2,
+      'tags' => l10n.tags,
+      'port_forward_profiles' => l10n.r7NavPortForwarding,
+      'is_favorite' => l10n.favorite,
+      _ => null,
+    },
+    'credential' => switch (field) {
+      'name' => l10n.credentialName2,
+      'username' => l10n.sshUsername,
+      'kind' => l10n.authenticationType,
+      'secret' => l10n.password,
+      'private_key' => l10n.pemPrivateKey,
+      'passphrase' => l10n.keyPassphraseOptional,
+      'fingerprint' => l10n.recordHistoryFieldKeyFingerprint,
+      'certificate' => l10n.r7NavCertificateOptional,
+      _ => null,
+    },
+    'group' => switch (field) {
+      'name' => l10n.groupName3,
+      'color' => l10n.color2,
+      'parent_id' => l10n.parentGroup2,
+      'default_credential_id' => l10n.defaultSshCredential,
+      _ => null,
+    },
+    'snippet' => switch (field) {
+      'title' => l10n.title,
+      'body' => l10n.scriptBody2,
+      'shell_kind' => l10n.shellLabel2,
+      'execution_mode' => l10n.executionMode,
+      'program' => l10n.program2,
+      'arguments' => l10n.argumentsJsonArray2,
+      'parameters' => l10n.parameterDefinitionsJsonArray2,
+      // The editor's own label ("Tags, separated by commas") would read as
+      // two entries of this comma-separated list.
+      'tags' => l10n.tags,
+      _ => null,
+    },
+    _ => null,
+  };
+  return label ?? field.replaceAll('_', ' ').trim();
 }
 
 Future<void> showRecordHistoryDialog(
@@ -50,6 +114,7 @@ class RecordHistoryDialog extends StatefulWidget {
     required this.recordId,
     required this.recordName,
     this.loadHistoryForTesting,
+    this.planRestoreForTesting,
     this.restoreVersionForTesting,
     super.key,
   });
@@ -58,6 +123,11 @@ class RecordHistoryDialog extends StatefulWidget {
   final String recordId;
   final String recordName;
   final Future<RecordHistory> Function()? loadHistoryForTesting;
+
+  /// Stands in for the attachment check of a restore; its answer is also
+  /// taken as the outcome when [restoreVersionForTesting] is set.
+  final Future<RecordRestoreOutcome> Function(RecordHistoryEntry version)?
+  planRestoreForTesting;
   final Future<void> Function(RecordHistoryEntry version)?
   restoreVersionForTesting;
 
@@ -132,24 +202,88 @@ class _RecordHistoryDialogState extends State<RecordHistoryDialog> {
       newer: content,
       older: previousContent,
     );
-    return fields.isEmpty
-        ? context.l10n.recordHistoryNoFieldChanges
-        : context.l10n.recordHistoryChangedFields(fields.join(', '));
+    if (fields.isEmpty) return context.l10n.recordHistoryNoFieldChanges;
+    final l10n = context.l10n;
+    final labels = <String>{
+      for (final field in fields)
+        recordHistoryFieldLabel(l10n, content['type'], field),
+    };
+    return l10n.recordHistoryChangedFields(labels.join(', '));
   }
 
   String _formatTime(DateTime time) =>
       DateFormat.yMMMd().add_jms().format(time.toLocal());
 
+  String? _nothingToRestoreNotice(RecordRestoreOutcome outcome) =>
+      switch (outcome) {
+        RecordRestoreOutcome.nothingToRestore =>
+          context.l10n.recordHistoryNothingToRestore,
+        RecordRestoreOutcome.nothingToRestoreAttachmentsGone =>
+          context.l10n.recordHistoryNothingToRestoreAttachmentsGone,
+        _ => null,
+      };
+
+  bool get _testing =>
+      widget.planRestoreForTesting != null ||
+      widget.restoreVersionForTesting != null;
+
   Future<void> _restore(RecordHistoryEntry entry) async {
     if (_restoring) return;
+    // Ask the server about the version's attachment objects first, so the
+    // confirmation can say what will happen to the attachments.
+    setState(() {
+      _restoring = true;
+      _restoreError = null;
+      _restoreNotice = null;
+    });
+    late final RecordRestoreOutcome planned;
+    try {
+      planned = _testing
+          ? await widget.planRestoreForTesting?.call(entry) ??
+                RecordRestoreOutcome.unchanged
+          : await app.planRecordVersionRestore(
+              recordId: widget.recordId,
+              version: entry,
+            );
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _restoring = false;
+        _restoreError = app.friendlyError(error);
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _restoring = false;
+      // Nothing to confirm when the restore would write nothing.
+      _restoreNotice = _nothingToRestoreNotice(planned);
+    });
+    if (_restoreNotice != null) return;
+    final isHost = entry.plaintext?['type'] == 'host';
     final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.recordHistoryRestoreConfirmTitle),
+        // One plain text, so the iPhone alert adaptation still applies.
         content: Text(
-          context.l10n.recordHistoryRestoreConfirmBody(
-            _formatTime(entry.createdAt),
-          ),
+          [
+            context.l10n.recordHistoryRestoreConfirmBody(
+              _formatTime(entry.createdAt),
+            ),
+            switch (planned) {
+              RecordRestoreOutcome.restored =>
+                context.l10n.recordHistoryRestoreAttachmentsRestored,
+              RecordRestoreOutcome.keptCurrent =>
+                context.l10n.recordHistoryRestoreAttachmentsKept,
+              RecordRestoreOutcome.unchanged when isHost =>
+                context.l10n.recordHistoryRestoreAttachmentsUnchanged,
+              RecordRestoreOutcome.unchanged ||
+              RecordRestoreOutcome.nothingToRestore ||
+              RecordRestoreOutcome.nothingToRestoreAttachmentsGone => null,
+            },
+          ].nonNulls.join('\n\n'),
+          key: const ValueKey('record_history_restore_confirm_body'),
         ),
         actions: [
           TextButton(
@@ -171,18 +305,28 @@ class _RecordHistoryDialogState extends State<RecordHistoryDialog> {
       _restoreNotice = null;
     });
     try {
-      final restore = widget.restoreVersionForTesting;
-      if (restore != null) {
-        await restore(entry);
+      // The outcome is the one of the restore itself: the server may have
+      // dropped an object since the confirmation was shown.
+      var outcome = planned;
+      if (_testing) {
+        await widget.restoreVersionForTesting?.call(entry);
       } else {
-        await app.restoreRecordVersion(
+        outcome = await app.restoreRecordVersion(
           recordId: widget.recordId,
           version: entry,
         );
       }
       if (!mounted) return;
       setState(() {
-        _restoreNotice = context.l10n.recordHistoryRestored;
+        _restoreNotice =
+            _nothingToRestoreNotice(outcome) ??
+            switch (outcome) {
+              RecordRestoreOutcome.restored =>
+                context.l10n.recordHistoryRestoredWithAttachments,
+              RecordRestoreOutcome.keptCurrent =>
+                context.l10n.recordHistoryRestoredKeptAttachments,
+              _ => context.l10n.recordHistoryRestored,
+            };
         _history = _load();
       });
     } on Object catch (error) {

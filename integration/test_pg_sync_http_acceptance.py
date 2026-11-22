@@ -10634,6 +10634,16 @@ def test_pg_http_approved_device_single_record_revision_conflict_same_pass_web_a
     record_property("pg_host_single_conflict_revision_count", len(versions))
 
 
+# The Web runner behind this test (web/pg_sync_host_conflict.cjs) stages two
+# devices editing one Host and requires the second edit to be kept as a
+# conflict branch and resolved by hand. Since "latest version wins" (commit
+# 9d6b896) the client rebases that edit onto the other device's version and
+# pushes it, so there is no conflict row to check; the runner refuses to
+# start. Rewrite both for the new ledger (update(A) <- update(B, head), zero
+# conflict rows) before removing this marker.
+@pytest.mark.skip(
+    reason="asserts the conflict-branch flow that latest-version-wins replaced (9d6b896)"
+)
 @pytest.mark.parametrize(
     "pg_http_world",
     ["pg_sync_host_conflict_web_acceptance"],

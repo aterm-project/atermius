@@ -674,6 +674,17 @@ class $PendingOperationsTable extends PendingOperations
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _baseCommitSeqMeta = const VerificationMeta(
+    'baseCommitSeq',
+  );
+  @override
+  late final GeneratedColumn<String> baseCommitSeq = GeneratedColumn<String>(
+    'base_commit_seq',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _envelopeJsonMeta = const VerificationMeta(
     'envelopeJson',
   );
@@ -738,6 +749,7 @@ class $PendingOperationsTable extends PendingOperations
     serverSpaceId,
     baseRevisionId,
     baseEnvelopeJson,
+    baseCommitSeq,
     envelopeJson,
     status,
     attemptCount,
@@ -810,6 +822,15 @@ class $PendingOperationsTable extends PendingOperations
         baseEnvelopeJson.isAcceptableOrUnknown(
           data['base_envelope_json']!,
           _baseEnvelopeJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('base_commit_seq')) {
+      context.handle(
+        _baseCommitSeqMeta,
+        baseCommitSeq.isAcceptableOrUnknown(
+          data['base_commit_seq']!,
+          _baseCommitSeqMeta,
         ),
       );
     }
@@ -893,6 +914,10 @@ class $PendingOperationsTable extends PendingOperations
         DriftSqlType.string,
         data['${effectivePrefix}base_envelope_json'],
       ),
+      baseCommitSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}base_commit_seq'],
+      ),
       envelopeJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}envelope_json'],
@@ -931,6 +956,11 @@ class PendingOperation extends DataClass
   final String? serverSpaceId;
   final String? baseRevisionId;
   final String? baseEnvelopeJson;
+
+  /// The server commit sequence of [baseRevisionId], when this device took
+  /// that revision from the main feed. Null for a base that is itself an
+  /// unsent local operation, and for rows written before schema 15.
+  final String? baseCommitSeq;
   final String envelopeJson;
   final String status;
   final int attemptCount;
@@ -944,6 +974,7 @@ class PendingOperation extends DataClass
     this.serverSpaceId,
     this.baseRevisionId,
     this.baseEnvelopeJson,
+    this.baseCommitSeq,
     required this.envelopeJson,
     required this.status,
     required this.attemptCount,
@@ -967,6 +998,9 @@ class PendingOperation extends DataClass
     }
     if (!nullToAbsent || baseEnvelopeJson != null) {
       map['base_envelope_json'] = Variable<String>(baseEnvelopeJson);
+    }
+    if (!nullToAbsent || baseCommitSeq != null) {
+      map['base_commit_seq'] = Variable<String>(baseCommitSeq);
     }
     map['envelope_json'] = Variable<String>(envelopeJson);
     map['status'] = Variable<String>(status);
@@ -995,6 +1029,9 @@ class PendingOperation extends DataClass
       baseEnvelopeJson: baseEnvelopeJson == null && nullToAbsent
           ? const Value.absent()
           : Value(baseEnvelopeJson),
+      baseCommitSeq: baseCommitSeq == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baseCommitSeq),
       envelopeJson: Value(envelopeJson),
       status: Value(status),
       attemptCount: Value(attemptCount),
@@ -1018,6 +1055,7 @@ class PendingOperation extends DataClass
       serverSpaceId: serializer.fromJson<String?>(json['serverSpaceId']),
       baseRevisionId: serializer.fromJson<String?>(json['baseRevisionId']),
       baseEnvelopeJson: serializer.fromJson<String?>(json['baseEnvelopeJson']),
+      baseCommitSeq: serializer.fromJson<String?>(json['baseCommitSeq']),
       envelopeJson: serializer.fromJson<String>(json['envelopeJson']),
       status: serializer.fromJson<String>(json['status']),
       attemptCount: serializer.fromJson<int>(json['attemptCount']),
@@ -1036,6 +1074,7 @@ class PendingOperation extends DataClass
       'serverSpaceId': serializer.toJson<String?>(serverSpaceId),
       'baseRevisionId': serializer.toJson<String?>(baseRevisionId),
       'baseEnvelopeJson': serializer.toJson<String?>(baseEnvelopeJson),
+      'baseCommitSeq': serializer.toJson<String?>(baseCommitSeq),
       'envelopeJson': serializer.toJson<String>(envelopeJson),
       'status': serializer.toJson<String>(status),
       'attemptCount': serializer.toJson<int>(attemptCount),
@@ -1052,6 +1091,7 @@ class PendingOperation extends DataClass
     Value<String?> serverSpaceId = const Value.absent(),
     Value<String?> baseRevisionId = const Value.absent(),
     Value<String?> baseEnvelopeJson = const Value.absent(),
+    Value<String?> baseCommitSeq = const Value.absent(),
     String? envelopeJson,
     String? status,
     int? attemptCount,
@@ -1071,6 +1111,9 @@ class PendingOperation extends DataClass
     baseEnvelopeJson: baseEnvelopeJson.present
         ? baseEnvelopeJson.value
         : this.baseEnvelopeJson,
+    baseCommitSeq: baseCommitSeq.present
+        ? baseCommitSeq.value
+        : this.baseCommitSeq,
     envelopeJson: envelopeJson ?? this.envelopeJson,
     status: status ?? this.status,
     attemptCount: attemptCount ?? this.attemptCount,
@@ -1096,6 +1139,9 @@ class PendingOperation extends DataClass
       baseEnvelopeJson: data.baseEnvelopeJson.present
           ? data.baseEnvelopeJson.value
           : this.baseEnvelopeJson,
+      baseCommitSeq: data.baseCommitSeq.present
+          ? data.baseCommitSeq.value
+          : this.baseCommitSeq,
       envelopeJson: data.envelopeJson.present
           ? data.envelopeJson.value
           : this.envelopeJson,
@@ -1120,6 +1166,7 @@ class PendingOperation extends DataClass
           ..write('serverSpaceId: $serverSpaceId, ')
           ..write('baseRevisionId: $baseRevisionId, ')
           ..write('baseEnvelopeJson: $baseEnvelopeJson, ')
+          ..write('baseCommitSeq: $baseCommitSeq, ')
           ..write('envelopeJson: $envelopeJson, ')
           ..write('status: $status, ')
           ..write('attemptCount: $attemptCount, ')
@@ -1138,6 +1185,7 @@ class PendingOperation extends DataClass
     serverSpaceId,
     baseRevisionId,
     baseEnvelopeJson,
+    baseCommitSeq,
     envelopeJson,
     status,
     attemptCount,
@@ -1155,6 +1203,7 @@ class PendingOperation extends DataClass
           other.serverSpaceId == this.serverSpaceId &&
           other.baseRevisionId == this.baseRevisionId &&
           other.baseEnvelopeJson == this.baseEnvelopeJson &&
+          other.baseCommitSeq == this.baseCommitSeq &&
           other.envelopeJson == this.envelopeJson &&
           other.status == this.status &&
           other.attemptCount == this.attemptCount &&
@@ -1170,6 +1219,7 @@ class PendingOperationsCompanion extends UpdateCompanion<PendingOperation> {
   final Value<String?> serverSpaceId;
   final Value<String?> baseRevisionId;
   final Value<String?> baseEnvelopeJson;
+  final Value<String?> baseCommitSeq;
   final Value<String> envelopeJson;
   final Value<String> status;
   final Value<int> attemptCount;
@@ -1184,6 +1234,7 @@ class PendingOperationsCompanion extends UpdateCompanion<PendingOperation> {
     this.serverSpaceId = const Value.absent(),
     this.baseRevisionId = const Value.absent(),
     this.baseEnvelopeJson = const Value.absent(),
+    this.baseCommitSeq = const Value.absent(),
     this.envelopeJson = const Value.absent(),
     this.status = const Value.absent(),
     this.attemptCount = const Value.absent(),
@@ -1199,6 +1250,7 @@ class PendingOperationsCompanion extends UpdateCompanion<PendingOperation> {
     this.serverSpaceId = const Value.absent(),
     this.baseRevisionId = const Value.absent(),
     this.baseEnvelopeJson = const Value.absent(),
+    this.baseCommitSeq = const Value.absent(),
     required String envelopeJson,
     this.status = const Value.absent(),
     this.attemptCount = const Value.absent(),
@@ -1218,6 +1270,7 @@ class PendingOperationsCompanion extends UpdateCompanion<PendingOperation> {
     Expression<String>? serverSpaceId,
     Expression<String>? baseRevisionId,
     Expression<String>? baseEnvelopeJson,
+    Expression<String>? baseCommitSeq,
     Expression<String>? envelopeJson,
     Expression<String>? status,
     Expression<int>? attemptCount,
@@ -1233,6 +1286,7 @@ class PendingOperationsCompanion extends UpdateCompanion<PendingOperation> {
       if (serverSpaceId != null) 'server_space_id': serverSpaceId,
       if (baseRevisionId != null) 'base_revision_id': baseRevisionId,
       if (baseEnvelopeJson != null) 'base_envelope_json': baseEnvelopeJson,
+      if (baseCommitSeq != null) 'base_commit_seq': baseCommitSeq,
       if (envelopeJson != null) 'envelope_json': envelopeJson,
       if (status != null) 'status': status,
       if (attemptCount != null) 'attempt_count': attemptCount,
@@ -1250,6 +1304,7 @@ class PendingOperationsCompanion extends UpdateCompanion<PendingOperation> {
     Value<String?>? serverSpaceId,
     Value<String?>? baseRevisionId,
     Value<String?>? baseEnvelopeJson,
+    Value<String?>? baseCommitSeq,
     Value<String>? envelopeJson,
     Value<String>? status,
     Value<int>? attemptCount,
@@ -1265,6 +1320,7 @@ class PendingOperationsCompanion extends UpdateCompanion<PendingOperation> {
       serverSpaceId: serverSpaceId ?? this.serverSpaceId,
       baseRevisionId: baseRevisionId ?? this.baseRevisionId,
       baseEnvelopeJson: baseEnvelopeJson ?? this.baseEnvelopeJson,
+      baseCommitSeq: baseCommitSeq ?? this.baseCommitSeq,
       envelopeJson: envelopeJson ?? this.envelopeJson,
       status: status ?? this.status,
       attemptCount: attemptCount ?? this.attemptCount,
@@ -1298,6 +1354,9 @@ class PendingOperationsCompanion extends UpdateCompanion<PendingOperation> {
     if (baseEnvelopeJson.present) {
       map['base_envelope_json'] = Variable<String>(baseEnvelopeJson.value);
     }
+    if (baseCommitSeq.present) {
+      map['base_commit_seq'] = Variable<String>(baseCommitSeq.value);
+    }
     if (envelopeJson.present) {
       map['envelope_json'] = Variable<String>(envelopeJson.value);
     }
@@ -1329,6 +1388,7 @@ class PendingOperationsCompanion extends UpdateCompanion<PendingOperation> {
           ..write('serverSpaceId: $serverSpaceId, ')
           ..write('baseRevisionId: $baseRevisionId, ')
           ..write('baseEnvelopeJson: $baseEnvelopeJson, ')
+          ..write('baseCommitSeq: $baseCommitSeq, ')
           ..write('envelopeJson: $envelopeJson, ')
           ..write('status: $status, ')
           ..write('attemptCount: $attemptCount, ')
@@ -12844,6 +12904,7 @@ typedef $$PendingOperationsTableCreateCompanionBuilder =
       Value<String?> serverSpaceId,
       Value<String?> baseRevisionId,
       Value<String?> baseEnvelopeJson,
+      Value<String?> baseCommitSeq,
       required String envelopeJson,
       Value<String> status,
       Value<int> attemptCount,
@@ -12860,6 +12921,7 @@ typedef $$PendingOperationsTableUpdateCompanionBuilder =
       Value<String?> serverSpaceId,
       Value<String?> baseRevisionId,
       Value<String?> baseEnvelopeJson,
+      Value<String?> baseCommitSeq,
       Value<String> envelopeJson,
       Value<String> status,
       Value<int> attemptCount,
@@ -12909,6 +12971,11 @@ class $$PendingOperationsTableFilterComposer
 
   ColumnFilters<String> get baseEnvelopeJson => $composableBuilder(
     column: $table.baseEnvelopeJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baseCommitSeq => $composableBuilder(
+    column: $table.baseCommitSeq,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12982,6 +13049,11 @@ class $$PendingOperationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get baseCommitSeq => $composableBuilder(
+    column: $table.baseCommitSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get envelopeJson => $composableBuilder(
     column: $table.envelopeJson,
     builder: (column) => ColumnOrderings(column),
@@ -13043,6 +13115,11 @@ class $$PendingOperationsTableAnnotationComposer
 
   GeneratedColumn<String> get baseEnvelopeJson => $composableBuilder(
     column: $table.baseEnvelopeJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get baseCommitSeq => $composableBuilder(
+    column: $table.baseCommitSeq,
     builder: (column) => column,
   );
 
@@ -13115,6 +13192,7 @@ class $$PendingOperationsTableTableManager
                 Value<String?> serverSpaceId = const Value.absent(),
                 Value<String?> baseRevisionId = const Value.absent(),
                 Value<String?> baseEnvelopeJson = const Value.absent(),
+                Value<String?> baseCommitSeq = const Value.absent(),
                 Value<String> envelopeJson = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<int> attemptCount = const Value.absent(),
@@ -13129,6 +13207,7 @@ class $$PendingOperationsTableTableManager
                 serverSpaceId: serverSpaceId,
                 baseRevisionId: baseRevisionId,
                 baseEnvelopeJson: baseEnvelopeJson,
+                baseCommitSeq: baseCommitSeq,
                 envelopeJson: envelopeJson,
                 status: status,
                 attemptCount: attemptCount,
@@ -13145,6 +13224,7 @@ class $$PendingOperationsTableTableManager
                 Value<String?> serverSpaceId = const Value.absent(),
                 Value<String?> baseRevisionId = const Value.absent(),
                 Value<String?> baseEnvelopeJson = const Value.absent(),
+                Value<String?> baseCommitSeq = const Value.absent(),
                 required String envelopeJson,
                 Value<String> status = const Value.absent(),
                 Value<int> attemptCount = const Value.absent(),
@@ -13159,6 +13239,7 @@ class $$PendingOperationsTableTableManager
                 serverSpaceId: serverSpaceId,
                 baseRevisionId: baseRevisionId,
                 baseEnvelopeJson: baseEnvelopeJson,
+                baseCommitSeq: baseCommitSeq,
                 envelopeJson: envelopeJson,
                 status: status,
                 attemptCount: attemptCount,
@@ -16957,40 +17038,38 @@ typedef $$VaultArchiveObjectsTableProcessedTableManager =
       VaultArchiveObject,
       PrefetchHooks Function()
     >;
-typedef $$BlobJobsTableCreateCompanionBuilder =
-    BlobJobsCompanion Function({
-      required String jobId,
-      required String vaultId,
-      required String recordId,
-      Value<String?> instanceId,
-      Value<String?> serverSpaceId,
-      required String blobId,
-      required String direction,
-      required String state,
-      Value<int> totalObjects,
-      Value<int> attemptCount,
-      Value<String?> lastErrorCode,
-      required int createdAt,
-      required int updatedAt,
-      Value<int> rowid,
-    });
-typedef $$BlobJobsTableUpdateCompanionBuilder =
-    BlobJobsCompanion Function({
-      Value<String> jobId,
-      Value<String> vaultId,
-      Value<String> recordId,
-      Value<String?> instanceId,
-      Value<String?> serverSpaceId,
-      Value<String> blobId,
-      Value<String> direction,
-      Value<String> state,
-      Value<int> totalObjects,
-      Value<int> attemptCount,
-      Value<String?> lastErrorCode,
-      Value<int> createdAt,
-      Value<int> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$BlobJobsTableCreateCompanionBuilder = BlobJobsCompanion Function({
+  required String jobId,
+  required String vaultId,
+  required String recordId,
+  Value<String?> instanceId,
+  Value<String?> serverSpaceId,
+  required String blobId,
+  required String direction,
+  required String state,
+  Value<int> totalObjects,
+  Value<int> attemptCount,
+  Value<String?> lastErrorCode,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$BlobJobsTableUpdateCompanionBuilder = BlobJobsCompanion Function({
+  Value<String> jobId,
+  Value<String> vaultId,
+  Value<String> recordId,
+  Value<String?> instanceId,
+  Value<String?> serverSpaceId,
+  Value<String> blobId,
+  Value<String> direction,
+  Value<String> state,
+  Value<int> totalObjects,
+  Value<int> attemptCount,
+  Value<String?> lastErrorCode,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
 
 class $$BlobJobsTableFilterComposer
     extends Composer<_$ClientDatabase, $BlobJobsTable> {

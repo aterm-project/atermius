@@ -18528,4 +18528,33 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get workspacesReadOnlyNotice => '此保险库为只读。你可以预览已保存的工作区，但不能保存、更改或删除工作区。';
+
+  @override
+  String get recordHistoryFieldKeyFingerprint => '密钥指纹';
+
+  @override
+  String get recordHistoryRestoreAttachmentsRestored =>
+      '此版本的附件也会一并恢复，并替换当前的附件。';
+
+  @override
+  String get recordHistoryRestoreAttachmentsKept =>
+      '服务器上已没有此版本部分附件的文件，因此只恢复各字段，当前的附件保持不变。';
+
+  @override
+  String get recordHistoryRestoreAttachmentsUnchanged =>
+      '附件不受影响：此版本的附件与当前版本相同。';
+
+  @override
+  String get recordHistoryRestoredWithAttachments => '已恢复为新版本，附件也已一并恢复。';
+
+  @override
+  String get recordHistoryRestoredKeptAttachments =>
+      '已将各字段恢复为新版本。服务器上已没有该版本部分附件的文件，因此保留了当前的附件。';
+
+  @override
+  String get recordHistoryNothingToRestore => '此版本的内容与当前版本相同，未做任何更改。';
+
+  @override
+  String get recordHistoryNothingToRestoreAttachmentsGone =>
+      '此版本与当前版本只有附件不同，而服务器上已没有其中部分附件的文件，未做任何更改。';
 }

@@ -96,9 +96,11 @@ impl PgSyncCommitRepository {
             request_digest,
             operations,
             restore_retention_days,
-            record_history_limit,
+            default_record_history_limit,
             object_gc_grace_seconds,
         } = command;
+        // Read lazily before the first prune of this batch; see below.
+        let mut record_history_limit: Option<i64> = None;
 
         if device_id != user.device_id {
             return Err(ApiError::forbidden(
@@ -468,6 +470,21 @@ impl PgSyncCommitRepository {
 
             // Keep at most the configured number of revisions for this
             // record. The new head and conflict bases are never removed.
+            // The limit is read here, inside the commit transaction and
+            // after the Vault counter lock, so a policy update that
+            // committed before this statement is the one enforced.
+            let record_history_limit = match record_history_limit {
+                Some(limit) => limit,
+                None => {
+                    let limit = crate::pg_sync_policy::effective_record_history_limit_tx(
+                        &mut tx,
+                        default_record_history_limit,
+                    )
+                    .await?;
+                    record_history_limit = Some(limit);
+                    limit
+                }
+            };
             crate::pg_sync_policy::prune_record_history_tx(
                 &mut tx,
                 &vault_id,
@@ -763,6 +780,9 @@ mod tests {
         include_str!("../migrations/postgres/0033_record_auto_purge_opt_in.sql"),
         include_str!("../migrations/postgres/0034_record_auto_purge_scan.sql")
     );
+    // The commit reads the per-record history limit inside its transaction.
+    const SYNC_POLICY_MIGRATION: &str =
+        include_str!("../migrations/postgres/0042_instance_sync_policy.sql");
     const USER: &str = "pg-commit-user";
     const DEVICE: &str = "pg-commit-device";
     const SESSION: &str = "pg-commit-session";
@@ -890,6 +910,10 @@ mod tests {
                     .execute(&pool)
                     .await
                     .expect("apply PostgreSQL redacted-conflict compatibility schema");
+                sqlx::raw_sql(SYNC_POLICY_MIGRATION)
+                    .execute(&pool)
+                    .await
+                    .expect("apply PostgreSQL sync policy schema");
                 seed(&pool).await;
                 pool
             })
@@ -1117,7 +1141,7 @@ mod tests {
             request_digest: format!("request-{batch_id}"),
             operations,
             restore_retention_days: 30,
-            record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
+            default_record_history_limit: crate::sync_policy::DEFAULT_RECORD_HISTORY_LIMIT,
             object_gc_grace_seconds: 7 * 24 * 60 * 60,
         }
     }

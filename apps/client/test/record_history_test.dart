@@ -3,14 +3,19 @@ import 'dart:typed_data';
 
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
+import 'package:aterm_client/crypto/host_attachment_crypto.dart';
 import 'package:aterm_client/crypto/vault_crypto.dart';
 import 'package:aterm_client/domain/models.dart';
+import 'package:aterm_client/l10n/l10n.dart';
 import 'package:aterm_client/storage/client_database.dart';
 import 'package:aterm_client/storage/secure_store.dart';
 import 'package:aterm_client/sync/sync_repository.dart';
+import 'package:aterm_client/ui/app_motion.dart';
 import 'package:aterm_client/ui/app_theme.dart';
+import 'package:aterm_client/ui/ios_native/ios_mode.dart';
 import 'package:aterm_client/ui/record_history_dialog.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/cupertino.dart' show CupertinoAlertDialog;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -336,6 +341,517 @@ void main() {
     },
   );
 
+  test(
+    'a restore brings back colour and port forwards, not lastConnected',
+    () async {
+      final fixture = await _Fixture.create(sodium);
+      final app = fixture.controller();
+      try {
+        const forward = SshPortForwardProfile(
+          id: 'forward-1',
+          name: 'Database',
+          type: SshPortForwardType.local,
+          bindAddress: '127.0.0.1',
+          bindPort: 15432,
+          destinationAddress: '127.0.0.1',
+          destinationPort: 5432,
+        );
+        const original = HostRecord(
+          id: _recordId,
+          name: 'Build host',
+          address: 'first.example',
+          username: 'ops',
+          color: 4,
+          portForwardProfiles: [forward],
+        );
+        await app.saveHost(original);
+        final firstRevision = await fixture.acknowledgeHead('1');
+        await app.saveHost(
+          original.copyWith(
+            address: 'second.example',
+            color: 2,
+            portForwardProfiles: const [],
+          ),
+        );
+        await fixture.acknowledgeHead('2');
+        final version = RecordHistoryEntry(
+          revisionId: firstRevision,
+          commitSeq: '1',
+          createdAt: DateTime.utc(2026, 11, 20),
+          verified: true,
+          isCurrent: false,
+          operation: 'create',
+          plaintext: Map<String, dynamic>.from(
+            jsonDecode(jsonEncode(original.toJson())) as Map,
+          ),
+        );
+
+        expect(
+          await app.restoreRecordVersion(recordId: _recordId, version: version),
+          RecordRestoreOutcome.unchanged,
+        );
+        final pending = await fixture.database.queuedOperations(_vaultId);
+        final content = await fixture.repository.crypto.decryptRecord(
+          vaultKey: Uint8List.fromList(fixture.key),
+          envelope:
+              jsonDecode(pending.single.envelopeJson) as Map<String, dynamic>,
+          authorPublicKey: fixture.local.signing.publicKey,
+        );
+        // Everything the history lists as changed is back.
+        expect(
+          recordHistoryChangedFields(
+            newer: content,
+            older: Map<String, dynamic>.from(version.plaintext!),
+          ),
+          isEmpty,
+        );
+        expect(app.hosts.single.color, 4);
+        expect(app.hosts.single.portForwardProfiles, [forward]);
+        expect(app.hosts.single.address, 'first.example');
+
+        // The same version again equals the head now: nothing is written.
+        await fixture.acknowledgeHead('3');
+        final head = await fixture.database.cachedEnvelope(
+          _vaultId,
+          _recordId,
+          instanceId: _instanceId,
+          serverSpaceId: _spaceId,
+        );
+        expect(
+          await app.planRecordVersionRestore(
+            recordId: _recordId,
+            version: version,
+          ),
+          RecordRestoreOutcome.nothingToRestore,
+        );
+        expect(
+          await app.restoreRecordVersion(recordId: _recordId, version: version),
+          RecordRestoreOutcome.nothingToRestore,
+        );
+        expect(await fixture.database.countPending(_vaultId), 0);
+        expect(
+          (await fixture.database.cachedEnvelope(
+            _vaultId,
+            _recordId,
+            instanceId: _instanceId,
+            serverSpaceId: _spaceId,
+          ))!.revisionId,
+          head!.revisionId,
+        );
+      } finally {
+        app.dispose();
+        await fixture.dispose();
+      }
+    },
+  );
+
+  test(
+    'a credential version equal to the current one is not rewritten',
+    () async {
+      final fixture = await _Fixture.create(sodium);
+      final app = fixture.controller();
+      try {
+        const credential = CredentialRecord(
+          id: _recordId,
+          name: 'Deploy',
+          username: 'ops',
+          secret: 'first-password',
+        );
+        await app.saveCredential(credential);
+        final firstRevision = await fixture.acknowledgeHead('1');
+        RecordHistoryEntry version(CredentialRecord record) =>
+            RecordHistoryEntry(
+              revisionId: firstRevision,
+              commitSeq: '1',
+              createdAt: DateTime.utc(2026, 11, 20),
+              verified: true,
+              isCurrent: false,
+              operation: 'create',
+              plaintext: Map<String, dynamic>.from(record.toJson()),
+            );
+
+        expect(
+          await app.restoreRecordVersion(
+            recordId: _recordId,
+            version: version(credential),
+          ),
+          RecordRestoreOutcome.nothingToRestore,
+        );
+        expect(await fixture.database.countPending(_vaultId), 0);
+
+        expect(
+          await app.restoreRecordVersion(
+            recordId: _recordId,
+            version: version(
+              const CredentialRecord(
+                id: _recordId,
+                name: 'Deploy',
+                username: 'ops',
+                secret: 'older-password',
+              ),
+            ),
+          ),
+          RecordRestoreOutcome.unchanged,
+        );
+        expect(await fixture.database.countPending(_vaultId), 1);
+        expect(app.credentials.single.secret, 'older-password');
+      } finally {
+        app.dispose();
+        await fixture.dispose();
+      }
+    },
+  );
+
+  test('changed fields carry the editor labels of the current language', () {
+    final en = lookupAppLocalizations(const Locale('en'));
+    final zh = lookupAppLocalizations(const Locale('zh'));
+    String labels(AppLocalizations l10n, String type, List<String> fields) =>
+        [for (final field in fields) recordHistoryFieldLabel(l10n, type, field)]
+            .join(' | ');
+
+    const hostFields = [
+      'address',
+      'tags',
+      'jump_host_id',
+      'login',
+      '_manifest',
+    ];
+    expect(
+      labels(en, 'host', hostFields),
+      "Hostname or IP | Tags | Jump Host | This host's own sign-in | "
+      'Attachments',
+    );
+    expect(
+      labels(zh, 'host', hostFields),
+      '主机名或 IP | 标签 | 跳板主机 | 此主机自己的登录信息 | 附件',
+    );
+    // Secret fields: the label only.
+    const secretFields = ['secret', 'private_key', 'passphrase'];
+    expect(
+      labels(en, 'credential', secretFields),
+      'Password | PEM private key | Key passphrase (optional)',
+    );
+    expect(labels(zh, 'credential', secretFields), '密码 | PEM 私钥 | 密钥口令（可选）');
+    // The same key has the label of its own editor.
+    expect(recordHistoryFieldLabel(en, 'group', 'name'), 'Group name');
+    expect(recordHistoryFieldLabel(zh, 'group', 'name'), '分组名称');
+    expect(recordHistoryFieldLabel(zh, 'snippet', 'body'), '脚本正文');
+    // A field no editor knows still shows something.
+    expect(recordHistoryFieldLabel(zh, 'host', 'future_field'), 'future field');
+    expect(recordHistoryFieldLabel(en, 'unknown', 'name'), 'name');
+  });
+
+  group('restoring a host version with attachments', () {
+    const original = HostRecord(
+      id: _recordId,
+      name: 'Build host',
+      address: 'first.example',
+      username: 'ops',
+    );
+
+    /// An encrypted attachment whose objects the fake server holds unless
+    /// [onServer] is false.
+    Future<({Map<String, Object?> manifest, List<String> refs, String blobId})>
+    attachment(
+      _Fixture fixture,
+      String fileName, {
+      bool onServer = true,
+    }) async {
+      final encrypted =
+          await HostAttachmentCrypto(randomBytes: sodium.randombytes.buf)
+              .encrypt(
+                fileName: fileName,
+                mediaType: 'text/plain',
+                bytes: utf8.encode('content of $fileName'),
+              );
+      final refs = <String>[
+        for (final object in encrypted.objects) object.objectId,
+      ]..sort();
+      if (onServer) {
+        for (final object in encrypted.objects) {
+          fixture.api.objects[object.objectId] = Uint8List.fromList(
+            object.bytes,
+          );
+        }
+      }
+      return (
+        manifest: <String, Object?>{
+          'attachments': [encrypted.manifestEntry],
+          'object_refs': refs,
+        },
+        refs: refs,
+        blobId: encrypted.manifestEntry['blob_id']! as String,
+      );
+    }
+
+    RecordHistoryEntry versionOf(HostRecord host, String revisionId) =>
+        RecordHistoryEntry(
+          revisionId: revisionId,
+          commitSeq: '1',
+          createdAt: DateTime.utc(2026, 11, 20),
+          verified: true,
+          isCurrent: false,
+          operation: 'create',
+          plaintext: Map<String, dynamic>.from(
+            jsonDecode(jsonEncode(host.toJson())) as Map,
+          ),
+        );
+
+    String uploadJobId(String blobId) =>
+        'upload:$_instanceId:$_spaceId:$_vaultId:$_recordId:$blobId';
+
+    Future<void> openUpload(_Fixture fixture, String blobId) =>
+        fixture.database.beginBlobJob(
+          jobId: uploadJobId(blobId),
+          vaultId: _vaultId,
+          recordId: _recordId,
+          blobId: blobId,
+          direction: 'upload',
+          state: 'uploading',
+          instanceId: _instanceId,
+          serverSpaceId: _spaceId,
+        );
+
+    Future<Map<String, dynamic>> pendingContent(
+      _Fixture fixture,
+      Map<String, dynamic> envelope,
+    ) => fixture.repository.crypto.decryptRecord(
+      vaultKey: Uint8List.fromList(fixture.key),
+      envelope: envelope,
+      authorPublicKey: fixture.local.signing.publicKey,
+    );
+
+    test(
+      're-applies the old manifest when every object is available',
+      () async {
+        final fixture = await _Fixture.create(sodium);
+        final app = fixture.controller()..api = fixture.api;
+        try {
+          final old = await attachment(fixture, 'old-notes.txt');
+          final newer = await attachment(fixture, 'new-notes.txt');
+          final first = original.copyWith(manifest: old.manifest);
+          await app.saveHost(first);
+          final firstRevision = await fixture.acknowledgeHead('1');
+          await app.saveHost(
+            first.copyWith(address: 'second.example', manifest: newer.manifest),
+          );
+          final headRevision = await fixture.acknowledgeHead('2');
+          // The newer attachment is still uploading on this device.
+          await openUpload(fixture, newer.blobId);
+
+          final version = versionOf(first, firstRevision);
+          expect(
+            await app.planRecordVersionRestore(
+              recordId: _recordId,
+              version: version,
+            ),
+            RecordRestoreOutcome.restored,
+          );
+          expect(await fixture.database.countPending(_vaultId), 0);
+          fixture.api.probed.clear();
+
+          expect(
+            await app.restoreRecordVersion(
+              recordId: _recordId,
+              version: version,
+            ),
+            RecordRestoreOutcome.restored,
+          );
+          // Exactly the objects the current version does not reference.
+          expect(fixture.api.probed, old.refs);
+
+          final pending = await fixture.database.queuedOperations(_vaultId);
+          expect(pending, hasLength(1));
+          final envelope =
+              jsonDecode(pending.single.envelopeJson) as Map<String, dynamic>;
+          expect(_header(envelope)['base_revision_id'], headRevision);
+          expect(_header(envelope)['object_refs'], old.refs);
+          final content = await pendingContent(fixture, envelope);
+          expect(content['address'], 'first.example');
+          expect(content['_manifest'], old.manifest);
+          expect(app.hosts.single.manifest, old.manifest);
+          expect(
+            app.hostAttachments(_recordId).single.fileName,
+            'old-notes.txt',
+          );
+          // The dropped attachment's upload task no longer holds the Host back.
+          expect(
+            await fixture.database.blobJobsForRecord(
+              _vaultId,
+              _recordId,
+              instanceId: _instanceId,
+              serverSpaceId: _spaceId,
+            ),
+            isEmpty,
+          );
+        } finally {
+          app.dispose();
+          await fixture.dispose();
+        }
+      },
+    );
+
+    test(
+      'keeps the current attachments and says so when an object is gone',
+      () async {
+        final fixture = await _Fixture.create(sodium);
+        final app = fixture.controller()..api = fixture.api;
+        try {
+          final old = await attachment(
+            fixture,
+            'old-notes.txt',
+            onServer: false,
+          );
+          final newer = await attachment(fixture, 'new-notes.txt');
+          final first = original.copyWith(manifest: old.manifest);
+          await app.saveHost(first);
+          final firstRevision = await fixture.acknowledgeHead('1');
+          await app.saveHost(
+            first.copyWith(address: 'second.example', manifest: newer.manifest),
+          );
+          final headRevision = await fixture.acknowledgeHead('2');
+          await openUpload(fixture, newer.blobId);
+
+          final version = versionOf(first, firstRevision);
+          expect(
+            await app.planRecordVersionRestore(
+              recordId: _recordId,
+              version: version,
+            ),
+            RecordRestoreOutcome.keptCurrent,
+          );
+          expect(
+            await app.restoreRecordVersion(
+              recordId: _recordId,
+              version: version,
+            ),
+            RecordRestoreOutcome.keptCurrent,
+          );
+
+          final pending = await fixture.database.queuedOperations(_vaultId);
+          expect(pending, hasLength(1));
+          final envelope =
+              jsonDecode(pending.single.envelopeJson) as Map<String, dynamic>;
+          expect(_header(envelope)['base_revision_id'], headRevision);
+          // No reference to an object the server would refuse.
+          expect(_header(envelope)['object_refs'], newer.refs);
+          final content = await pendingContent(fixture, envelope);
+          expect(content['address'], 'first.example');
+          expect(content['_manifest'], newer.manifest);
+          expect(
+            app.hostAttachments(_recordId).single.fileName,
+            'new-notes.txt',
+          );
+          // The unfinished upload still gates the Host.
+          final jobs = await fixture.database.blobJobsForRecord(
+            _vaultId,
+            _recordId,
+            instanceId: _instanceId,
+            serverSpaceId: _spaceId,
+          );
+          expect(jobs.single.jobId, uploadJobId(newer.blobId));
+        } finally {
+          app.dispose();
+          await fixture.dispose();
+        }
+      },
+    );
+
+    test('only gone attachments differ: nothing is written', () async {
+      final fixture = await _Fixture.create(sodium);
+      final app = fixture.controller()..api = fixture.api;
+      try {
+        final old = await attachment(fixture, 'old-notes.txt', onServer: false);
+        final first = original.copyWith(manifest: old.manifest);
+        await app.saveHost(first);
+        final firstRevision = await fixture.acknowledgeHead('1');
+        await app.saveHost(first.copyWith(clearManifest: true));
+        await fixture.acknowledgeHead('2');
+        final version = versionOf(first, firstRevision);
+
+        expect(
+          await app.planRecordVersionRestore(
+            recordId: _recordId,
+            version: version,
+          ),
+          RecordRestoreOutcome.nothingToRestoreAttachmentsGone,
+        );
+        expect(
+          await app.restoreRecordVersion(recordId: _recordId, version: version),
+          RecordRestoreOutcome.nothingToRestoreAttachmentsGone,
+        );
+        expect(await fixture.database.countPending(_vaultId), 0);
+        expect(app.hosts.single.manifest, isNull);
+      } finally {
+        app.dispose();
+        await fixture.dispose();
+      }
+    });
+
+    test('restores nothing when availability cannot be determined', () async {
+      final fixture = await _Fixture.create(sodium);
+      final app = fixture.controller()..api = fixture.api;
+      try {
+        final old = await attachment(fixture, 'old-notes.txt');
+        final first = original.copyWith(manifest: old.manifest);
+        await app.saveHost(first);
+        final firstRevision = await fixture.acknowledgeHead('1');
+        await app.saveHost(
+          first.copyWith(address: 'second.example', clearManifest: true),
+        );
+        await fixture.acknowledgeHead('2');
+        fixture.api.objectError = const ApiException(
+          statusCode: 503,
+          code: 'SERVER_UNAVAILABLE',
+          message: 'unavailable',
+        );
+
+        await expectLater(
+          app.restoreRecordVersion(
+            recordId: _recordId,
+            version: versionOf(first, firstRevision),
+          ),
+          throwsA(isA<ApiException>()),
+        );
+        expect(await fixture.database.countPending(_vaultId), 0);
+        expect(app.hosts.single.address, 'second.example');
+      } finally {
+        app.dispose();
+        await fixture.dispose();
+      }
+    });
+
+    test(
+      'a version with the same attachments asks the server nothing',
+      () async {
+        final fixture = await _Fixture.create(sodium);
+        final app = fixture.controller()..api = fixture.api;
+        try {
+          final kept = await attachment(fixture, 'notes.txt');
+          final first = original.copyWith(manifest: kept.manifest);
+          await app.saveHost(first);
+          final firstRevision = await fixture.acknowledgeHead('1');
+          await app.saveHost(first.copyWith(address: 'second.example'));
+          await fixture.acknowledgeHead('2');
+
+          expect(
+            await app.restoreRecordVersion(
+              recordId: _recordId,
+              version: versionOf(first, firstRevision),
+            ),
+            RecordRestoreOutcome.unchanged,
+          );
+          expect(fixture.api.probed, isEmpty);
+          expect(app.hosts.single.address, 'first.example');
+          expect(app.hosts.single.manifest, kept.manifest);
+        } finally {
+          app.dispose();
+          await fixture.dispose();
+        }
+      },
+    );
+  });
+
   test('a read-only member and an unverified version cannot restore', () async {
     final fixture = await _Fixture.create(sodium);
     final app = fixture.controller();
@@ -440,6 +956,8 @@ void main() {
       required ClientDatabase database,
       required Future<RecordHistory> Function() load,
       Future<void> Function(RecordHistoryEntry version)? restore,
+      Future<RecordRestoreOutcome> Function(RecordHistoryEntry version)? plan,
+      Locale? locale,
       bool canWrite = true,
     }) async {
       final app =
@@ -468,12 +986,20 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
+          locale: locale,
+          localizationsDelegates: locale == null
+              ? null
+              : AppLocalizations.localizationsDelegates,
+          supportedLocales: locale == null
+              ? const [Locale('en', 'US')]
+              : AppLocalizations.supportedLocales,
           home: Scaffold(
             body: RecordHistoryDialog(
               app: app,
               recordId: _recordId,
               recordName: 'Deploy',
               loadHistoryForTesting: load,
+              planRestoreForTesting: plan,
               restoreVersionForTesting: restore,
             ),
           ),
@@ -482,6 +1008,296 @@ void main() {
       await tester.pumpAndSettle();
       return app;
     }
+
+    /// A Host whose address, password and attachments changed.
+    RecordHistory hostHistory() => RecordHistory(
+      recordId: _recordId,
+      historyLimit: 20,
+      entries: [
+        RecordHistoryEntry(
+          revisionId: 'aaaaaaaa-0000-4000-8000-000000000012',
+          commitSeq: '2',
+          createdAt: DateTime.utc(2026, 11, 20, 9),
+          verified: true,
+          isCurrent: true,
+          deviceId: 'local-device',
+          operation: 'update',
+          plaintext: {
+            ..._host(address: 'second.example'),
+            'login': {'kind': 'password', 'password': 'current-secret'},
+          },
+        ),
+        RecordHistoryEntry(
+          revisionId: 'aaaaaaaa-0000-4000-8000-000000000011',
+          commitSeq: '1',
+          createdAt: DateTime.utc(2026, 11, 20, 8),
+          verified: true,
+          isCurrent: false,
+          deviceId: 'local-device',
+          operation: 'create',
+          plaintext: {
+            ..._host(address: 'first.example'),
+            'login': {'kind': 'password', 'password': 'older-secret'},
+            '_manifest': {
+              'attachments': const <Object>[],
+              'object_refs': const <Object>[],
+            },
+          },
+        ),
+      ],
+    );
+
+    const restoreOlderHost = ValueKey(
+      'record_history_restore_aaaaaaaa-0000-4000-8000-000000000011',
+    );
+
+    testWidgets('the change summary uses editor labels in English', (
+      tester,
+    ) async {
+      final database = ClientDatabase.forTesting(NativeDatabase.memory());
+      final app = await pumpDialog(
+        tester,
+        database: database,
+        load: () async => hostHistory(),
+      );
+      try {
+        expect(
+          find.text(
+            "Changed: Attachments, Hostname or IP, This host's own sign-in",
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('secret'), findsNothing);
+        expect(find.textContaining('example'), findsNothing);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        app.dispose();
+        await database.close();
+      }
+    });
+
+    testWidgets('the change summary uses editor labels in Chinese', (
+      tester,
+    ) async {
+      final database = ClientDatabase.forTesting(NativeDatabase.memory());
+      final app = await pumpDialog(
+        tester,
+        database: database,
+        load: () async => hostHistory(),
+        locale: const Locale('zh'),
+      );
+      try {
+        expect(find.text('修改了：附件, 主机名或 IP, 此主机自己的登录信息'), findsOneWidget);
+        expect(find.textContaining('secret'), findsNothing);
+        expect(find.textContaining('example'), findsNothing);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        app.dispose();
+        await database.close();
+      }
+    });
+
+    for (final (outcome, confirmLine, notice) in const [
+      (
+        RecordRestoreOutcome.restored,
+        "This version's attachments will be restored too and replace the "
+            'current ones.',
+        'Restored as a new version, including its attachments.',
+      ),
+      (
+        RecordRestoreOutcome.keptCurrent,
+        "The server no longer has some files of this version's attachments, "
+            'so only the fields will be restored. The current attachments '
+            'stay as they are.',
+        'Fields restored as a new version. The current attachments were kept '
+            "because the server no longer has some files of that version's "
+            'attachments.',
+      ),
+      (
+        RecordRestoreOutcome.unchanged,
+        'Attachments are not affected: this version has the same attachments '
+            'as the current one.',
+        'Restored as a new version.',
+      ),
+    ]) {
+      testWidgets(
+        'confirmation and result say attachments are ${outcome.name}',
+        (tester) async {
+          final database = ClientDatabase.forTesting(NativeDatabase.memory());
+          final restored = <String>[];
+          final app = await pumpDialog(
+            tester,
+            database: database,
+            load: () async => hostHistory(),
+            plan: (version) async => outcome,
+            restore: (version) async => restored.add(version.revisionId),
+          );
+          try {
+            await tester.tap(find.byKey(restoreOlderHost));
+            await tester.pumpAndSettle();
+            expect(find.textContaining(confirmLine), findsOneWidget);
+            expect(restored, isEmpty);
+            await tester.tap(
+              find.byKey(const ValueKey('record_history_restore_confirm')),
+            );
+            await tester.pumpAndSettle();
+            expect(restored, hasLength(1));
+            expect(find.text(notice), findsOneWidget);
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            app.dispose();
+            await database.close();
+          }
+        },
+      );
+    }
+
+    testWidgets(
+      'a version equal to the current one is not offered for confirmation',
+      (tester) async {
+        final database = ClientDatabase.forTesting(NativeDatabase.memory());
+        final restored = <String>[];
+        final app = await pumpDialog(
+          tester,
+          database: database,
+          load: () async => hostHistory(),
+          plan: (version) async => RecordRestoreOutcome.nothingToRestore,
+          restore: (version) async => restored.add(version.revisionId),
+        );
+        try {
+          await tester.tap(find.byKey(restoreOlderHost));
+          await tester.pumpAndSettle();
+          expect(find.text('Restore this version?'), findsNothing);
+          expect(
+            find.text(
+              'This version has the same content as the current one. Nothing '
+              'was changed.',
+            ),
+            findsOneWidget,
+          );
+          expect(find.textContaining('Restored'), findsNothing);
+          expect(restored, isEmpty);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          app.dispose();
+          await database.close();
+        }
+      },
+    );
+
+    testWidgets('a failed attachment check shows the error and asks nothing', (
+      tester,
+    ) async {
+      final database = ClientDatabase.forTesting(NativeDatabase.memory());
+      final restored = <String>[];
+      final app = await pumpDialog(
+        tester,
+        database: database,
+        load: () async => hostHistory(),
+        plan: (version) async => throw StateError('attachment check failed'),
+        restore: (version) async => restored.add(version.revisionId),
+      );
+      try {
+        await tester.tap(find.byKey(restoreOlderHost));
+        await tester.pumpAndSettle();
+        expect(find.text('Restore this version?'), findsNothing);
+        expect(find.textContaining('attachment check failed'), findsOneWidget);
+        expect(restored, isEmpty);
+        // The version can be tried again.
+        expect(
+          tester.widget<TextButton>(find.byKey(restoreOlderHost)).onPressed,
+          isNotNull,
+        );
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        app.dispose();
+        await database.close();
+      }
+    });
+
+    testWidgets(
+      'in iPhone mode the dialog opens and confirms with a native alert',
+      (tester) async {
+        final database = ClientDatabase.forTesting(NativeDatabase.memory());
+        final app =
+            AppController(
+                sodium: sodium,
+                database: database,
+                secureStore: ClientSecureStore(),
+              )
+              ..activeVault = const VaultDescriptor(
+                id: _vaultId,
+                role: 'owner',
+                activeKeyEpoch: '1',
+                membershipVersion: '1',
+                canWrite: true,
+              );
+        final restored = <String>[];
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildAppTheme(),
+            home: IosNativeScope(
+              enabled: true,
+              child: Scaffold(
+                body: Builder(
+                  builder: (context) => TextButton(
+                    key: const ValueKey('open_history'),
+                    // What showRecordHistoryDialog does, with the test seams.
+                    onPressed: () => showAppDialog<void>(
+                      context: context,
+                      builder: (_) => RecordHistoryDialog(
+                        app: app,
+                        recordId: _recordId,
+                        recordName: 'Host',
+                        loadHistoryForTesting: () async => hostHistory(),
+                        planRestoreForTesting: (version) async =>
+                            RecordRestoreOutcome.restored,
+                        restoreVersionForTesting: (version) async =>
+                            restored.add(version.revisionId),
+                      ),
+                    ),
+                    child: const Text('History'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        try {
+          await tester.tap(find.byKey(const ValueKey('open_history')));
+          await tester.pumpAndSettle();
+          expect(find.text('Version history · Host'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+
+          await tester.tap(find.byKey(restoreOlderHost));
+          await tester.pumpAndSettle();
+          expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+          expect(
+            find.textContaining(
+              "This version's attachments will be restored too",
+            ),
+            findsOneWidget,
+          );
+          await tester.tap(
+            find.byKey(const ValueKey('record_history_restore_confirm')),
+          );
+          await tester.pumpAndSettle();
+          expect(restored, hasLength(1));
+          expect(
+            find.text('Restored as a new version, including its attachments.'),
+            findsOneWidget,
+          );
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          app.dispose();
+          await database.close();
+        }
+      },
+    );
 
     testWidgets('lists versions without secrets and restores after confirming', (
       tester,
@@ -761,6 +1577,36 @@ class _HistoryApi extends ApiClient {
   final DeviceIdentity remote;
   Map<String, dynamic> history = const {};
   ApiException? historyError;
+
+  /// Objects the server can still serve, by ID.
+  final objects = <String, Uint8List>{};
+  final probed = <String>[];
+  ApiException? objectError;
+
+  @override
+  Future<Uint8List> downloadObjectRange({
+    required String vaultId,
+    required String objectId,
+    required int start,
+    required int end,
+    required int expectedSize,
+    required String expectedSha256,
+  }) async {
+    probed.add(objectId);
+    if (objectError case final error?) throw error;
+    final bytes = objects[objectId];
+    if (bytes == null) {
+      throw const ApiException(
+        statusCode: 404,
+        code: 'NOT_FOUND',
+        message: 'not found',
+      );
+    }
+    if (bytes.length != expectedSize) {
+      throw const FormatException('Object range response did not match.');
+    }
+    return Uint8List.sublistView(bytes, start, end + 1);
+  }
 
   @override
   Future<List<Map<String, dynamic>>> devices() async => [

@@ -3,6 +3,51 @@
  * Drift sharedIndexedDb profile while one tab pauses an automatic merge just
  * before its atomic outbox replacement and the sibling tab appends an edit.
  * The server, database, account and browser profiles are disposable fixtures.
+ *
+ * ---------------------------------------------------------------------------
+ * OBSOLETE MODES: DO NOT RUN, REWRITE FIRST (since 9d6b896, "latest version
+ * wins"). These five modes assert the conflict-branch flow that the client no
+ * longer takes, and fail at the top of main() before anything is built or
+ * launched:
+ *   --inbound-store-conflict-only
+ *   --inbound-store-remote-conflict-only
+ *   --inbound-store-credential-conflict-only
+ *   --inbound-store-credential-remote-conflict-only
+ *   --inbound-store-credential-crash-replay-only
+ *
+ * What they assert (pre-9d6b896): the sibling tab queues a same-field Host
+ * (Hostname) or Credential (Password) edit against the base of a remote update
+ * that the primary tab is storing. The client parks that edit as a
+ * `concurrent_edit` conflict branch (outbox status `conflict`, one
+ * conflict_branches row, POST /api/v1/vaults/{id}/conflicts, no record push),
+ * shows a card on the Sync page, and the user picks "Keep this device version"
+ * or "Use synced version", which ends in POST .../conflicts/{cid}/resolve.
+ *
+ * What the product does now: no field-wise merge applies, so
+ * SyncRepository._tryLatestWinsRebase replaces the queued operation with a
+ * newly signed `update` based on the remote head and pushes it. The local edit
+ * becomes the record's current version, the remote one stays in the server's
+ * record history (create <- remote update <- local update, head), and there is
+ * no conflict upload, no conflict row on either side, no card and no resolve
+ * call. The "use synced version" outcome of the two remote-conflict modes no
+ * longer exists as a sync result, and the Credential modes' "conflict is
+ * durable before the inbound checkpoint CAS" becomes "the rebased outbox
+ * operation is durable before the inbound checkpoint CAS".
+ *
+ * The inbound-store race itself (remote store paused after an empty outbox
+ * read while a sibling tab saves) is still worth covering; the modes need new
+ * expectations from the release of the store barrier onwards, which is most of
+ * runInboundStoreRaceScenario's conflict path and all of
+ * runInboundStoreConflictScenario. Cases that still produce a conflict branch
+ * are listed in sync_repository.dart (KnownHost records, a key-epoch change,
+ * an unreadable envelope, a non-linear outbox chain, a record with a reviewed
+ * decision attached); none of these modes drives one of them.
+ *
+ * Still consistent with the product: the default mode,
+ * --jump-host-graph-only and --inbound-store-race-only. They edit disjoint
+ * Host fields, expect the field-wise merge and assert that no conflict is
+ * uploaded.
+ * ---------------------------------------------------------------------------
  */
 
 'use strict';
@@ -37,6 +82,17 @@ const RUN_INBOUND_STORE_CREDENTIAL_CRASH_REPLAY_ONLY = process.argv.includes(
 const RUN_INBOUND_STORE_CREDENTIAL_ONLY = RUN_INBOUND_STORE_CREDENTIAL_CONFLICT_ONLY ||
   RUN_INBOUND_STORE_CREDENTIAL_REMOTE_CONFLICT_ONLY ||
   RUN_INBOUND_STORE_CREDENTIAL_CRASH_REPLAY_ONLY;
+// Every mode that takes the conflict path of runInboundStoreRaceScenario. They
+// assert the pre-9d6b896 conflict-branch flow and are refused in main(); see
+// the note at the top of this file.
+const RUN_PRE_LATEST_WINS_CONFLICT_MODE = RUN_INBOUND_STORE_CONFLICT_ONLY ||
+  RUN_INBOUND_STORE_REMOTE_CONFLICT_ONLY ||
+  RUN_INBOUND_STORE_CREDENTIAL_ONLY;
+const PRE_LATEST_WINS_CONFLICT_MODE_NOTICE =
+  'this mode asserts the conflict-branch flow from before 9d6b896 ("latest version wins"): ' +
+  'a same-record concurrent edit is now rebased onto the remote head and pushed, with no ' +
+  'conflict branch, card or resolve call. Rewrite the mode for that behaviour before running ' +
+  'it; see the note at the top of same_profile_merge_race.cjs.';
 const ACCEPTANCE_ID = RUN_INBOUND_STORE_REMOTE_CONFLICT_ONLY
   ? 'WEB-SYNC-SAME-PROFILE-INBOUND-STORE-REMOTE-CONFLICT-01'
   : RUN_INBOUND_STORE_CREDENTIAL_CRASH_REPLAY_ONLY
@@ -1579,9 +1635,11 @@ async function runInboundStoreRaceScenario({
   credentialMode = false,
   crashReplay = false,
 }) {
-  const conflictRace = RUN_INBOUND_STORE_CONFLICT_ONLY ||
-    RUN_INBOUND_STORE_REMOTE_CONFLICT_ONLY ||
-    RUN_INBOUND_STORE_CREDENTIAL_ONLY;
+  // OBSOLETE when conflictRace is true (pre-9d6b896 conflict-branch flow): the
+  // same-field edit is now rebased onto the remote head and pushed, so every
+  // `conflictRace` expectation below from the release of the store barrier
+  // onwards is wrong. main() refuses these modes; rewrite before re-enabling.
+  const conflictRace = RUN_PRE_LATEST_WINS_CONFLICT_MODE;
   const baselineLocal = await snapshotInboundStoreRace(editorPage, 'baseline');
   assertThat(baselineLocal.integrityCheck === 'ok' &&
     baselineLocal.checkpoints.length === 1 &&
@@ -2181,6 +2239,11 @@ async function runInboundStoreRaceScenario({
   }));
 }
 
+// OBSOLETE (pre-9d6b896 conflict-branch flow), unreachable while main() refuses
+// the conflict modes. It expects one uploaded conflict branch, a Sync page
+// card, an explicit keep-local/use-synced choice and a /resolve receipt. The
+// product now pushes the local edit on top of the remote head with none of
+// those; see the note at the top of this file before reusing any of it.
 async function runInboundStoreConflictScenario({
   editorPage,
   siblingPage,
@@ -3045,6 +3108,9 @@ async function runHostJumpGraphScenario(ownerPage) {
 }
 
 async function main() {
+  // Refused before the server build, the fixture and any browser launch, so a
+  // run of these modes cannot be mistaken for valid coverage.
+  if (RUN_PRE_LATEST_WINS_CONFLICT_MODE) throw new Error(PRE_LATEST_WINS_CONFLICT_MODE_NOTICE);
   assertThat(fs.existsSync(path.join(WEB_ROOT, 'index.html')) &&
     fs.existsSync(path.join(WEB_ROOT, 'main.dart.js')) &&
     fs.existsSync(path.join(WEB_ROOT, 'drift_worker.js')) &&

@@ -254,6 +254,11 @@ class PendingOperations extends Table {
       text().named('base_revision_id').nullable()();
   TextColumn get baseEnvelopeJson =>
       text().named('base_envelope_json').nullable()();
+
+  /// The server commit sequence of [baseRevisionId], when this device took
+  /// that revision from the main feed. Null for a base that is itself an
+  /// unsent local operation, and for rows written before schema 15.
+  TextColumn get baseCommitSeq => text().named('base_commit_seq').nullable()();
   TextColumn get envelopeJson => text().named('envelope_json')();
   TextColumn get status => text().withDefault(const Constant('queued'))();
   IntColumn get attemptCount =>
@@ -1741,7 +1746,7 @@ class ClientDatabase extends _$ClientDatabase {
   });
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -2114,6 +2119,10 @@ class ClientDatabase extends _$ClientDatabase {
       if (from < 14) {
         await m.createTable(lockedSyncCheckpoints);
         await m.createTable(lockedSyncInboxPages);
+      }
+      if (from < 15 &&
+          !await hasColumn('pending_operations', 'base_commit_seq')) {
+        await m.addColumn(pendingOperations, pendingOperations.baseCommitSeq);
       }
     },
   );
@@ -2651,6 +2660,129 @@ class ClientDatabase extends _$ClientDatabase {
         .toList(growable: false);
   }
 
+  /// The newest never-sent operation of a record: the only one a later save
+  /// may replace.
+  Future<PendingOperation?> compactableOperation(
+    String vaultId,
+    String recordId, {
+    String? instanceId,
+    String? serverSpaceId,
+  }) {
+    _validateOptionalSyncScope(instanceId, serverSpaceId);
+    return _compactableOperation(
+      vaultId,
+      recordId,
+      instanceId: instanceId,
+      serverSpaceId: serverSpaceId,
+    );
+  }
+
+  Future<PendingOperation?> _compactableOperation(
+    String vaultId,
+    String recordId, {
+    String? instanceId,
+    String? serverSpaceId,
+  }) =>
+      (select(pendingOperations)
+            ..where(
+              (row) =>
+                  row.vaultId.equals(vaultId) &
+                  row.recordId.equals(recordId) &
+                  row.status.equals('queued') &
+                  (instanceId == null
+                      ? const Constant(true)
+                      : row.instanceId.equals(instanceId)) &
+                  (serverSpaceId == null
+                      ? const Constant(true)
+                      : row.serverSpaceId.equals(serverSpaceId)),
+            )
+            ..orderBy([(row) => OrderingTerm.desc(row.createdAt)])
+            ..limit(1))
+          .getSingleOrNull();
+
+  /// Whether [operation] is a never-sent create that is the record's whole
+  /// local history: the visible head, the only outbox row and no conflict
+  /// branch, with [deletedRevisionId] naming exactly that create.
+  Future<bool> _isOnlyUnsentCreate(
+    PendingOperation operation, {
+    required String? headRevisionId,
+    required Object? deletedRevisionId,
+  }) async {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(operation.envelopeJson);
+    } on FormatException {
+      return false;
+    }
+    if (decoded is! Map || decoded['header'] is! Map) return false;
+    final header = decoded['header'] as Map;
+    if (operation.status != 'queued' ||
+        operation.baseRevisionId != null ||
+        header['operation'] != 'create' ||
+        header['base_revision_id'] != null ||
+        header['op_id'] != operation.opId ||
+        header['revision_id'] is! String ||
+        header['revision_id'] != deletedRevisionId ||
+        header['revision_id'] != headRevisionId) {
+      return false;
+    }
+    final otherOperations =
+        await (select(pendingOperations)..where(
+              (row) =>
+                  row.vaultId.equals(operation.vaultId) &
+                  row.recordId.equals(operation.recordId) &
+                  row.opId.equals(operation.opId).not() &
+                  (operation.instanceId == null
+                      ? const Constant(true)
+                      : row.instanceId.equals(operation.instanceId!)) &
+                  (operation.serverSpaceId == null
+                      ? const Constant(true)
+                      : row.serverSpaceId.equals(operation.serverSpaceId!)),
+            ))
+            .get();
+    if (otherOperations.isNotEmpty) return false;
+    final branches =
+        await (select(conflictBranches)..where(
+              (row) =>
+                  row.vaultId.equals(operation.vaultId) &
+                  row.recordId.equals(operation.recordId),
+            ))
+            .get();
+    return branches.isEmpty;
+  }
+
+  Future<void> _deleteEncryptedRecordsForScope(
+    String vaultId,
+    String recordId, {
+    String? instanceId,
+    String? serverSpaceId,
+  }) =>
+      (delete(encryptedRecords)..where(
+            (row) =>
+                row.vaultId.equals(vaultId) &
+                row.recordId.equals(recordId) &
+                (instanceId == null
+                    ? const Constant(true)
+                    : row.instanceId.equals(instanceId)) &
+                (serverSpaceId == null
+                    ? const Constant(true)
+                    : row.serverSpaceId.equals(serverSpaceId)),
+          ))
+          .go();
+
+  /// Queues a signed local operation and makes it the visible head.
+  ///
+  /// One delete queues nothing: that of a record whose only local history is
+  /// its own never-sent create while an attachment upload still holds that
+  /// create back (see the comment at the check).
+  ///
+  /// A never-sent operation of the same record is replaced only by an
+  /// envelope signed on the same base; anything else is queued behind it, so
+  /// a row's base always equals the base in its signed header. Pass
+  /// [expectedCompactedOpId] when the envelope was signed to replace one
+  /// specific operation: the write fails with
+  /// [LocalRecordHeadChangedException] if that is no longer the replaceable
+  /// one.
   Future<void> putLocalOperation({
     required String vaultId,
     required String recordId,
@@ -2663,6 +2795,7 @@ class ClientDatabase extends _$ClientDatabase {
     Map<String, String>? expectedVaultHeadRevisionIds,
     bool preserveOutboxChain = false,
     bool cleanupAttachmentJobsOnDelete = false,
+    String? expectedCompactedOpId,
   }) async {
     final encoded = jsonEncode(envelope);
     final header = envelope['header']! as Map<String, dynamic>;
@@ -2731,24 +2864,29 @@ class ClientDatabase extends _$ClientDatabase {
 
       // An operation that has never been sent may be compacted into the latest
       // user intent. Once sent, its bytes and id are immutable for retry safety.
-      final replaceable = preserveOutboxChain
+      final compactable = preserveOutboxChain
           ? null
-          : await (select(pendingOperations)
-                  ..where(
-                    (row) =>
-                        row.vaultId.equals(vaultId) &
-                        row.recordId.equals(recordId) &
-                        row.status.equals('queued') &
-                        (instanceId == null
-                            ? const Constant(true)
-                            : row.instanceId.equals(instanceId)) &
-                        (serverSpaceId == null
-                            ? const Constant(true)
-                            : row.serverSpaceId.equals(serverSpaceId)),
-                  )
-                  ..orderBy([(row) => OrderingTerm.desc(row.createdAt)])
-                  ..limit(1))
-                .getSingleOrNull();
+          : await _compactableOperation(
+              vaultId,
+              recordId,
+              instanceId: instanceId,
+              serverSpaceId: serverSpaceId,
+            );
+      if (expectedCompactedOpId != null &&
+          compactable?.opId != expectedCompactedOpId) {
+        // The envelope was signed to take the place of an operation that has
+        // been sent or replaced since. Its base is no longer the right one.
+        throw LocalRecordHeadChangedException(recordId);
+      }
+      // The server checks the base in the signed header, so the row must
+      // never claim another one. An operation signed on top of the unsent one
+      // (or on anything else) is queued behind it instead of replacing it.
+      final replaceable =
+          compactable != null &&
+              compactable.baseRevisionId == header['base_revision_id'] &&
+              baseRevisionId == header['base_revision_id']
+          ? compactable
+          : null;
       final existingRecord = (await _encryptedRecordsForScope(
         vaultId,
         recordId: recordId,
@@ -2764,6 +2902,51 @@ class ClientDatabase extends _$ClientDatabase {
         instanceId: instanceId,
         serverSpaceId: serverSpaceId,
       );
+      if (cleanupAttachmentJobsOnDelete && !preserveOutboxChain) {
+        final uploads = (await blobJobsForRecord(
+          vaultId,
+          recordId,
+          instanceId: instanceId,
+          serverSpaceId: serverSpaceId,
+        )).where((job) => job.direction == 'upload');
+        if (uploads.isNotEmpty &&
+            compactable != null &&
+            await _isOnlyUnsentCreate(
+              compactable,
+              headRevisionId: existingRecord?.revisionId,
+              deletedRevisionId: header['base_revision_id'],
+            )) {
+          // The record was created with attachments and deleted before its
+          // create was ever sent. That create is held back until its uploads
+          // finish, and nobody is left to finish them; the delete cannot be
+          // sent without it, because the server has no head a delete could
+          // follow. So both ends of the record's life are dropped: nothing
+          // is pushed, and the record and its transfer tasks are forgotten.
+          await (delete(
+            pendingOperations,
+          )..where((row) => row.opId.equals(compactable.opId))).go();
+          await _deleteEncryptedRecordsForScope(
+            vaultId,
+            recordId,
+            instanceId: instanceId,
+            serverSpaceId: serverSpaceId,
+          );
+          for (final job in await blobJobsForRecord(
+            vaultId,
+            recordId,
+            instanceId: instanceId,
+            serverSpaceId: serverSpaceId,
+          )) {
+            await (delete(
+              blobJobObjects,
+            )..where((row) => row.jobId.equals(job.jobId))).go();
+            await (delete(
+              blobJobs,
+            )..where((row) => row.jobId.equals(job.jobId))).go();
+          }
+          return;
+        }
+      }
       final baseEnvelopeJson = replaceable != null
           ? replaceable.baseEnvelopeJson
           : existingRecord?.revisionId == baseRevisionId
@@ -2772,6 +2955,11 @@ class ClientDatabase extends _$ClientDatabase {
       final storedBaseRevisionId = replaceable != null
           ? replaceable.baseRevisionId
           : baseRevisionId;
+      final baseCommitSeq = replaceable != null
+          ? replaceable.baseCommitSeq
+          : existingRecord?.revisionId == baseRevisionId
+          ? existingRecord?.commitSeq
+          : null;
       if (replaceable != null) {
         await (delete(
           pendingOperations,
@@ -2802,6 +2990,7 @@ class ClientDatabase extends _$ClientDatabase {
           serverSpaceId: Value(serverSpaceId),
           baseRevisionId: Value(storedBaseRevisionId),
           baseEnvelopeJson: Value(baseEnvelopeJson),
+          baseCommitSeq: Value(baseCommitSeq),
           envelopeJson: encoded,
           createdAt: now,
         ),
@@ -3351,6 +3540,7 @@ class ClientDatabase extends _$ClientDatabase {
     required Map<String, dynamic>? replacementEnvelope,
     bool latestWins = false,
     String? adoptBaseCommitSeq,
+    String? baseCommitSeq,
   }) async {
     const mergeOperations = {'update'};
     const latestWinsOperations = {'update', 'delete', 'restore'};
@@ -3362,6 +3552,7 @@ class ClientDatabase extends _$ClientDatabase {
       throw const FormatException('Merged outbox replacement is malformed.');
     }
     if (adoptBaseCommitSeq != null) _compareDecimalSeq(adoptBaseCommitSeq, '0');
+    if (baseCommitSeq != null) _compareDecimalSeq(baseCommitSeq, '0');
     if (original.isEmpty ||
         original.map((item) => item.opId).toSet().length != original.length) {
       throw const FormatException('Merged outbox chain is malformed.');
@@ -3598,6 +3789,7 @@ class ClientDatabase extends _$ClientDatabase {
           serverSpaceId: Value(serverSpaceId),
           baseRevisionId: Value(baseRevisionId),
           baseEnvelopeJson: Value(baseEnvelopeJson),
+          baseCommitSeq: Value(baseCommitSeq),
           envelopeJson: replacementEnvelopeJson,
           status: const Value('queued'),
           createdAt: now,
@@ -3628,6 +3820,194 @@ class ClientDatabase extends _$ClientDatabase {
     });
     if (replaced) await flushCommittedWrites();
     return replaced;
+  }
+
+  /// Replaces [original], an operation whose signed header names another
+  /// base than its row, with [replacementEnvelope] signed on the row's base.
+  /// The caller has established that the server never committed [original].
+  ///
+  /// Returns false, changing nothing, unless [original] is still exactly the
+  /// stored row, the end of its record's pending chain and the visible head.
+  Future<bool> replaceMisbasedOperation({
+    required PendingOperation original,
+    required Map<String, dynamic> replacementEnvelope,
+  }) async {
+    final rawHeader = replacementEnvelope['header'];
+    if (rawHeader is! Map) {
+      throw const FormatException('Replacement operation has no header.');
+    }
+    final header = Map<String, dynamic>.from(rawHeader);
+    final opId = header['op_id'];
+    final revisionId = header['revision_id'];
+    final operation = header['operation'];
+    if (header['vault_id'] != original.vaultId ||
+        header['record_id'] != original.recordId ||
+        header['base_revision_id'] != original.baseRevisionId ||
+        opId is! String ||
+        opId.isEmpty ||
+        opId == original.opId ||
+        revisionId is! String ||
+        revisionId.isEmpty ||
+        !const {'create', 'update', 'delete', 'restore'}.contains(operation) ||
+        (operation == 'create') != (original.baseRevisionId == null)) {
+      throw const FormatException(
+        'Replacement operation does not match the row it replaces.',
+      );
+    }
+    final replacementJson = jsonEncode(replacementEnvelope);
+    final replaced = await transaction(() async {
+      if (!await _isMisbasedChainEnd(original)) return false;
+      if (await (select(
+            pendingOperations,
+          )..where((row) => row.opId.equals(opId))).getSingleOrNull() !=
+          null) {
+        throw const FormatException('Replacement operation ID is in use.');
+      }
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await (update(
+        pendingOperations,
+      )..where((row) => row.opId.equals(original.opId))).write(
+        const PendingOperationsCompanion(status: Value('superseded')),
+      );
+      await into(pendingOperations).insert(
+        PendingOperationsCompanion.insert(
+          opId: opId,
+          vaultId: original.vaultId,
+          recordId: original.recordId,
+          instanceId: Value(original.instanceId),
+          serverSpaceId: Value(original.serverSpaceId),
+          baseRevisionId: Value(original.baseRevisionId),
+          baseEnvelopeJson: Value(original.baseEnvelopeJson),
+          baseCommitSeq: Value(original.baseCommitSeq),
+          envelopeJson: replacementJson,
+          status: const Value('queued'),
+          createdAt: now,
+        ),
+      );
+      await into(encryptedRecords).insertOnConflictUpdate(
+        EncryptedRecordsCompanion.insert(
+          vaultId: original.vaultId,
+          recordId: original.recordId,
+          instanceId: Value(original.instanceId),
+          serverSpaceId: Value(original.serverSpaceId),
+          revisionId: revisionId,
+          envelopeJson: replacementJson,
+          isDeleted: Value(operation == 'delete'),
+          commitSeq: const Value(null),
+          updatedAt: now,
+        ),
+      );
+      return true;
+    });
+    if (replaced) await flushCommittedWrites();
+    return replaced;
+  }
+
+  /// Forgets a record whose only local history is [original], a delete that
+  /// the server can never accept because the record itself was never sent.
+  /// The operation, the cached tombstone and the record's transfer tasks go.
+  /// Returns false, changing nothing, when [original] is not that row.
+  Future<bool> forgetNeverSentRecord(PendingOperation original) async {
+    final forgotten = await transaction(() async {
+      if (original.baseRevisionId != null ||
+          !await _isMisbasedChainEnd(original, onlyOperationOfRecord: true)) {
+        return false;
+      }
+      await (delete(
+        pendingOperations,
+      )..where((row) => row.opId.equals(original.opId))).go();
+      await _deleteEncryptedRecordsForScope(
+        original.vaultId,
+        original.recordId,
+        instanceId: original.instanceId,
+        serverSpaceId: original.serverSpaceId,
+      );
+      for (final job in await blobJobsForRecord(
+        original.vaultId,
+        original.recordId,
+        instanceId: original.instanceId,
+        serverSpaceId: original.serverSpaceId,
+      )) {
+        await (delete(
+          blobJobObjects,
+        )..where((row) => row.jobId.equals(job.jobId))).go();
+        await (delete(
+          blobJobs,
+        )..where((row) => row.jobId.equals(job.jobId))).go();
+      }
+      return true;
+    });
+    if (forgotten) await flushCommittedWrites();
+    return forgotten;
+  }
+
+  /// Whether [original] is still the stored row, nothing pending follows it,
+  /// no conflict branch is open for its record, and it is the visible,
+  /// uncommitted head. Call inside a transaction.
+  Future<bool> _isMisbasedChainEnd(
+    PendingOperation original, {
+    bool onlyOperationOfRecord = false,
+  }) async {
+    final decoded = jsonDecode(original.envelopeJson);
+    if (decoded is! Map || decoded['header'] is! Map) return false;
+    final revisionId = (decoded['header'] as Map)['revision_id'];
+    if (revisionId is! String) return false;
+    final rows = _filterScopedRows(
+      rows:
+          await (select(pendingOperations)..where(
+                (row) =>
+                    row.vaultId.equals(original.vaultId) &
+                    row.recordId.equals(original.recordId) &
+                    row.status.isNotIn(const ['superseded', 'redacted']),
+              ))
+              .get(),
+      rowType: 'pending operation',
+      rowInstanceId: (row) => row.instanceId,
+      rowServerSpaceId: (row) => row.serverSpaceId,
+      instanceId: original.instanceId,
+      serverSpaceId: original.serverSpaceId,
+    );
+    final current = rows.where((row) => row.opId == original.opId).firstOrNull;
+    if (current == null ||
+        (current.status != 'queued' && current.status != 'sent') ||
+        current.baseRevisionId != original.baseRevisionId ||
+        current.baseEnvelopeJson != original.baseEnvelopeJson ||
+        current.envelopeJson != original.envelopeJson ||
+        rows.any(
+          (row) =>
+              row.baseRevisionId == revisionId ||
+              (row.status != 'queued' && row.status != 'sent'),
+        ) ||
+        (onlyOperationOfRecord && rows.length != 1)) {
+      return false;
+    }
+    final head = (await _encryptedRecordsForScope(
+      original.vaultId,
+      recordId: original.recordId,
+      instanceId: original.instanceId,
+      serverSpaceId: original.serverSpaceId,
+    )).firstOrNull;
+    if (head == null ||
+        head.commitSeq != null ||
+        head.revisionId != revisionId) {
+      return false;
+    }
+    final branches = _filterScopedRows(
+      rows:
+          await (select(conflictBranches)..where(
+                (row) =>
+                    row.vaultId.equals(original.vaultId) &
+                    row.recordId.equals(original.recordId) &
+                    row.state.isNotValue('resolved'),
+              ))
+              .get(),
+      rowType: 'conflict branch',
+      rowInstanceId: (row) => row.instanceId,
+      rowServerSpaceId: (row) => row.serverSpaceId,
+      instanceId: original.instanceId,
+      serverSpaceId: original.serverSpaceId,
+    );
+    return branches.isEmpty;
   }
 
   Future<bool> pendingRecordReferencesObject({

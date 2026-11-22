@@ -1,4 +1,5 @@
 import 'package:aterm_client/domain/ansible_inventory_metadata.dart';
+import 'package:aterm_client/domain/latest_wins_merge.dart';
 import 'package:aterm_client/domain/merge.dart';
 import 'package:aterm_client/domain/models.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -764,5 +765,297 @@ void main() {
         expect(merged.conflicts['value']?.remote, 'credentials');
       },
     );
+  });
+
+  group('latest-wins field merge', () {
+    const credential = <String, Object?>{
+      'id': 'credential-1',
+      'type': 'credential',
+      'name': 'Deploy',
+      'username': 'ops',
+      'kind': 'password',
+      'secret': 'first-password',
+    };
+    const host = <String, Object?>{
+      'id': 'host-1',
+      'type': 'host',
+      'name': 'Desktop',
+      'address': 'desk.example',
+      'port': 3389,
+      'protocol': 'rdp',
+      'username': 'ops',
+      'group_id': null,
+      'credential_id': null,
+      'jump_host_id': null,
+      'auth_kind': 'password',
+      'color': 0,
+      'tags': <String>[],
+      'is_favorite': false,
+    };
+
+    test('a field only one side changed keeps that side', () {
+      final merged = mergeLatestWinsFields(
+        base: credential,
+        local: {...credential, 'name': 'Deploy (renamed)'},
+        remote: {...credential, 'secret': 'rotated-password'},
+      );
+      expect(merged, {
+        ...credential,
+        'name': 'Deploy (renamed)',
+        'secret': 'rotated-password',
+      });
+    });
+
+    test('a field both sides changed takes the local value', () {
+      final merged = mergeLatestWinsFields(
+        base: host,
+        local: {
+          ...host,
+          'name': 'Local name',
+          'tags': ['local'],
+        },
+        remote: {
+          ...host,
+          'name': 'Remote name',
+          'tags': ['remote'],
+          'color': 5,
+        },
+      );
+      expect(merged, {
+        ...host,
+        'name': 'Local name',
+        'tags': ['local'],
+        'color': 5,
+      });
+    });
+
+    test('a unit both sides changed is the local unit, never a mix', () {
+      final merged = mergeLatestWinsFields(
+        base: credential,
+        // The local device switched to a key; its plaintext has no password.
+        local: {
+          'id': 'credential-1',
+          'type': 'credential',
+          'name': 'Deploy',
+          'username': 'deploy',
+          'kind': 'privateKey',
+          'private_key': 'local-key',
+          'passphrase': 'local-passphrase',
+        },
+        remote: {
+          ...credential,
+          'name': 'Deploy, rotated',
+          'secret': 'rotated-password',
+          'fingerprint': 'remote-fingerprint',
+        },
+      );
+      expect(merged, {
+        'id': 'credential-1',
+        'type': 'credential',
+        'name': 'Deploy, rotated',
+        'username': 'deploy',
+        'kind': 'privateKey',
+        'private_key': 'local-key',
+        'passphrase': 'local-passphrase',
+      });
+    });
+
+    test('a unit only the remote changed arrives whole', () {
+      final merged = mergeLatestWinsFields(
+        base: host,
+        local: {
+          ...host,
+          'tags': ['office'],
+        },
+        remote: {
+          ...host,
+          'address': 'new-desk.example',
+          'rdp_cert_sha256': 'a' * 64,
+          'auth_kind': 'password',
+          'login': {'kind': 'password', 'password': 'remote-password'},
+        },
+      );
+      expect(merged, {
+        ...host,
+        'tags': ['office'],
+        'address': 'new-desk.example',
+        'rdp_cert_sha256': 'a' * 64,
+        'login': {'kind': 'password', 'password': 'remote-password'},
+      });
+      // The endpoint and its pin move together: a local address change keeps
+      // the local (absent) pin instead of pinning the remote certificate to
+      // another address.
+      final localEndpoint = mergeLatestWinsFields(
+        base: host,
+        local: {...host, 'address': 'other.example'},
+        remote: {...host, 'rdp_cert_sha256': 'a' * 64},
+      )!;
+      expect(localEndpoint['address'], 'other.example');
+      expect(localEndpoint.containsKey('rdp_cert_sha256'), isFalse);
+    });
+
+    test('unknown keys are carried from both sides', () {
+      final base = {...host, 'future_shared': 'base'};
+      final merged = mergeLatestWinsFields(
+        base: base,
+        local: {
+          ...base,
+          'future_local': {'added': 'here'},
+        },
+        remote: {
+          ...base,
+          'future_shared': 'remote',
+          'future_remote': [1, 2],
+        },
+      );
+      expect(merged, {
+        ...host,
+        'future_shared': 'remote',
+        'future_local': {'added': 'here'},
+        'future_remote': [1, 2],
+      });
+      // A client whose models dropped the unknown key did not delete it.
+      final dropped = mergeLatestWinsFields(
+        base: base,
+        local: {...host, 'name': 'Renamed'},
+        remote: {...base, 'future_shared': 'remote'},
+      )!;
+      expect(dropped['future_shared'], 'remote');
+      expect(dropped['name'], 'Renamed');
+    });
+
+    test('attachments and their object references stay one manifest unit', () {
+      const baseManifest = {
+        'attachments': ['a'],
+        'object_refs': ['object-a'],
+        'os': 'linux',
+      };
+      final merged = mergeLatestWinsFields(
+        base: {...host, '_manifest': baseManifest},
+        // The local device only refreshed another manifest entry.
+        local: {
+          ...host,
+          '_manifest': {...baseManifest, 'os': 'windows'},
+        },
+        remote: {
+          ...host,
+          '_manifest': {
+            'attachments': ['a', 'b'],
+            'object_refs': ['object-a', 'object-b'],
+            'os': 'linux',
+            'imported': true,
+          },
+        },
+      )!;
+      expect(merged['_manifest'], {
+        'attachments': ['a', 'b'],
+        'object_refs': ['object-a', 'object-b'],
+        'os': 'windows',
+        'imported': true,
+      });
+      final bothChanged = mergeLatestWinsFields(
+        base: {...host, '_manifest': baseManifest},
+        local: {
+          ...host,
+          '_manifest': {'attachments': <String>[], 'os': 'linux'},
+        },
+        remote: {
+          ...host,
+          '_manifest': {
+            'attachments': ['a', 'b'],
+            'object_refs': ['object-a', 'object-b'],
+            'os': 'linux',
+          },
+        },
+      )!;
+      expect(bothChanged['_manifest'], {
+        'attachments': <String>[],
+        'os': 'linux',
+      });
+      final removed = mergeLatestWinsFields(
+        base: {...host, '_manifest': baseManifest},
+        local: host,
+        remote: {...host, '_manifest': baseManifest, 'color': 2},
+      )!;
+      expect(removed.containsKey('_manifest'), isFalse);
+      expect(removed['color'], 2);
+    });
+
+    test('a missing key and an explicit null are not a change', () {
+      // The base came from a writer that leaves null fields out.
+      final base = {...host}
+        ..remove('credential_id')
+        ..remove('group_id')
+        ..remove('jump_host_id');
+      final merged = mergeLatestWinsFields(
+        base: base,
+        // This client writes the nulls; it only renamed the host.
+        local: {...host, 'name': 'Renamed'},
+        remote: {
+          ...base,
+          'auth_kind': 'privateKey',
+          'credential_id': 'credential-9',
+          'group_id': 'group-9',
+        },
+      )!;
+      // The sign-in unit and the group are the remote ones.
+      expect(merged['name'], 'Renamed');
+      expect(merged['auth_kind'], 'privateKey');
+      expect(merged['credential_id'], 'credential-9');
+      expect(merged['group_id'], 'group-9');
+      // An unchanged key has the remote's shape, as before.
+      expect(merged.containsKey('jump_host_id'), isFalse);
+
+      // Setting a value where the base had none is still a local change.
+      final set = mergeLatestWinsFields(
+        base: base,
+        local: {...host, 'credential_id': 'credential-1'},
+        remote: {...base, 'credential_id': 'credential-9', 'color': 4},
+      )!;
+      expect(set['credential_id'], 'credential-1');
+      expect(set['color'], 4);
+    });
+
+    test('types without merge units and tombstones are not merged', () {
+      Map<String, Object?> record(String type) => {
+        'id': 'record-1',
+        'type': type,
+        'value': 1,
+      };
+      for (final type in const [
+        'workspace',
+        'preference',
+        'knownHost',
+        'shellHistory',
+        'wallpaper',
+        'future_type',
+      ]) {
+        expect(
+          mergeLatestWinsFields(
+            base: record(type),
+            local: {...record(type), 'value': 2},
+            remote: {...record(type), 'other': 3},
+          ),
+          isNull,
+          reason: type,
+        );
+      }
+      expect(
+        mergeLatestWinsFields(
+          base: host,
+          local: {...host, 'name': 'Renamed'},
+          remote: const {'id': 'host-1', 'type': 'host', 'deleted': true},
+        ),
+        isNull,
+      );
+      expect(
+        mergeLatestWinsFields(
+          base: host,
+          local: {...host, 'id': 'host-2'},
+          remote: host,
+        ),
+        isNull,
+      );
+    });
   });
 }

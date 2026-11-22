@@ -5471,5 +5471,13 @@
   "snippetsMoreLines": "{count, plural, other{ほか {count} 行}}",
   "snippetsMoreActions": "スニペットのその他の操作",
   "snippetsReadOnlyNotice": "この保管庫は読み取り専用です。スニペットの確認と実行はできますが、追加・編集・削除はできません。",
-  "workspacesReadOnlyNotice": "この保管庫は読み取り専用です。保存済みのワークスペースはプレビューできますが、保存・変更・削除はできません。"
+  "workspacesReadOnlyNotice": "この保管庫は読み取り専用です。保存済みのワークスペースはプレビューできますが、保存・変更・削除はできません。",
+  "recordHistoryFieldKeyFingerprint": "鍵のフィンガープリント",
+  "recordHistoryRestoreAttachmentsRestored": "このバージョンの添付ファイルも復元され、現在の添付ファイルと置き換わります。",
+  "recordHistoryRestoreAttachmentsKept": "このバージョンの添付ファイルの一部がサーバーに残っていないため、フィールドのみ復元します。現在の添付ファイルはそのままです。",
+  "recordHistoryRestoreAttachmentsUnchanged": "添付ファイルは変わりません。このバージョンの添付ファイルは現在のものと同じです。",
+  "recordHistoryRestoredWithAttachments": "添付ファイルを含めて、新しいバージョンとして復元しました。",
+  "recordHistoryRestoredKeptAttachments": "フィールドを新しいバージョンとして復元しました。そのバージョンの添付ファイルの一部がサーバーに残っていないため、現在の添付ファイルをそのまま残しました。",
+  "recordHistoryNothingToRestore": "このバージョンの内容は現在のバージョンと同じです。何も変更していません。",
+  "recordHistoryNothingToRestoreAttachmentsGone": "現在のバージョンとの違いは添付ファイルだけですが、その一部がサーバーに残っていません。何も変更していません。"
 }

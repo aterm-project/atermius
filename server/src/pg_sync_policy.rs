@@ -93,6 +93,21 @@ pub(crate) async fn effective_record_history_limit(
     Ok(snapshot_from_row(row, default_limit)?.record_history_limit)
 }
 
+/// Reads the per-record history limit inside the caller's transaction: the
+/// administrator's selection, or `default_limit` without a policy row.
+///
+/// The push commit runs at READ COMMITTED and calls this after it holds the
+/// Vault counter lock, immediately before it prunes, so the statement sees
+/// every policy update committed up to that moment.
+pub(crate) async fn effective_record_history_limit_tx(
+    tx: &mut PgTx<'_>,
+    default_limit: i64,
+) -> Result<i64, ApiError> {
+    Ok(read_policy_tx(tx, default_limit)
+        .await?
+        .record_history_limit)
+}
+
 async fn admin_tx<'a>(
     state: &'a AppState,
     headers: &HeaderMap,
@@ -296,16 +311,16 @@ pub(crate) async fn prune_record_history_tx(
     Ok(deleted)
 }
 
-/// Bounded Maintenance catch-up for records that exceed `limit`: history
-/// written before pruning existed, or kept under a larger limit. Safe to run
-/// on several nodes; a Vault locked by another writer is left for a later
-/// pass. Returns the number of revisions removed in this pass.
+/// Bounded Maintenance catch-up for records that exceed the limit in force
+/// (the administrator's selection, or `default_limit` without a policy row):
+/// history written before pruning existed, or kept under a larger limit. Safe
+/// to run on several nodes; a Vault locked by another writer is left for a
+/// later pass. Returns the number of revisions removed in this pass.
 pub(crate) async fn prune_excess_record_history(
     pool: &PgPool,
-    limit: i64,
+    default_limit: i64,
     object_gc_grace_seconds: i64,
 ) -> Result<u64, ApiError> {
-    let limit = limit.clamp(MIN_RECORD_HISTORY_LIMIT, MAX_RECORD_HISTORY_LIMIT);
     let mut after = (String::new(), String::new());
     let mut examined = 0_usize;
     let mut pruned_records = 0_usize;
@@ -313,9 +328,12 @@ pub(crate) async fn prune_excess_record_history(
     while examined < MAINTENANCE_MAX_CANDIDATES_PER_PASS
         && pruned_records < MAINTENANCE_MAX_PRUNED_RECORDS_PER_PASS
     {
+        let limit = effective_record_history_limit(pool, default_limit).await?;
         let candidates = sqlx::query(
             "SELECT v.vault_id,v.record_id FROM record_versions v \
              WHERE (v.vault_id,v.record_id)>($1,$2) \
+               AND NOT EXISTS(SELECT 1 FROM record_redactions rr \
+                              WHERE rr.vault_id=v.vault_id AND rr.record_id=v.record_id) \
              GROUP BY v.vault_id,v.record_id HAVING COUNT(*)>$3 \
              ORDER BY v.vault_id,v.record_id LIMIT $4",
         )
@@ -346,6 +364,9 @@ pub(crate) async fn prune_excess_record_history(
             if locked.is_none() {
                 continue;
             }
+            // Read again under the Vault lock: an administrator may have
+            // changed the limit since the candidate page was selected.
+            let limit = effective_record_history_limit_tx(&mut tx, default_limit).await?;
             let deleted = prune_record_history_tx(
                 &mut tx,
                 &vault_id,
@@ -613,7 +634,7 @@ mod tests {
                     batch_id,
                     operations: vec![operation],
                     restore_retention_days: 30,
-                    record_history_limit,
+                    default_record_history_limit: record_history_limit,
                     object_gc_grace_seconds: GC_GRACE_SECONDS,
                 })
                 .await
@@ -808,7 +829,7 @@ mod tests {
                 user: account.user.clone(),
                 vault_id: vault_id.clone(),
                 record_id: record_id.clone(),
-                record_history_limit: 20,
+                default_record_history_limit: 20,
             })
             .await
             .unwrap();
@@ -856,7 +877,7 @@ mod tests {
                 user: account.user.clone(),
                 vault_id: vault_id.clone(),
                 record_id: record_id.clone(),
-                record_history_limit: 1,
+                default_record_history_limit: 1,
             })
             .await
             .unwrap();
@@ -872,7 +893,7 @@ mod tests {
                     user,
                     vault_id: vault_id.clone(),
                     record_id: record,
-                    record_history_limit: 20,
+                    default_record_history_limit: 20,
                 })
                 .await
                 .unwrap_err();
@@ -886,7 +907,7 @@ mod tests {
                 user: account.user.clone(),
                 vault_id: vault_id.clone(),
                 record_id: record_id.clone(),
-                record_history_limit: 20,
+                default_record_history_limit: 20,
             })
             .await
             .unwrap_err();
@@ -1046,6 +1067,115 @@ mod tests {
             None
         );
         assert_eq!(object_gc_after(pool, &vault_id, &kept_by_later).await, None);
+        database.cleanup().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "real PostgreSQL record history acceptance; requires ATERMIUS_TEST_PG_URL for a disposable database"]
+    async fn pg_a_changed_limit_applies_to_the_next_push_without_lag() {
+        let database = TestDatabase::create().await;
+        let pool = &database.pool;
+        let account = seed_account(pool, "pg-writer@example.test").await;
+        let vault_id = seed_owned_vault(pool, &account.user).await;
+        let record_id = Uuid::new_v4().to_string();
+        let mut writer = Writer::new(pool, &account.user, &vault_id);
+        // Ten revisions under the deployment default; nothing is pruned.
+        let mut revisions = writer.history(&record_id, 9, 20).await;
+        assert_eq!(retained(pool, &vault_id, &record_id).await, revisions);
+
+        // The administrator lowers the limit (the row the admin route writes).
+        sqlx::query(
+            "INSERT INTO instance_sync_policy(policy_id,record_history_limit,revision,updated_at) \
+             VALUES(1,3,1,CURRENT_TIMESTAMP)",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        assert_eq!(retained(pool, &vault_id, &record_id).await, revisions);
+
+        // The very next push prunes to the new limit although the caller
+        // still passes the deployment default of 20: the commit transaction
+        // reads the policy row itself.
+        let next = writer
+            .commit(
+                &record_id,
+                revisions.last().map(String::as_str),
+                "update",
+                &[],
+                20,
+            )
+            .await;
+        revisions.push(next);
+        assert_eq!(
+            retained(pool, &vault_id, &record_id).await,
+            revisions[8..].to_vec(),
+            "one push after the policy change keeps exactly the new limit"
+        );
+
+        // The history read reports the same policy row.
+        let reader = history_reader(pool);
+        let response = reader
+            .read_record_revisions(ReadRecordRevisionsCommand {
+                user: account.user.clone(),
+                vault_id: vault_id.clone(),
+                record_id: record_id.clone(),
+                default_record_history_limit: 20,
+            })
+            .await
+            .unwrap();
+        assert_eq!(response["record_history_limit"], 3);
+        assert_eq!(response["revisions"].as_array().unwrap().len(), 3);
+        assert_eq!(
+            super::effective_record_history_limit(pool, 20)
+                .await
+                .unwrap(),
+            3
+        );
+
+        // Lowering it again also applies to the next push.
+        sqlx::query(
+            "UPDATE instance_sync_policy SET record_history_limit=2,revision=2 WHERE policy_id=1",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        let next = writer
+            .commit(
+                &record_id,
+                revisions.last().map(String::as_str),
+                "update",
+                &[],
+                20,
+            )
+            .await;
+        revisions.push(next);
+        assert_eq!(
+            retained(pool, &vault_id, &record_id).await,
+            revisions[10..].to_vec()
+        );
+
+        // Without a policy row the deployment default passed by the caller
+        // is the fallback.
+        sqlx::query("DELETE FROM instance_sync_policy")
+            .execute(pool)
+            .await
+            .unwrap();
+        for _ in 0..3 {
+            let next = writer
+                .commit(
+                    &record_id,
+                    revisions.last().map(String::as_str),
+                    "update",
+                    &[],
+                    4,
+                )
+                .await;
+            revisions.push(next);
+        }
+        assert_eq!(
+            retained(pool, &vault_id, &record_id).await,
+            revisions[revisions.len() - 4..].to_vec()
+        );
         database.cleanup().await;
     }
 

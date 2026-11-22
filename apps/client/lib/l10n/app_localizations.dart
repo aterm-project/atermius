@@ -32571,6 +32571,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This Vault is read-only. You can preview saved workspaces, but you can\'t save, change or delete them.'**
   String get workspacesReadOnlyNotice;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Key fingerprint'**
+  String get recordHistoryFieldKeyFingerprint;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'This version\'s attachments will be restored too and replace the current ones.'**
+  String get recordHistoryRestoreAttachmentsRestored;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'The server no longer has some files of this version\'s attachments, so only the fields will be restored. The current attachments stay as they are.'**
+  String get recordHistoryRestoreAttachmentsKept;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments are not affected: this version has the same attachments as the current one.'**
+  String get recordHistoryRestoreAttachmentsUnchanged;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored as a new version, including its attachments.'**
+  String get recordHistoryRestoredWithAttachments;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Fields restored as a new version. The current attachments were kept because the server no longer has some files of that version\'s attachments.'**
+  String get recordHistoryRestoredKeptAttachments;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'This version has the same content as the current one. Nothing was changed.'**
+  String get recordHistoryNothingToRestore;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the attachments differ from the current version, and the server no longer has some of their files. Nothing was changed.'**
+  String get recordHistoryNothingToRestoreAttachmentsGone;
 }
 
 class _AppLocalizationsDelegate

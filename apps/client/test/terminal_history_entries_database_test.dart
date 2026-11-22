@@ -22,7 +22,7 @@ void main() {
     final schemaVersion = await database
         .customSelect('PRAGMA user_version')
         .getSingle();
-    expect(schemaVersion.read<int>('user_version'), 14);
+    expect(schemaVersion.read<int>('user_version'), 15);
 
     final table = await database
         .customSelect(
@@ -341,7 +341,7 @@ void main() {
     final schemaVersion = await upgraded
         .customSelect('PRAGMA user_version')
         .getSingle();
-    expect(schemaVersion.read<int>('user_version'), 14);
+    expect(schemaVersion.read<int>('user_version'), 15);
     final proof = await upgraded
         .select(upgraded.authenticatedPushReceipts)
         .getSingle();
@@ -388,8 +388,62 @@ void main() {
             .customSelect('PRAGMA user_version')
             .getSingle()
             .then((row) => row.read<int>('user_version')),
-        14,
+        15,
       );
     },
   );
+
+  test('v14 to v15 adds the outbox base commit sequence and keeps queued rows', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'atermius-outbox-base-seq-migration-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/client.sqlite');
+
+    final beforeUpgrade = ClientDatabase.forTesting(NativeDatabase(file));
+    await beforeUpgrade.ensureReady();
+    // The v14 table: the current one without the new column.
+    await beforeUpgrade.customStatement(
+      'ALTER TABLE pending_operations DROP COLUMN base_commit_seq',
+    );
+    await beforeUpgrade.customStatement(
+      'INSERT INTO pending_operations '
+      '(op_id, vault_id, record_id, base_revision_id, base_envelope_json, '
+      'envelope_json, status, attempt_count, created_at) '
+      "VALUES ('old-op', 'vault-1', 'record-1', 'revision-0', "
+      "'{\"opaque\":\"base\"}', '{\"opaque\":\"ciphertext\"}', 'queued', 2, 7)",
+    );
+    await beforeUpgrade.customStatement('PRAGMA user_version = 14');
+    await beforeUpgrade.close();
+
+    final upgraded = ClientDatabase.forTesting(NativeDatabase(file));
+    await upgraded.ensureReady();
+    final row = await upgraded.select(upgraded.pendingOperations).getSingle();
+    expect(row.opId, 'old-op');
+    expect(row.baseRevisionId, 'revision-0');
+    expect(row.baseEnvelopeJson, '{"opaque":"base"}');
+    expect(row.envelopeJson, '{"opaque":"ciphertext"}');
+    expect(row.status, 'queued');
+    expect(row.attemptCount, 2);
+    // Unknown for a row written before the column existed.
+    expect(row.baseCommitSeq, isNull);
+    // An interrupted upgrade that already added the column can be retried.
+    await upgraded.customStatement('PRAGMA user_version = 14');
+    await upgraded.close();
+
+    final retried = ClientDatabase.forTesting(NativeDatabase(file));
+    addTearDown(retried.close);
+    await retried.ensureReady();
+    expect(
+      await retried
+          .customSelect('PRAGMA user_version')
+          .getSingle()
+          .then((row) => row.read<int>('user_version')),
+      15,
+    );
+    expect(
+      (await retried.select(retried.pendingOperations).getSingle()).opId,
+      'old-op',
+    );
+  });
 }

@@ -2,6 +2,20 @@
  * Web IT-01: isolated browser profiles enroll, sync an encrypted host, and
  * observe each other's commits. All server state and credentials are local to
  * this run and removed on exit.
+ *
+ * Concurrent edits and "latest version wins" (commit 9d6b896): when two
+ * devices edit the same record, the device that pushes second no longer parks
+ * its edit as a conflict branch. It rebases the edit onto the other device's
+ * version and pushes it; the later push becomes the head and the replaced
+ * version stays in the record's history (sync_latest_wins.cjs covers this end
+ * to end). KnownHost records and edits that cannot be rebased safely still
+ * use the conflict flow.
+ *  - The multi-Vault scenario (--multi-vault-only) follows the new behaviour.
+ *  - --credential-conflicts-only and --host-security-conflicts-only were
+ *    written for the earlier behaviour and refuse to start (see below).
+ *  - The full run's own conflict sections (long-offline branch, Credential
+ *    conflict inbox) were written for the earlier behaviour too and have not
+ *    been converted; the full run stops before it reaches them (README.md).
  */
 
 const fs = require('node:fs');
@@ -47,6 +61,24 @@ const MULTI_VAULT_SWITCH_ONLY = process.argv.includes('--multi-vault-only');
 const MULTI_VAULT_CONFLICT_STAGE_ONLY =
   process.argv.includes('--stop-after-conflict') ||
   process.env.ATERMIUS_MULTI_VAULT_CONFLICT_STAGE_ONLY === '1';
+// Both modes stage two offline edits of one record and then require the
+// second device's edit to be kept as a conflict branch (POST .../conflicts),
+// reviewed and resolved by hand. The client now resolves that case itself, so
+// every assertion after the second push describes behaviour the product no
+// longer has. Refuse to start instead of reporting a misleading failure deep
+// inside the scenario; the modes must be rewritten for latest-version-wins
+// (or pointed at a case that still conflicts) before they count as coverage.
+const PRE_LATEST_WINS_MODE = CREDENTIAL_CONFLICTS_ONLY
+  ? '--credential-conflicts-only'
+  : HOST_SECURITY_CONFLICTS_ONLY
+    ? '--host-security-conflicts-only'
+    : null;
+if (PRE_LATEST_WINS_MODE) {
+  throw new Error(`${PRE_LATEST_WINS_MODE} asserts the conflict-branch behaviour that ` +
+    'latest-version-wins replaced (commit 9d6b896): concurrent edits of one Credential or ' +
+    'Host no longer create a conflict branch. This mode has not been rewritten; ' +
+    'sync_latest_wins.cjs covers the current behaviour.');
+}
 const SAME_PROFILE_STALE_PAGE_ONLY =
   process.argv.includes('--same-profile-stale-page-only');
 // Match serialized preference fields, not generic words that can appear in
@@ -3466,79 +3498,6 @@ async function triggerSyncWithoutWaitingForIdle(page) {
   if (currentLabel !== 'Syncing') await clickSyncAction(page);
 }
 
-async function syncUntilVaultConflictIsCommitted({
-  page,
-  apiDiagnostics,
-  databasePath,
-  vaultId,
-}) {
-  const startIndex = apiDiagnostics.length;
-  const changesPath = `/api/v1/vaults/${vaultId}/changes`;
-  const conflictUploadPath = `/api/v1/vaults/${vaultId}/conflicts`;
-  let previousStatusKey = null;
-  let consecutiveStableStatusReads = 0;
-  await triggerSyncWithoutWaitingForIdle(page);
-
-  const observed = async () => {
-    const responses = apiDiagnostics.slice(startIndex);
-    const changes200 = responses.some((entry) => entry.profile === 'A' &&
-      entry.method === 'GET' && entry.path === changesPath && entry.status === 200);
-    const conflictUpload = responses.find((entry) => entry.profile === 'A' &&
-      entry.method === 'POST' && entry.path === conflictUploadPath &&
-      entry.status >= 200 && entry.status < 300);
-    const openConflictCount = serverVaultConflictCount(databasePath, vaultId);
-    const labels = await visibleSyncStatusLabels(page);
-    const pendingOrIdle = labels.some((label) => label === 'Idle' ||
-      label === 'Pending' || /^\d+ pending$/.test(label));
-    const syncing = labels.some((label) => label === 'Syncing');
-    const statusKey = labels.slice().sort().join('|');
-    if (pendingOrIdle && !syncing && statusKey === previousStatusKey) {
-      consecutiveStableStatusReads++;
-    } else {
-      consecutiveStableStatusReads = pendingOrIdle && !syncing ? 1 : 0;
-    }
-    previousStatusKey = pendingOrIdle && !syncing ? statusKey : null;
-    return {
-      changes200,
-      conflictUpload: Boolean(conflictUpload),
-      openConflictCount,
-      labels,
-      settledStatus: consecutiveStableStatusReads >= 2,
-      consecutiveStableStatusReads,
-    };
-  };
-
-  let state = await observed();
-  try {
-    await waitUntil(async () => {
-      state = await observed();
-      return state.changes200 && state.conflictUpload &&
-        state.openConflictCount > 0 && state.settledStatus;
-    }, 45000, 'Vault A changes, conflict upload, and server open-conflict evidence');
-  } catch (error) {
-    state = await observed();
-    console.log('multi-Vault conflict sync evidence', JSON.stringify({
-      changes200: state.changes200,
-      conflictUpload2xx: state.conflictUpload,
-      serverOpenConflictPresent: state.openConflictCount > 0,
-      syncStatusClass: state.labels.map((label) =>
-        /^\d+ pending$/.test(label) ? 'pending-count' : label),
-      api: safeApiSummary(apiDiagnostics.slice(startIndex), 12),
-    }));
-    throw error;
-  }
-  console.log('multi-Vault conflict sync evidence', JSON.stringify({
-    changes200: state.changes200,
-    conflictUpload2xx: state.conflictUpload,
-    serverOpenConflictPresent: state.openConflictCount > 0,
-    syncStatusClass: state.labels.map((label) =>
-      /^\d+ pending$/.test(label) ? 'pending-count' : label),
-  }));
-  assertThat(state.changes200 && state.conflictUpload &&
-    state.openConflictCount > 0 && state.settledStatus,
-  'Vault A sync did not publish the expected server conflict');
-}
-
 async function hostCardEvidence(page, name, expectedEndpoint = null) {
   return page.evaluate(({ expectedName, endpoint }) => {
     const cardLabels = [...document.querySelectorAll('flt-semantics[role="group"]')]
@@ -4529,6 +4488,29 @@ function serverVaultConflictCount(databasePath, vaultId) {
   return JSON.parse(result.stdout).openConflictCount;
 }
 
+// For each given record of one Vault: how many versions and signing devices
+// it has, whether the head is the newest version, and
+// whether every version is based on the one before it.
+function serverVaultConcurrentEditSnapshot(databasePath, vaultId, recordIds) {
+  const result = spawnSync('python3', ['-c', `
+import json,sqlite3,sys
+db=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True,timeout=5)
+out=[]
+for record_id in json.loads(sys.argv[3]):
+    rows=db.execute('SELECT revision_id,base_revision_id,device_id FROM record_versions WHERE vault_id=? AND record_id=? ORDER BY commit_seq',(sys.argv[2],record_id)).fetchall()
+    head=db.execute('SELECT revision_id FROM record_heads WHERE vault_id=? AND record_id=?',(sys.argv[2],record_id)).fetchone()
+    out.append({'versionCount':len(rows),'deviceCount':len({r[2] for r in rows}),'headIsLastVersion':bool(head) and head[0]==rows[-1][0],'linear':all(rows[i][1]==rows[i-1][0] for i in range(1,len(rows)))})
+print(json.dumps(out))
+`, databasePath, vaultId, JSON.stringify(recordIds)], {
+    encoding: 'utf8',
+    timeout: 8000,
+    maxBuffer: 65536,
+  });
+  assertThat(!result.error && result.status === 0,
+    'multi-Vault concurrent-edit inspection failed');
+  return JSON.parse(result.stdout);
+}
+
 function serverVaultFixtureHostCount(databasePath, vaultId, recordIds) {
   if (!recordIds.length) return 0;
   const result = spawnSync('python3', ['-c', [
@@ -4836,39 +4818,76 @@ async function runMultiVaultSwitchAcceptance({
     `${profile} Vault A preference semantics did not expose the selected value`);
   }
 
-  activeStage = 'multi-Vault conflict: owner opens Hosts in A';
+  // Both devices edit the same Vault A Host while offline. Since "latest
+  // version wins" (commit 9d6b896) this is no longer a conflict: the device
+  // that pushes second rebases its edit onto the other device's version and
+  // pushes it, so its content becomes the head and the replaced version stays
+  // in the record's history. No conflict branch is uploaded for either Vault.
+  activeStage = 'multi-Vault concurrent edit: owner opens Hosts in A';
   await click(ownerPage, 'Hosts');
-  activeStage = 'multi-Vault conflict: both devices go offline';
+  activeStage = 'multi-Vault concurrent edit: both devices go offline';
   await ownerContext.setOffline(true);
   await secondContext.setOffline(true);
-  activeStage = 'multi-Vault conflict: owner edits A Host offline';
+  const concurrentEditConflictStart = capture.conflictRequests.length;
+  const concurrentEditApiStart = apiDiagnostics.length;
+  const concurrentEditPushStart = capture.pushes.length;
+  activeStage = 'multi-Vault concurrent edit: owner edits A Host offline';
   await editHostConnection(ownerPage, hostA,
     { address: ownerBranchAddress }, `${ownerBranchAddress}:22`);
-  activeStage = 'multi-Vault conflict: second device opens Hosts in A offline';
+  activeStage = 'multi-Vault concurrent edit: second device opens Hosts in A offline';
   await click(secondPage, 'Hosts');
-  activeStage = 'multi-Vault conflict: second device edits A Host offline';
+  activeStage = 'multi-Vault concurrent edit: second device edits A Host offline';
   await editHostConnection(secondPage, hostA,
     { address: secondBranchAddress }, `${secondBranchAddress}:22`);
-  activeStage = 'multi-Vault conflict: second device reconnects and syncs';
+  activeStage = 'multi-Vault concurrent edit: second device reconnects and syncs';
   await secondContext.setOffline(false);
   await syncNow(secondPage);
-  activeStage = 'multi-Vault conflict: owner reconnects and syncs';
+  activeStage = 'multi-Vault concurrent edit: owner reconnects and its later push wins';
   await ownerContext.setOffline(false);
-  await syncUntilVaultConflictIsCommitted({
-    page: ownerPage,
-    apiDiagnostics,
-    databasePath,
-    vaultId: vaultA,
-  });
-  activeStage = 'multi-Vault conflict: wait for A conflict record';
-  assertThat(serverVaultConflictCount(databasePath, vaultA) > 0,
-    'Vault A conflict was not committed after conflict-specific sync completed');
-  activeStage = 'multi-Vault conflict: assert no B conflict record';
+  await syncNow(ownerPage);
+  await waitForHostRecord(ownerPage, hostA, true, `${ownerBranchAddress}:22`);
+  activeStage = 'multi-Vault concurrent edit: second device receives the winning version';
+  await syncNow(secondPage);
+  await waitForHostRecord(secondPage, hostA, true, `${ownerBranchAddress}:22`);
+  activeStage = 'multi-Vault concurrent edit: no conflict in either Vault';
+  // The Host both devices edited is the record both of them pushed.
+  const concurrentEditPushes = capture.pushes.slice(concurrentEditPushStart)
+    .filter((item) => item.pathVaultId === vaultA);
+  const pushedBy = (profile) => new Set(concurrentEditPushes
+    .filter((item) => item.profile === profile).flatMap((item) => item.recordIds));
+  const pushedBySecond = pushedBy('B');
+  const editedByBoth = [...pushedBy('A')].filter((recordId) => pushedBySecond.has(recordId));
+  assertThat(editedByBoth.length === 1,
+    'the two devices did not both push exactly one shared Vault A record');
+  const concurrentEdit = serverVaultConcurrentEditSnapshot(databasePath, vaultA, editedByBoth);
+  console.log('multi-Vault concurrent edit evidence', JSON.stringify({
+    aOpenConflicts: serverVaultConflictCount(databasePath, vaultA),
+    bOpenConflicts: serverVaultConflictCount(databasePath, vaultB),
+    conflictUploads: apiDiagnostics.slice(concurrentEditApiStart).filter((entry) =>
+      entry.method === 'POST' && /\/conflicts$/.test(entry.path)).length,
+    editedRecords: concurrentEdit.length,
+    versions: concurrentEdit.map((item) => item.versionCount),
+    devices: concurrentEdit.map((item) => item.deviceCount),
+    headIsLastVersion: concurrentEdit.map((item) => item.headIsLastVersion),
+  }));
+  assertThat(serverVaultConflictCount(databasePath, vaultA) === 0,
+    'a concurrent edit of one Vault A Host left an open conflict in Vault A');
   assertThat(serverVaultConflictCount(databasePath, vaultB) === 0,
-    'Vault A conflict appeared in Vault B server state');
+    'a concurrent edit of one Vault A Host left an open conflict in Vault B');
+  assertThat(!apiDiagnostics.slice(concurrentEditApiStart).some((entry) =>
+    entry.method === 'POST' && /\/conflicts$/.test(entry.path)),
+  'a device uploaded a conflict branch for a concurrent edit that latest-version-wins resolves');
+  assertThat(!capture.conflictRequests.slice(concurrentEditConflictStart).some((item) =>
+    item.vaultId === vaultB),
+  'the Vault A concurrent edit requested conflict data under Vault B');
+  // create <- second device's update <- owner's update (head), two devices.
+  assertThat(concurrentEdit.length === 1 && concurrentEdit[0].versionCount === 3 &&
+    concurrentEdit[0].deviceCount === 2 && concurrentEdit[0].headIsLastVersion &&
+    concurrentEdit[0].linear,
+  'Vault A does not keep both concurrent versions of the Host in one linear history');
 
   if (MULTI_VAULT_CONFLICT_STAGE_ONLY) {
-    console.log('multi-Vault conflict stage completed before stale-response race');
+    console.log('multi-Vault concurrent-edit stage completed before stale-response race');
     return;
   }
 
@@ -5226,7 +5245,7 @@ async function runMultiVaultSwitchAcceptance({
     item.pathVaultId === vaultB && item.bodyVaultId === vaultB),
   'a queued-B stage push was not bound to the selected Vault B ID');
   assertThat(bConflictRequestsDuringSync.length === 0,
-    'Vault A conflict workflow requested conflict data under Vault B');
+    'the queued-B sync requested conflict data under Vault B');
 
   const aResumePushStart = capture.pushes.length;
   const aResumeChangesStart = capture.changesRequests.length;
@@ -5246,9 +5265,9 @@ async function runMultiVaultSwitchAcceptance({
       ownerPage,
       vaultA,
       aResumePushResponse,
-      // Vault A intentionally retains the unresolved conflict created earlier
-      // in this scenario. Its conflict row keeps the aggregate status pending
-      // after the independent queued Host has committed.
+      // The push response is the evidence this stage needs; the status line
+      // is not required to settle first. (Vault A holds no open conflict:
+      // the earlier concurrent edit was resolved by latest-version-wins.)
       { waitForIdle: false },
     );
   } catch (error) {

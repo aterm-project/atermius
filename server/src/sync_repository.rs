@@ -92,8 +92,10 @@ pub(crate) struct ReadRecordRevisionsCommand {
     pub(crate) user: AuthUser,
     pub(crate) vault_id: String,
     pub(crate) record_id: String,
-    /// Effective per-record history limit; also the maximum row count.
-    pub(crate) record_history_limit: i64,
+    /// Deployment default for the per-record history limit. The effective
+    /// limit (also the maximum row count) is read inside the read
+    /// transaction; this value applies only when no policy row exists.
+    pub(crate) default_record_history_limit: i64,
 }
 
 pub(crate) struct CreateSnapshotCommand {
@@ -121,8 +123,11 @@ pub(crate) struct PushCommit {
     pub(crate) request_digest: String,
     pub(crate) operations: Vec<VerifiedOperation>,
     pub(crate) restore_retention_days: i64,
-    /// Effective per-record history limit applied after each new revision.
-    pub(crate) record_history_limit: i64,
+    /// Deployment default for the per-record history limit. The effective
+    /// limit is read inside the commit transaction, so an administrator's
+    /// change applies to the next push that commits; this value applies only
+    /// when no policy row exists.
+    pub(crate) default_record_history_limit: i64,
     /// Grace period before an attachment released by pruning is collected.
     pub(crate) object_gc_grace_seconds: i64,
 }
@@ -405,7 +410,7 @@ impl SqliteSyncRepository {
             request_digest,
             operations,
             restore_retention_days,
-            record_history_limit,
+            default_record_history_limit,
             object_gc_grace_seconds,
         } = command;
 
@@ -419,6 +424,14 @@ impl SqliteSyncRepository {
         .execute(&mut *tx)
         .await
         .map_err(ApiError::internal)?;
+        // Read the history limit only now that this transaction is the
+        // writer: every policy update committed before this point is visible,
+        // and none can commit until this transaction ends.
+        let record_history_limit = crate::sync_policy::effective_record_history_limit_tx(
+            &mut tx,
+            default_record_history_limit,
+        )
+        .await?;
 
         let (_, active_epoch, membership_version) =
             crate::require_authenticated_vault_write_tx(&mut tx, &user, &vault_id).await?;
@@ -1542,10 +1555,17 @@ impl SqliteSyncRepository {
             user,
             vault_id,
             record_id,
-            record_history_limit,
+            default_record_history_limit,
         } = command;
         let mut tx = self.pool.begin().await.map_err(ApiError::internal)?;
         crate::require_vault_read_tx(&mut tx, &user.user_id, &vault_id).await?;
+        // Same snapshot as the rows below, so the reported limit and the
+        // listed revisions cannot come from different policy versions.
+        let record_history_limit = crate::sync_policy::effective_record_history_limit_tx(
+            &mut tx,
+            default_record_history_limit,
+        )
+        .await?;
         crate::require_active_session_device_read_tx(&mut tx, &user).await?;
         crate::require_redaction_client_for_vault_tx(
             &mut tx,

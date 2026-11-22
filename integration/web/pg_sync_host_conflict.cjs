@@ -7,6 +7,46 @@
  * The keep-current resolution still exercises a lost-ack replay through node
  * B. The pytest parent verifies the PG ledger. This runner emits identifiers
  * and sanitized evidence only.
+ *
+ * ---------------------------------------------------------------------------
+ * OBSOLETE: DO NOT RUN, REWRITE FIRST (since 9d6b896, "latest version wins").
+ * The paragraph above and the whole scenario describe the conflict-branch flow
+ * that the client no longer takes for this race. main() fails before the proxy
+ * is bound or a browser is launched.
+ *
+ * What the script asserts (pre-9d6b896), twice over: A and B both edit the
+ * Host's Hostname offline, A commits first through node A, and B's stale
+ * update is uploaded as a conflict branch (POST /api/v1/vaults/{id}/conflicts
+ * through node B, with an explicit check that no B update based on A's
+ * revision was pushed). A then reviews the branch on the Sync page and
+ * resolves it (POST .../conflicts/{cid}/resolve): round one adopts B's tuple
+ * with the /resolve response held while a sibling tab applies the resolved
+ * feed event; round two keeps A's tuple with a lost-acknowledgement replay
+ * through node B.
+ *
+ * What the product does now: both rounds are plain update-vs-update edits of
+ * one Host field, so no field-wise merge applies and B's client rebases its
+ * edit (SyncRepository._tryLatestWinsRebase): B pushes a newly signed `update`
+ * based on A's revision through node B and that becomes the head. Expected
+ * ledger per round: ... <- update(A) <- update(B, head) in record_versions with
+ * the right device_id on each, zero rows in `conflicts`, no /conflicts or
+ * /resolve request, no conflict card, and both profiles showing B's Hostname.
+ * There is nothing left for A to review, so the held-acknowledgement,
+ * sibling-tab and lost-acknowledgement parts have no trigger in this scenario.
+ *
+ * Why this was not converted in place: more than 800 lines from "publish B
+ * stale signed branch through node B" to the end drive and verify the
+ * review/resolve flow, and the result object is a contract with the pytest
+ * parent (integration/test_pg_sync_http_acceptance.py,
+ * test_pg_http_approved_device_cross_node_host_sensitive_conflict_resolution_web_acceptance),
+ * which requires conflictId/retainedConflictId and checks the PostgreSQL
+ * `conflicts` rows against them. Runner and parent have to change together.
+ * A rewrite either asserts the latest-wins ledger above, or keeps the
+ * cross-node resolution coverage by driving a case that still produces a
+ * conflict branch (see sync_repository.dart: KnownHost records, a key-epoch
+ * change, an unreadable envelope, a non-linear outbox chain, a record with a
+ * reviewed decision attached). The server's conflict API is unchanged.
+ * ---------------------------------------------------------------------------
  */
 
 'use strict';
@@ -970,7 +1010,25 @@ async function triggerSync(page) {
   if (label !== 'Syncing' && await status.isEnabled().catch(() => false)) await status.click();
 }
 
+// See the OBSOLETE note at the top of this file. Everything below main()'s
+// first statement asserts the pre-9d6b896 conflict-branch flow and is kept only
+// as material for the rewrite.
+const PRE_LATEST_WINS_CONFLICT_FLOW_NOTICE =
+  'this runner asserts the conflict-branch flow from before 9d6b896 ("latest version wins"): ' +
+  'the later same-field Host push is now rebased onto the head and committed, with no ' +
+  'conflict branch, review or resolve call. Rewrite the runner and its pytest parent for ' +
+  'that behaviour before running it; see the note at the top of pg_sync_host_conflict.cjs.';
+
+function refusePreLatestWinsConflictFlow() {
+  // main().catch prints only an error class, so state the reason here.
+  console.error(`PG_SYNC_HOST_CONFLICT_OBSOLETE:${PRE_LATEST_WINS_CONFLICT_FLOW_NOTICE}`);
+  throw new Error(PRE_LATEST_WINS_CONFLICT_FLOW_NOTICE);
+}
+
 async function main() {
+  // Refused before the proxy is bound or a browser is launched, so a run
+  // cannot be mistaken for valid coverage.
+  refusePreLatestWinsConflictFlow();
   const result = {
     success: false,
     recordId: null,

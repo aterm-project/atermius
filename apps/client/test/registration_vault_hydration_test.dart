@@ -3722,7 +3722,7 @@ void main() {
   );
 
   test(
-    'deleting Host retires queued attachment task and retries only the tombstone',
+    'deleting a never-sent Host drops its upload task; a sent one retries only the tombstone',
     () async {
       final database = ClientDatabase.forTesting(NativeDatabase.memory());
       final api = _RegistrationApi();
@@ -3794,23 +3794,43 @@ void main() {
           hasLength(1),
         );
 
+        // The create was never sent and its upload is unfinished: deleting
+        // the Host drops both instead of queueing a tombstone the server
+        // would refuse (it has no head a delete could follow).
         await app.deleteHost(host);
+        expect(await database.queuedOperations(api.vaultId), isEmpty);
+        expect(await database.blobJobsForRecord(api.vaultId, hostId), isEmpty);
+        expect(await database.encryptedRecord(api.vaultId, hostId), isNull);
+        expect(app.hosts, isEmpty);
+        await app.synchronize();
+        expect(api.pushedOperations, isEmpty);
+
+        // A Host the server already has is deleted with a tombstone, and an
+        // unknown push result retries exactly that tombstone.
+        const pushedHost = HostRecord(
+          id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccd',
+          name: 'Pushed edge',
+          address: 'pushed.example.test',
+          username: 'deploy',
+        );
+        await app.saveHost(pushedHost);
+        await app.synchronize();
+        expect(api.pushedOperations, hasLength(1));
+        expect(await database.queuedOperations(api.vaultId), isEmpty);
+        api.pushedOperations.clear();
+
+        await app.deleteHost(
+          app.hosts.singleWhere((item) => item.id == pushedHost.id),
+        );
         final pendingBeforePush = await database.queuedOperations(api.vaultId);
         expect(pendingBeforePush, hasLength(1));
+        final tombstoneHeader =
+            (jsonDecode(pendingBeforePush.single.envelopeJson) as Map)['header']
+                as Map;
+        expect(tombstoneHeader['operation'], 'delete');
         expect(
-          (jsonDecode(pendingBeforePush.single.envelopeJson)
-              as Map)['header']['operation'],
-          'delete',
-        );
-        expect(await database.blobJobsForRecord(api.vaultId, hostId), isEmpty);
-        expect(
-          (await database.pushableOperations(
-            api.vaultId,
-          )).map((item) => item.opId),
-          [
-            (jsonDecode(pendingBeforePush.single.envelopeJson)
-                as Map)['header']['op_id'],
-          ],
+          tombstoneHeader['base_revision_id'],
+          pendingBeforePush.single.baseRevisionId,
         );
         expect(app.hosts, isEmpty);
 
@@ -3827,7 +3847,6 @@ void main() {
           pendingAfterUnknownResult.single.envelopeJson,
           attemptedEnvelope,
         );
-        expect(await database.blobJobsForRecord(api.vaultId, hostId), isEmpty);
 
         await app.synchronize();
         expect(api.pushedOperations, hasLength(2));

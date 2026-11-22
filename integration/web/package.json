@@ -20,6 +20,7 @@
     "test:sync-same-profile-inbound-store-credential-remote-conflict": "node same_profile_merge_race.cjs --inbound-store-credential-remote-conflict-only",
     "test:sync-same-profile-inbound-store-credential-crash-replay": "node same_profile_merge_race.cjs --inbound-store-credential-crash-replay-only",
     "test:delete-edit-conflict": "node delete_edit_conflict.cjs",
+    "test:sync-latest-wins": "node sync_latest_wins.cjs",
     "test:delete-crash-recovery": "node delete_crash_recovery.cjs",
     "test:vault-preferences": "node cross_profile_sync.cjs --vault-preferences-only",
     "test:device-revocation": "node device_revocation.cjs",

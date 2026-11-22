@@ -213,6 +213,135 @@ void main() {
   );
 
   test(
+    'object availability is probed without downloading attachment content',
+    () async {
+      final server = _ObjectServer(chunkSize: 1024 * 1024);
+      final api = _api(server);
+      final database = _database();
+      final crypto = HostAttachmentCrypto(randomBytes: sodium.randombytes.buf);
+      final service = HostAttachmentService(
+        api: api,
+        crypto: crypto,
+        database: database,
+      );
+      final descriptor = await crypto.encryptSourceForTransferV2(
+        fileName: 'v2-notes.txt',
+        mediaType: 'text/plain',
+        source: MemoryAttachmentUploadSource(
+          Uint8List.fromList(utf8.encode('v2 attachment payload')),
+        ),
+        onStart: (_) async {},
+        onObject: (object) async {
+          server.objects[object.objectId] = Uint8List.fromList(object.bytes);
+        },
+      );
+      final parsed = HostAttachmentV2ManifestEntry.parse(descriptor);
+      final directoryId = parsed.manifestObjectId;
+      final chunkIds = parsed.chunkObjectIds.toList();
+      final v2Refs = parsed.objectIds.toList()..sort();
+      parsed.clearSecrets();
+      final v1 = await crypto.encrypt(
+        fileName: 'v1-notes.txt',
+        mediaType: 'text/plain',
+        bytes: utf8.encode('v1 attachment payload'),
+      );
+      final v1Ids = [for (final object in v1.objects) object.objectId];
+      for (final object in v1.objects) {
+        server.objects[object.objectId] = Uint8List.fromList(object.bytes);
+      }
+      final version = _host(
+        manifest: {
+          'attachments': [descriptor, v1.manifestEntry],
+          'object_refs': [...v2Refs, ...v1Ids]..sort(),
+        },
+      );
+      Future<bool> available({
+        HostRecord? host,
+        Set<String> alreadyReferenced = const {},
+      }) => service.attachmentObjectsAvailable(
+        vaultId: _vaultId,
+        version: host ?? version,
+        alreadyReferenced: alreadyReferenced,
+      );
+      Iterable<http.Request> objectGets() => server.requests.where(
+        (request) => request.url.path.contains('/objects/'),
+      );
+      try {
+        expect(await available(), isTrue);
+        // Only the small v2 directory is read in full; every chunk object is
+        // asked for one byte.
+        final full = objectGets().where(
+          (request) => !request.headers.containsKey('range'),
+        );
+        expect(full.single.url.path, endsWith('/objects/$directoryId'));
+        final ranged = objectGets().where(
+          (request) => request.headers.containsKey('range'),
+        );
+        expect(ranged.map((request) => request.headers['range']).toSet(), {
+          'bytes=0-0',
+        });
+        expect(
+          ranged.map((request) => request.url.pathSegments.last).toSet(),
+          {...chunkIds, ...v1Ids},
+        );
+
+        // Nothing is asked about objects the current version references.
+        server.requests.clear();
+        expect(
+          await available(alreadyReferenced: {...v2Refs, ...v1Ids}),
+          isTrue,
+        );
+        expect(objectGets(), isEmpty);
+
+        // A reference outside every attachment cannot be checked.
+        expect(
+          await available(
+            host: _host(
+              manifest: {
+                'attachments': [v1.manifestEntry],
+                'object_refs': [...v1Ids, _legacyObjectId]..sort(),
+              },
+            ),
+          ),
+          isFalse,
+        );
+        expect(
+          await available(
+            host: _host(manifest: {'attachments': 'not a list'}),
+          ),
+          isFalse,
+        );
+
+        // An error other than "not found" leaves the answer unknown.
+        server.failAtRangeStart = 0;
+        await expectLater(
+          available(),
+          throwsA(
+            isA<ApiException>().having(
+              (error) => error.statusCode,
+              'statusCode',
+              503,
+            ),
+          ),
+        );
+        server.failAtRangeStart = null;
+
+        final v1Object = server.objects.remove(v1Ids.first)!;
+        expect(await available(), isFalse);
+        server.objects[v1Ids.first] = v1Object;
+        server.objects.remove(chunkIds.first);
+        expect(await available(), isFalse);
+        server.objects.remove(directoryId);
+        expect(await available(), isFalse);
+      } finally {
+        v1.clearCiphertext();
+        api.close();
+        await database.close();
+      }
+    },
+  );
+
+  test(
     'resumes staged v2 chunk and directory objects by authenticated IDs',
     () async {
       final server = _ObjectServer(chunkSize: 1024 * 1024);

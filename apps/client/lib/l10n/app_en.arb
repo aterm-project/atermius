@@ -17202,5 +17202,37 @@
   "snippetsReadOnlyNotice": "This Vault is read-only. You can review and run snippets, but you can't add, edit or delete them.",
   "@snippetsReadOnlyNotice": {},
   "workspacesReadOnlyNotice": "This Vault is read-only. You can preview saved workspaces, but you can't save, change or delete them.",
-  "@workspacesReadOnlyNotice": {}
+  "@workspacesReadOnlyNotice": {},
+  "recordHistoryFieldKeyFingerprint": "Key fingerprint",
+  "@recordHistoryFieldKeyFingerprint": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryRestoreAttachmentsRestored": "This version's attachments will be restored too and replace the current ones.",
+  "@recordHistoryRestoreAttachmentsRestored": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryRestoreAttachmentsKept": "The server no longer has some files of this version's attachments, so only the fields will be restored. The current attachments stay as they are.",
+  "@recordHistoryRestoreAttachmentsKept": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryRestoreAttachmentsUnchanged": "Attachments are not affected: this version has the same attachments as the current one.",
+  "@recordHistoryRestoreAttachmentsUnchanged": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryRestoredWithAttachments": "Restored as a new version, including its attachments.",
+  "@recordHistoryRestoredWithAttachments": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryRestoredKeptAttachments": "Fields restored as a new version. The current attachments were kept because the server no longer has some files of that version's attachments.",
+  "@recordHistoryRestoredKeptAttachments": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryNothingToRestore": "This version has the same content as the current one. Nothing was changed.",
+  "@recordHistoryNothingToRestore": {
+    "description": "App-owned UI text."
+  },
+  "recordHistoryNothingToRestoreAttachmentsGone": "Only the attachments differ from the current version, and the server no longer has some of their files. Nothing was changed.",
+  "@recordHistoryNothingToRestoreAttachmentsGone": {
+    "description": "App-owned UI text."
+  }
 }

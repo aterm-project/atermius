@@ -522,13 +522,20 @@ impl PgSyncHistoryReadRepository {
             user,
             vault_id,
             record_id,
-            record_history_limit,
+            default_record_history_limit,
         } = command;
         let mut tx = self.pool.begin().await.map_err(ApiError::internal)?;
         sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
             .execute(&mut *tx)
             .await
             .map_err(ApiError::internal)?;
+        // Same snapshot as the rows below, so the reported limit and the
+        // listed revisions cannot come from different policy versions.
+        let record_history_limit = crate::pg_sync_policy::effective_record_history_limit_tx(
+            &mut tx,
+            default_record_history_limit,
+        )
+        .await?;
 
         require_active_account_read(&mut tx, &user.user_id).await?;
         require_vault_membership_read(&mut tx, &user.user_id, &vault_id).await?;

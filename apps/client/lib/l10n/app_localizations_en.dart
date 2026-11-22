@@ -20670,4 +20670,35 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get workspacesReadOnlyNotice =>
       'This Vault is read-only. You can preview saved workspaces, but you can\'t save, change or delete them.';
+
+  @override
+  String get recordHistoryFieldKeyFingerprint => 'Key fingerprint';
+
+  @override
+  String get recordHistoryRestoreAttachmentsRestored =>
+      'This version\'s attachments will be restored too and replace the current ones.';
+
+  @override
+  String get recordHistoryRestoreAttachmentsKept =>
+      'The server no longer has some files of this version\'s attachments, so only the fields will be restored. The current attachments stay as they are.';
+
+  @override
+  String get recordHistoryRestoreAttachmentsUnchanged =>
+      'Attachments are not affected: this version has the same attachments as the current one.';
+
+  @override
+  String get recordHistoryRestoredWithAttachments =>
+      'Restored as a new version, including its attachments.';
+
+  @override
+  String get recordHistoryRestoredKeptAttachments =>
+      'Fields restored as a new version. The current attachments were kept because the server no longer has some files of that version\'s attachments.';
+
+  @override
+  String get recordHistoryNothingToRestore =>
+      'This version has the same content as the current one. Nothing was changed.';
+
+  @override
+  String get recordHistoryNothingToRestoreAttachmentsGone =>
+      'Only the attachments differ from the current version, and the server no longer has some of their files. Nothing was changed.';
 }

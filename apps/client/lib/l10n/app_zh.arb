@@ -5471,5 +5471,13 @@
   "snippetsMoreLines": "{count, plural, other{还有 {count} 行}}",
   "snippetsMoreActions": "更多片段操作",
   "snippetsReadOnlyNotice": "此保险库为只读。你可以检查并运行片段，但不能新建、编辑或删除片段。",
-  "workspacesReadOnlyNotice": "此保险库为只读。你可以预览已保存的工作区，但不能保存、更改或删除工作区。"
+  "workspacesReadOnlyNotice": "此保险库为只读。你可以预览已保存的工作区，但不能保存、更改或删除工作区。",
+  "recordHistoryFieldKeyFingerprint": "密钥指纹",
+  "recordHistoryRestoreAttachmentsRestored": "此版本的附件也会一并恢复，并替换当前的附件。",
+  "recordHistoryRestoreAttachmentsKept": "服务器上已没有此版本部分附件的文件，因此只恢复各字段，当前的附件保持不变。",
+  "recordHistoryRestoreAttachmentsUnchanged": "附件不受影响：此版本的附件与当前版本相同。",
+  "recordHistoryRestoredWithAttachments": "已恢复为新版本，附件也已一并恢复。",
+  "recordHistoryRestoredKeptAttachments": "已将各字段恢复为新版本。服务器上已没有该版本部分附件的文件，因此保留了当前的附件。",
+  "recordHistoryNothingToRestore": "此版本的内容与当前版本相同，未做任何更改。",
+  "recordHistoryNothingToRestoreAttachmentsGone": "此版本与当前版本只有附件不同，而服务器上已没有其中部分附件的文件，未做任何更改。"
 }

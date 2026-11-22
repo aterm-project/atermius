@@ -19477,4 +19477,35 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get workspacesReadOnlyNotice =>
       'この保管庫は読み取り専用です。保存済みのワークスペースはプレビューできますが、保存・変更・削除はできません。';
+
+  @override
+  String get recordHistoryFieldKeyFingerprint => '鍵のフィンガープリント';
+
+  @override
+  String get recordHistoryRestoreAttachmentsRestored =>
+      'このバージョンの添付ファイルも復元され、現在の添付ファイルと置き換わります。';
+
+  @override
+  String get recordHistoryRestoreAttachmentsKept =>
+      'このバージョンの添付ファイルの一部がサーバーに残っていないため、フィールドのみ復元します。現在の添付ファイルはそのままです。';
+
+  @override
+  String get recordHistoryRestoreAttachmentsUnchanged =>
+      '添付ファイルは変わりません。このバージョンの添付ファイルは現在のものと同じです。';
+
+  @override
+  String get recordHistoryRestoredWithAttachments =>
+      '添付ファイルを含めて、新しいバージョンとして復元しました。';
+
+  @override
+  String get recordHistoryRestoredKeptAttachments =>
+      'フィールドを新しいバージョンとして復元しました。そのバージョンの添付ファイルの一部がサーバーに残っていないため、現在の添付ファイルをそのまま残しました。';
+
+  @override
+  String get recordHistoryNothingToRestore =>
+      'このバージョンの内容は現在のバージョンと同じです。何も変更していません。';
+
+  @override
+  String get recordHistoryNothingToRestoreAttachmentsGone =>
+      '現在のバージョンとの違いは添付ファイルだけですが、その一部がサーバーに残っていません。何も変更していません。';
 }

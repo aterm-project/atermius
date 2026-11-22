@@ -1235,7 +1235,7 @@ pub async fn run_maintenance(state: &AppState) -> Result<(), ApiError> {
                 .await?;
             pg_sync_policy::prune_excess_record_history(
                 pool,
-                sync_policy::effective_record_history_limit(state).await?,
+                state.config.record_history_limit,
                 state.config.object_gc_grace_seconds,
             )
             .await?;

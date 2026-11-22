@@ -670,6 +670,174 @@ class HostAttachmentService {
     }
   }
 
+  /// Whether [version] and [current] carry the same attachments and object
+  /// references. Other manifest keys are not compared.
+  static bool sameAttachments(
+    Map<String, Object?>? version,
+    Map<String, Object?>? current,
+  ) =>
+      canonicalJson(_attachmentPart(version)) ==
+      canonicalJson(_attachmentPart(current));
+
+  /// [latest] with its attachments and object references replaced by those
+  /// of [version]; every other manifest key stays as it is in [latest].
+  /// Returns null when nothing is left.
+  static Map<String, Object?>? withAttachmentsOf({
+    required Map<String, Object?>? latest,
+    required Map<String, Object?>? version,
+  }) {
+    final merged = Map<String, Object?>.from(latest ?? const {})
+      ..remove('attachments')
+      ..remove('object_refs');
+    for (final key in const ['attachments', 'object_refs']) {
+      if (version != null && version.containsKey(key)) {
+        merged[key] = version[key];
+      }
+    }
+    if (merged.isEmpty) return null;
+    _validateHostManifestSize(merged);
+    return merged;
+  }
+
+  static Map<String, Object?> _attachmentPart(Map<String, Object?>? manifest) =>
+      {
+        'attachments': manifest?['attachments'] ?? const <Object?>[],
+        'object_refs': manifest?['object_refs'] ?? const <Object?>[],
+      };
+
+  /// Whether the server can still serve every object the attachment manifest
+  /// of [version] references, so a new revision may reference them again.
+  ///
+  /// Objects in [alreadyReferenced] (the ones the current version of the Host
+  /// references) are not asked about: restoring adds no reference to them.
+  /// Each remaining object is probed with a one-byte ranged read bound to the
+  /// size and digest in the authenticated manifest; a v2 attachment's small
+  /// directory object is read in full to learn its chunk objects. "Not found"
+  /// and a digest or size mismatch mean unavailable. A manifest this client
+  /// cannot parse, or a reference whose size and digest it cannot learn, also
+  /// count as unavailable. Any other failure (offline, sign-in expired, server
+  /// error) is rethrown: availability is then unknown.
+  Future<bool> attachmentObjectsAvailable({
+    required String vaultId,
+    required HostRecord version,
+    required Set<String> alreadyReferenced,
+  }) async {
+    late final _HostAttachmentManifest manifest;
+    try {
+      manifest = _read(version);
+    } on FormatException {
+      return false;
+    }
+    try {
+      final known = <String>{};
+      final probes = <({String objectId, int size, String sha256})>[];
+      for (final entry in manifest.entries) {
+        known.addAll(entry.objectIds);
+        if (alreadyReferenced.containsAll(entry.objectIds)) continue;
+        final v2 = entry.v2Entry;
+        if (v2 == null) {
+          for (final chunk in entry.chunks) {
+            probes.add((
+              objectId: chunk.objectId,
+              size: chunk.ciphertextSize,
+              sha256: chunk.sha256,
+            ));
+          }
+          continue;
+        }
+        Uint8List? directory;
+        ResolvedHostAttachmentV2? resolved;
+        try {
+          final downloaded = await api.downloadObjectWithDigest(
+            vaultId,
+            v2.manifestObjectId,
+          );
+          directory = Uint8List.fromList(downloaded.bytes);
+          downloaded.bytes.fillRange(0, downloaded.bytes.length, 0);
+          if (directory.length != v2.manifestCiphertextSize ||
+              downloaded.sha256 != v2.manifestCiphertextSha256 ||
+              await _digestHex(directory) != v2.manifestCiphertextSha256) {
+            return false;
+          }
+          resolved = await crypto.resolveV2Manifest(
+            manifestEntry: v2.raw,
+            manifestCiphertext: directory,
+          );
+          for (final chunk in resolved.chunks) {
+            probes.add((
+              objectId: chunk.objectId,
+              size: chunk.ciphertextSize,
+              sha256: chunk.sha256,
+            ));
+          }
+        } on ApiException catch (error) {
+          if (error.statusCode == 404) return false;
+          rethrow;
+        } on FormatException {
+          return false;
+        } finally {
+          resolved?.clearSecrets();
+          directory?.fillRange(0, directory.length, 0);
+        }
+      }
+      // A reference that belongs to no attachment has no size or digest here.
+      if (manifest.objectRefs.any(
+        (id) => !known.contains(id) && !alreadyReferenced.contains(id),
+      )) {
+        return false;
+      }
+      for (final probe in probes) {
+        if (alreadyReferenced.contains(probe.objectId)) continue;
+        try {
+          final byte = await api.downloadObjectRange(
+            vaultId: vaultId,
+            objectId: probe.objectId,
+            start: 0,
+            end: 0,
+            expectedSize: probe.size,
+            expectedSha256: probe.sha256,
+          );
+          byte.fillRange(0, byte.length, 0);
+        } on ApiException catch (error) {
+          if (error.statusCode == 404) return false;
+          rethrow;
+        } on FormatException {
+          return false;
+        }
+      }
+      return true;
+    } finally {
+      manifest.clearSecrets();
+    }
+  }
+
+  /// Drops the local transfer tasks of attachments that [previous] had and
+  /// [restored] no longer has, as [remove] does for one attachment. A task of
+  /// an attachment that is still listed is left alone, so its Host stays held
+  /// back from sync until that upload finishes.
+  Future<void> discardTransfersDroppedByRestore({
+    required String vaultId,
+    required HostRecord previous,
+    required HostRecord restored,
+  }) async {
+    final kept = {for (final entry in list(restored)) entry.blobId};
+    for (final entry in list(previous)) {
+      if (kept.contains(entry.blobId)) continue;
+      for (final direction in const ['upload', 'download']) {
+        await database.deleteBlobJob(
+          _jobId(
+            direction,
+            vaultId,
+            previous.id,
+            entry.blobId,
+            instanceId,
+            serverSpaceId,
+          ),
+        );
+      }
+    }
+  }
+
   Future<Uint8List> download({
     required String vaultId,
     required HostRecord host,
