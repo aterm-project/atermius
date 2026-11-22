@@ -11297,6 +11297,11 @@ class _TerminalPageState extends State<_TerminalPage> {
   final Map<String, GlobalKey<TerminalViewState>> _terminalViewKeys = {};
   final Map<String, _TerminalSearchSession> _terminalSearches = {};
   String? _focusRequestedForTab;
+  final _focusedAndroidTerminalTabs = <String>{};
+
+  bool get _androidTerminalInput =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
   AppController get app => widget.app;
 
   FocusNode _focusNodeFor(String id) => _terminalFocusNodes.putIfAbsent(
@@ -12167,7 +12172,8 @@ return DesktopView(
               controller: search.controller,
               scrollController: search.scrollController,
               focusNode: _focusNodeFor(id),
-              autofocus: id == app.activeTerminalTabId,
+              autofocus:
+                  id == app.activeTerminalTabId && !_androidTerminalInput,
               hardwareKeyboardOnly: false,
               showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
               keyboardAppearance: Theme.of(context).brightness,
@@ -12256,7 +12262,11 @@ return DesktopView(
           !identical(app.terminalTabFor(id)?.liveTerminalTransport, connection)) {
         return;
       }
-      _requestTerminalKeyboard(id);
+      if (_androidTerminalInput && !_focusedAndroidTerminalTabs.add(id)) {
+        _focusTerminalWithoutKeyboard(id);
+      } else {
+        _requestTerminalKeyboard(id);
+      }
     });
   }
 
@@ -12396,7 +12406,8 @@ return DesktopView(
               controller: search.controller,
               scrollController: search.scrollController,
               focusNode: _focusNodeFor(tab.id),
-              autofocus: tab.id == app.activeTerminalTabId,
+              autofocus: tab.id == app.activeTerminalTabId &&
+                  !_androidTerminalInput,
               hardwareKeyboardOnly: false,
               showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
               keyboardAppearance: Theme.of(context).brightness,
@@ -13355,6 +13366,7 @@ throw StateError(context.l10n.snippetChanged);
       if (!openIds.contains(id)) _terminalFocusNodes.remove(id)?.dispose();
     }
     _terminalViewKeys.removeWhere((id, _) => !openIds.contains(id));
+    _focusedAndroidTerminalTabs.removeWhere((id) => !openIds.contains(id));
     for (final id in _terminalSearches.keys.toList()) {
       if (!openIds.contains(id)) _terminalSearches.remove(id)?.dispose();
     }

@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import '../platform/fullscreen.dart';
+import '../platform/window_keyboard_insets.dart';
 import '../storage/desktop_keyboard_store.dart';
 import 'keyboard_capture.dart';
 import 'keyboard_capture_settings.dart';
@@ -108,7 +110,14 @@ class _DesktopKeyboardViewportState extends State<DesktopKeyboardViewport> {
   bool _wasFullscreen = false;
   bool _holdOverlay = false;
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) {
+    final child = _buildDesktopViewport();
+    return !kIsWeb && Theme.of(context).platform == TargetPlatform.android
+        ? AndroidKeyboardViewport(child: child)
+        : child;
+  }
+
+  Widget _buildDesktopViewport() => ListenableBuilder(
     listenable: Listenable.merge([
       DesktopKeyboardController.instance,
       FullscreenController.instance,

@@ -3,6 +3,7 @@ import 'host_sort_menu.dart';
 import 'terminal_font_zoom.dart';
 import 'app_menu.dart';
 import '../platform/file_window_tracking.dart';
+import '../platform/fullscreen.dart';
 import '../desktop/window/desktop_window.dart';
 import '../domain/window_combination.dart';
 import 'app_density.dart';
@@ -5422,6 +5423,9 @@ _showMessage(
                           shortcuts: _terminalShortcutBindings,
                           tools: _toolsWorkspace,
                           active: _selectedTabId == session.id,
+                          visible: _selectedTabId != 'hosts' &&
+                              (!FullscreenController.instance.enabled ||
+                                  _selectedTabId == session.id),
                           onDisconnect: () => _disconnectTerminalSession(session.id),
                           onToolsChanged: () {
                             if (mounted) setState(() {});
@@ -5630,14 +5634,15 @@ _showMessage(
         session.connection == null ||
         session.isTelnet ||
         session.console != null ||
-        session.desktop != null ||
-        view == null) {
+        session.desktop != null) {
       return const SizedBox.shrink();
     }
     return TerminalKeybar(
       key: const ValueKey('local_shared_terminal_keybar'),
       terminal: session.terminal,
-      focusNode: view.terminalFocus,
+      // Reserve the same layout on the first frame of a tab switch, before
+      // the new terminal view can supply its focus node.
+      focusNode: view?.terminalFocus,
       readOnly: !session.connected.value,
       availablePaneHeight: workspaceHeight,
     );
@@ -8353,6 +8358,7 @@ class _LocalTerminalSession {
   );
   final connected = ValueNotifier<bool>(true);
   final viewKey = GlobalKey<_LocalSshTerminalDialogState>();
+  bool _sshViewShown = false;
   StreamSubscription<String>? _stdout, _stderr;
   bool _closed = false;
   Future<void>? _closing;
@@ -8423,6 +8429,7 @@ class _LocalSshTerminalDialog extends StatefulWidget {
     required this.shortcuts,
     required this.tools,
     required this.active,
+    required this.visible,
     required this.onDisconnect,
     required this.onToolsChanged,
     super.key,
@@ -8431,6 +8438,7 @@ class _LocalSshTerminalDialog extends StatefulWidget {
   final _LocalTerminalSession session;
   final LocalHostRepository repository;
   final bool active;
+  final bool visible;
   final VoidCallback onDisconnect;
   final VoidCallback onToolsChanged;
   final HostRecord host;
@@ -8480,6 +8488,7 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
   TerminalToolsSection get _toolsSection => widget.tools.section;
   TerminalSearchHistory get _searchHistory => widget.tools.history;
   late final LocalShellHistory _history;
+  late final bool _restoreFocusWithoutKeyboard;
   bool _searching = false;
   bool _searchTruncated = false;
   bool _searchQueryTooLong = false;
@@ -8488,6 +8497,10 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
   void initState() {
     super.initState();
     _terminal.addListener(_onTerminalChanged);
+    _restoreFocusWithoutKeyboard = !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        widget.session._sshViewShown;
+    if (widget.active) widget.session._sshViewShown = true;
     _history = LocalShellHistory(
       repository: widget.repository,
       hostId: widget.host.id,
@@ -8499,8 +8512,12 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       widget.onToolsChanged();
-      if (widget.active && _searchOpen && _searchQuery.text.isNotEmpty) _refreshMatches();
-
+      if (widget.active && _searchOpen && _searchQuery.text.isNotEmpty) {
+        _refreshMatches();
+      }
+      if (widget.active && !_searchOpen && _restoreFocusWithoutKeyboard) {
+        _focusActiveTerminal();
+      }
     });
   }
 
@@ -8518,20 +8535,24 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
       }
     }
     if (widget.active && !oldWidget.active) {
+      widget.session._sshViewShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !widget.active) return;
         if (_searchOpen) _refreshMatches();
 
-        final view = terminalTouchKeyboardOnDemand
-            ? _terminalFocus.context?.findAncestorStateOfType<TerminalViewState>()
-            : null;
-        // Touch selection of a pane focuses it; the keybar opens the keyboard.
-        if (view != null) {
-          view.requestFocusWithoutKeyboard();
-        } else {
-          _terminalFocus.requestFocus();
-        }
+        _focusActiveTerminal();
       });
+    }
+  }
+
+  void _focusActiveTerminal() {
+    final view = terminalTouchKeyboardOnDemand
+        ? _terminalFocus.context?.findAncestorStateOfType<TerminalViewState>()
+        : null;
+    if (view != null) {
+      view.requestFocusWithoutKeyboard();
+    } else {
+      _terminalFocus.requestFocus();
     }
   }
 
@@ -8877,10 +8898,15 @@ throw StateError(context.l10n.snippetChanged);
                   ),
                   key: const ValueKey('local_ssh_terminal_view'),
                   readOnly: !widget.session.connected.value,
+                  // The Home IndexedStack still lays out its hidden terminal.
+                  // Its transient space must not change the remote PTY grid.
+                  autoResize: widget.visible,
                   controller: _terminalController,
                   scrollController: _terminalScrollController,
                   focusNode: _terminalFocus,
-                  autofocus: widget.active && !_searchOpen,
+                  autofocus: widget.active &&
+                      !_searchOpen &&
+                      !_restoreFocusWithoutKeyboard,
                   showKeyboardOnTap: !terminalTouchKeyboardOnDemand,
                   keyboardAppearance: Theme.of(context).brightness,
                   onKeyEvent: _handleTerminalKeyEvent,

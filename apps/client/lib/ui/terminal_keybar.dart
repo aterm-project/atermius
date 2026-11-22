@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 
 import '../l10n/l10n.dart';
+import '../platform/window_keyboard_insets.dart';
 import '../storage/terminal_keybar_store.dart';
 import 'terminal_font_zoom.dart';
 import 'apple_hig.dart';
@@ -244,6 +245,7 @@ class _TerminalKeybarState extends State<TerminalKeybar>
   _Modifier? _doubleTapCandidate;
   Timer? _doubleTapTimer;
   bool _keyboardShown = false;
+  bool _usesWindowKeyboardInsets = false;
 
   bool get _keyboardOnDemand => terminalTouchKeyboardOnDemand;
 
@@ -261,16 +263,19 @@ class _TerminalKeybarState extends State<TerminalKeybar>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_visible && _keyboardOnDemand) _keyboardShown = _softKeyboardShown();
+    if (!_visible || !_keyboardOnDemand) return;
+    final keyboardInsets = WindowKeyboardInsets.maybeOf(context);
+    _usesWindowKeyboardInsets = keyboardInsets != null;
+    _keyboardShown = (keyboardInsets?.bottom ?? _rawKeyboardBottom) > 0;
   }
 
   // The raw view inset: Scaffold bodies see a MediaQuery without it.
-  bool _softKeyboardShown() => View.of(context).viewInsets.bottom > 0;
+  double get _rawKeyboardBottom => View.of(context).viewInsets.bottom;
 
   @override
   void didChangeMetrics() {
-    if (!mounted) return;
-    final shown = _softKeyboardShown();
+    if (!mounted || _usesWindowKeyboardInsets) return;
+    final shown = _rawKeyboardBottom > 0;
     if (shown != _keyboardShown) setState(() => _keyboardShown = shown);
   }
 

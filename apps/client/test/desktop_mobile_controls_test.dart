@@ -572,6 +572,50 @@ void main() {
     });
   });
 
+  testWidgets('Android IME handoff preserves the editor and remote dock', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
+    final binding = tester.binding;
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    addTearDown(
+      () => binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+    );
+    final session = await _mount(tester);
+    await _open(tester);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    await tester.pump();
+    final bar = find.byKey(const ValueKey('desktop_special_keybar'));
+    final docked = tester.getRect(bar);
+
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 400);
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.getRect(bar), docked);
+    expect(tester.testTextInput.hasAnyClients, isTrue);
+
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tester.testTextInput.hasAnyClients, isTrue);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    _ime(tester, '你好');
+    await tester.pump();
+    expect(session.keys, _strokes([0x01004f60, 0x0100597d]));
+    expect(bar, findsOneWidget);
+
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 750));
+    expect(bar, findsNothing);
+    expect(tester.testTextInput.hasAnyClients, isFalse);
+  });
+
   for (final mode in DesktopKeyboardMode.values) {
     testWidgets('Android $mode keyboard viewport and remote size policy', (
       tester,
@@ -815,6 +859,8 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     await tester.pump();
     expect(session.keys.last, ['key', 0xffe3, 0]);
+    expect(tester.testTextInput.hasAnyClients, isTrue);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     expect(tester.testTextInput.hasAnyClients, isFalse);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();

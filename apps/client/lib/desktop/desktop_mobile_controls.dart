@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/l10n.dart';
+import '../platform/window_keyboard_insets.dart';
 
 enum _Latch { off, armed, locked }
 
@@ -75,10 +77,21 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
   Alignment _edge = Alignment.centerRight;
   Offset _anchor = const Offset(1, .3);
   ui.FlutterView? _view;
+  bool _usesWindowKeyboardInsets = false;
+  bool _keyboardVisible = false;
+  Timer? _keyboardHide;
+  bool get _android =>
+      !kIsWeb && Theme.of(context).platform == TargetPlatform.android;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _view = View.of(context);
+    final keyboardInsets = WindowKeyboardInsets.maybeOf(context);
+    _usesWindowKeyboardInsets = keyboardInsets != null;
+    _updateKeyboardVisibility(
+      (keyboardInsets?.bottom ?? _view!.viewInsets.bottom) > 0,
+    );
   }
 
   int? _lastModifier;
@@ -121,19 +134,50 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) releaseInput();
+    if (state == AppLifecycleState.resumed) {
+      _updateKeyboardVisibility(_keyboardVisible);
+      return;
+    }
+    if (_android && state == AppLifecycleState.inactive) {
+      // Gboard's language picker temporarily takes window focus. Keep the
+      // editor attached, but release any keys held down in the remote session.
+      _keyboardHide?.cancel();
+      _keyboardHide = null;
+      if (_open) setState(_releaseModifiers);
+      return;
+    }
+    releaseInput();
   }
 
   @override
   void didChangeMetrics() {
-    if (!_open || !mounted) return;
-    final visible = (_view?.viewInsets.bottom ?? 0) > 0;
-    if (_imeSeen && !visible) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _open) releaseInput();
-      });
+    if (!_usesWindowKeyboardInsets) {
+      _updateKeyboardVisibility((_view?.viewInsets.bottom ?? 0) > 0);
     }
-    if (visible) _imeSeen = true;
+  }
+
+  void _updateKeyboardVisibility(bool visible) {
+    _keyboardVisible = visible;
+    if (!_open) return;
+    if (visible) {
+      _imeSeen = true;
+      _keyboardHide?.cancel();
+      _keyboardHide = null;
+    } else if (_imeSeen &&
+        _keyboardHide == null &&
+        (!_android ||
+            WidgetsBinding.instance.lifecycleState !=
+                AppLifecycleState.inactive)) {
+      // An Android IME can briefly report zero insets while restarting.
+      // Back still dismisses the dock when the IME stays hidden.
+      _keyboardHide = Timer(
+        _android ? const Duration(milliseconds: 750) : Duration.zero,
+        () {
+          _keyboardHide = null;
+          if (mounted && _open) releaseInput();
+        },
+      );
+    }
   }
 
   void _setOpen(bool value) {
@@ -231,14 +275,20 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
     setState(() => _modifiers[sym] = next);
   }
 
-  /// Also called before replacing or closing the owning DesktopSession.
-  void releaseInput({bool notify = true}) {
+  void _releaseModifiers() {
     _doubleTap?.cancel();
     _lastModifier = null;
     for (final sym in _modifiers.keys) {
       if (_modifiers[sym] != _Latch.off) _key(sym, false);
       _modifiers[sym] = _Latch.off;
     }
+  }
+
+  /// Also called before replacing or closing the owning DesktopSession.
+  void releaseInput({bool notify = true}) {
+    _releaseModifiers();
+    _keyboardHide?.cancel();
+    _keyboardHide = null;
     _connection?.close();
     _connection = null;
     _value = _seed;

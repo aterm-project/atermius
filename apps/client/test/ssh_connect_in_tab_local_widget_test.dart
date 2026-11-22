@@ -161,12 +161,15 @@ void main() {
     fail('LocalProfileFlow did not finish its pending operation.');
   }
 
-  Future<void> openProfile(WidgetTester tester) async {
+  Future<void> openProfile(
+    WidgetTester tester, {
+    TargetPlatform platform = TargetPlatform.windows,
+  }) async {
     await tester.binding.setSurfaceSize(const Size(1280, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildAppTheme().copyWith(platform: TargetPlatform.windows),
+        theme: buildAppTheme().copyWith(platform: platform),
         home: LocalProfileFlow(
           catalog: catalog,
           service: profileService,
@@ -215,7 +218,9 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 10)),
       );
     }
-    await tester.pumpAndSettle();
+    // The profile close bounds its last session-log flush with a timeout.
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(seconds: 5));
   }
 
   WorkspaceTabBar tabBar(WidgetTester tester) =>
@@ -486,6 +491,58 @@ void main() {
 
     await closeFlow(tester);
   });
+
+  testWidgets(
+    'Android SSH tab switches send one size per real resolution change',
+    (tester) async {
+      await openProfile(tester, platform: TargetPlatform.android);
+      await tester.tap(find.byKey(ValueKey('local_host_$alphaId')));
+      await approveHostKey(tester, 'alpha.example.test');
+      await pumpFor(tester, () => tabOf(tester, 'Alpha host').isConnected);
+      await showHome(tester);
+      await tester.tap(find.byKey(ValueKey('local_host_$betaId')));
+      await approveHostKey(tester, 'beta.example.test');
+      await pumpFor(tester, () => tabOf(tester, 'Beta host').isConnected);
+      await tester.pumpAndSettle();
+
+      final [alpha, beta] = ssh.sessions;
+      final size = beta.sizes.last;
+      expect(alpha.sizes.last, size);
+      alpha.sizes.clear();
+      beta.sizes.clear();
+      tester.testTextInput.log.clear();
+
+      Future<void> select(String title) async {
+        final id = tabOf(tester, title).id;
+        await tester.tap(find.byKey(ValueKey('workspace-tab-$id')));
+        await tester.pumpAndSettle();
+      }
+
+      await select('Alpha host');
+      await select('Beta host');
+      expect(alpha.sizes, isEmpty);
+      expect(beta.sizes, isEmpty);
+      expect(
+        tester.testTextInput.log.where((call) => call.method == 'TextInput.show'),
+        isEmpty,
+      );
+
+      await tester.binding.setSurfaceSize(const Size(1100, 700));
+      await tester.pumpAndSettle();
+      expect(beta.sizes, hasLength(1));
+      expect(beta.sizes.single, isNot(size));
+
+      await select('Alpha host');
+      expect(alpha.sizes, [beta.sizes.single]);
+      await select('Beta host');
+      await select('Alpha host');
+      expect(alpha.sizes, hasLength(1));
+      expect(beta.sizes, hasLength(1));
+
+      await closeFlow(tester);
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.android}),
+  );
 
   testWidgets('reconnecting an existing tab still works, keeps the home page '
       'idle and reports its failure in the tab', (tester) async {

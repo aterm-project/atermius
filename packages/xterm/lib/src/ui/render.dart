@@ -60,7 +60,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     if (attached) _terminal.removeListener(_onTerminalChange);
     _terminal = terminal;
     if (attached) _terminal.addListener(_onTerminalChange);
-    _resizeTerminalIfNeeded();
+    _viewportSize = null;
     markNeedsLayout();
   }
 
@@ -93,6 +93,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   set autoResize(bool value) {
     if (value == _autoResize) return;
     _autoResize = value;
+    _viewportSize = null;
     markNeedsLayout();
   }
 
@@ -418,31 +419,24 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   /// Update the viewport size in cells based on the current widget size in
   /// pixels.
   void _updateViewportSize() {
-    if (size <= _painter.cellSize) {
-      return;
-    }
+    if (!_autoResize) return;
+    final columns = size.width ~/ _painter.cellSize.width;
+    final rows = _viewportHeight ~/ _painter.cellSize.height;
+    if (columns < 1 || rows < 1) return;
 
-    final viewportSize = TerminalSize(
-      size.width ~/ _painter.cellSize.width,
-      _viewportHeight ~/ _painter.cellSize.height,
+    final viewportSize = TerminalSize(columns, rows);
+    if (_viewportSize == viewportSize) return;
+    _viewportSize = viewportSize;
+
+    // A retained terminal may already have this grid when its view remounts.
+    // Avoid resetting its buffer and notifying the remote PTY again.
+    if (columns == _terminal.viewWidth && rows == _terminal.viewHeight) return;
+    _terminal.resize(
+      columns,
+      rows,
+      _painter.cellSize.width.round(),
+      _painter.cellSize.height.round(),
     );
-
-    if (_viewportSize != viewportSize) {
-      _viewportSize = viewportSize;
-      _resizeTerminalIfNeeded();
-    }
-  }
-
-  /// Notify the underlying terminal that the viewport size has changed.
-  void _resizeTerminalIfNeeded() {
-    if (_autoResize && _viewportSize != null) {
-      _terminal.resize(
-        _viewportSize!.width,
-        _viewportSize!.height,
-        _painter.cellSize.width.round(),
-        _painter.cellSize.height.round(),
-      );
-    }
   }
 
   /// Update the scroll offset based on the current terminal state. This should

@@ -172,6 +172,9 @@ class TerminalView extends StatefulWidget {
 class TerminalViewState extends State<TerminalView> {
   late FocusNode _focusNode;
 
+  bool get _android =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
   late final ShortcutManager _shortcutManager;
 
   final _customTextEditKey = GlobalKey<CustomTextEditState>();
@@ -349,7 +352,11 @@ class TerminalViewState extends State<TerminalView> {
       child: child,
     );
 
-    child = KeyboardVisibilty(onKeyboardShow: _onKeyboardShow, child: child);
+    // Android delivers metrics for keyboards owned by other windows.
+    // Follow the cursor when our input is requested or used.
+    if (!_android) {
+      child = KeyboardVisibilty(onKeyboardShow: _onKeyboardShow, child: child);
+    }
 
     child = TerminalGestureHandler(
       terminalView: this,
@@ -392,7 +399,10 @@ class TerminalViewState extends State<TerminalView> {
   }
 
   void requestKeyboard() {
-    _customTextEditKey.currentState?.requestKeyboard();
+    final editor = _customTextEditKey.currentState;
+    if (editor == null || widget.readOnly) return;
+    editor.requestKeyboard();
+    if (_android) _scrollToBottom();
   }
 
   void closeKeyboard() {
@@ -430,7 +440,7 @@ class TerminalViewState extends State<TerminalView> {
       if (!widget.hardwareKeyboardOnly && !widget.showKeyboardOnTap) {
         requestFocusWithoutKeyboard();
       } else if (!widget.hardwareKeyboardOnly) {
-        _customTextEditKey.currentState?.requestKeyboard();
+        requestKeyboard();
       } else {
         _focusNode.requestFocus();
       }
@@ -536,11 +546,12 @@ class TerminalViewState extends State<TerminalView> {
   }
 
   void _onKeyboardShow() {
-    if (_focusNode.hasFocus) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!_focusNode.hasFocus || !hasInputConnection) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _focusNode.hasFocus && hasInputConnection) {
         _scrollToBottom();
-      });
-    }
+      }
+    });
   }
 
   void _onEditableRect(Rect rect, Rect caretRect) {

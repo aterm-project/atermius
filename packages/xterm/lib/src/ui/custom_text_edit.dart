@@ -245,7 +245,10 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
         inputAction: widget.inputAction,
         keyboardAppearance: widget.keyboardAppearance,
         autocorrect: false,
-        enableSuggestions: false,
+        // Android treats disabled suggestions as visible-password input,
+        // which can prevent Gboard from switching to non-Latin keyboards.
+        enableSuggestions:
+            !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
         enableIMEPersonalizedLearning: false,
       );
 

@@ -1,5 +1,6 @@
 import 'dart:ui' show SemanticsActionEvent, Tristate;
 
+import 'package:aterm_client/desktop/desktop_keyboard_mode.dart';
 import 'package:aterm_client/l10n/l10n.dart';
 import 'package:aterm_client/storage/terminal_keybar_store.dart';
 import 'package:aterm_client/ui/terminal_keybar.dart';
@@ -1150,6 +1151,70 @@ void main() {
   );
 
   testWidgets(
+    'another Android window’s IME leaves the SSH keybar and scrollback in place',
+    (tester) async {
+      _setScreen(tester, const Size(390, 844));
+      final semantics = tester.ensureSemantics();
+      final focus = FocusNode();
+      final terminal = Terminal();
+      addTearDown(tester.view.resetViewInsets);
+      final binding = tester.binding;
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      addTearDown(
+        () => binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+      );
+
+      await tester.pumpWidget(_harness(terminal, focus));
+      await tester.pump();
+      final inputConfig = tester.testTextInput.setClientArgs!;
+      expect(inputConfig['enableSuggestions'], isTrue);
+      expect(inputConfig['autocorrect'], isFalse);
+      expect(inputConfig['enableIMEPersonalizedLearning'], isFalse);
+      final view = tester.state<TerminalViewState>(find.byType(TerminalView));
+      terminal.write(List.filled(100, 'command output\r\n').join());
+      await tester.pump();
+      view.scrollPosition!.jumpTo(0);
+      await tester.pump();
+      final bar = find.byType(TerminalKeybar);
+      final initial = tester.getRect(bar);
+      final grid = (terminal.viewWidth, terminal.viewHeight);
+
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+      expect(tester.getRect(bar), initial);
+      expect(_keyboardSemantics(tester).label, 'Show keyboard');
+      expect((terminal.viewWidth, terminal.viewHeight), grid);
+      expect(view.scrollPosition!.pixels, 0);
+
+      // Android can return focus before removing the foreign IME's insets.
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(tester.getRect(bar), initial);
+      expect(view.scrollPosition!.pixels, 0);
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pump();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+      expect(tester.getRect(bar).bottom, initial.bottom - 300);
+      expect(_keyboardSemantics(tester).label, 'Hide keyboard');
+
+      // Moving a floating app above an already open SSH keyboard must also
+      // leave the last accepted keyboard inset in place.
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 420);
+      await tester.pump();
+      expect(tester.getRect(bar).bottom, initial.bottom - 300);
+      expect(_keyboardSemantics(tester).label, 'Hide keyboard');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      focus.dispose();
+      semantics.dispose();
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.android}),
+  );
+
+  testWidgets(
     'Android: tap after hiding the keyboard only focuses; the keybar button opens it',
     (tester) async {
       final semantics = tester.ensureSemantics();
@@ -1512,6 +1577,7 @@ Widget _harness(
   double headerHeight = 0,
   ValueChanged<TerminalKeyModifiers>? onChanged,
 }) => MaterialApp(
+  builder: (context, child) => DesktopKeyboardViewport(child: child!),
   home: Scaffold(
     body: Align(
       alignment: Alignment.topLeft,

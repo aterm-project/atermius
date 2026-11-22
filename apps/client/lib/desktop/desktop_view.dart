@@ -3,6 +3,7 @@ import '../ui/session_workspace.dart';
 import '../ui/fullscreen_menu.dart';
 import '../platform/fullscreen.dart';
 import '../platform/wheel_scroll_lines.dart';
+import '../platform/window_keyboard_insets.dart';
 import '../domain/models.dart';
 import 'desktop_mobile_controls.dart';
 import 'desktop_keyboard_mode.dart';
@@ -1043,9 +1044,11 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
           final top = box != null && box.hasSize
               ? box.localToGlobal(Offset.zero).dy
               : 0.0;
+          final keyboardBottom =
+              WindowKeyboardInsets.maybeOf(context)?.bottom ??
+              view.viewInsets.bottom / view.devicePixelRatio;
           final keyboardTop =
-              (view.physicalSize.height - view.viewInsets.bottom) /
-              view.devicePixelRatio;
+              view.physicalSize.height / view.devicePixelRatio - keyboardBottom;
           final overlap = keyboardOverlay
               ? (top + pane.maxHeight - keyboardTop).clamp(0.0, pane.maxHeight)
               : 0.0;

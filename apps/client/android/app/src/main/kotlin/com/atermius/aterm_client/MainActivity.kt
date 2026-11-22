@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.inputmethod.InputMethodManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.android.FlutterView
 import io.flutter.embedding.engine.FlutterEngine
@@ -27,6 +28,9 @@ class MainActivity : FlutterActivity() {
     private var externalFileOpener: ExternalFileOpener? = null
     private var keyboardCapture: KeyboardCapture? = null
     private var clipboardBridge: ClipboardBridge? = null
+    private val imeFocusRecovery by lazy {
+        ImeFocusRecovery(getSystemService(InputMethodManager::class.java)!!)
+    }
     private var windowFocused = false
     private var topResumed = false
 
@@ -47,11 +51,17 @@ class MainActivity : FlutterActivity() {
         McpForegroundLease.recheckNotifications(applicationContext)
         SshSessionKeepalive.recheckNotifications(applicationContext)
     }
-    override fun onPause() { resumed = false; updateFirstWindow(); super.onPause() }
+    override fun onPause() {
+        resumed = false
+        imeFocusRecovery.cancel()
+        updateFirstWindow()
+        super.onPause()
+    }
 
     override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
         super.onTopResumedActivityChanged(isTopResumedActivity)
         topResumed = isTopResumedActivity
+        if (!topResumed) imeFocusRecovery.cancel()
         updateFirstWindow()
     }
 
@@ -248,6 +258,11 @@ class MainActivity : FlutterActivity() {
         windowFocused = hasFocus
         updateFirstWindow()
         clipboardBridge?.focusChanged(hasFocus)
+        if (resumed && (Build.VERSION.SDK_INT < 29 || topResumed)) {
+            findViewById<View>(FLUTTER_VIEW_ID)?.let {
+                imeFocusRecovery.focusChanged(it, hasFocus)
+            }
+        }
         if (hasFocus && fullscreenRequested) applyFullscreen(true)
     }
 
