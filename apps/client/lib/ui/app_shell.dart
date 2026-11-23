@@ -64,6 +64,7 @@ import '../domain/ansible_inventory_metadata.dart';
 import '../domain/credential_conflict_merge.dart';
 import '../domain/host_security_conflict_merge.dart';
 import '../domain/known_host.dart';
+import 'host_login_copy.dart';
 import '../domain/models.dart';
 import '../domain/quick_connect.dart';
 import 'host_search_field.dart';
@@ -1792,6 +1793,36 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
 }
   }
 
+  /// Copies the sign-in details of the Host behind tab [id] as JSON: what
+  /// the session signs in with (the Host's own login, its credential or its
+  /// Group's default) and the same for each SSH Jump Host on the way.
+  Future<void> _copySessionLogin(String id) async {
+    final tab = app.terminalTabFor(id);
+    final sessionHost = tab?.host;
+    if (tab == null || sessionHost == null || tab.console != null) return;
+    final l10n = context.l10n;
+    HostRecord? saved(String hostId) =>
+        app.hosts.where((host) => host.id == hostId).firstOrNull;
+    final result = await copyHostLoginJson(
+      l10n: l10n,
+      // The current record: its login is the one a reconnect would use.
+      host: saved(sessionHost.id) ?? sessionHost,
+      credentialFor: (host) => app
+          .resolveHostCredential(
+            host: host,
+            groupId: host.groupId,
+            hostCredentialId: host.credentialId,
+          )
+          .credential,
+      hostById: saved,
+      temporaryJumpHostId: tab.temporaryJumpHostId,
+    );
+    if (!mounted) return;
+    // Shown at once, ahead of any notice (a "connected" line, say) still up.
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    _snack(context, result.message, error: result.failed);
+  }
+
   void _showSessionProperties(String id) {
     final file = _fileTabs.find(id);
     final tab = app.terminalTabFor(file?.sourceSessionId ?? id);
@@ -2288,6 +2319,7 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                       ? _detachFile(id)
                       : _detachSession(id),
                 ),
+                onCopyLogin: (id) => unawaited(_copySessionLogin(id)),
                 onProperties: _showSessionProperties,
                 onCloseOthers: (id) async {
                   final sourceId = _fileTabs.find(id)?.sourceSessionId;

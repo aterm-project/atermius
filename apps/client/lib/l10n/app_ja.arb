@@ -5479,5 +5479,9 @@
   "recordHistoryRestoredWithAttachments": "添付ファイルを含めて、新しいバージョンとして復元しました。",
   "recordHistoryRestoredKeptAttachments": "フィールドを新しいバージョンとして復元しました。そのバージョンの添付ファイルの一部がサーバーに残っていないため、現在の添付ファイルをそのまま残しました。",
   "recordHistoryNothingToRestore": "このバージョンの内容は現在のバージョンと同じです。何も変更していません。",
-  "recordHistoryNothingToRestoreAttachmentsGone": "現在のバージョンとの違いは添付ファイルだけですが、その一部がサーバーに残っていません。何も変更していません。"
+  "recordHistoryNothingToRestoreAttachmentsGone": "現在のバージョンとの違いは添付ファイルだけですが、その一部がサーバーに残っていません。何も変更していません。",
+  "copyLoginInfo": "ログイン情報をコピー（JSON）",
+  "loginInfoCopied": "ログイン情報を JSON でコピーしました。",
+  "loginInfoCopiedWithoutSecret": "アドレスとユーザー名をコピーしました。このホストにはパスワードも鍵も保存されていません。",
+  "loginInfoCopyFailed": "ログイン情報をコピーできませんでした。"
 }

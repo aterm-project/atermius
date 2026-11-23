@@ -17234,5 +17234,21 @@
   "recordHistoryNothingToRestoreAttachmentsGone": "Only the attachments differ from the current version, and the server no longer has some of their files. Nothing was changed.",
   "@recordHistoryNothingToRestoreAttachmentsGone": {
     "description": "App-owned UI text."
+  },
+  "copyLoginInfo": "Copy login info (JSON)",
+  "@copyLoginInfo": {
+    "description": "App-owned UI text."
+  },
+  "loginInfoCopied": "Login info copied as JSON.",
+  "@loginInfoCopied": {
+    "description": "App-owned UI text."
+  },
+  "loginInfoCopiedWithoutSecret": "Copied the address and user name. No password or key is saved for this host.",
+  "@loginInfoCopiedWithoutSecret": {
+    "description": "App-owned UI text."
+  },
+  "loginInfoCopyFailed": "Couldn't copy the login info.",
+  "@loginInfoCopyFailed": {
+    "description": "App-owned UI text."
   }
 }

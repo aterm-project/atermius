@@ -20797,4 +20797,17 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get recordHistoryNothingToRestoreAttachmentsGone =>
       'Эта версия отличается от текущей только вложениями, а части их файлов на сервере больше нет. Ничего не изменено.';
+
+  @override
+  String get copyLoginInfo => 'Копировать данные для входа (JSON)';
+
+  @override
+  String get loginInfoCopied => 'Данные для входа скопированы в формате JSON.';
+
+  @override
+  String get loginInfoCopiedWithoutSecret =>
+      'Адрес и имя пользователя скопированы. Для этого хоста не сохранены ни пароль, ни ключ.';
+
+  @override
+  String get loginInfoCopyFailed => 'Не удалось скопировать данные для входа.';
 }

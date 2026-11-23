@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:aterm_client/crypto/vault_crypto.dart';
+import 'package:aterm_client/credential_visibility/sensitive_clipboard.dart';
 import 'package:aterm_client/platform/native_coordination.dart';
 import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/domain/vault_preference.dart';
@@ -463,6 +464,69 @@ void main() {
         terminals,
       );
       expect(sshHarness.userAuthenticationCount, count);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await drainClose(tester);
+    },
+  );
+
+  testWidgets(
+    'tab menu copies the local Host sign-in details as JSON',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      String? clipboard;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            clipboard = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      SensitiveClipboard.debugForgetSecrets();
+      addTearDown(SensitiveClipboard.debugForgetSecrets);
+      await openFixtureTerminal(tester);
+      final tabs = tester.widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar));
+      await tester.tap(
+        find.byKey(ValueKey('workspace-tab-${tabs.selectedId}')),
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pumpAndSettle();
+      // Nothing is copied before the user picks the entry.
+      expect(clipboard, isNull);
+      await tester.tap(find.byKey(const ValueKey('tab_copy_login')));
+      for (var attempt = 0; attempt < 40 && clipboard == null; attempt++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 25)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.pumpAndSettle();
+      // The Host has no credential of its own: its Group's default applies,
+      // exactly as it does when the session signs in.
+      expect(jsonDecode(clipboard!), {
+        'name': 'Local preference test host',
+        'protocol': 'ssh',
+        'host': 'host.example.test',
+        'port': 2222,
+        'username': 'local-user',
+        'password': 'test-only-local-password',
+      });
+      expect(clipboard, startsWith('{\n  "name": '));
+      expect(find.text('Login info copied as JSON.'), findsOneWidget);
+      // Never offered to a remote desktop by automatic clipboard sync.
+      expect(SensitiveClipboard.isSecret(clipboard!), isTrue);
+      // The secret is on the clipboard only, not on screen.
+      expect(find.textContaining('test-only-local-password'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       await drainClose(tester);

@@ -19508,4 +19508,17 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get recordHistoryNothingToRestoreAttachmentsGone =>
       '現在のバージョンとの違いは添付ファイルだけですが、その一部がサーバーに残っていません。何も変更していません。';
+
+  @override
+  String get copyLoginInfo => 'ログイン情報をコピー（JSON）';
+
+  @override
+  String get loginInfoCopied => 'ログイン情報を JSON でコピーしました。';
+
+  @override
+  String get loginInfoCopiedWithoutSecret =>
+      'アドレスとユーザー名をコピーしました。このホストにはパスワードも鍵も保存されていません。';
+
+  @override
+  String get loginInfoCopyFailed => 'ログイン情報をコピーできませんでした。';
 }

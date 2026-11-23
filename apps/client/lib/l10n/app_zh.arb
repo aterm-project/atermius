@@ -5479,5 +5479,9 @@
   "recordHistoryRestoredWithAttachments": "已恢复为新版本，附件也已一并恢复。",
   "recordHistoryRestoredKeptAttachments": "已将各字段恢复为新版本。服务器上已没有该版本部分附件的文件，因此保留了当前的附件。",
   "recordHistoryNothingToRestore": "此版本的内容与当前版本相同，未做任何更改。",
-  "recordHistoryNothingToRestoreAttachmentsGone": "此版本与当前版本只有附件不同，而服务器上已没有其中部分附件的文件，未做任何更改。"
+  "recordHistoryNothingToRestoreAttachmentsGone": "此版本与当前版本只有附件不同，而服务器上已没有其中部分附件的文件，未做任何更改。",
+  "copyLoginInfo": "复制登录信息（JSON）",
+  "loginInfoCopied": "已复制登录信息（JSON）。",
+  "loginInfoCopiedWithoutSecret": "已复制地址和用户名。此主机没有保存密码或密钥。",
+  "loginInfoCopyFailed": "无法复制登录信息。"
 }

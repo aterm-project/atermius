@@ -96,6 +96,7 @@ enum _TabCommand {
   splitHorizontal,
   splitVertical,
   detach,
+  copyLogin,
   properties,
   sftp,
   scp,
@@ -115,6 +116,7 @@ class WorkspaceTabBar extends StatelessWidget {
     this.onReorder,
     this.onSplit,
     this.onDetach,
+    this.onCopyLogin,
     this.onProperties,
     this.onCloseOthers,
     this.onDuplicate,
@@ -147,6 +149,10 @@ class WorkspaceTabBar extends StatelessWidget {
   final void Function(String tabId, String? beforeId)? onReorder;
   final void Function(String tabId, Axis axis)? onSplit;
   final ValueChanged<String>? onDetach, onProperties, onCloseOthers;
+
+  /// Copies the sign-in details of the tab's Host. Offered on tabs that are
+  /// a session of a Host ([WorkspaceTab.host]), right above Properties.
+  final ValueChanged<String>? onCopyLogin;
   final ValueChanged<String>? onDuplicate;
   final String dragScope;
   final Widget? leading;
@@ -403,14 +409,21 @@ class WorkspaceTabBar extends StatelessWidget {
               context.l10n.moveToNewWindow,
             ),
           ),
-        if (onProperties != null) ...[
+        if (onProperties != null || (onCopyLogin != null && tab.host != null))
           const PopupMenuDivider(height: 8),
+        if (onCopyLogin != null && tab.host != null)
+          appMenuItem(
+            context,
+            key: const ValueKey('tab_copy_login'),
+            value: _TabCommand.copyLogin,
+            child: AppMenuLabel(Icons.key_outlined, context.l10n.copyLoginInfo),
+          ),
+        if (onProperties != null)
           appMenuItem(
             context,
             value: _TabCommand.properties,
             child: AppMenuLabel(Icons.info_outline, context.l10n.properties),
           ),
-        ],
       ],
     );
     if (!context.mounted || selected == null) return;
@@ -445,6 +458,8 @@ class WorkspaceTabBar extends StatelessWidget {
         onSplit?.call(tab.id, Axis.vertical);
       case _TabCommand.detach:
         onDetach?.call(tab.id);
+      case _TabCommand.copyLogin:
+        onCopyLogin?.call(tab.id);
       case _TabCommand.properties:
         onProperties?.call(tab.id);
     }

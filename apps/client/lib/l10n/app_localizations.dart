@@ -32619,6 +32619,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only the attachments differ from the current version, and the server no longer has some of their files. Nothing was changed.'**
   String get recordHistoryNothingToRestoreAttachmentsGone;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy login info (JSON)'**
+  String get copyLoginInfo;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Login info copied as JSON.'**
+  String get loginInfoCopied;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied the address and user name. No password or key is saved for this host.'**
+  String get loginInfoCopiedWithoutSecret;
+
+  /// App-owned UI text.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t copy the login info.'**
+  String get loginInfoCopyFailed;
 }
 
 class _AppLocalizationsDelegate

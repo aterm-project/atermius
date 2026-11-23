@@ -20701,4 +20701,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get recordHistoryNothingToRestoreAttachmentsGone =>
       'Only the attachments differ from the current version, and the server no longer has some of their files. Nothing was changed.';
+
+  @override
+  String get copyLoginInfo => 'Copy login info (JSON)';
+
+  @override
+  String get loginInfoCopied => 'Login info copied as JSON.';
+
+  @override
+  String get loginInfoCopiedWithoutSecret =>
+      'Copied the address and user name. No password or key is saved for this host.';
+
+  @override
+  String get loginInfoCopyFailed => 'Couldn\'t copy the login info.';
 }

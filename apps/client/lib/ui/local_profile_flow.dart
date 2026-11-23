@@ -56,6 +56,7 @@ import '../archive/local_profile_archive.dart';
 import '../attachments/attachment_file_saver.dart';
 import '../crypto/vault_crypto.dart';
 import '../domain/known_host.dart';
+import 'host_login_copy.dart';
 import '../domain/models.dart';
 import '../domain/snippet_invocation.dart';
 import '../domain/vault_preference.dart';
@@ -3427,6 +3428,28 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
     }
   }
 
+  /// Copies the sign-in details of the Host behind tab [id] as JSON: what
+  /// the session signs in with (the Host's own login, its credential or its
+  /// Group's default) and the same for each SSH Jump Host on the way.
+  Future<void> _copySessionLogin(String id) async {
+    final session = _sessions.where((s) => s.id == id).firstOrNull;
+    final repository = _repository;
+    if (session == null || session.console != null || repository == null) {
+      return;
+    }
+    final result = await copyHostLoginJson(
+      l10n: context.l10n,
+      // The current record: its login is the one a reconnect would use.
+      host:
+          _hosts.where((host) => host.id == session.host.id).firstOrNull ??
+          session.host,
+      credentialFor: repository.resolveCredentialForHost,
+      hostById: repository.getHost,
+      temporaryJumpHostId: session.temporaryJumpHostId,
+    );
+    if (mounted) _showMessage(result.message);
+  }
+
   void _terminalProperties(String id) {
     final session = _sessions.where((s) => s.id == id).firstOrNull;
     if (session != null) {
@@ -5532,6 +5555,7 @@ _showMessage(
                           supportsFilesWindows
                       ? (id) => unawaited(_detachTerminalTab(id))
                       : null,
+                  onCopyLogin: (id) => unawaited(_copySessionLogin(id)),
                   onProperties: _terminalProperties,
                   onCloseOthers: _closeOtherTabs,
                   onDuplicate: (id) => unawaited(_duplicateWorkspaceTab(id)),

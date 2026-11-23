@@ -1,3 +1,4 @@
+import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/ui/session_workspace.dart';
 import 'package:aterm_client/ui/workspace_tab_bar.dart';
 import 'package:flutter/gestures.dart';
@@ -299,6 +300,80 @@ void main() {
       await tester.tap(find.text('Close other tabs'));
       await tester.pumpAndSettle();
       expect(closed, ['b']);
+    },
+  );
+  testWidgets(
+    'right-click offers Copy login info right above Properties on Host tabs',
+    (tester) async {
+      final copied = <String>[];
+      String? properties;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WorkspaceTabBar(
+              tabs: const [
+                WorkspaceTab(id: 'home', title: 'Hosts', isHome: true),
+                WorkspaceTab(
+                  id: 'a',
+                  title: 'alpha',
+                  isConnected: true,
+                  host: HostRecord(
+                    id: 'host-a',
+                    name: 'alpha',
+                    address: 'alpha.example.test',
+                  ),
+                ),
+                // A local console: no Host, so nothing to sign in with.
+                WorkspaceTab(id: 'b', title: 'beta'),
+              ],
+              selectedId: 'a',
+              onSelect: (_) {},
+              onClose: (_) {},
+              onCopyLogin: copied.add,
+              onProperties: (id) => properties = id,
+            ),
+          ),
+        ),
+      );
+      Future<void> menu(String title) async {
+        await tester.tap(
+          find.text(title),
+          buttons: kSecondaryMouseButton,
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await menu('alpha');
+      final copy = find.byKey(const ValueKey('tab_copy_login'));
+      expect(copy, findsOneWidget);
+      expect(
+        find.descendant(of: copy, matching: find.text('Copy login info (JSON)')),
+        findsOneWidget,
+      );
+      // Directly above Properties: nothing else sits between the two.
+      final labels = tester
+          .widgetList<PopupMenuItem<Object?>>(
+            find.byWidgetPredicate((widget) => widget is PopupMenuItem),
+          )
+          .toList();
+      expect(labels.indexOf(tester.widget(copy)), labels.length - 2);
+      expect(
+        tester.getTopLeft(copy).dy,
+        lessThan(tester.getTopLeft(find.text('Properties')).dy),
+      );
+      await tester.tap(copy);
+      await tester.pumpAndSettle();
+      expect(copied, ['a']);
+      expect(properties, isNull);
+
+      await menu('beta');
+      expect(find.byKey(const ValueKey('tab_copy_login')), findsNothing);
+      expect(find.text('Properties'), findsOneWidget);
+      await tester.tap(find.text('Properties'));
+      await tester.pumpAndSettle();
+      expect(properties, 'b');
+      expect(copied, ['a']);
     },
   );
   testWidgets(

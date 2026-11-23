@@ -18557,4 +18557,16 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get recordHistoryNothingToRestoreAttachmentsGone =>
       '此版本与当前版本只有附件不同，而服务器上已没有其中部分附件的文件，未做任何更改。';
+
+  @override
+  String get copyLoginInfo => '复制登录信息（JSON）';
+
+  @override
+  String get loginInfoCopied => '已复制登录信息（JSON）。';
+
+  @override
+  String get loginInfoCopiedWithoutSecret => '已复制地址和用户名。此主机没有保存密码或密钥。';
+
+  @override
+  String get loginInfoCopyFailed => '无法复制登录信息。';
 }
