@@ -6932,7 +6932,7 @@ abstract class AppLocalizations {
   /// No description provided for @theComSerialConsoleRequiresThe.
   ///
   /// In en, this message translates to:
-  /// **'The COM serial Console requires the Windows client.'**
+  /// **'The serial Console requires the Windows, macOS or Android app.'**
   String get theComSerialConsoleRequiresThe;
 
   /// No description provided for @theBrowserCantStartALocal.
@@ -27457,7 +27457,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeAddSerialConsole.
   ///
   /// In en, this message translates to:
-  /// **'Serial Console (COM)…'**
+  /// **'Serial Console…'**
   String get homeAddSerialConsole;
 
   /// No description provided for @homeSharingLocalDetail.
@@ -27469,7 +27469,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeAddSerialConsoleUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'Serial Console (Windows app only)'**
+  /// **'Serial Console (Windows, macOS and Android apps)'**
   String get homeAddSerialConsoleUnavailable;
 
   /// No description provided for @homeSharingPresenceUnknown.
@@ -31552,13 +31552,13 @@ abstract class AppLocalizations {
   /// **'The clipboard text is larger than {limit}, so it wasn\'t pasted.'**
   String clipboardTextTooLarge(String limit);
 
-  /// No description provided for @vncClipboardLatin1Only.
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
   ///
   /// In en, this message translates to:
   /// **'The VNC clipboard carries only Latin-1 text, so this text can\'t be sent.'**
   String get vncClipboardLatin1Only;
 
-  /// No description provided for @vncDisplayAndClipboard.
+  /// Remote-desktop clipboard sync and clipboard paste feedback.
   ///
   /// In en, this message translates to:
   /// **'Resolution, local scaling and clipboard'**
@@ -32643,6 +32643,186 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t copy the login info.'**
   String get loginInfoCopyFailed;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Map this device’s storage?'**
+  String get rdpStorageAccessTitle;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'“{name}” maps this device’s storage under \\\\tsclient, so you can open and save local files in the remote session. Android requires All files access for Atermius first. You can change this later under “Map local disks” when editing the host.'**
+  String rdpStorageAccessBody(String name);
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow access'**
+  String get rdpStorageAccessGrant;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get rdpStorageAccessNotNow;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Don’t map disks for this host'**
+  String get rdpStorageAccessDontMap;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Skipped folders because All files access is off: {names}. Allow it for Atermius in Android Settings, then reconnect.'**
+  String rdpFoldersNeedAccess(String names);
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Not redirected because Android hasn’t allowed Atermius to use them: {names}. Allow access in the host’s RDP options or in Android Settings, then reconnect.'**
+  String rdpDevicesNeedPermission(String names);
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed on this device.'**
+  String get rdpPermissionGranted;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius isn’t allowed to use the microphone on this device.'**
+  String get rdpPermissionMicrophoneDenied;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius isn’t allowed to use the camera on this device.'**
+  String get rdpPermissionCameraDenied;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow'**
+  String get rdpPermissionAllow;
+
+  /// RDP Android permissions at connect and in the Host editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Open app settings'**
+  String get rdpPermissionOpenSettings;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'Uses a USB-to-serial adapter connected to this device through USB OTG, at 8N1 without flow control. Supported: CDC-ACM, FTDI, Silicon Labs CP210x, WCH CH340/CH341 and Prolific PL2303. Nothing runs on the server.'**
+  String get usbSerialDialogDetail;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'USB serial adapters'**
+  String get usbSerialAdaptersHeading;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'Connect a USB serial adapter (OTG)'**
+  String get usbSerialNoAdapters;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'Plug the adapter in with an OTG cable or adapter, then tap Refresh.'**
+  String get usbSerialNoAdaptersDetail;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'This device doesn\'t support USB host (OTG), so it can\'t use USB serial adapters.'**
+  String get usbSerialNoUsbHost;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'USB serial adapter'**
+  String get usbSerialAdapterFallbackName;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'Port {number}'**
+  String usbSerialPortNumber(int number);
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an adapter.'**
+  String get usbSerialChooseAdapter;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t list USB serial adapters.'**
+  String get usbSerialListFailed;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'USB access to the adapter was denied. Open the Console again and allow access when Android asks.'**
+  String get usbSerialPermissionDenied;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'The USB serial adapter {port} isn\'t attached. Connect it, or choose an attached adapter in Add → Serial Console.'**
+  String usbSerialNotAttached(String port);
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'Several matching USB serial adapters are attached. Choose one in Add → Serial Console.'**
+  String get usbSerialAmbiguous;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'This USB device isn\'t a supported serial adapter (CDC-ACM, FTDI, CP210x, CH34x or PL2303).'**
+  String get usbSerialUnsupported;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'Android only asks for USB access while Atermius is in the foreground. Open the Console again from the app.'**
+  String get usbSerialBackground;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'Another USB access request is still open. Answer it first.'**
+  String get usbSerialPermissionBusy;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'This serial port is already open in another tab.'**
+  String get usbSerialPortBusy;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open the USB serial adapter. Unplug it, plug it in again and retry.'**
+  String get usbSerialOpenFailed;
+
+  /// Android serial Console through USB-to-serial adapters (USB host / OTG).
+  ///
+  /// In en, this message translates to:
+  /// **'The USB serial adapter was disconnected.'**
+  String get usbSerialDetached;
 }
 
 class _AppLocalizationsDelegate

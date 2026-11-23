@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
+import 'desktop_touch_scroll.dart';
+
 /// Direct touchscreen input. Native RDP contacts retain their IDs and never
 /// synthesize a mouse. Servers without RDPEI (including standard VNC) get
 /// tap/drag/long-press and two-finger scrolling instead.
@@ -13,7 +15,8 @@ class DesktopDirectTouch {
   void Function(Offset, int)? _mouse;
   bool _nativeMode = false, _multiple = false, _dragging = false, _held = false;
   Offset _start = Offset.zero, _last = Offset.zero;
-  double _travel = 0, _scroll = 0;
+  double _travel = 0;
+  final _scroll = DesktopTouchScroll();
   Timer? _hold;
 
   void handle(
@@ -30,7 +33,8 @@ class DesktopDirectTouch {
         _native = sendNative;
         _mouse = sendMouse;
         _multiple = _dragging = _held = false;
-        _travel = _scroll = 0;
+        _travel = 0;
+        _scroll.reset();
         _start = _last = remotePoint;
       }
       if (_points.length >= 10 || _points.containsKey(event.pointer)) return;
@@ -66,12 +70,8 @@ class DesktopDirectTouch {
         _travel += event.delta.distance;
         if (_travel >= kTouchSlop) _hold?.cancel();
         if (_points.length > 1) {
-          _scroll += event.delta.dy / _points.length;
-          while (_scroll.abs() >= 20) {
-            // Natural touch scrolling: dragging contents upwards scrolls down.
-            final down = _scroll < 0;
-            _click(_last, down ? 16 : 8);
-            _scroll += down ? 20 : -20;
+          for (final notch in _scroll.move(event.delta, _points.length)) {
+            _click(_last, notch);
           }
         } else if (!_multiple && !_held && _travel >= kTouchSlop) {
           if (!_dragging) {

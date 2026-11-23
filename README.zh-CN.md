@@ -28,7 +28,7 @@
 
 客户端是同一套 Flutter 应用：
 
-- SSH 终端、紧凑主机列表、分组与快捷指令；支持 Telnet，桌面端另有本机 Shell 与串口 Console。
+- SSH 终端、紧凑主机列表、分组与快捷指令；支持 Telnet，桌面端另有本机 Shell；串口 Console 支持桌面端和 Android（经 OTG 连接 USB 转串口适配器）。
 - SFTP/SCP 文件工作区、分屏和受平台支持的窗口组合。
 - RDP 与 VNC：平台构建带有直连引擎时直接连接，否则经服务端网关。
 - 加密本地资料，或连接自托管服务端使用同步 Vault。

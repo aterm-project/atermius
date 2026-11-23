@@ -14,8 +14,11 @@ import 'rdp_storage.dart';
 
 const rdpStorageChannel = MethodChannel('atermius/rdp_storage');
 
-/// Called only by an explicit Add disk/folder action. Connecting never opens
-/// Android Settings or grants access on the user's behalf.
+/// Opens Android's All files access screen (the runtime dialog on API 29 and
+/// lower). Only after a user action: Add disk/folder, the grant button of the
+/// Host's "Map local disks" switch, or "Allow access" in the explanation shown
+/// when the user starts a connection that maps local storage. Access is never
+/// granted on the user's behalf.
 Future<void> requestRdpStorageAccess() async {
   if (Platform.isAndroid &&
       await rdpStorageChannel.invokeMethod<bool>('requestAccess') != true) {
@@ -139,6 +142,10 @@ Future<void> validateRdpDriveConfig(String config) async {
     }),
   );
 }
+
+/// Whether this app requests RDP microphone/camera permissions itself
+/// (Android runtime permissions; see `rdp_permissions.dart`).
+bool get rdpRuntimePermissionsRequired => Platform.isAndroid;
 
 /// Local volumes for automatic RDP disk mapping on Windows and Android.
 RdpLocalVolumeSource platformRdpLocalVolumeSource() =>

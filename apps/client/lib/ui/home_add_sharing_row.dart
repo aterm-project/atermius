@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart' show VaultPresenceDevice;
 import '../app_controller.dart';
 import '../console/local_console.dart';
+import '../console/usb_serial_console.dart';
 import '../domain/models.dart';
 import '../domain/quick_connect.dart';
 import '../l10n/l10n.dart';
@@ -13,6 +14,7 @@ import '../telnet/telnet_ui.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'local_shell_menu.dart';
+import 'usb_serial_console_dialog.dart';
 import 'workspace_controls.dart';
 
 /// Server presence leases expire after this long (`VaultPresenceSnapshot`
@@ -36,6 +38,7 @@ class HomeAddSharingRow extends StatelessWidget {
     this.enabled = true,
     this.shellSupportedOverride,
     this.serialSupportedOverride,
+    this.usbSerialAccess,
     super.key,
   });
 
@@ -45,7 +48,7 @@ class HomeAddSharingRow extends StatelessWidget {
   final FutureOr<void> Function(LocalShellLaunch launch) onLaunchShell;
 
   /// Receives a validated serial request; callers pass it to their existing
-  /// quick-connect route (`console COMn -b baud`).
+  /// quick-connect route (`console COMn -b baud`, `console usb:… -b baud`).
   final FutureOr<void> Function(QuickConnectRequest request) onSerialConsole;
   final FutureOr<void> Function()? onQuickImportTermius;
   final Widget sharing;
@@ -55,15 +58,22 @@ class HomeAddSharingRow extends StatelessWidget {
   final bool enabled;
   final bool? shellSupportedOverride, serialSupportedOverride;
 
+  /// Adapter list and USB access for the Android serial Console dialog;
+  /// defaults to the platform bridge on Android (tests pass a fake).
+  final UsbSerialAccess? usbSerialAccess;
+
   bool get _shellSupported => shellSupportedOverride ?? localConsoleSupported;
 
-  /// Serial consoles exist in the Windows (COMn) and macOS (/dev/cu.*) desktop clients.
+  /// Serial consoles exist in the Windows (COMn) and macOS (/dev/cu.*)
+  /// desktop clients and, through USB-to-serial adapters, on Android.
   bool get _serialSupported =>
-      serialSupportedOverride ??
-      (!kIsWeb &&
-          localConsoleSupported &&
-          (defaultTargetPlatform == TargetPlatform.windows ||
-              defaultTargetPlatform == TargetPlatform.macOS));
+      serialSupportedOverride ?? (!kIsWeb && serialConsoleSupported);
+
+  UsbSerialAccess? get _usbSerialAccess =>
+      usbSerialAccess ??
+      (!kIsWeb && serialConsoleUsesUsbAdapters
+          ? UsbSerialBridge.instance
+          : null);
 
   static String _quickImportLabel(BuildContext context) {
     final lang = Localizations.localeOf(context).languageCode;
@@ -140,7 +150,10 @@ class HomeAddSharingRow extends StatelessWidget {
             await showHomeSerialConsoleUnavailable(context);
             return;
           }
-          final request = await showHomeSerialConsoleDialog(context);
+          final request = await showHomeSerialConsoleDialog(
+            context,
+            usb: _usbSerialAccess,
+          );
           if (request != null) await onSerialConsole(request);
         },
         enabled: enabled || !_serialSupported,
@@ -301,15 +314,20 @@ Future<void> showHomeSerialConsoleUnavailable(BuildContext context) =>
       ),
     );
 
-/// Asks for a COM port and baud rate. Validation is the quick-connect grammar
-/// (`console COMn -b baud`), so the result follows the same route and limits
-/// as typing that command in search.
+/// Asks for a COM port (or /dev/cu.* device) and baud rate. Validation is
+/// the quick-connect grammar (`console COMn -b baud`), so the result follows
+/// the same route and limits as typing that command in search. With [usb]
+/// (Android) the port is picked from the attached USB serial adapters
+/// instead ([showUsbSerialConsoleDialog]).
 Future<QuickConnectRequest?> showHomeSerialConsoleDialog(
-  BuildContext context,
-) => showDialog<QuickConnectRequest>(
-  context: context,
-  builder: (_) => const _HomeSerialConsoleDialog(),
-);
+  BuildContext context, {
+  UsbSerialAccess? usb,
+}) => usb != null
+    ? showUsbSerialConsoleDialog(context, access: usb)
+    : showDialog<QuickConnectRequest>(
+        context: context,
+        builder: (_) => const _HomeSerialConsoleDialog(),
+      );
 
 class _HomeSerialConsoleDialog extends StatefulWidget {
   const _HomeSerialConsoleDialog();

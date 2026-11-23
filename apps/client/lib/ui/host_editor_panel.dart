@@ -11,6 +11,7 @@ import '../desktop/desktop_resolution.dart';
 import '../desktop/rdp_features.dart';
 import '../desktop/rdp_folder_picker.dart';
 import '../desktop/rdp_local_drives.dart';
+import '../desktop/rdp_permissions.dart';
 import '../desktop/rdp_settings.dart';
 import '../desktop/rdp_settings_editor.dart';
 import '../domain/models.dart';
@@ -498,6 +499,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
                             localDrives: RdpLocalDrivesController.instance,
                             mapLocalDisks: _mapLocalDisks,
                             onMapLocalDisksChanged: _setMapLocalDisks,
+                            permissions: RdpConnectPermissions.instance.broker,
                           ),
                           fieldGap,
                         ],

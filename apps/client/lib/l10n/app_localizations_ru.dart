@@ -4647,7 +4647,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get theComSerialConsoleRequiresThe =>
-      'Для консоли последовательного порта COM нужен клиент для Windows.';
+      'Для последовательной консоли нужно приложение для Windows, macOS или Android.';
 
   @override
   String get theBrowserCantStartALocal =>
@@ -17489,7 +17489,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get homeAddSerialConsoleTitle => 'Открыть последовательную консоль';
 
   @override
-  String get homeAddSerialConsole => 'Последовательная консоль (COM)…';
+  String get homeAddSerialConsole => 'Последовательная консоль…';
 
   @override
   String get homeSharingLocalDetail =>
@@ -17497,7 +17497,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get homeAddSerialConsoleUnavailable =>
-      'Последовательная консоль (только приложение для Windows)';
+      'Последовательная консоль (приложения для Windows, macOS и Android)';
 
   @override
   String get homeSharingPresenceUnknown => 'Статус неизвестен';
@@ -20810,4 +20810,120 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get loginInfoCopyFailed => 'Не удалось скопировать данные для входа.';
+
+  @override
+  String get rdpStorageAccessTitle => 'Подключить хранилище этого устройства?';
+
+  @override
+  String rdpStorageAccessBody(String name) {
+    return '«$name» подключает хранилище этого устройства в \\\\tsclient, чтобы в удалённом сеансе можно было открывать и сохранять локальные файлы. Сначала Android должен разрешить Atermius доступ ко всем файлам. Позже это можно изменить в пункте «Подключать локальные диски» в настройках хоста.';
+  }
+
+  @override
+  String get rdpStorageAccessGrant => 'Разрешить доступ';
+
+  @override
+  String get rdpStorageAccessNotNow => 'Не сейчас';
+
+  @override
+  String get rdpStorageAccessDontMap => 'Не подключать диски для этого хоста';
+
+  @override
+  String rdpFoldersNeedAccess(String names) {
+    return 'Папки пропущены, так как нет доступа ко всем файлам: $names. Разрешите его для Atermius в настройках Android и переподключитесь.';
+  }
+
+  @override
+  String rdpDevicesNeedPermission(String names) {
+    return 'Не перенаправлено, так как Android не разрешил Atermius их использовать: $names. Разрешите доступ в параметрах RDP хоста или в настройках Android и переподключитесь.';
+  }
+
+  @override
+  String get rdpPermissionGranted => 'Разрешено на этом устройстве.';
+
+  @override
+  String get rdpPermissionMicrophoneDenied =>
+      'На этом устройстве Atermius не разрешено использовать микрофон.';
+
+  @override
+  String get rdpPermissionCameraDenied =>
+      'На этом устройстве Atermius не разрешено использовать камеру.';
+
+  @override
+  String get rdpPermissionAllow => 'Разрешить';
+
+  @override
+  String get rdpPermissionOpenSettings => 'Открыть настройки приложения';
+
+  @override
+  String get usbSerialDialogDetail =>
+      'Использует USB-адаптер последовательного порта, подключённый к этому устройству через USB OTG, в режиме 8N1 без управления потоком. Поддерживаются CDC-ACM, FTDI, Silicon Labs CP210x, WCH CH340/CH341 и Prolific PL2303. На сервере ничего не запускается.';
+
+  @override
+  String get usbSerialAdaptersHeading => 'USB-адаптеры последовательного порта';
+
+  @override
+  String get usbSerialNoAdapters =>
+      'Подключите USB-адаптер последовательного порта (OTG)';
+
+  @override
+  String get usbSerialNoAdaptersDetail =>
+      'Подключите адаптер через OTG-кабель или переходник и нажмите «Обновить».';
+
+  @override
+  String get usbSerialNoUsbHost =>
+      'Это устройство не поддерживает режим USB-хоста (OTG), поэтому USB-адаптеры последовательного порта недоступны.';
+
+  @override
+  String get usbSerialAdapterFallbackName =>
+      'USB-адаптер последовательного порта';
+
+  @override
+  String usbSerialPortNumber(int number) {
+    return 'Порт $number';
+  }
+
+  @override
+  String get usbSerialChooseAdapter => 'Выберите адаптер.';
+
+  @override
+  String get usbSerialListFailed =>
+      'Не удалось получить список USB-адаптеров последовательного порта.';
+
+  @override
+  String get usbSerialPermissionDenied =>
+      'Доступ к USB-адаптеру отклонён. Откройте консоль снова и разрешите доступ, когда Android спросит.';
+
+  @override
+  String usbSerialNotAttached(String port) {
+    return 'USB-адаптер последовательного порта $port не подключён. Подключите его или выберите подключённый адаптер в меню «Добавить → Последовательная консоль».';
+  }
+
+  @override
+  String get usbSerialAmbiguous =>
+      'Подключено несколько подходящих USB-адаптеров последовательного порта. Выберите один в меню «Добавить → Последовательная консоль».';
+
+  @override
+  String get usbSerialUnsupported =>
+      'Это USB-устройство не является поддерживаемым адаптером последовательного порта (CDC-ACM, FTDI, CP210x, CH34x или PL2303).';
+
+  @override
+  String get usbSerialBackground =>
+      'Android запрашивает доступ к USB, только когда Atermius на переднем плане. Откройте консоль снова из приложения.';
+
+  @override
+  String get usbSerialPermissionBusy =>
+      'Другой запрос доступа к USB ещё открыт. Сначала ответьте на него.';
+
+  @override
+  String get usbSerialPortBusy =>
+      'Этот последовательный порт уже открыт в другой вкладке.';
+
+  @override
+  String get usbSerialOpenFailed =>
+      'Не удалось открыть USB-адаптер последовательного порта. Отключите и снова подключите его, затем повторите попытку.';
+
+  @override
+  String get usbSerialDetached =>
+      'USB-адаптер последовательного порта отключён.';
 }

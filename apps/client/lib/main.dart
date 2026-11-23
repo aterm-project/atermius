@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/services.dart' show BrowserContextMenu;
 import 'package:sodium/sodium_sumo.dart';
+import 'package:xterm/xterm.dart' show TerminalClipboard;
 
 import 'app_controller.dart';
 import 'mcp/mcp_listener_lifecycle.dart';
@@ -31,6 +32,7 @@ import 'platform/files_window_launch.dart';
 import 'platform/web_monospace_font.dart';
 import 'terminal/live_terminal_window.dart';
 import 'ui/app_motion.dart';
+import 'ui/clipboard_paste.dart';
 import 'ui/live_terminal_window_page.dart';
 import 'ui/window_caption.dart';
 import 'ui/workspace_controls.dart';
@@ -91,6 +93,10 @@ Future<void> main(List<String> arguments) async {
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     initializeAndroidTrackpad();
   }
+  // Terminal pastes say why when there is nothing to paste (an empty clip,
+  // an image, or a read the system refused) instead of doing nothing.
+  TerminalClipboard.read = (context) =>
+      readClipboardForPaste(context, maxBytes: terminalPasteMaxBytes);
   McpListenerLifecycle.install(
     McpService.instance,
     text: () => McpForegroundText(

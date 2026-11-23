@@ -35,10 +35,16 @@ flutter build appbundle --release
 
 Android 原生 RDP 引擎 `libatermius_rdp.so` 的构建与打包步骤见[远程桌面](../REMOTE-DESKTOP.md)中的“Android 直接连接”。
 
+RDP 会话可在本机播放远程音频，并可按主机设置重定向麦克风和摄像头：麦克风需要系统录音权限，摄像头需要相机权限，并依赖设备自带的 H.264 编码器（MediaCodec）。设备无法打开（例如未授权）时，该项不可用，连接照常进行。
+
 ## 首次使用与范围
 
-选择本地资料或自己的 HTTPS 实例。SSH 使用原生传输；本机 Shell、串口 Console 和 Windows 原生 RDP 引擎不属于 Android 能力。临时访客链接可在支持的浏览器中打开，前后台策略可能中断会话/转发。[可选推送提示](../MOBILE-PUSH.md)需单独配置。
+选择本地资料或自己的 HTTPS 实例。SSH 使用原生传输；本机 Shell 和 Windows 原生 RDP 引擎不属于 Android 能力。串口 Console 支持经 USB OTG 连接的 USB 转串口适配器（CDC-ACM、FTDI、Silicon Labs CP210x、WCH CH340/CH341、Prolific PL2303）：选择 **添加 → 串口 Console…**，选中适配器，并在 Android 询问时允许访问；详见[快捷连接](../QUICK-CONNECT.md)。临时访客链接可在支持的浏览器中打开，前后台策略可能中断会话/转发。[可选推送提示](../MOBILE-PUSH.md)需单独配置。
 
 更新已有版本前请先阅读[安装总览](../INSTALLATION.md)中的“更新已有版本”。
+
+远程桌面（RDP）不在应用启动时申请权限，只在用户发起连接或在主机 RDP 选项中打开相应开关时申请：映射本机磁盘需要“所有文件访问权限”（先显示应用内说明再打开系统设置），麦克风、摄像头重定向需要麦克风、相机权限。拒绝后连接照常进行，只是不含该重定向；可随时在系统的应用设置中开启。没有麦克风或摄像头的设备同样可以安装。详见[远程桌面](../REMOTE-DESKTOP.md#storage-mappings-and-direct-touch)。
+
+剪贴板：Android 没有可申请或安装时授予的剪贴板权限，只有前台应用能读取；Android 12 起读取其他应用复制的文本时系统会提示“已粘贴”。部分厂商系统另有剪贴板权限，被拒绝时粘贴会说明原因并提供“设置”按钮。远程桌面会话在主机“剪贴板文本”开启时自动同步文本，见[远程桌面](../REMOTE-DESKTOP.md#clipboard)。
 
 [首次使用](../GETTING_STARTED.md) · [常见问题](../TROUBLESHOOTING.md) · [开发验证](../DEVELOPMENT.md)

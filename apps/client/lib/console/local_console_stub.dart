@@ -3,6 +3,8 @@ import 'local_shell.dart';
 import '../l10n/l10n.dart';
 
 bool get localConsoleSupported => false;
+bool get serialConsoleSupported => false;
+bool get serialConsoleUsesUsbAdapters => false;
 LocalConsole openLocalConsole({
   LocalShellLaunch launch = LocalShellLaunch.systemDefault,
 }) => throw UnsupportedError(currentL10n.theBrowserCantStartALocal);

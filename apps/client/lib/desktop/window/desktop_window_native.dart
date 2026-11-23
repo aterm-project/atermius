@@ -470,7 +470,7 @@ class DesktopWindowBroker {
               x > size.width ||
               y > size.height ||
               buttons < 0 ||
-              buttons > 31) {
+              buttons > (7 | DesktopWheelUnits.notchMask)) {
             throw const FormatException();
           }
           _pointerX = x;

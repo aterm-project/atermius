@@ -6,7 +6,6 @@ import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
-import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 
 import '../l10n/l10n.dart';
@@ -16,6 +15,7 @@ import 'terminal_font_zoom.dart';
 import 'apple_hig.dart';
 import 'ios_native/ios_native.dart';
 import 'paste_safety_dialog.dart';
+import 'clipboard_paste.dart';
 
 /// Soft Ctrl/Alt/Shift state reported by [TerminalKeybar.onModifiersChanged].
 ///
@@ -491,11 +491,14 @@ class _TerminalKeybarState extends State<TerminalKeybar>
     if (widget.readOnly) return;
     if (isIosPhone(context)) AppleHaptics.light(context);
     final terminal = widget.terminal;
-    final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
+    // Says why when there is nothing to paste (empty, not text, refused).
+    final text = await readClipboardForPaste(
+      context,
+      maxBytes: terminalPasteMaxBytes,
+    );
     if (!mounted || widget.readOnly || !identical(terminal, widget.terminal)) {
       return;
     }
-    final text = clipboard?.text;
     if (text != null) {
       final approved = await confirmTerminalPaste(
         context,

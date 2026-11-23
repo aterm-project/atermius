@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:aterm_client/desktop/desktop_direct_touch.dart';
+import 'package:aterm_client/desktop/desktop_wheel.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -94,6 +95,59 @@ void main() {
       touch.reset();
     },
   );
+
+  for (final (name, move, notch) in [
+    ('down scrolls up', const Offset(0, 50), 8),
+    ('up scrolls down', const Offset(0, -50), 16),
+    ('right scrolls left', const Offset(50, 0), 32),
+    ('left scrolls right', const Offset(-50, 0), 64),
+  ]) {
+    test('direct two-finger fallback: moving $name', () {
+      final touch = DesktopDirectTouch();
+      final buttons = <int>[];
+      void send(PointerEvent e) => touch.handle(
+        e,
+        remotePoint: e.position,
+        nativeTouch: false,
+        sendNative: (_, _, _) => fail('no native contacts'),
+        sendMouse: (_, b) => buttons.add(b),
+      );
+      send(const PointerDownEvent(pointer: 1, position: Offset(100, 100)));
+      send(const PointerDownEvent(pointer: 2, position: Offset(150, 100)));
+      send(
+        PointerMoveEvent(
+          pointer: 1,
+          position: const Offset(100, 100) + move,
+          delta: move,
+        ),
+      );
+      send(
+        PointerMoveEvent(
+          pointer: 2,
+          position: const Offset(150, 100) + move,
+          delta: move,
+        ),
+      );
+      send(PointerUpEvent(pointer: 1, position: const Offset(100, 100) + move));
+      send(PointerUpEvent(pointer: 2, position: const Offset(150, 100) + move));
+      // The first 0 is the hover move of the first contact.
+      expect(buttons, [0, notch, 0, notch, 0]);
+      touch.reset();
+    });
+  }
+
+  test('wheel bits match RFB buttons 4-7 and stay clear of button bits', () {
+    expect(
+      [
+        DesktopWheelUnits.notchUp,
+        DesktopWheelUnits.notchDown,
+        DesktopWheelUnits.notchLeft,
+        DesktopWheelUnits.notchRight,
+      ],
+      [1 << 3, 1 << 4, 1 << 5, 1 << 6],
+    );
+    expect(DesktopWheelUnits.notchMask & 7, 0);
+  });
 
   test('replacement cancels the session that started the gesture', () {
     final touch = DesktopDirectTouch();

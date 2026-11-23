@@ -35,10 +35,16 @@ Outputs are `build/app/outputs/flutter-apk/app-release.apk` and `build/app/outpu
 
 Building and packaging the Android native RDP engine `libatermius_rdp.so` is described under "Android 直接连接" (Android direct connection) in [remote desktop](../REMOTE-DESKTOP.md).
 
+RDP sessions can play remote audio on the device and, per Host, redirect the microphone and camera. The microphone needs the system microphone permission; the camera needs the camera permission and the device's own H.264 encoder (MediaCodec). A device that cannot be opened (for example without permission) is left out and the connection proceeds.
+
 ## First use and scope
 
-Choose local data or your HTTPS self-hosted instance. SSH uses the native transport; local shell/serial Console and the Windows native RDP engine are not Android features. Temporary guest links can be opened in a supported browser. Mobile OS background limits may interrupt sessions/forwarding. Optional [push hints](../MOBILE-PUSH.md) require separate provider configuration.
+Choose local data or your HTTPS self-hosted instance. SSH uses the native transport; the local shell and the Windows native RDP engine are not Android features. The serial Console works with a USB-to-serial adapter connected through USB OTG (CDC-ACM, FTDI, Silicon Labs CP210x, WCH CH340/CH341, Prolific PL2303): choose **Add → Serial Console…**, pick the adapter and allow access when Android asks; see [quick connect](../QUICK-CONNECT.md). Temporary guest links can be opened in a supported browser. Mobile OS background limits may interrupt sessions/forwarding. Optional [push hints](../MOBILE-PUSH.md) require separate provider configuration.
 
 Before updating an existing build, read "Update an existing build" in the [install overview](../INSTALLATION.en.md).
+
+Remote desktop (RDP) requests no permission at app startup. It asks only when the user starts a connection or turns the matching switch on in a Host's RDP options: mapping local disks needs All files access (an in-app explanation comes before the system Settings page), and microphone or camera redirection needs the microphone or camera permission. If one is refused, the connection proceeds without that redirection; it can be allowed later in the system app settings. Devices without a microphone or camera can still install the app. See [Remote desktop](../REMOTE-DESKTOP.md#storage-mappings-and-direct-touch).
+
+Clipboard: Android has no clipboard permission an app can request or receive at install time, and only the app in front may read the clipboard; Android 12 and later show a "pasted" message when Atermius reads text copied in another app. Some vendor systems add their own clipboard permission; when it refuses, paste explains why and offers a Settings button. Remote desktop sessions sync text automatically while the Host's Clipboard text option is on; see [remote desktop](../REMOTE-DESKTOP.md#clipboard).
 
 [First use](../GETTING_STARTED.en.md) · [Troubleshooting](../TROUBLESHOOTING.en.md) · [Developer checks](../DEVELOPMENT.md)

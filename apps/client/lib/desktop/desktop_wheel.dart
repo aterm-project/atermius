@@ -34,6 +34,9 @@ abstract final class DesktopWheelUnits {
   /// encoding Android two-finger scrolling uses.
   static const notchUp = 8, notchDown = 16, notchLeft = 32, notchRight = 64;
 
+  /// Every wheel bit; none of them is ever held down.
+  static const notchMask = notchUp | notchDown | notchLeft | notchRight;
+
   /// Whether [dx] and [dy] are the deltas of a well-formed wheel command.
   static bool valid(Object? dx, Object? dy) =>
       dx is int &&

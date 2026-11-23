@@ -467,6 +467,31 @@ void main() {
     semantics.dispose();
   }, variant: _android);
 
+  testWidgets('paste with nothing to paste says so', (tester) async {
+    final output = <String>[];
+    final terminal = Terminal()..onOutput = output.add;
+    final focus = FocusNode();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async => null,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await tester.pumpWidget(_harness(terminal, focus));
+    await tester.pump();
+    await tester.tap(_find('Paste'));
+    await tester.pump();
+    expect(output, isEmpty);
+    expect(find.text(currentL10n.clipboardIsEmpty), findsOneWidget);
+    expect(focus.hasFocus, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    focus.dispose();
+  }, variant: _android);
+
   testWidgets(
     'navigation keys and paste preserve focus and bracketed Unicode',
     (tester) async {

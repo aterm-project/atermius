@@ -1248,7 +1248,11 @@ _snack(
             return null;
           }
           if (pane.kind == 'console') {
-            if (!localConsoleSupported) return null;
+            if (pane.serialPort == null
+                ? !localConsoleSupported
+                : !serialConsoleSupported) {
+              return null;
+            }
             final before = app.terminalTabs.map((t) => t.id).toSet();
             if (pane.serialPort == null) {
               await app.openLocalShellTab(
@@ -1260,8 +1264,9 @@ _snack(
                 baudRate: pane.baudRate ?? 115200,
               );
             }
-            // A console that could not start keeps its pane, with the reason
-            // and retry.
+            // A console that could not start (a serial port that cannot open
+            // now: adapter not attached, another adapter, access declined)
+            // keeps its pane, with the reason and retry.
             return app.visibleTerminalTabs
                 .where((t) => !before.contains(t.id) && !t.closed)
                 .firstOrNull

@@ -25,9 +25,11 @@ class MainActivity : FlutterActivity() {
     private var leaseOwner: Any? = null
     private var resumed = false
     private var rdpStorage: RdpStorageAccess? = null
+    private var rdpPermissions: RdpDevicePermissions? = null
     private var externalFileOpener: ExternalFileOpener? = null
     private var keyboardCapture: KeyboardCapture? = null
     private var clipboardBridge: ClipboardBridge? = null
+    private var usbSerial: UsbSerialBridge? = null
     private val imeFocusRecovery by lazy {
         ImeFocusRecovery(getSystemService(InputMethodManager::class.java)!!)
     }
@@ -128,12 +130,15 @@ class MainActivity : FlutterActivity() {
                 }
             }
         loadRdpEngine()
-        rdpStorage = RdpStorageAccess(this, flutterEngine.dartExecutor.binaryMessenger)
+        rdpStorage = RdpStorageAccess(this, flutterEngine.dartExecutor.binaryMessenger) { resumed }
+        rdpPermissions = RdpDevicePermissions(this, flutterEngine.dartExecutor.binaryMessenger) { resumed }
         externalFileOpener = ExternalFileOpener(this, flutterEngine.dartExecutor.binaryMessenger)
         keyboardCapture = KeyboardCapture(this, flutterEngine.dartExecutor.binaryMessenger, firstWindow())
         clipboardBridge = ClipboardBridge(this, flutterEngine.dartExecutor.binaryMessenger).also {
             it.focusChanged(windowFocused)
         }
+        // USB permission prompts only while this activity is visible.
+        usbSerial = UsbSerialBridge(this, flutterEngine.dartExecutor.binaryMessenger) { resumed }
         fullscreenChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "atermius/fullscreen").also { channel ->
             channel.setMethodCallHandler { call, result ->
@@ -309,7 +314,9 @@ class MainActivity : FlutterActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // Each broker ignores request codes other than its own.
         rdpStorage?.activityResult(requestCode)
+        rdpPermissions?.permissionsResult(requestCode, permissions, grantResults)
         if (requestCode != REQUEST_NOTIFICATIONS && requestCode != REQUEST_SSH_NOTIFICATIONS) return
         McpForegroundLease.recheckNotifications(applicationContext)
         SshSessionKeepalive.recheckNotifications(applicationContext)
@@ -321,10 +328,15 @@ class MainActivity : FlutterActivity() {
         keyboardCapture = null
         clipboardBridge?.close()
         clipboardBridge = null
+        // Serial Console sessions and USB connections die with the engine.
+        usbSerial?.close()
+        usbSerial = null
         externalFileOpener?.close()
         externalFileOpener = null
         rdpStorage?.close()
         rdpStorage = null
+        rdpPermissions?.close()
+        rdpPermissions = null
         transferChannel?.setMethodCallHandler(null)
         transferChannel = null
         mcpChannel?.setMethodCallHandler(null)

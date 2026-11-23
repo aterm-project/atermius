@@ -9,12 +9,16 @@ import 'package:ffi/ffi.dart';
 import 'package:win32/win32.dart' as win;
 
 import 'local_console_contract.dart';
+import 'usb_serial_console.dart';
 import '../l10n/l10n.dart';
 
 final _windowsComPattern = RegExp(r'^COM[1-9][0-9]{0,3}$');
 final _macosSerialPattern = RegExp(r'^/dev/(?:cu|tty)\.[A-Za-z0-9._-]+$');
 
 LocalConsole openSerialConsole(String port, {int baudRate = 115200}) {
+  // Android has no serial device nodes an app may open; USB-to-serial
+  // adapters go through the USB host API (UsbSerialBridge.kt).
+  if (Platform.isAndroid) return openUsbSerialConsole(port, baudRate: baudRate);
   if (!Platform.isWindows && !Platform.isMacOS) {
     throw UnsupportedError(currentL10n.theComSerialConsoleRequiresThe);
   }

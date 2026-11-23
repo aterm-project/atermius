@@ -13,6 +13,11 @@ import '../l10n/l10n.dart';
 bool get localConsoleSupported =>
     Platform.isLinux || Platform.isWindows || Platform.isMacOS;
 
+bool get serialConsoleSupported =>
+    Platform.isWindows || Platform.isMacOS || Platform.isAndroid;
+
+bool get serialConsoleUsesUsbAdapters => Platform.isAndroid;
+
 LocalShellHost get _host => LocalShellHost(
   isWindows: Platform.isWindows,
   environment: Platform.environment,

@@ -4313,7 +4313,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get theComSerialConsoleRequiresThe =>
-      'COM シリアルコンソールには Windows クライアントが必要です。';
+      'シリアル Console には Windows、macOS または Android アプリが必要です。';
 
   @override
   String get theBrowserCantStartALocal =>
@@ -16407,14 +16407,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeAddSerialConsoleTitle => 'シリアル Console を開く';
 
   @override
-  String get homeAddSerialConsole => 'シリアル Console（COM）…';
+  String get homeAddSerialConsole => 'シリアル Console…';
 
   @override
   String get homeSharingLocalDetail =>
       'このローカルプロファイルはこのデバイスにのみ暗号化して保存されます。Vault メンバーはおらず、他の人からは見えず、オンライン状態も送信されません。ホストを共有するにはアカウントの Vault にサインインしてください。';
 
   @override
-  String get homeAddSerialConsoleUnavailable => 'シリアル Console（Windows アプリのみ）';
+  String get homeAddSerialConsoleUnavailable =>
+      'シリアル Console（Windows・macOS・Android アプリ）';
 
   @override
   String get homeSharingPresenceUnknown => '状態不明';
@@ -19521,4 +19522,113 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get loginInfoCopyFailed => 'ログイン情報をコピーできませんでした。';
+
+  @override
+  String get rdpStorageAccessTitle => 'このデバイスのストレージを共有しますか？';
+
+  @override
+  String rdpStorageAccessBody(String name) {
+    return '「$name」はこのデバイスのストレージを \\\\tsclient に共有し、リモートセッションでローカルファイルを開いたり保存したりできるようにします。Android では先に Atermius に「すべてのファイルへのアクセス」を許可する必要があります。あとでホストの編集画面の「ローカルディスクを共有」で変更できます。';
+  }
+
+  @override
+  String get rdpStorageAccessGrant => 'アクセスを許可';
+
+  @override
+  String get rdpStorageAccessNotNow => '今はしない';
+
+  @override
+  String get rdpStorageAccessDontMap => 'このホストではディスクを共有しない';
+
+  @override
+  String rdpFoldersNeedAccess(String names) {
+    return '「すべてのファイルへのアクセス」が許可されていないため、次のフォルダーをスキップしました：$names。Android 設定で Atermius に許可してから再接続してください。';
+  }
+
+  @override
+  String rdpDevicesNeedPermission(String names) {
+    return 'Android で Atermius の使用が許可されていないため、次のデバイスはリダイレクトされていません：$names。ホストの RDP オプションまたは Android 設定で許可してから再接続してください。';
+  }
+
+  @override
+  String get rdpPermissionGranted => 'このデバイスで許可されています。';
+
+  @override
+  String get rdpPermissionMicrophoneDenied =>
+      'このデバイスでは Atermius にマイクの使用が許可されていません。';
+
+  @override
+  String get rdpPermissionCameraDenied =>
+      'このデバイスでは Atermius にカメラの使用が許可されていません。';
+
+  @override
+  String get rdpPermissionAllow => '許可';
+
+  @override
+  String get rdpPermissionOpenSettings => 'アプリの設定を開く';
+
+  @override
+  String get usbSerialDialogDetail =>
+      'USB OTG でこのデバイスに接続した USB シリアル変換アダプターを、8N1・フロー制御なしで使用します。対応: CDC-ACM、FTDI、Silicon Labs CP210x、WCH CH340/CH341、Prolific PL2303。サーバー上では何も実行されません。';
+
+  @override
+  String get usbSerialAdaptersHeading => 'USB シリアルアダプター';
+
+  @override
+  String get usbSerialNoAdapters => 'USB シリアルアダプターを接続してください（OTG）';
+
+  @override
+  String get usbSerialNoAdaptersDetail =>
+      'OTG ケーブルまたは変換アダプターで接続してから、「更新」をタップしてください。';
+
+  @override
+  String get usbSerialNoUsbHost =>
+      'このデバイスは USB ホスト（OTG）に対応していないため、USB シリアルアダプターを使用できません。';
+
+  @override
+  String get usbSerialAdapterFallbackName => 'USB シリアルアダプター';
+
+  @override
+  String usbSerialPortNumber(int number) {
+    return 'ポート $number';
+  }
+
+  @override
+  String get usbSerialChooseAdapter => 'アダプターを選択してください。';
+
+  @override
+  String get usbSerialListFailed => 'USB シリアルアダプターを一覧表示できませんでした。';
+
+  @override
+  String get usbSerialPermissionDenied =>
+      'アダプターへの USB アクセスが拒否されました。Console をもう一度開き、Android の確認でアクセスを許可してください。';
+
+  @override
+  String usbSerialNotAttached(String port) {
+    return 'USB シリアルアダプター $port が接続されていません。接続するか、「追加 → シリアル Console」で接続済みのアダプターを選択してください。';
+  }
+
+  @override
+  String get usbSerialAmbiguous =>
+      '一致する USB シリアルアダプターが複数接続されています。「追加 → シリアル Console」で 1 つ選択してください。';
+
+  @override
+  String get usbSerialUnsupported =>
+      'この USB デバイスは対応するシリアルアダプター（CDC-ACM、FTDI、CP210x、CH34x、PL2303）ではありません。';
+
+  @override
+  String get usbSerialBackground =>
+      'Android は Atermius がフォアグラウンドにあるときだけ USB アクセスを確認します。アプリから Console をもう一度開いてください。';
+
+  @override
+  String get usbSerialPermissionBusy => '別の USB アクセス要求がまだ開いています。先にそれに応答してください。';
+
+  @override
+  String get usbSerialPortBusy => 'このシリアルポートは別のタブで既に開かれています。';
+
+  @override
+  String get usbSerialOpenFailed => 'USB シリアルアダプターを開けませんでした。抜き差ししてから再試行してください。';
+
+  @override
+  String get usbSerialDetached => 'USB シリアルアダプターが取り外されました。';
 }

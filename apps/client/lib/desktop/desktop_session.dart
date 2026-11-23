@@ -27,6 +27,7 @@ import 'desktop_wheel.dart';
 import 'local/local_desktop.dart';
 import 'rdp_features.dart';
 import 'rdp_local_drives.dart';
+import 'rdp_permissions.dart';
 import 'rdp_settings.dart';
 import '../l10n/l10n.dart';
 
@@ -49,6 +50,8 @@ class DesktopSession extends ChangeNotifier {
     this.latestHost,
     this.openSshTunnel,
     this.localDrives,
+    this.permissions,
+    this.permissionViewWait = const Duration(seconds: 2),
     this.localClipboard,
   });
 
@@ -67,6 +70,49 @@ class DesktopSession extends ChangeNotifier {
   final RdpLocalDrivesController? localDrives;
   RdpLocalDrivesController get _localDrives =>
       localDrives ?? RdpLocalDrivesController.instance;
+
+  /// Android permissions asked when the user starts a connection;
+  /// [RdpConnectPermissions.instance] when null.
+  final RdpConnectPermissions? permissions;
+  RdpConnectPermissions get _permissions =>
+      permissions ?? RdpConnectPermissions.instance;
+
+  /// How long a connect that needs to ask waits for its view: a new tab's
+  /// view is built after its connect has started. Without a view nothing is
+  /// asked and the notices explain what was skipped.
+  final Duration permissionViewWait;
+  RdpPermissionPrompter? _prompter;
+  Completer<void>? _prompterAttached;
+
+  /// The visible view, which asks before Android permission screens open.
+  RdpPermissionPrompter? get permissionPrompter => _prompter;
+  set permissionPrompter(RdpPermissionPrompter? value) {
+    _prompter = value;
+    if (value == null) return;
+    final attached = _prompterAttached;
+    _prompterAttached = null;
+    if (attached != null && !attached.isCompleted) attached.complete();
+  }
+
+  Future<RdpPermissionPrompter?> _awaitPrompter() async {
+    if (_prompter != null || _disposed) return _prompter;
+    final attached = _prompterAttached ??= Completer<void>();
+    try {
+      await attached.future.timeout(permissionViewWait);
+    } on TimeoutException {
+      // No view: connect without what needs asking.
+    }
+    return _prompter;
+  }
+
+  /// True while a connect waits for the user to answer a permission prompt
+  /// (shown as "waiting for you" on the connect surface).
+  bool awaitingPermission = false;
+  void _setAwaitingPermission(bool value) {
+    if (awaitingPermission == value) return;
+    awaitingPermission = value;
+    if (!_disposed) notifyListeners();
+  }
 
   /// This device's clipboard; [LocalClipboard.instance] when null.
   final LocalClipboard? localClipboard;
@@ -95,6 +141,10 @@ class DesktopSession extends ChangeNotifier {
   @protected
   bool get writesLocalClipboard => true;
 
+  /// Which local text counts as a secret for [clipboardSync]; null for
+  /// `SensitiveClipboard.isSecret`. A detached window, whose offers the
+  /// main window's sync checks again, passes one that leaves this process's
+  /// registry and the device-local marker alone.
   @protected
   bool Function(String text)? get clipboardSecretCheck => null;
 
@@ -156,7 +206,9 @@ class DesktopSession extends ChangeNotifier {
   /// Opens the session again with the latest saved revision of its Host:
   /// [host] when the caller already resolved it, otherwise [latestHost].
   /// Without either it replays the Host of the previous connect. An
-  /// in-session display choice of the same Host carries over.
+  /// in-session display choice of the same Host carries over. Desktop
+  /// recovery is never automatic, so a reconnect is always the user's and may
+  /// ask for Android permissions (at most once per Host per app process).
   Future<void> reconnect({HostRecord? host}) async {
     if (!canReconnect || _reconnecting || state != 'disconnected') return;
     _reconnecting = true;
@@ -342,6 +394,7 @@ class DesktopSession extends ChangeNotifier {
   ValueChanged<String>? _onNotice;
   final _pendingNotices = <String>[];
   bool _accessNoticeShown = false, _unreadableNoticeShown = false;
+  final _permissionNoticesShown = <RdpDevicePermission>{};
 
   /// Shows a notice for this session. Notices raised before a view attaches
   /// (a connect starts before DesktopView.initState runs) are kept and
@@ -376,6 +429,9 @@ class DesktopSession extends ChangeNotifier {
   RdpCertificateRequest? certificateRequest;
   bool savingCertificate = false;
   int _directAttempt = 0;
+
+  /// Whether the user started the current direct connection (see
+  /// [connectLocal]); false for one an external AI (MCP) started.
   bool _userStarted = true;
 
   Future<bool> trustCertificate(RdpCertificateRequest request) async {
@@ -410,6 +466,8 @@ class DesktopSession extends ChangeNotifier {
       if (_closed) return false;
       certificateRequest = null;
       state = 'connecting';
+      // Trusting the certificate continues the same connection: one an
+      // external AI started still asks for no Android permissions.
       await connectLocal(saved, userStarted: _userStarted);
       return true;
     } catch (_) {
@@ -559,6 +617,13 @@ class DesktopSession extends ChangeNotifier {
     }
   }
 
+  /// Connects directly (or through a local guacd on [guacdPort]). On Android
+  /// a [userStarted] RDP connect first asks for the storage, microphone and
+  /// camera access its Host needs (see [RdpConnectPermissions]); a connect
+  /// started by an external AI (MCP) passes false and only connects without
+  /// what is missing. Only a [userStarted] connection offers the local
+  /// clipboard text as soon as it is up; for the other one local text goes
+  /// over once the user focuses the desktop or returns to the app.
   Future<void> connectLocal(
     HostRecord host, {
     int? guacdPort,
@@ -569,6 +634,8 @@ class DesktopSession extends ChangeNotifier {
     _reconnectHostId = host.id;
     // A reconnect uses the latest saved revision when one is known; an
     // in-session display change of the same Host still carries over below.
+    // The user starts every reconnect (see [reconnect]), so it is
+    // userStarted whoever opened the session.
     _reconnect = (latest) =>
         connectLocal(latest ?? _host ?? host, guacdPort: guacdPort);
     if (_closed) return;
@@ -694,6 +761,7 @@ class DesktopSession extends ChangeNotifier {
             host,
             attempt,
             features: testing ? rdpFeaturesForTesting : null,
+            userStarted: _userStarted,
           );
           // Closed or superseded while local disks were listed.
           if (built == null) return;
@@ -901,7 +969,9 @@ class DesktopSession extends ChangeNotifier {
             state = 'connected';
             notifyListeners();
             // Like mstsc, each connection starts with the local text; remote
-            // text from before this point never replaces it.
+            // text from before this point never replaces it. A connection
+            // an external AI started never reads the local clipboard on its
+            // own: the view offers it on the user's focus or resume.
             clipboardSync.reset();
             if (_userStarted) unawaited(clipboardSync.localMayHaveChanged());
           }
@@ -1062,6 +1132,7 @@ class DesktopSession extends ChangeNotifier {
     HostRecord host,
     int attempt, {
     RdpFeatures? features,
+    bool userStarted = true,
   }) async {
     final settings = _rdp;
     final engine = features ?? rdpEngineFeatures();
@@ -1074,28 +1145,50 @@ class DesktopSession extends ChangeNotifier {
     }
     var effective = settings;
     RdpDriveExpansion? expansion;
+    bool current() => !_closed && attempt == _directAttempt;
     // Without the engine's drive channel no drive= line is sent at all (the
     // native parser would reject the whole configuration).
-    if (engine.has(RdpFeatures.drive)) {
+    final drives = engine.has(RdpFeatures.drive);
+    // The device-local switch is read again for every connect and reconnect.
+    final local = _localDrives;
+    var automatic = false, unreadable = false;
+    if (drives && local.offered) {
+      await local.refresh();
+      automatic = local.enabled(host.id);
+      // Fails closed: stored choices that cannot be read map nothing.
+      unreadable = !automatic && local.unreadable;
+    }
+    // Android: what this attempt needs is asked before the handshake (only
+    // when the user started it). Anything not granted is left out of this
+    // attempt's native options only; [_rdp] and the Host stay unchanged.
+    final grants = await _permissions.prepare(
+      host: host,
+      settings: settings,
+      engine: engine,
+      localDrives: local,
+      mapLocalDisks: automatic,
+      userStarted: userStarted,
+      prompter: _awaitPrompter,
+      current: current,
+      asking: _setAwaitingPermission,
+    );
+    if (!current()) return null;
+    automatic = automatic && grants.mapLocalDisks;
+    effective = effective.copyWith(
+      microphone: settings.microphone && grants.microphone,
+      cameras: settings.cameras && grants.camera,
+    );
+    if (drives) {
       // Local disks become explicit drive= lines for this attempt only. They
       // never enter [_rdp], which in-session display changes save back to
-      // the synchronized Host. The device-local switch is read again for
-      // every connect and reconnect.
-      final local = _localDrives;
-      var automatic = false, unreadable = false;
-      if (local.offered) {
-        await local.refresh();
-        automatic = local.enabled(host.id);
-        // Fails closed: stored choices that cannot be read map nothing.
-        unreadable = !automatic && local.unreadable;
-      }
+      // the synchronized Host.
       expansion = await expandRdpDrives(
         explicit: settings.drives,
         automatic: automatic,
         source: local.source,
       );
-      if (_closed || attempt != _directAttempt) return null;
-      effective = settings.copyWith(drives: expansion.drives);
+      if (!current()) return null;
+      effective = effective.copyWith(drives: expansion.drives);
       if (unreadable && !_unreadableNoticeShown) {
         _unreadableNoticeShown = true;
         _notice(currentL10n.rdpMapLocalDisksUnreadable);
@@ -1112,6 +1205,7 @@ class DesktopSession extends ChangeNotifier {
     );
     rdpConfig = config;
     if (expansion != null) _driveNotices(host, expansion);
+    _permissionNotices(grants);
     if (config.unavailable.isNotEmpty) {
       _notice(
         currentL10n.thisClientCantProvideJoinThe(config.unavailable.join('、')),
@@ -1134,10 +1228,14 @@ class DesktopSession extends ChangeNotifier {
       _notice(l10n.rdpLocalDisksMapped(names(expansion.mapped)));
       unawaited(local.markNoticeShown(host.id));
     }
-    // Once per tab: every reconnect would otherwise repeat it.
-    if (expansion.accessRequired && !_accessNoticeShown) {
+    // Once per tab: every reconnect would otherwise repeat them.
+    if ((expansion.accessRequired || expansion.needAccess.isNotEmpty) &&
+        !_accessNoticeShown) {
       _accessNoticeShown = true;
-      _notice(l10n.rdpLocalDisksNeedAccess);
+      if (expansion.needAccess.isNotEmpty) {
+        _notice(l10n.rdpFoldersNeedAccess(names(expansion.needAccess)));
+      }
+      if (expansion.accessRequired) _notice(l10n.rdpLocalDisksNeedAccess);
     }
     if (expansion.unavailable.isNotEmpty) {
       _notice(l10n.rdpLocalDisksUnavailable(names(expansion.unavailable)));
@@ -1148,6 +1246,24 @@ class DesktopSession extends ChangeNotifier {
           RdpSettings.maxConnectionDrives,
           names(expansion.leftOut),
         ),
+      );
+    }
+  }
+
+  /// Names the devices this attempt connected without, once per tab each.
+  void _permissionNotices(RdpConnectGrants grants) {
+    final l10n = currentL10n;
+    final dropped = [
+      for (final permission in grants.dropped)
+        if (_permissionNoticesShown.add(permission))
+          switch (permission) {
+            RdpDevicePermission.microphone => l10n.desktopMicrophone,
+            RdpDevicePermission.camera => l10n.desktopCameras,
+          },
+    ];
+    if (dropped.isNotEmpty) {
+      _notice(
+        l10n.rdpDevicesNeedPermission(dropped.join(l10n.rdpListSeparator)),
       );
     }
   }
@@ -1215,6 +1331,8 @@ class DesktopSession extends ChangeNotifier {
     _closed = true;
     clipboardSync.reset();
     _directAttempt++;
+    // The view closes an explanation still open for this attempt.
+    _setAwaitingPermission(false);
     certificateRequest = null;
     nativeTouch = false;
     for (final frame in _pendingFrames) {
@@ -1247,6 +1365,7 @@ class DesktopSession extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _prompter = null;
     onNotice = null;
     _pendingNotices.clear();
     onFilesSaved = null;

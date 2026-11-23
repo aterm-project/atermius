@@ -33,6 +33,8 @@ import 'rdp_folder_picker.dart';
 import 'rdp_storage.dart';
 import 'touchpad_gestures.dart';
 import 'local/local_desktop.dart';
+import 'rdp_permission_prompts.dart';
+import 'rdp_permissions.dart';
 import '../l10n/l10n.dart';
 import '../ui/app_density.dart';
 
@@ -65,7 +67,9 @@ class DesktopView extends StatefulWidget {
   State<DesktopView> createState() => DesktopViewState();
 }
 
-class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
+class DesktopViewState extends State<DesktopView>
+    with WidgetsBindingObserver
+    implements RdpPermissionPrompter {
   final _mobile = GlobalKey<DesktopMobileControlsState>();
   bool _keyboardOpen = false;
   bool _pointerInside = false;
@@ -288,6 +292,7 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
 
   Timer? _resizeTimer;
   DialogRoute<void>? _certificateDialog;
+  DialogRoute<RdpStorageChoice>? _permissionDialog;
   DesktopSession get session => widget.session;
   @override
   void initState() {
@@ -316,9 +321,65 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     );
     session.onNotice = _showNotice;
     session.onFilesSaved = _filesSaved;
+    session.permissionPrompter = this;
     session.addListener(_certificateChanged);
     _certificateChanged();
     _listenClipboard();
+  }
+
+  /// Only a view that is showing asks: a pane hidden by its tab or page
+  /// (muted tickers, or a hidden [IndexedStack] child such as the workspace
+  /// behind the Hosts page) never opens a dialog over another one.
+  @override
+  bool get canPrompt {
+    if (!mounted) return false;
+    try {
+      return TickerMode.valuesOf(context).enabled && Visibility.of(context);
+    } on Object {
+      // A pane that is being moved cannot be looked up now: do not ask.
+      return false;
+    }
+  }
+
+  @override
+  Future<RdpStorageChoice?> explainStorage(
+    HostRecord host, {
+    required bool offerDontMap,
+  }) async {
+    if (!canPrompt || _permissionDialog != null) return null;
+    final reviewedSession = session;
+    final route = AppDialogRoute<RdpStorageChoice>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => RdpStorageExplanationDialog(
+        hostName: host.name,
+        offerDontMap: offerDontMap,
+      ),
+    );
+    // Stop loading or closing the tab ends the attempt: close the dialog.
+    void attemptEnded() {
+      if (!reviewedSession.awaitingPermission && route.isActive) {
+        route.navigator?.removeRoute(route);
+      }
+    }
+
+    _permissionDialog = route;
+    reviewedSession.addListener(attemptEnded);
+    try {
+      return await Navigator.of(context, rootNavigator: true).push(route);
+    } finally {
+      reviewedSession.removeListener(attemptEnded);
+      if (identical(_permissionDialog, route)) _permissionDialog = null;
+    }
+  }
+
+  void _removePermissionDialog() {
+    final route = _permissionDialog;
+    _permissionDialog = null;
+    if (route == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (route.isActive) route.navigator?.removeRoute(route);
+    });
   }
 
   void _filesSaved(List<String> paths) {
@@ -518,6 +579,11 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
       _captureSessionChanged();
       oldWidget.session.removeListener(_certificateChanged);
       _removeCertificateDialog();
+      _removePermissionDialog();
+      if (identical(oldWidget.session.permissionPrompter, this)) {
+        oldWidget.session.permissionPrompter = null;
+      }
+      session.permissionPrompter = this;
       if (oldWidget.session.onNotice == _showNotice)
         oldWidget.session.onNotice = null;
       if (oldWidget.session.onFilesSaved == _filesSaved) {
@@ -689,6 +755,10 @@ class DesktopViewState extends State<DesktopView> with WidgetsBindingObserver {
     );
     session.removeListener(_certificateChanged);
     _removeCertificateDialog();
+    _removePermissionDialog();
+    if (identical(session.permissionPrompter, this)) {
+      session.permissionPrompter = null;
+    }
     if (session.onNotice == _showNotice) session.onNotice = null;
     if (session.onFilesSaved == _filesSaved) session.onFilesSaved = null;
     WidgetsBinding.instance.removeObserver(this);

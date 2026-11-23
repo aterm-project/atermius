@@ -4662,7 +4662,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get theComSerialConsoleRequiresThe =>
-      'The COM serial Console requires the Windows client.';
+      'The serial Console requires the Windows, macOS or Android app.';
 
   @override
   String get theBrowserCantStartALocal =>
@@ -17448,7 +17448,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeAddSerialConsoleTitle => 'Open serial Console';
 
   @override
-  String get homeAddSerialConsole => 'Serial Console (COM)…';
+  String get homeAddSerialConsole => 'Serial Console…';
 
   @override
   String get homeSharingLocalDetail =>
@@ -17456,7 +17456,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeAddSerialConsoleUnavailable =>
-      'Serial Console (Windows app only)';
+      'Serial Console (Windows, macOS and Android apps)';
 
   @override
   String get homeSharingPresenceUnknown => 'Status unknown';
@@ -20714,4 +20714,116 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loginInfoCopyFailed => 'Couldn\'t copy the login info.';
+
+  @override
+  String get rdpStorageAccessTitle => 'Map this device’s storage?';
+
+  @override
+  String rdpStorageAccessBody(String name) {
+    return '“$name” maps this device’s storage under \\\\tsclient, so you can open and save local files in the remote session. Android requires All files access for Atermius first. You can change this later under “Map local disks” when editing the host.';
+  }
+
+  @override
+  String get rdpStorageAccessGrant => 'Allow access';
+
+  @override
+  String get rdpStorageAccessNotNow => 'Not now';
+
+  @override
+  String get rdpStorageAccessDontMap => 'Don’t map disks for this host';
+
+  @override
+  String rdpFoldersNeedAccess(String names) {
+    return 'Skipped folders because All files access is off: $names. Allow it for Atermius in Android Settings, then reconnect.';
+  }
+
+  @override
+  String rdpDevicesNeedPermission(String names) {
+    return 'Not redirected because Android hasn’t allowed Atermius to use them: $names. Allow access in the host’s RDP options or in Android Settings, then reconnect.';
+  }
+
+  @override
+  String get rdpPermissionGranted => 'Allowed on this device.';
+
+  @override
+  String get rdpPermissionMicrophoneDenied =>
+      'Atermius isn’t allowed to use the microphone on this device.';
+
+  @override
+  String get rdpPermissionCameraDenied =>
+      'Atermius isn’t allowed to use the camera on this device.';
+
+  @override
+  String get rdpPermissionAllow => 'Allow';
+
+  @override
+  String get rdpPermissionOpenSettings => 'Open app settings';
+
+  @override
+  String get usbSerialDialogDetail =>
+      'Uses a USB-to-serial adapter connected to this device through USB OTG, at 8N1 without flow control. Supported: CDC-ACM, FTDI, Silicon Labs CP210x, WCH CH340/CH341 and Prolific PL2303. Nothing runs on the server.';
+
+  @override
+  String get usbSerialAdaptersHeading => 'USB serial adapters';
+
+  @override
+  String get usbSerialNoAdapters => 'Connect a USB serial adapter (OTG)';
+
+  @override
+  String get usbSerialNoAdaptersDetail =>
+      'Plug the adapter in with an OTG cable or adapter, then tap Refresh.';
+
+  @override
+  String get usbSerialNoUsbHost =>
+      'This device doesn\'t support USB host (OTG), so it can\'t use USB serial adapters.';
+
+  @override
+  String get usbSerialAdapterFallbackName => 'USB serial adapter';
+
+  @override
+  String usbSerialPortNumber(int number) {
+    return 'Port $number';
+  }
+
+  @override
+  String get usbSerialChooseAdapter => 'Choose an adapter.';
+
+  @override
+  String get usbSerialListFailed => 'Couldn\'t list USB serial adapters.';
+
+  @override
+  String get usbSerialPermissionDenied =>
+      'USB access to the adapter was denied. Open the Console again and allow access when Android asks.';
+
+  @override
+  String usbSerialNotAttached(String port) {
+    return 'The USB serial adapter $port isn\'t attached. Connect it, or choose an attached adapter in Add → Serial Console.';
+  }
+
+  @override
+  String get usbSerialAmbiguous =>
+      'Several matching USB serial adapters are attached. Choose one in Add → Serial Console.';
+
+  @override
+  String get usbSerialUnsupported =>
+      'This USB device isn\'t a supported serial adapter (CDC-ACM, FTDI, CP210x, CH34x or PL2303).';
+
+  @override
+  String get usbSerialBackground =>
+      'Android only asks for USB access while Atermius is in the foreground. Open the Console again from the app.';
+
+  @override
+  String get usbSerialPermissionBusy =>
+      'Another USB access request is still open. Answer it first.';
+
+  @override
+  String get usbSerialPortBusy =>
+      'This serial port is already open in another tab.';
+
+  @override
+  String get usbSerialOpenFailed =>
+      'Couldn\'t open the USB serial adapter. Unplug it, plug it in again and retry.';
+
+  @override
+  String get usbSerialDetached => 'The USB serial adapter was disconnected.';
 }

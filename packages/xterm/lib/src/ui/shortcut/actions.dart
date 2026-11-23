@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:xterm/src/terminal.dart';
+import 'package:xterm/src/ui/clipboard.dart';
 import 'package:xterm/src/ui/controller.dart';
 import 'package:xterm/src/ui/selection_mode.dart';
 
@@ -37,8 +38,7 @@ class TerminalActions extends StatelessWidget {
         PasteTextIntent: CallbackAction<PasteTextIntent>(
           onInvoke: (intent) async {
             if (readOnly) return null;
-            final data = await Clipboard.getData(Clipboard.kTextPlain);
-            final text = data?.text;
+            final text = await TerminalClipboard.read(context);
             if (text == null || !context.mounted) return null;
             final interceptor = onBeforePaste;
             final approved =

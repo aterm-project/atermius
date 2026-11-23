@@ -60,3 +60,75 @@ atermius_patch(channels/rdpei/client/rdpei_main.c
 atermius_patch(libfreerdp/core/nla.c
   "WINPR_ATTR_NODISCARD\nstatic int nla_client_recv_nego_token(rdpNla* nla)\n{\n\tcredssp_auth_take_input_buffer(nla->auth, &nla->negoToken);"
   "/* atermius: defined by the embedding engine (atermius_rdp.c) */\nextern void atermius_note_nla_token(const BYTE* data, size_t length);\n\nWINPR_ATTR_NODISCARD\nstatic int nla_client_recv_nego_token(rdpNla* nla)\n{\n\tatermius_note_nla_token((const BYTE*)nla->negoToken.pvBuffer, nla->negoToken.cbBuffer);\n\tcredssp_auth_take_input_buffer(nla->auth, &nla->negoToken);")
+
+# 6. Android playback (rdpsnd "opensles") must neither abort the app nor end the
+#    session. Upstream WINPR_ASSERTs every OpenSL ES result (verbose asserts
+#    abort the process), and a failed Open or SetVolume becomes a channel error
+#    that disconnects (rdpsnd_main.c). A player that does not open is logged and
+#    leaves a silent device: Play drops the waves, which rdpsnd still confirms,
+#    and the next format change opens it again. The player is always 16-bit
+#    (openSLPlayOpen), but FormatSupported accepts 8-bit PCM and the DSP
+#    copies PCM unconverted, so upstream played 8-bit waves as noise at double
+#    speed: PlayEx widens unsigned 8-bit samples to signed 16-bit and drops
+#    other PCM depths, as Play drops waves it cannot take (empty, odd size).
+atermius_patch(channels/rdpsnd/client/opensles/opensl_io.c
+  "WINPR_ASSERT(!result);"
+  "(void)result; /* atermius: the result is returned, not asserted */")
+atermius_patch(channels/rdpsnd/client/opensles/rdpsnd_opensles.c
+  "\topensles->stream = android_OpenAudioDevice(opensles->rate, opensles->channels, 20);\n\tWINPR_ASSERT(opensles->stream);\n\n\tif (!opensles->stream)\n\t\tWLog_ERR(TAG, \"android_OpenAudioDevice failed\");\n\telse\n\t\trdpsnd_opensles_set_volume(device, opensles->volume);\n\n\treturn rdpsnd_opensles_set_format(device, format, latency);\n}"
+  "\t/* atermius: store the format (without a stream, set_format opens nothing), open the\n\t * player once at its rate and channels, and stay silent if it does not open */\n\t(void)rdpsnd_opensles_set_format(device, format, latency);\n\topensles->stream = android_OpenAudioDevice(opensles->rate, opensles->channels, 20);\n\tif (!opensles->stream)\n\t\tWLog_ERR(TAG, \"android_OpenAudioDevice failed (%\" PRIu32 \" Hz, %\" PRIu32 \" channels), no sound\",\n\t\t         opensles->rate, opensles->channels);\n\telse\n\t\t(void)rdpsnd_opensles_set_volume(device, opensles->volume);\n\n\treturn TRUE;\n}")
+atermius_patch(channels/rdpsnd/client/opensles/rdpsnd_opensles.c
+  "\tif (opensles->stream)\n\t{\n\t\tif (0 == opensles->volume)\n\t\t\treturn android_SetOutputMute(opensles->stream, true);\n\t\telse\n\t\t{\n\t\t\tconst int max = android_GetOutputVolumeMax(opensles->stream);\n\t\t\tconst int vol = rdpsnd_opensles_volume_to_millibel(value & 0xFFFF, max);\n\n\t\t\tif (!android_SetOutputMute(opensles->stream, false))\n\t\t\t\treturn FALSE;\n\n\t\t\tif (!android_SetOutputVolume(opensles->stream, vol))\n\t\t\t\treturn FALSE;\n\t\t}\n\t}\n\n\treturn TRUE;"
+  "\t/* atermius: a volume the player refuses is logged, not returned as a failure */\n\tif (opensles->stream)\n\t{\n\t\tBOOL applied = FALSE;\n\t\tif (0 == opensles->volume)\n\t\t\tapplied = android_SetOutputMute(opensles->stream, true);\n\t\telse\n\t\t{\n\t\t\tconst int max = android_GetOutputVolumeMax(opensles->stream);\n\t\t\tconst int vol = rdpsnd_opensles_volume_to_millibel(value & 0xFFFF, max);\n\n\t\t\tapplied = android_SetOutputMute(opensles->stream, false) &&\n\t\t\t          android_SetOutputVolume(opensles->stream, vol);\n\t\t}\n\t\tif (!applied)\n\t\t\tWLog_WARN(TAG, \"volume 0x%08\" PRIx32 \" not applied\", value);\n\t}\n\n\treturn TRUE;")
+atermius_patch(channels/rdpsnd/client/opensles/rdpsnd_opensles.c
+  "\tWINPR_ASSERT(0 == size % 2);\n\tWINPR_ASSERT(size > 0);\n\tWINPR_ASSERT(src.b);\n\tret = android_AudioOut(opensles->stream, src.s, size / 2);"
+  "\t/* atermius: the size comes from the server; drop what the 16-bit player cannot take */\n\tif (!src.b || (size < 2) || ((size % 2) != 0) || (size / 2 > INT32_MAX))\n\t{\n\t\tWLog_DBG(TAG, \"dropped a wave of %\" PRIuz \" bytes\", size);\n\t\treturn 0;\n\t}\n\tret = android_AudioOut(opensles->stream, src.s, (int)(size / 2));")
+atermius_patch(channels/rdpsnd/client/opensles/rdpsnd_opensles.c
+  "static void rdpsnd_opensles_start(rdpsndDevicePlugin* device)\n{"
+  "/* atermius: rdpsnd passes every wave here with the format it was sent in: PCM unchanged\n * (supported or copied by the DSP), other formats decoded to 16-bit PCM. The player is\n * 16-bit: widen unsigned 8-bit PCM and drop other PCM depths. */\nstatic UINT rdpsnd_opensles_play_ex(rdpsndDevicePlugin* device, const AUDIO_FORMAT* format,\n                                    const BYTE* data, size_t size)\n{\n\tif (!format || (format->wFormatTag != WAVE_FORMAT_PCM) || (format->wBitsPerSample == 16))\n\t\treturn rdpsnd_opensles_play(device, data, size);\n\n\tif ((format->wBitsPerSample != 8) || !data || (size == 0) || (size > INT32_MAX / 2))\n\t{\n\t\tWLog_DBG(TAG, \"dropped a %\" PRIu16 \"-bit wave of %\" PRIuz \" bytes\", format->wBitsPerSample,\n\t\t         size);\n\t\treturn 0;\n\t}\n\n\tINT16* wide = (INT16*)calloc(size, sizeof(INT16));\n\tif (!wide)\n\t\treturn 0;\n\tfor (size_t i = 0; i < size; i++)\n\t\twide[i] = (INT16)(((INT32)data[i] - 128) * 256);\n\tconst UINT latency = rdpsnd_opensles_play(device, (const BYTE*)wide, size * sizeof(INT16));\n\tfree(wide);\n\treturn latency;\n}\n\nstatic void rdpsnd_opensles_start(rdpsndDevicePlugin* device)\n{")
+atermius_patch(channels/rdpsnd/client/opensles/rdpsnd_opensles.c
+  "\topensles->device.Play = rdpsnd_opensles_play;\n"
+  "\topensles->device.Play = rdpsnd_opensles_play;\n\topensles->device.PlayEx = rdpsnd_opensles_play_ex; /* atermius: see above */\n")
+
+# 7. The microphone (audin "opensles") must not end the session either. A
+#    recorder that does not open (no RECORD_AUDIO permission, input busy) is
+#    reported in the Open Reply PDU ([MS-RDPEAI] 2.2.2.4, Result) and the channel
+#    stays, so the server may open it again later; upstream returned an error
+#    that drops the channel. The recorder starts inside android_OpenRecDevice,
+#    so its callback target is set first, and it is destroyed before the
+#    buffers it fills are freed.
+atermius_patch(channels/audin/client/audin_main.c
+  "\tif (!audin_open_device(audin, callback))\n\t{\n\t\taudin->format = nullptr;\n\t\treturn ERROR_INTERNAL_ERROR;\n\t}\n\n\tif ((error = audin_send_format_change_pdu(audin, callback, initialFormat)))"
+  "\tif (!audin_open_device(audin, callback))\n\t{\n\t\t/* atermius: answer with a failure Result and keep the channel and the session */\n\t\tWLog_Print(audin->log, WLOG_ERROR, \"microphone not opened, the session continues without it\");\n\t\taudin->format = nullptr;\n\t\treturn audin_send_open_reply_pdu(audin, callback, 0x80004005 /* E_FAIL */);\n\t}\n\n\tif ((error = audin_send_format_change_pdu(audin, callback, initialFormat)))")
+atermius_patch(channels/audin/client/audin_main.c
+  "\t\tif (!audin_open_device(audin, callback))\n\t\t{\n\t\t\taudin->format = nullptr;\n\t\t\treturn ERROR_INTERNAL_ERROR;\n\t\t}"
+  "\t\tif (!audin_open_device(audin, callback))\n\t\t{\n\t\t\t/* atermius: as for Open, the session continues without the microphone */\n\t\t\tWLog_Print(audin->log, WLOG_ERROR, \"microphone not reopened, the session continues without it\");\n\t\t\taudin->format = nullptr;\n\t\t\treturn CHANNEL_RC_OK;\n\t\t}")
+atermius_patch(channels/audin/client/opensles/audin_opensl_es.c
+  "\tif (!(opensles->stream = android_OpenRecDevice("
+  "\t/* atermius: recording starts inside android_OpenRecDevice, whose first buffer can\n\t * come back before it returns */\n\topensles->receive = receive;\n\topensles->user_data = user_data;\n\n\tif (!(opensles->stream = android_OpenRecDevice(")
+atermius_patch(channels/audin/client/opensles/opensl_io.c
+  "\topensles_queue_element_free(p->next);\n\topensles_queue_element_free(p->prep);\n\topenSLDestroyEngine(p);"
+  "\t/* atermius: destroy the recorder (no callback runs after that) before its buffers */\n\topenSLDestroyEngine(p);\n\topensles_queue_element_free(p->next);\n\topensles_queue_element_free(p->prep);")
+
+# 8. MediaCodec (WITH_MEDIACODEC, the Android camera) is an encoder only here.
+#    With it FreeRDP turns WITH_GFX_H264 on, and connecting prepares every codec
+#    (libfreerdp/core/connection.c), which would create and start a hardware
+#    H.264 decoder in each session. The engine never negotiates the graphics
+#    pipeline (SupportGraphicsPipeline=FALSE, rdpgfx not built), so the decoder
+#    role is refused: libfreerdp/core/codecs.c logs a warning and keeps no H.264
+#    context.
+atermius_patch(libfreerdp/codec/h264_mediacodec.c
+  "\tWLog_Print(h264->log, WLOG_DEBUG, \"Initializing MediaCodec\");\n"
+  "\t/* atermius: encoder only (camera); there is no graphics pipeline to decode for */\n\tif (!h264->Compressor)\n\t\treturn FALSE;\n\n\tWLog_Print(h264->log, WLOG_DEBUG, \"Initializing MediaCodec\");\n")
+
+# 9. No MediaCodec AAC. WITH_MEDIACODEC also builds dsp_mediacodec.c, with which
+#    rdpsnd offers AAC for playback and audin for the microphone, so a server
+#    would move the session audio onto that experimental codec. Audio keeps
+#    the built-in PCM of every other Atermius engine (ATERMIUS_MEDIACODEC_AAC
+#    is never defined).
+atermius_patch(libfreerdp/codec/CMakeLists.txt
+  "list(APPEND CODEC_SRCS h264_mediacodec.c dsp_mediacodec.c)"
+  "list(APPEND CODEC_SRCS h264_mediacodec.c) # atermius: no dsp_mediacodec.c (AAC)")
+atermius_patch(libfreerdp/codec/dsp.c
+  "#if defined(WITH_MEDIACODEC)"
+  "#if defined(WITH_MEDIACODEC) && defined(ATERMIUS_MEDIACODEC_AAC)")
