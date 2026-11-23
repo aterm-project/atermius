@@ -5483,5 +5483,8 @@
   "copyLoginInfo": "ログイン情報をコピー（JSON）",
   "loginInfoCopied": "ログイン情報を JSON でコピーしました。",
   "loginInfoCopiedWithoutSecret": "アドレスとユーザー名をコピーしました。このホストにはパスワードも鍵も保存されていません。",
+  "terminalLinkTitle": "ターミナルのリンクを開きますか？",
+  "terminalLinkOpenInBrowser": "ブラウザで開く",
+  "terminalLinkOpenFailed": "リンクを開けませんでした。",
   "loginInfoCopyFailed": "ログイン情報をコピーできませんでした。"
 }

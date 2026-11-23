@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../terminal/paste_safety.dart';
 import 'app_theme.dart';
@@ -25,10 +26,9 @@ Future<String?> confirmTerminalPaste(
   return showDialog<String>(
     context: context,
     barrierDismissible: true,
-    builder: (dialogContext) => _PasteSafetyDialog(
-      originalText: text,
-      analysis: analysis,
-    ),
+    requestFocus: true,
+    builder: (dialogContext) =>
+        _PasteSafetyDialog(originalText: text, analysis: analysis),
   );
 }
 
@@ -176,7 +176,16 @@ class _PasteSafetyDialog extends StatelessWidget {
         ),
     ].join('\n');
 
-    return AlertDialog(
+    final focusStyle = ButtonStyle(
+      side: WidgetStateProperty.resolveWith((states) {
+        if (!states.contains(WidgetState.focused)) return null;
+        return BorderSide(
+          color: Theme.of(context).colorScheme.primary,
+          width: 2,
+        );
+      }),
+    );
+    final dialog = AlertDialog(
       key: const ValueKey('paste_safety_dialog'),
       shape: appleSquircleBorder(
         BorderRadius.circular(16),
@@ -274,6 +283,8 @@ class _PasteSafetyDialog extends StatelessWidget {
       actions: [
         TextButton(
           key: const ValueKey('paste_safety_cancel'),
+          autofocus: !canPasteWithoutNewline,
+          style: focusStyle,
           onPressed: () => Navigator.of(context).pop(null),
           child: Text(
             _t(context, zh: '取消', en: 'Cancel', ja: 'キャンセル', ru: 'Отмена'),
@@ -282,6 +293,8 @@ class _PasteSafetyDialog extends StatelessWidget {
         if (canPasteWithoutNewline)
           OutlinedButton(
             key: const ValueKey('paste_safety_strip_newline'),
+            autofocus: true,
+            style: focusStyle,
             onPressed: () =>
                 Navigator.of(context).pop(analysis.strippedTrailingNewline),
             child: Text(
@@ -296,12 +309,14 @@ class _PasteSafetyDialog extends StatelessWidget {
           ),
         FilledButton(
           key: const ValueKey('paste_safety_confirm'),
-          style: destructive
-              ? FilledButton.styleFrom(
-                  backgroundColor: palette.red,
-                  foregroundColor: Colors.white,
-                )
-              : null,
+          style: focusStyle.merge(
+            destructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: palette.red,
+                    foregroundColor: Colors.white,
+                  )
+                : null,
+          ),
           onPressed: () => Navigator.of(context).pop(originalText),
           child: Text(
             destructive
@@ -322,6 +337,16 @@ class _PasteSafetyDialog extends StatelessWidget {
           ),
         ),
       ],
+    );
+    return FocusTraversalGroup(
+      policy: WidgetOrderTraversalPolicy(),
+      child: Shortcuts(
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.arrowLeft): PreviousFocusIntent(),
+          SingleActivator(LogicalKeyboardKey.arrowRight): NextFocusIntent(),
+        },
+        child: dialog,
+      ),
     );
   }
 }

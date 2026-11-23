@@ -20809,5 +20809,14 @@ class AppLocalizationsRu extends AppLocalizations {
       'Адрес и имя пользователя скопированы. Для этого хоста не сохранены ни пароль, ни ключ.';
 
   @override
+  String get terminalLinkTitle => 'Открыть ссылку из терминала?';
+
+  @override
+  String get terminalLinkOpenInBrowser => 'Открыть в браузере';
+
+  @override
+  String get terminalLinkOpenFailed => 'Не удалось открыть ссылку.';
+
+  @override
   String get loginInfoCopyFailed => 'Не удалось скопировать данные для входа.';
 }

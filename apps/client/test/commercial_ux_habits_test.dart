@@ -259,6 +259,71 @@ void main() {
       expect(output, isEmpty);
     });
 
+    testWidgets('粘贴警告可在窄窗口用方向键和回车操作', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      var clipboard = 'echo test\r\n';
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.getData') return {'text': clipboard};
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+
+      final output = <String>[];
+      final terminal = Terminal()..onOutput = output.add;
+      await tester.pumpWidget(
+        _localizedApp(
+          TerminalView(
+            terminal,
+            autofocus: true,
+            onBeforePaste: confirmTerminalPaste,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      Future<void> paste() async {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('paste_safety_dialog')),
+          findsOneWidget,
+        );
+      }
+
+      await paste();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(output, ['echo test']);
+
+      await paste();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(output, ['echo test']);
+
+      await paste();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyEvent(LogicalKeyboardKey.numpadEnter);
+      await tester.pumpAndSettle();
+      expect(output, ['echo test', clipboard]);
+
+      clipboard = 'echo one\necho two';
+      await paste();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('paste_safety_dialog')), findsNothing);
+      expect(output, ['echo test', 'echo test\r\n']);
+    });
+
     testWidgets('弹窗支持取消、去除尾部换行粘贴与原样粘贴，且四语 390px 无溢出', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;

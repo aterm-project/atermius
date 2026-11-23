@@ -85,6 +85,7 @@ import 'connect_progress_view.dart';
 import 'temporary_jump_host_picker.dart';
 import '../platform/application_windows.dart';
 import 'paste_safety_dialog.dart';
+import 'terminal_link_dialog.dart';
 import 'session_workspace.dart';
 import 'ssh_forwarding_page.dart';
 import 'ssh_keepalive_setting.dart';
@@ -5383,6 +5384,7 @@ _showMessage(
                               builder: (context, fontScale) => TerminalView(
                                 session.terminal,
                                 foregroundDecorator: TerminalKeywordHighlighter.instance,
+                                onLinkTap: showTerminalLink,
                                 onBeforePaste: (ctx, text) => confirmTerminalPaste(
                                   ctx,
                                   text,
@@ -5410,6 +5412,7 @@ _showMessage(
                               builder: (context, fontScale) => TerminalView(
                                 session.terminal,
                                 foregroundDecorator: TerminalKeywordHighlighter.instance,
+                                onLinkTap: showTerminalLink,
                                 onBeforePaste: (ctx, text) => confirmTerminalPaste(
                                   ctx,
                                   text,
@@ -8934,6 +8937,7 @@ throw StateError(context.l10n.snippetChanged);
                 builder: (context, fontScale) => TerminalView(
                   _terminal,
                   foregroundDecorator: TerminalKeywordHighlighter.instance,
+                  onLinkTap: showTerminalLink,
                   onBeforePaste: (ctx, text) => confirmTerminalPaste(
                     ctx,
                     text,

@@ -57,6 +57,7 @@ class TerminalView extends StatefulWidget {
     this.simulateScroll = true,
     this.foregroundDecorator,
     this.onBeforePaste,
+    this.onLinkTap,
   });
 
   /// The underlying terminal that this widget renders.
@@ -165,6 +166,9 @@ class TerminalView extends StatefulWidget {
   /// 在通过快捷键或触控菜单向终端粘贴前的可选异步确认拦截器；返回 `null` 取消粘贴。
   final TerminalPasteInterceptor? onBeforePaste;
 
+  /// Enables recognition of visible web URLs and reports a primary tap on one.
+  final void Function(BuildContext, Uri)? onLinkTap;
+
   @override
   State<TerminalView> createState() => TerminalViewState();
 }
@@ -186,6 +190,7 @@ class TerminalViewState extends State<TerminalView> {
   final _touchSelectionKey = GlobalKey<TerminalTouchSelectionState>();
 
   String? _composingText;
+  Uri? _pressedLink;
 
   late TerminalController _controller;
 
@@ -273,6 +278,8 @@ class TerminalViewState extends State<TerminalView> {
           onEditableRect: _onEditableRect,
           composingText: _composingText,
           foregroundDecorator: widget.foregroundDecorator,
+          linksEnabled: widget.onLinkTap != null,
+          readOnly: widget.readOnly,
         );
       },
     );
@@ -361,7 +368,7 @@ class TerminalViewState extends State<TerminalView> {
     child = TerminalGestureHandler(
       terminalView: this,
       terminalController: _controller,
-      onTapUp: _onTapUp,
+      onSingleTapUp: _onTapUp,
       onTapDown: _onTapDown,
       onSecondaryTapDown: widget.onSecondaryTapDown != null
           ? _onSecondaryTapDown
@@ -429,21 +436,36 @@ class TerminalViewState extends State<TerminalView> {
   }
 
   void _onTapUp(TapUpDetails details) {
-    final offset = renderTerminal.getCellOffset(details.localPosition);
-    widget.onTapUp?.call(details, offset);
+    final pressedLink = _pressedLink;
+    _pressedLink = null;
+    if (pressedLink == null && widget.onTapUp == null) return;
+    final render = renderTerminal;
+    final position = render.globalToLocal(details.globalPosition);
+    if (pressedLink != null && pressedLink == render.getLinkAt(position)) {
+      widget.onLinkTap?.call(context, pressedLink);
+      return;
+    }
+    widget.onTapUp?.call(details, render.getCellOffset(position));
   }
 
-  void _onTapDown(_) {
+  void _onTapDown(TapDownDetails details) {
+    _pressedLink = null;
     if (_controller.selection != null) {
       _controller.clearSelection();
+      return;
+    }
+    if (widget.onLinkTap != null) {
+      final render = renderTerminal;
+      _pressedLink =
+          render.getLinkAt(render.globalToLocal(details.globalPosition));
+      if (_pressedLink != null) return;
+    }
+    if (widget.hardwareKeyboardOnly) {
+      _focusNode.requestFocus();
+    } else if (widget.showKeyboardOnTap) {
+      requestKeyboard();
     } else {
-      if (!widget.hardwareKeyboardOnly && !widget.showKeyboardOnTap) {
-        requestFocusWithoutKeyboard();
-      } else if (!widget.hardwareKeyboardOnly) {
-        requestKeyboard();
-      } else {
-        _focusNode.requestFocus();
-      }
+      requestFocusWithoutKeyboard();
     }
   }
 
@@ -503,10 +525,6 @@ class TerminalViewState extends State<TerminalView> {
   }
 
   KeyEventResult _handleKeyEvent(FocusNode focusNode, KeyEvent event) {
-    final isEnter =
-        event is KeyDownEvent &&
-        (event.logicalKey == LogicalKeyboardKey.enter ||
-            event.logicalKey == LogicalKeyboardKey.numpadEnter);
     final resultOverride = widget.onKeyEvent?.call(focusNode, event);
     if (resultOverride != null && resultOverride != KeyEventResult.ignored) {
       return resultOverride;
@@ -583,6 +601,8 @@ class _TerminalView extends LeafRenderObjectWidget {
     this.onEditableRect,
     this.composingText,
     this.foregroundDecorator,
+    required this.linksEnabled,
+    required this.readOnly,
   });
 
   final Terminal terminal;
@@ -612,6 +632,8 @@ class _TerminalView extends LeafRenderObjectWidget {
   final String? composingText;
 
   final TerminalForegroundDecorator? foregroundDecorator;
+  final bool linksEnabled;
+  final bool readOnly;
 
   @override
   RenderTerminal createRenderObject(BuildContext context) {
@@ -630,12 +652,16 @@ class _TerminalView extends LeafRenderObjectWidget {
       onEditableRect: onEditableRect,
       composingText: composingText,
       foregroundDecorator: foregroundDecorator,
+      linksEnabled: linksEnabled,
+      readOnly: readOnly,
     );
   }
 
   @override
   void updateRenderObject(BuildContext context, RenderTerminal renderObject) {
     renderObject
+      ..linksEnabled = linksEnabled
+      ..readOnly = readOnly
       ..terminal = terminal
       ..controller = controller
       ..offset = offset

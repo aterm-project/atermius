@@ -19520,5 +19520,14 @@ class AppLocalizationsJa extends AppLocalizations {
       'アドレスとユーザー名をコピーしました。このホストにはパスワードも鍵も保存されていません。';
 
   @override
+  String get terminalLinkTitle => 'ターミナルのリンクを開きますか？';
+
+  @override
+  String get terminalLinkOpenInBrowser => 'ブラウザで開く';
+
+  @override
+  String get terminalLinkOpenFailed => 'リンクを開けませんでした。';
+
+  @override
   String get loginInfoCopyFailed => 'ログイン情報をコピーできませんでした。';
 }

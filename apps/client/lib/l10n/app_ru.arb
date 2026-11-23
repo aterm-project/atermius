@@ -5483,5 +5483,8 @@
   "copyLoginInfo": "Копировать данные для входа (JSON)",
   "loginInfoCopied": "Данные для входа скопированы в формате JSON.",
   "loginInfoCopiedWithoutSecret": "Адрес и имя пользователя скопированы. Для этого хоста не сохранены ни пароль, ни ключ.",
+  "terminalLinkTitle": "Открыть ссылку из терминала?",
+  "terminalLinkOpenInBrowser": "Открыть в браузере",
+  "terminalLinkOpenFailed": "Не удалось открыть ссылку.",
   "loginInfoCopyFailed": "Не удалось скопировать данные для входа."
 }
