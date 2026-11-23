@@ -9,6 +9,7 @@ import '../terminal/keyword_highlighter.dart';
 import '../terminal/live_terminal_window.dart';
 import 'app_motion.dart';
 import 'paste_safety_dialog.dart';
+import 'terminal_link_dialog.dart';
 import 'terminal_palette.dart';
 import 'terminal_keybar.dart';
 import 'wallpaper.dart';
@@ -205,6 +206,7 @@ class _LiveTerminalWindowPageState extends State<LiveTerminalWindowPage> {
                     child: TerminalView(
                     client.terminal,
                     foregroundDecorator: TerminalKeywordHighlighter.instance,
+                    onLinkTap: showTerminalLink,
                     onBeforePaste: (ctx, text) => confirmTerminalPaste(
                       ctx,
                       text,

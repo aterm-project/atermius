@@ -17247,6 +17247,12 @@
   "@loginInfoCopiedWithoutSecret": {
     "description": "App-owned UI text."
   },
+  "terminalLinkTitle": "Open terminal link?",
+  "@terminalLinkTitle": {
+    "description": "Title of the confirmation dialog shown when clicking a URL in terminal output."
+  },
+  "terminalLinkOpenInBrowser": "Open in browser",
+  "terminalLinkOpenFailed": "Couldn't open the link.",
   "loginInfoCopyFailed": "Couldn't copy the login info.",
   "@loginInfoCopyFailed": {
     "description": "App-owned UI text."

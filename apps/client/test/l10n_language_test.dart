@@ -57,7 +57,30 @@ Map<String, dynamic> _arb(String locale) =>
     jsonDecode(File('lib/l10n/app_$locale.arb').readAsStringSync())
         as Map<String, dynamic>;
 
-final _placeholder = RegExp(r'\{([A-Za-z_][A-Za-z0-9_]*)[,}]');
+final _brace = RegExp(r'[{}]');
+final _argument = RegExp(r'\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?=[,}])');
+final _selector = RegExp(r',\s*(?:plural|select|selectordinal)\s*,');
+
+Set<String> _placeholders(String message) {
+  final placeholders = <String>{};
+  final selectorScopes = <bool>[];
+  for (final brace in _brace.allMatches(message)) {
+    if (brace[0] == '}') {
+      if (selectorScopes.isNotEmpty) selectorScopes.removeLast();
+      continue;
+    }
+    // Braces directly inside a selector introduce branch text. A nested
+    // argument inside that text still starts its own scope.
+    final argument = selectorScopes.lastOrNull == true
+        ? null
+        : _argument.matchAsPrefix(message, brace.end);
+    if (argument != null) placeholders.add(argument[1]!);
+    selectorScopes.add(
+      argument != null && _selector.matchAsPrefix(message, argument.end) != null,
+    );
+  }
+  return placeholders;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -284,20 +307,26 @@ void main() {
     });
 
     test('every translation keeps the same placeholders', () {
+      final translations = {
+        for (final locale in ['zh', 'ja', 'ru']) locale: _arb(locale),
+      };
       for (final key in keys) {
-        if (key == '@@locale') continue;
-        final expected = _placeholder
-            .allMatches(en[key] as String)
-            .map((m) => m.group(1))
-            .toSet();
-        for (final locale in ['zh', 'ja', 'ru']) {
-          final got = _placeholder
-              .allMatches(_arb(locale)[key] as String)
-              .map((m) => m.group(1))
-              .toSet();
-          expect(got, expected, reason: '$locale.$key');
+        final expected = _placeholders(en[key] as String);
+        for (final entry in translations.entries) {
+          final got = _placeholders(entry.value[key] as String);
+          expect(got, expected, reason: '${entry.key}.$key');
         }
       }
+    });
+
+    test('finds nested arguments inside ICU selector branches', () {
+      expect(
+        _placeholders(
+          '{phase, select, Running{Running} '
+          'other{{count, plural, one{{item}} other{{items}}}}} {host}',
+        ),
+        {'phase', 'count', 'item', 'items', 'host'},
+      );
     });
 
     test('catalogs are real translations, not copies of English', () {

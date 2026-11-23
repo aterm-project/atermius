@@ -32638,6 +32638,24 @@ abstract class AppLocalizations {
   /// **'Copied the address and user name. No password or key is saved for this host.'**
   String get loginInfoCopiedWithoutSecret;
 
+  /// Title of the confirmation dialog shown when clicking a URL in terminal output.
+  ///
+  /// In en, this message translates to:
+  /// **'Open terminal link?'**
+  String get terminalLinkTitle;
+
+  /// No description provided for @terminalLinkOpenInBrowser.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in browser'**
+  String get terminalLinkOpenInBrowser;
+
+  /// No description provided for @terminalLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open the link.'**
+  String get terminalLinkOpenFailed;
+
   /// App-owned UI text.
   ///
   /// In en, this message translates to:

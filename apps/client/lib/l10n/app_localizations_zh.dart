@@ -18570,6 +18570,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginInfoCopiedWithoutSecret => '已复制地址和用户名。此主机没有保存密码或密钥。';
 
   @override
+  String get terminalLinkTitle => '打开终端链接？';
+
+  @override
+  String get terminalLinkOpenInBrowser => '在浏览器中打开';
+
+  @override
+  String get terminalLinkOpenFailed => '无法打开链接。';
+
+  @override
   String get loginInfoCopyFailed => '无法复制登录信息。';
 
   @override

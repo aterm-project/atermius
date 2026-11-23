@@ -74,6 +74,7 @@ import 'terminal_palette.dart';
 import 'terminal_keyword_highlight_settings.dart';
 import 'terminal_palette_picker.dart';
 import 'paste_safety_dialog.dart';
+import 'terminal_link_dialog.dart';
 import 'session_reconnect_setting.dart';
 import 'ssh_keepalive_setting.dart';
 import 'terminal_scrollback_setting.dart';
@@ -12201,6 +12202,7 @@ return DesktopView(
             builder: (context, fontScale) => TerminalView(
               tab.terminal,
               foregroundDecorator: TerminalKeywordHighlighter.instance,
+              onLinkTap: showTerminalLink,
               onBeforePaste: (ctx, text) => confirmTerminalPaste(
                 ctx,
                 text,
@@ -12319,6 +12321,7 @@ return DesktopView(
       builder: (context, fontScale) => TerminalView(
         tab.terminal,
         foregroundDecorator: TerminalKeywordHighlighter.instance,
+        onLinkTap: showTerminalLink,
         onBeforePaste: (ctx, text) => confirmTerminalPaste(
           ctx,
           text,
@@ -12435,6 +12438,7 @@ return DesktopView(
             builder: (context, fontScale) => TerminalView(
               tab.terminal,
               foregroundDecorator: TerminalKeywordHighlighter.instance,
+              onLinkTap: showTerminalLink,
               onBeforePaste: (ctx, text) => confirmTerminalPaste(
                 ctx,
                 text,
@@ -14601,6 +14605,7 @@ class _TerminalObserverDialogState extends State<_TerminalObserverDialog> {
                         builder: (context, fontScale) => TerminalView(
                           widget.observer.terminal,
                           foregroundDecorator: TerminalKeywordHighlighter.instance,
+                          onLinkTap: showTerminalLink,
                           onBeforePaste: (ctx, text) => confirmTerminalPaste(
                             ctx,
                             text,

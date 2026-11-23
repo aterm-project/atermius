@@ -1,7 +1,9 @@
 import 'dart:math' show max;
 import 'dart:ui';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart' show MouseTrackerAnnotation;
 import 'package:flutter/widgets.dart';
 import 'package:xterm/src/core/buffer/cell_offset.dart';
 import 'package:xterm/src/core/buffer/range.dart';
@@ -9,17 +11,27 @@ import 'package:xterm/src/core/buffer/range_line.dart';
 import 'package:xterm/src/core/buffer/segment.dart';
 import 'package:xterm/src/core/mouse/button.dart';
 import 'package:xterm/src/core/mouse/button_state.dart';
+import 'package:xterm/src/core/mouse/mode.dart';
 import 'package:xterm/src/terminal.dart';
 import 'package:xterm/src/ui/controller.dart';
 import 'package:xterm/src/ui/cursor_type.dart';
 import 'package:xterm/src/ui/foreground_decorator.dart';
+import 'package:xterm/src/ui/link_detector.dart';
 import 'package:xterm/src/ui/painter.dart';
+import 'package:xterm/src/ui/pointer_input.dart';
 import 'package:xterm/src/ui/selection_mode.dart';
 import 'package:xterm/src/ui/terminal_size.dart';
 import 'package:xterm/src/ui/terminal_text_style.dart';
 import 'package:xterm/src/ui/terminal_theme.dart';
 
 typedef EditableRectCallback = void Function(Rect rect, Rect caretRect);
+
+class _LinkCursor extends MouseTrackerAnnotation implements HitTestTarget {
+  const _LinkCursor() : super(cursor: SystemMouseCursors.click);
+
+  @override
+  void handleEvent(PointerEvent event, HitTestEntry entry) {}
+}
 
 class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   RenderTerminal({
@@ -37,6 +49,8 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     EditableRectCallback? onEditableRect,
     String? composingText,
     TerminalForegroundDecorator? foregroundDecorator,
+    this.linksEnabled = false,
+    this.readOnly = false,
   })  : _terminal = terminal,
         _controller = controller,
         _offset = offset,
@@ -164,6 +178,9 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
   TerminalSize? _viewportSize;
 
+  bool linksEnabled;
+  bool readOnly;
+
   final TerminalPainter _painter;
 
   @visibleForTesting
@@ -224,6 +241,15 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   }
 
   @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    final hit = super.hitTest(result, position: position);
+    if (hit && getLinkAt(position) != null) {
+      result.add(HitTestEntry(const _LinkCursor()));
+    }
+    return hit;
+  }
+
+  @override
   void systemFontsDidChange() {
     _painter.clearFontCache();
     super.systemFontsDidChange();
@@ -278,6 +304,23 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       col.clamp(0, _terminal.viewWidth - 1),
       row.clamp(0, _terminal.buffer.lines.length - 1),
     );
+  }
+
+  Uri? getLinkAt(Offset offset) {
+    if (!linksEnabled ||
+        !contentRect.contains(offset) ||
+        _terminal.buffer.lines.length == 0) {
+      return null;
+    }
+    final cell = getCellOffset(offset);
+    if (!cellRect(cell).contains(offset)) return null;
+    if (!readOnly &&
+        _terminal.mouseMode != MouseMode.none &&
+        _controller.shouldSendPointerInput(PointerInput.tap) &&
+        screenCellOffset(cell) != null) {
+      return null;
+    }
+    return terminalLinkAt(_terminal.buffer, cell);
   }
 
   /// Selects entire words in the terminal that contains [from] and [to].

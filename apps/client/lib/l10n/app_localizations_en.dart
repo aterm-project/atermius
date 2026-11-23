@@ -20713,6 +20713,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Copied the address and user name. No password or key is saved for this host.';
 
   @override
+  String get terminalLinkTitle => 'Open terminal link?';
+
+  @override
+  String get terminalLinkOpenInBrowser => 'Open in browser';
+
+  @override
+  String get terminalLinkOpenFailed => 'Couldn\'t open the link.';
+
+  @override
   String get loginInfoCopyFailed => 'Couldn\'t copy the login info.';
 
   @override
