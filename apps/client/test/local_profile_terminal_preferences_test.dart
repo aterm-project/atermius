@@ -468,6 +468,121 @@ void main() {
       await drainClose(tester);
     },
   );
+
+  testWidgets(
+    'local terminal output during a search leaves the scroll position alone',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await openFixtureTerminal(tester);
+      final terminalView = find.byKey(const ValueKey('local_ssh_terminal_view'));
+      final terminal = tester.widget<TerminalView>(terminalView).terminal;
+      // Enough scrollback for the hits, the place the user scrolls to and the
+      // live bottom of the terminal to be three different positions.
+      terminal.write([
+        for (var line = 0; line < 400; line++)
+          'line $line${line == 20 || line == 300 ? ' needle' : ''}\r\n',
+      ].join());
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('workspace_terminal_sidebar_button')),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('terminal-sidebar-query')),
+        'needle',
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(currentL10n.terminalSearchMatchCount(2, 1)),
+        findsOneWidget,
+      );
+      final position = tester
+          .widget<TerminalView>(terminalView)
+          .scrollController!
+          .position;
+      // A new query shows its first hit.
+      final firstHit = position.pixels;
+      expect(firstHit, lessThan(position.maxScrollExtent / 4));
+
+      Future<void> printOutput(String text) async {
+        terminal.write(text);
+        // Past the 120 ms refresh debounce, then the frame that would scroll.
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
+      }
+
+      // The user scrolls away from the selected hit with the mouse wheel,
+      // over the part of the terminal the tools sidebar does not cover.
+      final wheel = TestPointer(1, PointerDeviceKind.mouse);
+      final view = tester.getRect(terminalView);
+      final sidebar = tester.getRect(find.byType(TerminalToolsSidebar));
+      await tester.sendEventToBinding(
+        wheel.hover(
+          Offset(
+            (view.left + sidebar.left.clamp(view.left, view.right)) / 2,
+            view.center.dy,
+          ),
+        ),
+      );
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, 900)));
+      await tester.pumpAndSettle();
+      final scrolledAway = position.pixels;
+      expect(scrolledAway, greaterThan(firstHit + 500));
+      expect(scrolledAway, lessThan(position.maxScrollExtent - 500));
+
+      // Output arriving while the search is open refreshes the hits and must
+      // not pull the view back to the selected one, however often.
+      for (var burst = 0; burst < 3; burst++) {
+        await printOutput('tail $burst\r\n');
+        expect(position.pixels, scrolledAway);
+      }
+      await printOutput('tail with another needle\r\n');
+      expect(
+        find.text(currentL10n.terminalSearchMatchCount(3, 1)),
+        findsOneWidget,
+      );
+      expect(position.pixels, scrolledAway);
+
+      // Stepping through the hits is the user asking to be taken there.
+      await tester.tap(find.byTooltip('Next match'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(currentL10n.terminalSearchMatchCount(3, 2)),
+        findsOneWidget,
+      );
+      final secondHit = position.pixels;
+      expect(secondHit, greaterThan(scrolledAway + 500));
+
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, -700)));
+      await tester.pumpAndSettle();
+      final scrolledBack = position.pixels;
+      expect(scrolledBack, lessThan(secondHit - 500));
+      await printOutput('more tail\r\n');
+      expect(
+        find.text(currentL10n.terminalSearchMatchCount(3, 2)),
+        findsOneWidget,
+      );
+      expect(position.pixels, scrolledBack);
+
+      // Editing the query is a new search and shows its first hit again.
+      await tester.enterText(
+        find.byKey(const ValueKey('terminal-sidebar-query')),
+        'line 20 needle',
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(currentL10n.terminalSearchMatchCount(1, 1)),
+        findsOneWidget,
+      );
+      expect(position.pixels, firstHit);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await drainClose(tester);
+    },
+  );
   testWidgets(
     'Android two-pane local split shares one keybar above the keyboard that drives only the focused pane',
     (tester) async {

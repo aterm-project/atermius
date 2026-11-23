@@ -8493,6 +8493,14 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
   bool _searchTruncated = false;
   bool _searchQueryTooLong = false;
 
+  /// True while a refresh is owed to something the user did (a new query,
+  /// stepping with no results yet, returning to this tab). Only that refresh
+  /// scrolls to the selected hit: refreshes caused by new terminal output keep
+  /// the hits current but leave the scroll position alone, otherwise a
+  /// terminal that keeps printing would pull the view back to the selected
+  /// hit every time the user scrolls away from it.
+  bool _revealSearchAfterRefresh = false;
+
   @override
   void initState() {
     super.initState();
@@ -8513,7 +8521,7 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
       if (!mounted) return;
       widget.onToolsChanged();
       if (widget.active && _searchOpen && _searchQuery.text.isNotEmpty) {
-        _refreshMatches();
+        _searchAndReveal();
       }
       if (widget.active && !_searchOpen && _restoreFocusWithoutKeyboard) {
         _focusActiveTerminal();
@@ -8532,13 +8540,14 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
         _clearSearchHighlights();
         _searchMatches = const [];
         _selectedSearchMatch = -1;
+        _revealSearchAfterRefresh = false;
       }
     }
     if (widget.active && !oldWidget.active) {
       widget.session._sshViewShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !widget.active) return;
-        if (_searchOpen) _refreshMatches();
+        if (_searchOpen) _searchAndReveal();
 
         _focusActiveTerminal();
       });
@@ -8584,12 +8593,21 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
       _searchTruncated = false;
       _searchQueryTooLong = false;
     });
+    _revealSearchAfterRefresh = query.isNotEmpty;
     if (query.isEmpty) return;
     _searchTimer = Timer(const Duration(milliseconds: 160), _refreshMatches);
   }
 
+  /// Searches now on the user's behalf and scrolls to the selected hit.
+  void _searchAndReveal() {
+    _revealSearchAfterRefresh = true;
+    _refreshMatches();
+  }
+
   void _refreshMatches() {
     _searchTimer = null;
+    final reveal = _revealSearchAfterRefresh;
+    _revealSearchAfterRefresh = false;
     final result = searchTerminalBuffer(_terminal, _searchQuery.text);
     if (!mounted) return;
     _updateTools(() {
@@ -8600,7 +8618,7 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
       _searchQueryTooLong = result.queryTooLong;
     });
     _paintSearchMatches();
-    if (_searchMatches.isNotEmpty) _revealSelectedMatch();
+    if (reveal && _searchMatches.isNotEmpty) _revealSelectedMatch();
   }
 
   void _openSearch() {
@@ -8622,6 +8640,7 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
     _searchTimer = null;
     widget.tools.close();
     _clearSearchHighlights();
+    _revealSearchAfterRefresh = false;
     _updateTools(() {
       _searchMatches = const [];
       _selectedSearchMatch = -1;
@@ -8638,7 +8657,7 @@ class _LocalSshTerminalDialogState extends State<_LocalSshTerminalDialog> {
     }
     if (_searchQuery.text.isEmpty) return;
     if (_searchMatches.isEmpty) {
-      if (!_searching) _refreshMatches();
+      if (!_searching) _searchAndReveal();
       return;
     }
     _updateTools(() {

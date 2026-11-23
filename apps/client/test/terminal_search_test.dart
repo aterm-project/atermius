@@ -15,6 +15,7 @@ import 'package:aterm_client/ui/app_theme.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart'
     show debugDefaultTargetPlatformOverride;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -637,6 +638,176 @@ void main() {
       await database.close();
     }
   });
+
+  testWidgets(
+    'terminal output during a search leaves the scroll position to the user',
+    (tester) async {
+      final language = AppLanguageController(
+        systemLocales: () => [const Locale('en')],
+      );
+      addTearDown(() {
+        language.dispose();
+        debugCurrentL10n = appLocalizationsFor(fallbackAppLocale);
+      });
+      final sodium = await SodiumSumoInit.init();
+      final database = ClientDatabase.forTesting(NativeDatabase.memory());
+      final connection = _RecordingConnection();
+      final identity = DeviceIdentity.create(sodium);
+      final app =
+          AppController(
+              sodium: sodium,
+              database: database,
+              secureStore: ClientSecureStore(),
+              sshConnectorForTesting: ({
+                required host,
+                required credential,
+                required verifyHostKey,
+              }) async => connection,
+            )
+            ..session = AuthSession(
+              accountId: 'account-test',
+              accessToken: 'access-test',
+              expiresIn: 3600,
+              refreshToken: 'refresh-test',
+              deviceId: identity.deviceId,
+              vaults: const [],
+            )
+            ..identity = identity
+            ..stage = ClientStage.workspace
+            ..page = WorkspacePage.terminal
+            ..activeVault = const VaultDescriptor(
+              id: '11111111-1111-4111-8111-111111111111',
+              role: 'owner',
+              activeKeyEpoch: '1',
+              membershipVersion: '1',
+            )
+            ..credentials.add(
+              const CredentialRecord(
+                id: 'credential-search',
+                name: 'Search credential',
+                username: 'tester',
+                secret: 'test-only-secret',
+              ),
+            );
+      const host = HostRecord(
+        id: 'host-search',
+        name: 'Search host',
+        address: 'search.example.test',
+        username: 'tester',
+        credentialId: 'credential-search',
+      );
+      var shellMounted = false;
+      final previousTargetPlatform = debugDefaultTargetPlatformOverride;
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      try {
+        await app.openTerminalTab(host);
+        // Enough scrollback for the hits, the place the user scrolls to and
+        // the live bottom of the terminal to be three different positions.
+        connection.emit([
+          for (var line = 0; line < 400; line++)
+            'line $line${line == 20 || line == 300 ? ' needle' : ''}\r\n',
+        ].join());
+        await tester.pumpWidget(
+          AppLanguageHost(
+            controller: language,
+            builder: (_, locale) => MaterialApp(
+              locale: locale,
+              localizationsDelegates: AppLocalizationSetup.delegates,
+              supportedLocales: AppLocalizationSetup.locales,
+              theme: buildAppTheme(locale: locale),
+              home: AnimatedBuilder(
+                animation: app,
+                builder: (context, _) => AppShell(controller: app),
+              ),
+            ),
+          ),
+        );
+        shellMounted = true;
+        await tester.pump();
+
+        await openTerminalAction(tester, 'terminal-search');
+        await tester.pumpAndSettle();
+        await tester.enterText(_terminalSearchField(), 'needle');
+        await tester.pump(const Duration(milliseconds: 200));
+        await tester.pumpAndSettle();
+        expect(find.text('1 of 2 matches'), findsOneWidget);
+
+        final position = tester
+            .widget<TerminalView>(find.byType(TerminalView))
+            .scrollController!
+            .position;
+        // A new query shows its first hit.
+        final firstHit = position.pixels;
+        expect(firstHit, lessThan(position.maxScrollExtent / 4));
+
+        Future<void> printOutput(String text) async {
+          connection.emit(text);
+          // Past the 120 ms refresh debounce, then the frame that would scroll.
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.pumpAndSettle();
+        }
+
+        // The user scrolls away from the selected hit with the mouse wheel,
+        // over the part of the terminal the tools sidebar does not cover.
+        final wheel = TestPointer(1, PointerDeviceKind.mouse);
+        final view = tester.getRect(find.byType(TerminalView));
+        final sidebar = tester.getRect(
+          find.byKey(const ValueKey('terminal-tools-sidebar')),
+        );
+        final overTerminal = Offset(
+          (view.left + sidebar.left.clamp(view.left, view.right)) / 2,
+          view.center.dy,
+        );
+        await tester.sendEventToBinding(wheel.hover(overTerminal));
+        await tester.sendEventToBinding(wheel.scroll(const Offset(0, 900)));
+        await tester.pumpAndSettle();
+        final scrolledAway = position.pixels;
+        expect(scrolledAway, greaterThan(firstHit + 500));
+        expect(scrolledAway, lessThan(position.maxScrollExtent - 500));
+
+        // Output arriving while the search is open refreshes the hits and
+        // must not pull the view back to the selected one, however often.
+        for (var burst = 0; burst < 3; burst++) {
+          await printOutput('tail $burst\r\n');
+          expect(position.pixels, scrolledAway);
+        }
+        await printOutput('tail with another needle\r\n');
+        expect(find.text('1 of 3 matches'), findsOneWidget);
+        expect(position.pixels, scrolledAway);
+
+        // Stepping through the hits is the user asking to be taken there.
+        await tester.tap(find.byTooltip('Next match'));
+        await tester.pumpAndSettle();
+        expect(find.text('2 of 3 matches'), findsOneWidget);
+        final secondHit = position.pixels;
+        expect(secondHit, greaterThan(scrolledAway + 500));
+
+        await tester.sendEventToBinding(wheel.scroll(const Offset(0, -700)));
+        await tester.pumpAndSettle();
+        final scrolledBack = position.pixels;
+        expect(scrolledBack, lessThan(secondHit - 500));
+        await printOutput('more tail\r\n');
+        expect(find.text('2 of 3 matches'), findsOneWidget);
+        expect(position.pixels, scrolledBack);
+
+        // Editing the query is a new search and shows its first hit again.
+        await tester.enterText(_terminalSearchField(), 'line 20 needle');
+        await tester.pump(const Duration(milliseconds: 200));
+        await tester.pumpAndSettle();
+        expect(find.text('1 of 1 match'), findsOneWidget);
+        expect(position.pixels, firstHit);
+        expect(connection.inputs, isEmpty);
+      } finally {
+        if (shellMounted) await tester.pumpWidget(const SizedBox.shrink());
+        debugDefaultTargetPlatformOverride = previousTargetPlatform;
+        app.dispose();
+        await database.close();
+      }
+    },
+  );
 }
 
 Finder _terminalSearchField() => find.byWidgetPredicate(

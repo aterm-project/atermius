@@ -13878,6 +13878,13 @@ class _TerminalSearchSession {
   TerminalHighlight? _selectedHighlight;
   Timer? _refreshTimer;
 
+  /// True while a refresh is owed to the user's own query. Only that refresh
+  /// scrolls to the selected hit: refreshes caused by new terminal output keep
+  /// the hits current but leave the scroll position alone, otherwise a
+  /// terminal that keeps printing would pull the view back to the selected
+  /// hit every time the user scrolls away from it.
+  bool _revealAfterRefresh = false;
+
   String get matchCountLabel => terminalSearchCountLabel(
     matchCount: matches.length,
     selectedIndex: selectedIndex,
@@ -13890,6 +13897,7 @@ class _TerminalSearchSession {
     _query = value;
     _refreshTimer?.cancel();
     _queryTooLong = false;
+    _revealAfterRefresh = value.isNotEmpty;
     if (value.isEmpty) {
       _isSearching = false;
       _resultsTruncated = false;
@@ -13915,6 +13923,8 @@ class _TerminalSearchSession {
 
   void _refreshMatches() {
     _refreshTimer = null;
+    final reveal = _revealAfterRefresh;
+    _revealAfterRefresh = false;
     final result = searchTerminalBuffer(terminal, _query);
     matches = result.matches;
     _resultsTruncated = result.truncated;
@@ -13923,7 +13933,7 @@ class _TerminalSearchSession {
     selectedIndex = refreshedSearchIndex(matches, _selectedHighlight?.p1);
     _paintMatches();
     onChanged();
-    if (matches.isNotEmpty) _revealSelectedMatch();
+    if (reveal && matches.isNotEmpty) _revealSelectedMatch();
   }
 
   void nextMatch() {
@@ -14016,6 +14026,7 @@ class _TerminalSearchSession {
     _resultsTruncated = false;
     _isSearching = false;
     _queryTooLong = false;
+    _revealAfterRefresh = false;
     _clearHighlights();
   }
 
