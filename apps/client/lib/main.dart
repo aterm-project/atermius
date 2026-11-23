@@ -1020,7 +1020,7 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
   /// is missing or the stored session (and remembered Vault key) is still
   /// restoring. Normally it stays hidden behind the browser splash, but the
   /// fallback release paths can reveal it, so it reuses the splash language:
-  /// the same thin green bar as the top preload strip in web/index.html —
+  /// the same thin bar, in the theme's accent, as the top preload strip in web/index.html —
   /// never a second, differently styled full-screen spinner.
   static const Widget _serverStartupSurface = Scaffold(
     body: Center(
@@ -1028,7 +1028,6 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
         width: 140,
         child: LinearProgressIndicator(
           minHeight: 2,
-          color: Color(0xFF34D399),
           backgroundColor: Color(0x22FFFFFF),
         ),
       ),

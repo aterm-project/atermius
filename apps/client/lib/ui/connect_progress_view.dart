@@ -244,7 +244,7 @@ class ConnectProgressPane extends StatelessWidget {
     final info = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Same thin green bar language as the entry splash's top preload
+        // Same thin bar language as the entry splash's top preload
         // strip: a restored terminal stays a small inline indicator instead
         // of introducing a second, differently styled spinner.
         if (loading)
@@ -252,7 +252,6 @@ class ConnectProgressPane extends StatelessWidget {
             width: 140,
             child: LinearProgressIndicator(
               minHeight: 2,
-              color: const Color(0xFF34D399),
               backgroundColor: palette.muted.withValues(alpha: .2),
               semanticsLabel: l10n.connectProgressStageConnecting,
             ),
