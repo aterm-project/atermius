@@ -150,24 +150,38 @@ class TerminalPainter {
   /// [spans] (with the [styles] they index) recolor runs of plain cells; see
   /// [TerminalForegroundDecorator]. A run that touches a cell the program
   /// styled itself is skipped as a whole.
+  ///
+  /// [start] and [end] (exclusive) limit the cells painted, and
+  /// [foregroundOnly] leaves their backgrounds out: together they draw the
+  /// characters of a stretch of the line again, in the colors they had, on
+  /// top of something painted over it (a highlight).
   void paintLine(
     Canvas canvas,
     Offset offset,
     BufferLine line, {
     List<TerminalForegroundSpan>? spans,
     List<TerminalForegroundStyle>? styles,
+    int start = 0,
+    int? end,
+    bool foregroundOnly = false,
   }) {
     final cellData = CellData.empty();
     final cellWidth = _cellSize.width;
+    final first = start < 0 ? 0 : start;
+    final last = end == null || end > line.length ? line.length : end;
 
     if (spans == null || styles == null || spans.isEmpty) {
-      for (var i = 0; i < line.length; i++) {
+      for (var i = first; i < last; i++) {
         line.getCellData(i, cellData);
 
         final charWidth = cellData.content >> CellContent.widthShift;
         final cellOffset = offset.translate(i * cellWidth, 0);
 
-        paintCell(canvas, cellOffset, cellData);
+        if (foregroundOnly) {
+          paintCellForeground(canvas, cellOffset, cellData);
+        } else {
+          paintCell(canvas, cellOffset, cellData);
+        }
 
         if (charWidth == 2) {
           i++;
@@ -182,7 +196,7 @@ class TerminalPainter {
     TerminalForegroundStyle? style;
     var checked = -1;
 
-    for (var i = 0; i < line.length; i++) {
+    for (var i = first; i < last; i++) {
       line.getCellData(i, cellData);
 
       while (spanIndex < spans.length && spans[spanIndex].end <= i) {
@@ -206,7 +220,11 @@ class TerminalPainter {
       final charWidth = cellData.content >> CellContent.widthShift;
       final cellOffset = offset.translate(i * cellWidth, 0);
 
-      paintCell(canvas, cellOffset, cellData);
+      if (foregroundOnly) {
+        paintCellForeground(canvas, cellOffset, cellData);
+      } else {
+        paintCell(canvas, cellOffset, cellData);
+      }
 
       if (charWidth == 2) {
         i++;

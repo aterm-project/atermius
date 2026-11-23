@@ -534,9 +534,12 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
     _paintHighlights(
       canvas,
+      offset,
       _controller.highlights,
       effectFirstLine,
       effectLastLine,
+      decorator: styles == null ? null : decorator,
+      styles: styles,
     );
 
     if (_controller.selection != null) {
@@ -604,13 +607,22 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     }
   }
 
+  /// Paints each highlight as a block of its color with the text it covers
+  /// drawn on top again, in the colors that text had (the [decorator]'s
+  /// included). The block alone would hide what it marks: a search hit has to
+  /// stay readable whatever color it is given.
   void _paintHighlights(
     Canvas canvas,
+    Offset offset,
     List<TerminalHighlight> highlights,
     int firstLine,
-    int lastLine,
-  ) {
-    for (var highlight in _controller.highlights) {
+    int lastLine, {
+    TerminalForegroundDecorator? decorator,
+    List<TerminalForegroundStyle>? styles,
+  }) {
+    final lines = _terminal.buffer.lines;
+    final charHeight = _painter.cellSize.height;
+    for (var highlight in highlights) {
       final range = highlight.range?.normalized;
 
       if (range == null ||
@@ -629,6 +641,21 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         }
 
         _paintSegment(canvas, segment, highlight.color);
+        final line = lines[segment.line];
+        _painter.paintLine(
+          canvas,
+          // Exactly where [_paint] put this line.
+          offset.translate(
+            0,
+            (segment.line * charHeight + _lineOffset).truncateToDouble(),
+          ),
+          line,
+          spans: decorator?.spansFor(line),
+          styles: styles,
+          start: segment.start ?? 0,
+          end: segment.end,
+          foregroundOnly: true,
+        );
       }
     }
   }

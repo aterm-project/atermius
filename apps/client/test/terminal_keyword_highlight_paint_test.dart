@@ -317,19 +317,33 @@ void main() {
     expect(view.terminal.buffer.getText(view.controller.selection), 'error');
     view.controller.clearSelection();
 
-    // A search hit drawn through the controller's highlight API.
-    const hit = Color(0x80FFE08A);
-    final highlight = view.controller.highlight(
-      p1: view.anchor(6, 0),
-      p2: view.anchor(12, 0),
-      color: hit,
-    );
-    shot = await view.shot(tester);
-    for (final color in shot.row(0, 6, 12)) {
-      expect(color, near(Color.alphaBlend(hit, red)));
+    // A search hit drawn through the controller's highlight API: a block of
+    // the hit color with the text it marks drawn on top, still in the color
+    // of its rule. Columns 6-11 are "failed", column 12 the space after it.
+    for (final hit in const [
+      // What the search uses: an opaque background. Painted alone it would
+      // turn the hit into a solid block and hide the very text it found.
+      Color(0xFF8A6620),
+      Color(0x80FFE08A),
+    ]) {
+      final highlight = view.controller.highlight(
+        p1: view.anchor(6, 0),
+        p2: view.anchor(13, 0),
+        color: hit,
+      );
+      shot = await view.shot(tester);
+      expect(shot.row(0, 6, 12), everyElement(red), reason: '$hit');
+      expect(
+        shot.at(12, 0),
+        near(Color.alphaBlend(hit, _dark.background)),
+        reason: '$hit',
+      );
+      // Nothing outside the hit changes.
+      expect(shot.row(0, 0, 5), everyElement(red));
+      expect(shot.row(0, 13, 18), everyElement(red));
+      expect(shot.at(5, 0), _dark.background);
+      highlight.dispose();
     }
-    expect(shot.row(0, 0, 5), everyElement(red));
-    highlight.dispose();
 
     // The block cursor covers its cell; its neighbours stay highlighted.
     view.terminal.write('\x1b[1;15H');

@@ -115,3 +115,10 @@ changes here. The application selects this package through the path override in
   dev dependencies (mockito, build_runner, dart_code_metrics, lints) were removed
   so that `flutter pub get` and `flutter test` work in this directory. Covered by
   `test/scrollback/` here and `apps/client/test/terminal_long_scrollback_test.dart`.
+- Highlights keep their text readable: `RenderTerminal` paints each
+  `TerminalController.highlight` block and then draws the characters it covers
+  again on top (`TerminalPainter.paintLine` with `start`/`end`/`foregroundOnly`),
+  in their own colors including a foreground decorator's. Upstream paints only
+  the block, which hides the text under an opaque color; the search hit colors
+  of the terminal themes are opaque backgrounds. Covered by
+  `apps/client/test/terminal_keyword_highlight_paint_test.dart`.
