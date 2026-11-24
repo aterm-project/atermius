@@ -83,6 +83,9 @@ const _unsupportedTypes = {
   14: 'WSL',
 };
 
+/// Unsupported types whose field 1 is a remote host name.
+const _networkTypes = {2, 3, 6, 11, 12, 13};
+
 class _Gateway {
   _Gateway({
     required this.host,
@@ -381,7 +384,8 @@ class MobaXtermImporter {
           blocking: true,
           detail: _unsupportedTypes[type] ?? '$type',
         );
-        final host = field(1).trim();
+        // Serial, Shell, File and WSL keep a device or shell name here.
+        final host = _networkTypes.contains(type) ? field(1).trim() : '';
         return _Session(
           row: build(address: _isValidAddress(host) ? host : ''),
           gateways: const [],

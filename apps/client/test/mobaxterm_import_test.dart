@@ -324,6 +324,41 @@ void main() {
       );
     });
 
+    // Shapes seen in real exports and in MobaXterm's ServersListToMxtSessions.
+    test('real-world quirks', () {
+      final document = MobaXtermImporter.parse(
+        _file([
+          '[Bookmarks]',
+          'SubRep=Imported',
+          'ImgNum=41',
+          'h1 (SSH)= #109#0%h1.example%22%%%-1%-1%%%22%%0%-1',
+          'h1 (Telnet)= #98#1%h1.example%23%%%0%%22%%%0',
+          'h1 (RDP)= #91#4%h1.example%3389%%0%-1%-1%-1%-1%0%0%-1%%%22%%-1%0%%-1%%-1%-1%0',
+          'GNS3 R1 = #98#1%172.16.253.1%5004%%%2%%%%%0%0%%1080%%#$_terminal#0# #-1',
+          'Switch=#98#1%192.168.1.1%23%admin%%2%%%%%0%0%%1080%%#$_terminal#0# #-1',
+          'Default user= #109#0%d.example%22%<default>%%0%-1%%%%%0%0%0%%%-1%0%0%0%%1080%%0%0%1#$_terminal#0# #-1',
+          'WSL-Ubuntu=#105#14%Ubuntu%',
+          'Shell=#97#10%0__PIPE__Bash%%',
+        ]),
+      );
+      expect(document.rows, hasLength(8));
+      final ssh = _row(document, 'h1 (SSH)');
+      expect(ssh.groupPath, ['Imported']);
+      expect(_codes(ssh), {TermiusIssueCode.missingUsername});
+      expect(_row(document, 'h1 (Telnet)').protocol, HostProtocol.telnet);
+      expect(_row(document, 'h1 (RDP)').blocked, isFalse);
+      final gns3 = _row(document, 'GNS3 R1');
+      expect(gns3.port, 5004);
+      expect(gns3.blocked, isFalse);
+      // Atermius Telnet hosts never store a username.
+      expect(_row(document, 'Switch').username, isEmpty);
+      expect(_row(document, 'Default user').username, isEmpty);
+      final wsl = _row(document, 'WSL-Ubuntu');
+      expect(wsl.issues.single.detail, 'WSL');
+      expect(wsl.address, isEmpty);
+      expect(_row(document, 'Shell').address, isEmpty);
+    });
+
     test('bad hosts, ports and usernames block only their row', () {
       final document = MobaXtermImporter.parse(
         _file([
