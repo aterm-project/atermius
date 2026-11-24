@@ -650,8 +650,6 @@ async function main() {
     ATERMIUS_PUBLIC_ORIGIN: baseUrl,
     ATERMIUS_REGISTRATION_OPEN: 'false',
     ATERMIUS_RELAY_ENABLED: 'true',
-    ATERMIUS_RELAY_ALLOW_CIDRS: sshAddress + '/32',
-    ATERMIUS_RELAY_ALLOW_PORTS: String(sshPort),
     ATERMIUS_TERMINAL_COLLABORATION_ENABLED: 'false',
     RUST_LOG: 'off',
   };

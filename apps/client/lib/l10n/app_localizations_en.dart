@@ -473,13 +473,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountRecoveryIsBusy => 'Account recovery is busy.';
 
   @override
-  String get accountRelayPolicyResetToInherit =>
-      'Account relay policy reset to inherit.';
-
-  @override
-  String get accountRelayPolicySaved => 'Account relay policy saved.';
-
-  @override
   String accountStatusUpdatedToStatusRevokedsessions(
     String status,
     int revokedSessions,
@@ -566,21 +559,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enterTheAccountName => 'Enter the account name.';
 
   @override
-  String get groupRelayPolicyResetToInherit =>
-      'Group Relay policy reset to inherit.';
-
-  @override
-  String get groupRelayPolicySaved => 'Group Relay policy saved.';
-
-  @override
   String get groupDefault => 'Group default';
 
   @override
   String get groupDefaultIsUnavailableChooseA =>
       'Group default is unavailable. Choose a Host override or repair the Group default.';
-
-  @override
-  String get groupMembershipSaved => 'Group membership saved.';
 
   @override
   String get hostChangedRepeatedlyWhileSavingReopen =>
@@ -699,18 +682,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get loadAConsistentAccountAndInstance =>
-      'Load a consistent account and instance policy before resetting.';
-
-  @override
-  String get loadAConsistentAccountAndInstance2 =>
-      'Load a consistent account and instance policy before saving.';
-
-  @override
-  String get loadTheLatestSshRelayPolicy =>
-      'Load the latest SSH relay policy before saving.';
-
-  @override
   String get theMfaSignInResponseDoesnt =>
       'The MFA sign-in response doesn\'t match the current account or device.';
 
@@ -803,26 +774,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Referenced Credential changed after preview. Review the command and try again.';
 
   @override
-  String get reloadTheLatestAccountAndInstance =>
-      'Reload the latest account and instance policies before resetting.';
-
-  @override
-  String get reloadTheLatestAccountAndInstance2 =>
-      'Reload the latest account and instance policies before saving.';
-
-  @override
-  String get reloadTheLatestGroupAndInstance =>
-      'Reload the latest group and instance policies before resetting.';
-
-  @override
-  String get reloadTheLatestGroupAndInstance2 =>
-      'Reload the latest group and instance policies before saving.';
-
-  @override
-  String get reloadTheLatestPolicyAfterThe =>
-      'Reload the latest policy after the revision conflict before retrying.';
-
-  @override
   String get restoreIsEncryptedAndQueuedOn =>
       'Restore is encrypted and queued on this device; sync status will retry.';
 
@@ -884,9 +835,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String sshHostKeyVerificationEvidenceIs(String hostName) {
     return 'SSH host-key verification evidence is missing for $hostName. Reconnect before running a batch.';
   }
-
-  @override
-  String get sshRelayPolicySaved => 'SSH relay policy saved.';
 
   @override
   String get sshHostKeyTrustWasConfirmed =>
@@ -957,10 +905,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get selectAVaultBeforeResolvingThis2 =>
       'Select a Vault before resolving this Host.';
-
-  @override
-  String get selectAnActiveMemberOfThis =>
-      'Select an active member of this server-managed group.';
 
   @override
   String get selectedSessionRevoked => 'Selected session revoked.';
@@ -1041,10 +985,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The SSH exec request failed after dispatch.';
 
   @override
-  String get theAccountNowInheritsTheInstance =>
-      'The account now inherits the instance relay policy.';
-
-  @override
   String get theEffectiveSshCredentialIsUnavailable =>
       'The effective SSH credential is unavailable. Choose a valid Host override or repair the Group default.';
 
@@ -1059,30 +999,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get theExistingRecoveryDescriptorDoesNot =>
       'The existing Recovery descriptor does not match its wrapped identity.';
-
-  @override
-  String get theGroupNowInheritsTheInstance =>
-      'The group now inherits the instance Relay policy.';
-
-  @override
-  String get theInstanceRelayPolicyChangedWhile =>
-      'The instance Relay policy changed while this group was loading. Reload to get a consistent snapshot.';
-
-  @override
-  String get theInstanceRelayPolicyChangedReload =>
-      'The instance Relay policy changed. Reload this group before reviewing effective access.';
-
-  @override
-  String get theInstancePolicyChangedWhileResetting =>
-      'The instance policy changed while resetting. Reload the latest policies; your draft is preserved.';
-
-  @override
-  String get theInstancePolicyChangedWhileSaving =>
-      'The instance policy changed while saving. Reload the latest policies; your draft is preserved.';
-
-  @override
-  String get theInstanceRelayPolicyChangedWhile2 =>
-      'The instance relay policy changed while this account policy was loading. Reload to get a consistent snapshot.';
 
   @override
   String get theMergedHostRecordIsInvalid =>
@@ -1113,10 +1029,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The recovery response did not match this account.';
 
   @override
-  String get theRelayPolicyChangedElsewhereReload =>
-      'The relay policy changed elsewhere. Reload the latest settings before retrying.';
-
-  @override
   String theReviewedSshSessionForHostname(String hostName) {
     return 'The reviewed SSH session for $hostName changed before dispatch.';
   }
@@ -1124,10 +1036,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get theServerCouldNotVerifyAccess =>
       'The server could not verify access to the configured S3 backup bucket.';
-
-  @override
-  String get theServerDeploymentDoesNotCurrently =>
-      'The server deployment does not currently allow this relay setting. Your edits are still here; review the deployment limits and retry.';
 
   @override
   String get theServerOrAuthenticationStateChanged =>
@@ -1160,14 +1068,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get tooManySshHostKeyChecks =>
       'Too many SSH host-key checks were requested for this route.';
-
-  @override
-  String get unableToLoadTheSshRelay =>
-      'Unable to load the SSH relay policy. Check your connection and retry.';
-
-  @override
-  String get unableToSaveTheSshRelay =>
-      'Unable to save the SSH relay policy. Check your connection and retry.';
 
   @override
   String get vaultChangedWhileSshHostKey =>
@@ -1990,10 +1890,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The record retained by an existing repair tombstone is inconsistent and needs a manual check.';
 
   @override
-  String get aServerAccessGroupWithThe =>
-      'A server access group with the same name already exists (ignoring case and Unicode compatibility characters).';
-
-  @override
   String get thePreviouslySubmittedMasterPasswordChange =>
       'The previously submitted master password change was confirmed; other sign-in sessions were revoked.';
 
@@ -2293,10 +2189,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The selected archive source is invalid. Refresh the source list and try again.';
 
   @override
-  String get theSelectedServerAccessGroupNo =>
-      'The selected server access group no longer exists. Refresh the list.';
-
-  @override
   String get theApprovalFileDoesntMatchThe =>
       'The approval file doesn\'t match the device request generated by this browser.';
 
@@ -2497,10 +2389,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get theServerHasntConfiguredIsolatedRestore =>
       'The server hasn\'t configured isolated restore storage. Contact the instance operator.';
-
-  @override
-  String get theServerAccessGroupWasUpdated =>
-      'The server access group was updated by another administrator. Reload the latest data; your current draft is kept.';
 
   @override
   String get theServersInitialVaultMembershipRecord =>
@@ -4991,7 +4879,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unableToConnectCheckTheDesktop =>
-      'Unable to connect. Check the desktop gateway, Relay policy, credentials and certificate trust.';
+      'Unable to connect. Check the desktop gateway, credentials and certificate trust.';
 
   @override
   String get theHostSettingsChangedReconnect =>
@@ -6052,12 +5940,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t establish the SSH relay WebSocket. Check the instance HTTPS/WSS address, relay origin settings and network, then try again.';
 
   @override
-  String get theServerRelayPolicyRejectedThis =>
-      'The server relay policy rejected this target address or port. Ask an administrator to check the SSH target allowlist.';
+  String get theServerRefusesToConnectToThis =>
+      'The server refuses to connect to this address. Loopback, link-local and cloud metadata addresses can\'t be reached through the server.';
 
   @override
   String get theServerHasntEnabledTheSsh =>
-      'The server hasn\'t enabled the SSH relay. Ask an administrator to configure the relay and target networks.';
+      'The server hasn\'t enabled the SSH relay. Ask an administrator to enable it.';
 
   @override
   String get localStorageNeedsRecoveryReadingEditing2 =>
@@ -6380,17 +6268,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get n0Auto => '0 = auto';
 
   @override
-  String get n180UnicodeCharactersUniqueWithout =>
-      '1–80 Unicode characters; unique without regard to case.';
-
-  @override
   String aHostCanHaveAtMost(int maxHostPortForwardProfiles) {
     return 'A Host can have at most $maxHostPortForwardProfiles port forward profiles.';
   }
-
-  @override
-  String get aConcurrentChangeWasDetectedYour =>
-      'A concurrent change was detected. Your name, membership and policy drafts are preserved.';
 
   @override
   String get aNewEncryptedRevisionWillBe =>
@@ -6432,10 +6312,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'A split Workspace needs at least two panes';
 
   @override
-  String get aUsersEffectiveRelayAccessAlso =>
-      'A user’s effective Relay access also intersects their account policy, every other server group, and the deployment limits.';
-
-  @override
   String get active => 'ACTIVE';
 
   @override
@@ -6464,12 +6340,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountId => 'Account ID';
-
-  @override
-  String get accountRelayPolicy => 'Account Relay policy';
-
-  @override
-  String get accountRelayPolicySaveFailed => 'Account Relay policy save failed';
 
   @override
   String get accountDeletion => 'Account deletion';
@@ -6540,14 +6410,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountRecoveryWasDisabled => 'Account recovery was disabled.';
 
   @override
-  String accountRevisionRevisionUpdatedFormattime(
-    int revision,
-    String formatTime,
-  ) {
-    return 'Account revision $revision · updated $formatTime';
-  }
-
-  @override
   String get accountSessions => 'Account sessions';
 
   @override
@@ -6565,9 +6427,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String activePaneValuevalue(int valueValue) {
     return 'Active Pane $valueValue';
   }
-
-  @override
-  String get activeAccountOnCurrentPage => 'Active account on current page';
 
   @override
   String get activeDevices => 'Active devices';
@@ -6639,15 +6498,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get allowFuturePurge => 'Allow future purge';
-
-  @override
-  String get allowedCidrNetworks => 'Allowed CIDR networks';
-
-  @override
-  String get allowedCidrsOnePerLine => 'Allowed CIDRs (one per line)';
-
-  @override
-  String get allowedPorts => 'Allowed ports';
 
   @override
   String anEncryptedVaultArchiveCoveringPendingcount(int pendingCount) {
@@ -6977,14 +6827,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get color2 => 'Color';
 
   @override
-  String get commaOrLineSeparatedPortNumbers =>
-      'Comma or line separated port numbers.';
-
-  @override
-  String get commaOrNewlineSeparatedForExample =>
-      'Comma or newline separated, for example 22, 2222';
-
-  @override
   String get commandHistory => 'Command history';
 
   @override
@@ -7288,14 +7130,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get createdAt => 'Created at';
 
   @override
-  String createdFormattimeUpdatedFormattime2(
-    String formatTime,
-    String formatTime2,
-  ) {
-    return 'Created $formatTime · updated $formatTime2';
-  }
-
-  @override
   String createdFormat(String format) {
     return 'Created · $format';
   }
@@ -7420,12 +7254,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deleteGroup4 => 'Delete group?';
 
   @override
-  String get deleteServerManagedGroup => 'Delete server-managed group';
-
-  @override
-  String get deleteServerManagedGroup2 => 'Delete server-managed group?';
-
-  @override
   String get deleteThisItem => 'Delete this item?';
 
   @override
@@ -7460,15 +7288,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deliveryWindowUtc => 'Delivery window (UTC)';
-
-  @override
-  String get deploymentCidrLimits => 'Deployment CIDR limits';
-
-  @override
-  String get deploymentPortLimits => 'Deployment port limits';
-
-  @override
-  String get deploymentRelayAvailability => 'Deployment relay availability';
 
   @override
   String get destinationOnSshTarget => 'Destination on SSH target';
@@ -7545,9 +7364,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String disableUsernameServerSessionsWillBe(String username) {
     return 'Disable $username? Server sessions will be revoked and they will not be able to sign in again. Cached device data will not be erased, and existing direct SSH connections may continue until their SSH servers close them.';
   }
-
-  @override
-  String get disabledByPolicy => 'Disabled by policy';
 
   @override
   String get discardIsolatedCopy => 'Discard isolated copy';
@@ -7647,52 +7463,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editText2 => 'Edit text';
 
   @override
-  String editableCeilingValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'Editable ceiling: $valueValue · CIDRs: $summarize · ports: $summarize2';
-  }
-
-  @override
   String get editorCanEditVaultRecords => 'Editor · can edit Vault records';
-
-  @override
-  String get effectiveSshRelayService => 'Effective SSH relay service';
-
-  @override
-  String effectiveGroupStateValuevalueCidrsSummarize(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'Effective group state: $valueValue · CIDRs: $summarize · ports: $summarize2';
-  }
-
-  @override
-  String effectiveStateValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'Effective state: $valueValue · CIDRs: $summarize · ports: $summarize2';
-  }
 
   @override
   String get enableBashCommandHistory => 'Enable Bash command history';
 
   @override
   String get enableBashIntegration => 'Enable Bash integration';
-
-  @override
-  String get enableRelayForThisAccount => 'Enable Relay for this account';
-
-  @override
-  String get enableRelayForThisGroup => 'Enable Relay for this group';
-
-  @override
-  String get enableSshRelay => 'Enable SSH relay';
 
   @override
   String get enableVaultSync => 'Enable Vault sync';
@@ -7879,9 +7656,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get folderName => 'Folder name';
 
   @override
-  String get forExample104000 => 'For example: 10.40.0.0/16';
-
-  @override
   String get forwardType => 'Forward type';
 
   @override
@@ -7922,24 +7696,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get grantInputControl => 'Grant input control';
 
   @override
-  String get groupRelayPolicy => 'Group Relay policy';
-
-  @override
   String groupActionsName2(String name) {
     return 'Group actions: $name';
   }
 
   @override
   String get groupName3 => 'Group name';
-
-  @override
-  String groupRevisionRevisionMembershipRevisionMembershiprevision(
-    int revision,
-    int membershipRevision,
-    int revision2,
-  ) {
-    return 'Group revision $revision · membership revision $membershipRevision · policy revision $revision2';
-  }
 
   @override
   String groupGroupname(Object groupName) {
@@ -7950,9 +7712,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String headShortauditid(String shortAuditId) {
     return 'Head $shortAuditId';
   }
-
-  @override
-  String get hideRelayPolicy => 'Hide Relay policy';
 
   @override
   String get hidePasswordSecret => 'Hide password secret';
@@ -8048,10 +7807,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get includesTheInstanceAccountAndEvery =>
-      'Includes the instance, account and every assigned server group.';
-
-  @override
   String get inputControlOff => 'Input control: off';
 
   @override
@@ -8093,14 +7848,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instanceJobs => 'Instance jobs';
-
-  @override
-  String instanceRevisionRevisionUpdatedFormattime(
-    int revision,
-    String formatTime,
-  ) {
-    return 'Instance revision $revision · updated $formatTime';
-  }
 
   @override
   String get instanceSigningKeyFingerprintSha256 =>
@@ -8246,9 +7993,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lastSuccessfulSync => 'Last successful sync';
 
   @override
-  String get lastUpdated => 'Last updated';
-
-  @override
   String lastVerifiedServerShortkey(String shortKey) {
     return 'Last verified server: $shortKey';
   }
@@ -8263,16 +8007,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get leaveSharedTerminal => 'Leave shared terminal';
 
   @override
-  String get loadRelayPolicies => 'Load Relay policies';
-
-  @override
   String get loadVaults => 'Load Vaults';
 
   @override
   String get loadAccountInvitations => 'Load account invitations';
-
-  @override
-  String get loadAccountsToAddMembers => 'Load accounts to add members';
 
   @override
   String get loadAdminAccounts => 'Load admin accounts';
@@ -8296,26 +8034,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loadPushHealth => 'Load push health';
 
   @override
-  String get loadRelayPolicy => 'Load relay policy';
-
-  @override
   String get loadReplicationStatus => 'Load replication status';
 
   @override
   String get loadRestoreSources => 'Load restore sources';
 
   @override
-  String get loadServerManagedGroups => 'Load server-managed groups';
-
-  @override
   String get loadStatus => 'Load status';
-
-  @override
-  String get loadingSshRelayPolicy => 'Loading SSH relay policy…';
-
-  @override
-  String get loadingAccountAndInstancePolicyRevisions =>
-      'Loading account and instance policy revisions…';
 
   @override
   String get loadingAccountInvitations => 'Loading account invitations…';
@@ -8329,13 +8054,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get loadingEncryptedArchiveSources =>
       'Loading encrypted archive sources…';
-
-  @override
-  String get loadingGroupMembershipAndRelayPolicy =>
-      'Loading group membership and Relay policy…';
-
-  @override
-  String get loadingServerManagedGroups => 'Loading server-managed groups…';
 
   @override
   String get local => 'Local';
@@ -8403,20 +8121,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Master password is used only for client-side key derivation.';
 
   @override
-  String get maxSshRelayConnectionsPerUser =>
-      'Max SSH relay connections per user';
-
-  @override
   String get maxRelayConnectionsPerUser => 'Max relay connections per user';
-
-  @override
-  String memberEffectiveRelayAccessValuevalueCidrs(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'Member effective Relay access: $valueValue · CIDRs: $summarize · ports: $summarize2';
-  }
 
   @override
   String get members => 'Members';
@@ -8500,9 +8205,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newMasterPassword => 'New master password';
 
   @override
-  String get newServerGroupName => 'New server group name';
-
-  @override
   String get newSnippet => 'New snippet';
 
   @override
@@ -8513,9 +8215,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get next => 'Next';
-
-  @override
-  String get nextAccounts => 'Next accounts';
 
   @override
   String get nextInvitations => 'Next invitations';
@@ -8650,9 +8349,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'No scheduled backup runs recorded';
 
   @override
-  String get noServerManagedGroupsYet => 'No server-managed groups yet.';
-
-  @override
   String get noSessionsFound => 'No sessions found.';
 
   @override
@@ -8720,10 +8416,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get offlineFirstCiphertextOnly => 'Offline-first, ciphertext-only';
-
-  @override
-  String get oneCanonicalNetworkCidrPerLine =>
-      'One canonical network CIDR per line.';
 
   @override
   String get oneTimePrometheusScrapeCredential =>
@@ -8894,11 +8586,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Permanent purge is unavailable because this server did not provide a restore deadline.';
 
   @override
-  String permanentlyDeleteNameItsMembershipAnd(String name) {
-    return 'Permanently delete “$name”, its membership and Relay policy? Unused Relay tickets for its members will be revoked, and active sessions granted by this group will close after policy recheck.';
-  }
-
-  @override
   String get permanentlyPurge => 'Permanently purge';
 
   @override
@@ -8906,15 +8593,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get policyRevision => 'Policy revision';
-
-  @override
-  String policyRevisionRevisionInstanceRevisionInstancepolicyrevision(
-    int revision,
-    int instancePolicyRevision,
-    String formatTime,
-  ) {
-    return 'Policy revision $revision · instance revision $instancePolicyRevision · updated $formatTime';
-  }
 
   @override
   String get port => 'Port';
@@ -8953,10 +8631,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get previewDisconnectedLayout => 'Preview disconnected layout';
 
   @override
-  String get previewMemberEffectiveRelayAccess =>
-      'Preview member effective Relay access';
-
-  @override
   String get previewOnly => 'Preview only';
 
   @override
@@ -8965,9 +8639,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get previous => 'Previous';
-
-  @override
-  String get previousAccounts => 'Previous accounts';
 
   @override
   String get previousInvitations => 'Previous invitations';
@@ -9065,7 +8736,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get readOnlyInstanceIdentityUsageAnd =>
-      'Read-only instance identity, usage and relay policy.';
+      'Read-only instance identity, usage and relay status.';
 
   @override
   String get readOnlyProviderConfigurationAggregateQueue =>
@@ -9210,9 +8881,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get refreshReadiness => 'Refresh readiness';
 
   @override
-  String get refreshRelayPolicy => 'Refresh relay policy';
-
-  @override
   String get refreshReplicationStatus => 'Refresh replication status';
 
   @override
@@ -9223,9 +8891,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get refreshSchedule => 'Refresh schedule';
-
-  @override
-  String get refreshServerManagedGroups => 'Refresh server-managed groups';
 
   @override
   String get refreshStatus => 'Refresh status';
@@ -9241,39 +8906,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reject2 => 'Reject';
 
   @override
-  String get relayCidrs => 'Relay CIDRs';
-
-  @override
-  String get relayAvailable => 'Relay available';
-
-  @override
-  String get relayPolicy => 'Relay policy';
-
-  @override
-  String get relayPorts => 'Relay ports';
-
-  @override
   String get relayUnavailable => 'Relay unavailable';
 
   @override
-  String get reloadAccountAndInstanceRelayPolicies =>
-      'Reload account and instance Relay policies';
-
-  @override
   String get reloadFirstPage => 'Reload first page';
-
-  @override
-  String get reloadGroupAndInstancePoliciesKeep =>
-      'Reload group and instance policies, keep drafts';
-
-  @override
-  String get reloadLatestGroupKeepDrafts => 'Reload latest group, keep drafts';
-
-  @override
-  String get reloadLatestPolicy => 'Reload latest policy';
-
-  @override
-  String get reloadLatestPolicyKeepDraft => 'Reload latest policy, keep draft';
 
   @override
   String get remote => 'Remote';
@@ -9355,11 +8991,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get removeTmuxSessionReference => 'Remove tmux session reference?';
 
   @override
-  String removeUsernameFromGroupDraft(String username) {
-    return 'Remove $username from group draft';
-  }
-
-  @override
   String get rename => 'Rename';
 
   @override
@@ -9389,9 +9020,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reservedUploads => 'Reserved uploads';
-
-  @override
-  String get resetToInherit => 'Reset to inherit';
 
   @override
   String get resolutionSavedOnThisDeviceWaiting =>
@@ -9458,11 +9086,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get restoreThisRecord => 'Restore this record?';
 
   @override
-  String restoreUsernameInGroupDraft(String username) {
-    return 'Restore $username in group draft';
-  }
-
-  @override
   String get result => 'Result';
 
   @override
@@ -9494,12 +9117,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get retryDiscardSafely => 'Retry discard safely';
-
-  @override
-  String get retryGroupDetails => 'Retry group details';
-
-  @override
-  String get retryGroupList => 'Retry group list';
 
   @override
   String get retryPasswordChange => 'Retry password change';
@@ -9777,9 +9394,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sshRelay => 'SSH relay';
 
   @override
-  String get sshRelayPolicy => 'SSH relay policy';
-
-  @override
   String get sshSessionIsDisconnected => 'SSH session is disconnected.';
 
   @override
@@ -9816,25 +9430,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get saveEncryptedProfile => 'Save encrypted profile';
 
   @override
-  String get saveGroupOverride => 'Save group override';
-
-  @override
   String get saveLocalLayoutAsNamedCopy => 'Save local layout as named copy';
-
-  @override
-  String get saveMembership => 'Save membership';
 
   @override
   String get saveMergedCredential => 'Save merged Credential';
 
   @override
-  String get saveOverride => 'Save override';
-
-  @override
   String get saveQuota => 'Save quota';
-
-  @override
-  String get saveRelayPolicy => 'Save relay policy';
 
   @override
   String get saveReviewedTuple => 'Save reviewed tuple';
@@ -9875,10 +9477,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String savedCheckpointShortkey(String shortKey) {
     return 'Saved checkpoint: $shortKey';
   }
-
-  @override
-  String get savedSettingsCanOnlyNarrowThe =>
-      'Saved settings can only narrow the immutable limits configured by the server operator.';
 
   @override
   String get savedWorkspaces => 'Saved workspaces';
@@ -9944,18 +9542,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selectedArchive => 'Selected archive';
 
   @override
-  String get selectedServerManagedGroup => 'Selected server-managed group';
-
-  @override
-  String selectedStateValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'Selected state: $valueValue · CIDRs: $summarize · ports: $summarize2';
-  }
-
-  @override
   String get sendANewInvitationFromSettings =>
       'Send a new invitation from Settings > Invite member.';
 
@@ -9980,16 +9566,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String serverSpaceServerspaceid(String serverSpaceId) {
     return 'Server space: $serverSpaceId';
   }
-
-  @override
-  String get serverManagedAccessGroups => 'Server-managed access groups';
-
-  @override
-  String get serverManagedGroupActionFailed =>
-      'Server-managed group action failed';
-
-  @override
-  String get serverManagedGroupSaveFailed => 'Server-managed group save failed';
 
   @override
   String serverLocalConflictBranchesConflictcount(int conflictCount) {
@@ -10429,10 +10005,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The default preference was confirmed after Vault sync.';
 
   @override
-  String get theDeploymentGateIsAvailableWith =>
-      'The deployment gate is available with ATERMIUS_RELAY_ENABLED=true. Effective authorization always remains limited by the configured CIDRs and ports.';
-
-  @override
   String get theExportContainsARandomReport =>
       'The export contains a random report ID, a fixed error code, client version, sync counts and dates rounded to UTC days. It never includes Vault records, account details, server addresses or device identifiers.';
 
@@ -10474,14 +10046,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The previous code was not confirmed as stored. Rotate recovery to show a replacement code.';
 
   @override
-  String get theSavedPolicyExceedsTheCurrent =>
-      'The saved policy exceeds the current deployment ceilings. Effective authorization remains restricted by the current limits. Narrow the CIDRs and ports below before saving; ATERMIUS_RELAY_ENABLED=true is also required for the relay service to run.';
-
-  @override
-  String get theSavedPolicyRemainsSelectedAs =>
-      'The saved policy remains selected as enabled, but the effective relay service is unavailable while the deployment gate is off. ATERMIUS_RELAY_ENABLED=true is required; turn off the selection before saving other changes. The Web UI cannot change this gate.';
-
-  @override
   String get theSecretIsReadFromThe =>
       'The secret is read from the encrypted Credential when you run this Snippet; it is never copied into the Snippet record or preview.';
 
@@ -10504,10 +10068,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get theServerCanCopyEncryptedInstance =>
       'The server can copy encrypted instance archives to an operator-configured S3-compatible target. The destination and credentials remain on the server. The access check performs HeadBucket only; it does not verify uploads, multipart operations, restore, or provider-wide interoperability.';
-
-  @override
-  String get theServerDeploymentGateMustAlso =>
-      'The server deployment gate must also be enabled.';
 
   @override
   String get theServerDidNotRequestA =>
@@ -10565,10 +10125,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get theUpdateCheckCouldNotConfirm =>
       'The update check could not confirm the current Web build.';
-
-  @override
-  String get theseInstanceGroupsControlSshRelay =>
-      'These instance groups control SSH Relay access. They are separate from encrypted Workspace groups and do not contain Vault data.';
 
   @override
   String get thisGroupDefaultIsUnavailableChoose =>
@@ -10655,9 +10211,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'This group changed on another device. Sync and reopen it before retrying.';
 
   @override
-  String get thisGroupHasNoMembers => 'This group has no members.';
-
-  @override
   String get thisImmediatelyRevokesEverySessionAnd =>
       'This immediately revokes every session and device. At the server purge deadline, personal Vaults and account data are deleted and your access to shared Vaults is removed. Other members’ shared Vault data is not deleted.';
 
@@ -10735,10 +10288,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get title => 'Title';
 
   @override
-  String get toEnableSshRelayTheServer =>
-      'To enable SSH relay, the server operator must set ATERMIUS_RELAY_ENABLED=true and configure deployment limits. The Web UI cannot change this gate.';
-
-  @override
   String get topLevelGroup2 => 'Top-level group';
 
   @override
@@ -10782,14 +10331,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get unableToLoadAccountRelayPolicy =>
-      'Unable to load account Relay policy';
-
-  @override
-  String get unableToLoadMemberEffectiveRelay =>
-      'Unable to load member effective Relay access';
-
-  @override
   String unableToLoadOffSiteBackup(String error) {
     return 'Unable to load off-site backup status: $error';
   }
@@ -10803,14 +10344,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String unableToLoadScheduledBackupsError(String error) {
     return 'Unable to load scheduled backups: $error';
   }
-
-  @override
-  String get unableToLoadServerManagedGroup =>
-      'Unable to load server-managed group details';
-
-  @override
-  String get unableToLoadServerManagedGroups =>
-      'Unable to load server-managed groups';
 
   @override
   String unableToPrepareIsolatedRestoreCopy(String error) {
@@ -11274,21 +10807,6 @@ class AppLocalizationsEn extends AppLocalizations {
     String format,
   ) {
     return '$labelFor · ID $substring · Deleted $format';
-  }
-
-  @override
-  String membercountMembersValuevalueRevisionRevision(
-    int memberCount,
-    String valueValue,
-    int revision,
-  ) {
-    String _temp0 = intl.Intl.pluralLogic(
-      memberCount,
-      locale: localeName,
-      other: '$memberCount members',
-      one: '1 member',
-    );
-    return '$_temp0 · $valueValue · revision $revision';
   }
 
   @override
@@ -12112,10 +11630,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get manageBackupsAndRestoreCopiesAnd =>
       'Manage backups and restore copies, and check instance maintenance jobs.';
-
-  @override
-  String get manageInstanceAccountsInvitationsRelayGroups =>
-      'Manage instance accounts, invitations, relay groups and connection policies.';
 
   @override
   String get manageNotificationsAndClientUpdates =>
@@ -19674,14 +19188,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get adminPanelUsersDescription =>
-      'Review the accounts on this instance, disable or re-enable them, revoke their sessions, set per-account relay policy and issue invitations.';
+      'Review the accounts on this instance, disable or re-enable them, revoke their sessions and issue invitations.';
 
   @override
-  String get adminPanelAccessTitle => 'Access and relay policy';
+  String get adminPanelAccessTitle => 'Access';
 
   @override
   String get adminPanelAccessDescription =>
-      'Manage the instance-wide relay policy, relay groups and credential visibility.';
+      'Manage credential visibility: the default mode for new accounts and the escrow key.';
 
   @override
   String get adminPanelVaultsTitle => 'Vaults and quotas';
@@ -19866,9 +19380,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String waCleanup(int count) {
     return 'Old volumes awaiting cleanup · $count';
   }
-
-  @override
-  String get waAccess => 'Relay access policies';
 
   @override
   String get waNodeDetails => 'Node details';

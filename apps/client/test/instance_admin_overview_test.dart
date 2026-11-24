@@ -53,8 +53,6 @@ void main() {
         expect(overview.devicesActive, 8);
         expect(overview.storedBytes, 2048);
         expect(overview.relayEnabled, isTrue);
-        expect(overview.relayAllowCidrs, ['10.0.0.0/8']);
-        expect(overview.relayAllowPorts, [22, 2222]);
         expect(overview.relayMaxConnectionsPerUser, 3);
         expect(overview.generatedAt, DateTime.utc(2026, 9, 29, 12, 30));
       } finally {
@@ -62,6 +60,37 @@ void main() {
       }
     },
   );
+
+  test('overview tolerates relay allowlist fields and a missing relay', () {
+    // An older server still reports its relay allowlist: ignored.
+    final older = InstanceAdminOverview.fromJson({
+      ..._overviewJson,
+      'relay': {
+        'enabled': true,
+        'allow_cidrs': ['10.0.0.0/8'],
+        'allow_ports': [22, 2222],
+        'max_connections_per_user': 3,
+      },
+    });
+    expect(older.relayEnabled, isTrue);
+    expect(older.relayMaxConnectionsPerUser, 3);
+
+    // A server that reports no relay status at all.
+    final withoutRelay = InstanceAdminOverview.fromJson(
+      Map.of(_overviewJson)..remove('relay'),
+    );
+    expect(withoutRelay.relayEnabled, isNull);
+    expect(withoutRelay.relayMaxConnectionsPerUser, isNull);
+    expect(withoutRelay.accountsTotal, 12);
+
+    expect(
+      () => InstanceAdminOverview.fromJson({
+        ..._overviewJson,
+        'relay': {'enabled': 'yes'},
+      }),
+      throwsFormatException,
+    );
+  });
 
   testWidgets('instance admin overview is hidden when policy denies access', (
     tester,
@@ -96,9 +125,11 @@ void main() {
       expect(find.textContaining('12 total'), findsOneWidget);
       expect(find.textContaining('1 disabled'), findsOneWidget);
       expect(find.textContaining('2.0 KiB'), findsOneWidget);
-      expect(find.text('10.0.0.0/8'), findsOneWidget);
-      expect(find.text('22, 2222'), findsOneWidget);
       expect(find.text('Enabled'), findsOneWidget);
+      expect(find.text('Max relay connections per user'), findsOneWidget);
+      // No relay allowlist: the server opens relay connections itself.
+      expect(find.text('Relay CIDRs'), findsNothing);
+      expect(find.text('Relay ports'), findsNothing);
       expect(find.text('Load overview'), findsNothing);
       expect(find.text('Refresh overview'), findsOneWidget);
       expect(harness.api.calls, 1);
@@ -317,11 +348,6 @@ final _overviewJson = <String, dynamic>{
     'reserved_upload_bytes': 512,
     'vault_quota_bytes': 1048576,
   },
-  'relay': {
-    'enabled': true,
-    'allow_cidrs': ['10.0.0.0/8'],
-    'allow_ports': [22, 2222],
-    'max_connections_per_user': 3,
-  },
+  'relay': {'enabled': true, 'max_connections_per_user': 3},
   'generated_at': '2026-09-29T12:30:00Z',
 };

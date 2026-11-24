@@ -5831,10 +5831,6 @@ async function main() {
     ATERMIUS_PUBLIC_ORIGIN: baseUrl,
     ATERMIUS_REGISTRATION_OPEN: 'false',
     ATERMIUS_RELAY_ENABLED: 'true',
-    ATERMIUS_RELAY_ALLOW_CIDRS: `${splitTargetAddress}/32`,
-    ATERMIUS_RELAY_ALLOW_PORTS:
-      [splitTargetPort, splitSecondTargetPort, splitThirdTargetPort,
-        ...sshFixturePorts, tmuxFixturePort].filter(Boolean).join(','),
     RUST_LOG: process.env.RUST_LOG || 'warn',
   };
   let workspaceRecordId = null;

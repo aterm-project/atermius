@@ -367,7 +367,11 @@ String? sshConnectionFriendlyError(Object error) {
       case 'INVALID_TARGET':
         return currentL10n.theSshRelayTargetMustBe;
       case 'TARGET_DENIED':
-        return currentL10n.theServerRelayPolicyRejectedThis;
+        // The server opens relay connections itself and refuses only
+        // addresses it must never reach (loopback, link-local, cloud
+        // metadata, multicast/broadcast) or port 0; there is no allowlist an
+        // administrator could change.
+        return currentL10n.theServerRefusesToConnectToThis;
       case 'RELAY_RATE_LIMITED':
         return currentL10n.tooManySshRelayRequestsTry;
       case 'ORIGIN_DENIED':

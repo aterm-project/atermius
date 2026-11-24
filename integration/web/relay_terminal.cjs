@@ -7,7 +7,8 @@
  * Safety boundary: both bastions bind only the container's eth0 IPv4 address;
  * all target SSHDs bind only 127.0.0.1. Bastion A may forward only to its
  * explicitly listed fixture endpoints and Bastion B only to its exact target
- * port. Relay's allowlist contains only Bastion A's /32 and port.
+ * port. The harness checks that every Relay ticket names only Bastion A's
+ * address and port; the server itself refuses the loopback Targets.
  * All user keys, host keys, configs, and synthetic files are temporary.
  * sshd runs as root only for privilege separation; root login is disabled and
  * every shell session is a non-root chroot fixture. No external host is used,
@@ -7242,8 +7243,6 @@ async function main() {
       ATERMIUS_PUBLIC_ORIGIN: baseUrl,
       ATERMIUS_REGISTRATION_OPEN: 'false',
       ATERMIUS_RELAY_ENABLED: pemDiagnosticOnly ? 'false' : 'true',
-      ATERMIUS_RELAY_ALLOW_CIDRS: pemDiagnosticOnly ? '' : `${address}/32`,
-      ATERMIUS_RELAY_ALLOW_PORTS: pemDiagnosticOnly ? '' : allowedRelayPorts.join(','),
       ATERMIUS_TERMINAL_COLLABORATION_ENABLED: collaborationOnly ? 'true' :
         (process.env.ATERMIUS_TERMINAL_COLLABORATION_ENABLED || 'false'),
       RUST_LOG: process.env.RUST_LOG || 'warn',

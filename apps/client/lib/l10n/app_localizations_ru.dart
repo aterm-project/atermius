@@ -487,14 +487,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get accountRecoveryIsBusy => 'Восстановление учётной записи занято.';
 
   @override
-  String get accountRelayPolicyResetToInherit =>
-      'Политика ретрансляции учётной записи сброшена на наследование.';
-
-  @override
-  String get accountRelayPolicySaved =>
-      'Политика ретрансляции учётной записи сохранена.';
-
-  @override
   String accountStatusUpdatedToStatusRevokedsessions(
     String status,
     int revokedSessions,
@@ -575,21 +567,11 @@ class AppLocalizationsRu extends AppLocalizations {
   String get enterTheAccountName => 'Введите имя учётной записи.';
 
   @override
-  String get groupRelayPolicyResetToInherit =>
-      'Политика Relay группы сброшена на наследование.';
-
-  @override
-  String get groupRelayPolicySaved => 'Политика Relay группы сохранена.';
-
-  @override
   String get groupDefault => 'Значение группы по умолчанию';
 
   @override
   String get groupDefaultIsUnavailableChooseA =>
       'Значение по умолчанию группы недоступно. Выберите переопределение хоста или исправьте значение группы.';
-
-  @override
-  String get groupMembershipSaved => 'Членство в группе сохранено.';
 
   @override
   String get hostChangedRepeatedlyWhileSavingReopen =>
@@ -710,18 +692,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get loadAConsistentAccountAndInstance =>
-      'Перед сбросом загрузите согласованные политики учётной записи и экземпляра.';
-
-  @override
-  String get loadAConsistentAccountAndInstance2 =>
-      'Перед сохранением загрузите согласованные политики учётной записи и экземпляра.';
-
-  @override
-  String get loadTheLatestSshRelayPolicy =>
-      'Перед сохранением загрузите последнюю политику SSH-ретранслятора.';
-
-  @override
   String get theMfaSignInResponseDoesnt =>
       'Ответ входа с MFA не соответствует текущей учётной записи или устройству.';
 
@@ -813,26 +783,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'После предпросмотра изменились учётные данные, на которые есть ссылка. Проверьте команду и повторите попытку.';
 
   @override
-  String get reloadTheLatestAccountAndInstance =>
-      'Перед сбросом перезагрузите последние политики учётной записи и экземпляра.';
-
-  @override
-  String get reloadTheLatestAccountAndInstance2 =>
-      'Перед сохранением перезагрузите последние политики учётной записи и экземпляра.';
-
-  @override
-  String get reloadTheLatestGroupAndInstance =>
-      'Перед сбросом перезагрузите последние политики группы и экземпляра.';
-
-  @override
-  String get reloadTheLatestGroupAndInstance2 =>
-      'Перед сохранением перезагрузите последние политики группы и экземпляра.';
-
-  @override
-  String get reloadTheLatestPolicyAfterThe =>
-      'После конфликта версий перезагрузите последнюю политику и повторите попытку.';
-
-  @override
   String get restoreIsEncryptedAndQueuedOn =>
       'Восстановление зашифровано и поставлено в очередь на этом устройстве; состояние синхронизации будет проверено снова.';
 
@@ -894,9 +844,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String sshHostKeyVerificationEvidenceIs(String hostName) {
     return 'Отсутствует подтверждение проверки ключа SSH-хоста для $hostName. Переподключитесь перед запуском пакета.';
   }
-
-  @override
-  String get sshRelayPolicySaved => 'Политика SSH-ретранслятора сохранена.';
 
   @override
   String get sshHostKeyTrustWasConfirmed =>
@@ -967,10 +914,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get selectAVaultBeforeResolvingThis2 =>
       'Выберите сейф, прежде чем использовать этот хост.';
-
-  @override
-  String get selectAnActiveMemberOfThis =>
-      'Выберите активного участника этой группы, управляемой сервером.';
 
   @override
   String get selectedSessionRevoked => 'Выбранный сеанс отозван.';
@@ -1051,10 +994,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Запрос SSH exec завершился ошибкой после отправки.';
 
   @override
-  String get theAccountNowInheritsTheInstance =>
-      'Теперь учётная запись наследует политику ретрансляции экземпляра.';
-
-  @override
   String get theEffectiveSshCredentialIsUnavailable =>
       'Действующие учётные данные SSH недоступны. Выберите допустимое переопределение хоста или исправьте значение группы.';
 
@@ -1069,30 +1008,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get theExistingRecoveryDescriptorDoesNot =>
       'Существующий дескриптор восстановления не соответствует обёрнутой идентичности.';
-
-  @override
-  String get theGroupNowInheritsTheInstance =>
-      'Теперь группа наследует политику Relay экземпляра.';
-
-  @override
-  String get theInstanceRelayPolicyChangedWhile =>
-      'Политика Relay экземпляра изменилась во время загрузки группы. Перезагрузите для согласованного снимка.';
-
-  @override
-  String get theInstanceRelayPolicyChangedReload =>
-      'Политика Relay экземпляра изменилась. Перезагрузите группу, прежде чем проверять фактический доступ.';
-
-  @override
-  String get theInstancePolicyChangedWhileResetting =>
-      'Политика экземпляра изменилась во время сброса. Перезагрузите последние политики; ваш черновик сохранён.';
-
-  @override
-  String get theInstancePolicyChangedWhileSaving =>
-      'Политика экземпляра изменилась во время сохранения. Перезагрузите последние политики; ваш черновик сохранён.';
-
-  @override
-  String get theInstanceRelayPolicyChangedWhile2 =>
-      'Политика ретрансляции экземпляра изменилась во время загрузки политики учётной записи. Перезагрузите для согласованного снимка.';
 
   @override
   String get theMergedHostRecordIsInvalid =>
@@ -1122,10 +1037,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Ответ восстановления не соответствует этой учётной записи.';
 
   @override
-  String get theRelayPolicyChangedElsewhereReload =>
-      'Политика ретрансляции изменена в другом месте. Перезагрузите последние настройки и повторите попытку.';
-
-  @override
   String theReviewedSshSessionForHostname(String hostName) {
     return 'Проверенный SSH-сеанс $hostName изменился до отправки.';
   }
@@ -1133,10 +1044,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get theServerCouldNotVerifyAccess =>
       'Сервер не смог проверить доступ к настроенному бакету S3 для резервных копий.';
-
-  @override
-  String get theServerDeploymentDoesNotCurrently =>
-      'Развёртывание сервера сейчас не разрешает этот параметр ретрансляции. Ваши правки сохранены; проверьте ограничения развёртывания и повторите попытку.';
 
   @override
   String get theServerOrAuthenticationStateChanged =>
@@ -1169,14 +1076,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get tooManySshHostKeyChecks =>
       'Для этого маршрута запрошено слишком много проверок ключей SSH-хостов.';
-
-  @override
-  String get unableToLoadTheSshRelay =>
-      'Не удалось загрузить политику SSH-ретранслятора. Проверьте подключение и повторите попытку.';
-
-  @override
-  String get unableToSaveTheSshRelay =>
-      'Не удалось сохранить политику SSH-ретранслятора. Проверьте подключение и повторите попытку.';
 
   @override
   String get vaultChangedWhileSshHostKey =>
@@ -1993,10 +1892,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Запись, сохранённая существующей меткой исправления, противоречива и требует ручной проверки.';
 
   @override
-  String get aServerAccessGroupWithThe =>
-      'Группа доступа к серверу с таким именем уже существует (без учёта регистра и совместимых символов Unicode).';
-
-  @override
   String get thePreviouslySubmittedMasterPasswordChange =>
       'Ранее отправленная смена мастер-пароля подтверждена; остальные сеансы входа отозваны.';
 
@@ -2289,10 +2184,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Выбранный источник архива недействителен. Обновите список источников и повторите попытку.';
 
   @override
-  String get theSelectedServerAccessGroupNo =>
-      'Выбранная группа доступа к серверу больше не существует. Обновите список.';
-
-  @override
   String get theApprovalFileDoesntMatchThe =>
       'Файл одобрения не соответствует запросу устройства, созданному этим браузером.';
 
@@ -2494,10 +2385,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get theServerHasntConfiguredIsolatedRestore =>
       'На сервере не настроено хранилище изолированного восстановления. Обратитесь к оператору экземпляра.';
-
-  @override
-  String get theServerAccessGroupWasUpdated =>
-      'Группа доступа к серверу обновлена другим администратором. Загрузите последние данные; текущий черновик сохранён.';
 
   @override
   String get theServersInitialVaultMembershipRecord =>
@@ -4982,7 +4869,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get unableToConnectCheckTheDesktop =>
-      'Не удалось подключиться. Проверьте шлюз рабочего стола, политику Relay, учётные данные и доверие к сертификату.';
+      'Не удалось подключиться. Проверьте шлюз рабочего стола, учётные данные и доверие к сертификату.';
 
   @override
   String get theHostSettingsChangedReconnect =>
@@ -6035,12 +5922,12 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось установить WebSocket SSH-ретранслятора. Проверьте адрес HTTPS/WSS экземпляра, настройки источника ретранслятора и сеть, затем повторите попытку.';
 
   @override
-  String get theServerRelayPolicyRejectedThis =>
-      'Политика ретрансляции сервера отклонила этот адрес или порт. Попросите администратора проверить список разрешённых SSH-целей.';
+  String get theServerRefusesToConnectToThis =>
+      'Сервер отказывается подключаться к этому адресу. Адреса loopback, link-local и облачных метаданных недоступны через сервер.';
 
   @override
   String get theServerHasntEnabledTheSsh =>
-      'На сервере не включён SSH-ретранслятор. Попросите администратора настроить ретранслятор и целевые сети.';
+      'На сервере не включён SSH-ретранслятор. Попросите администратора включить его.';
 
   @override
   String get localStorageNeedsRecoveryReadingEditing2 =>
@@ -6370,17 +6257,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get n0Auto => '0 = авто';
 
   @override
-  String get n180UnicodeCharactersUniqueWithout =>
-      '1–80 символов Unicode; должно быть уникальным без учёта регистра.';
-
-  @override
   String aHostCanHaveAtMost(int maxHostPortForwardProfiles) {
     return 'У хоста может быть не более $maxHostPortForwardProfiles профилей переадресации портов.';
   }
-
-  @override
-  String get aConcurrentChangeWasDetectedYour =>
-      'Обнаружено одновременное изменение. Черновики имени, членства и политики сохранены.';
 
   @override
   String get aNewEncryptedRevisionWillBe =>
@@ -6422,10 +6301,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Для разделённого рабочего пространства нужно не менее двух панелей';
 
   @override
-  String get aUsersEffectiveRelayAccessAlso =>
-      'Фактический доступ пользователя к Relay также ограничивается политикой его учётной записи, всеми остальными серверными группами и ограничениями развёртывания.';
-
-  @override
   String get active => 'АКТИВНО';
 
   @override
@@ -6454,13 +6329,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get accountId => 'ID учётной записи';
-
-  @override
-  String get accountRelayPolicy => 'Политика Relay учётной записи';
-
-  @override
-  String get accountRelayPolicySaveFailed =>
-      'Не удалось сохранить политику Relay учётной записи';
 
   @override
   String get accountDeletion => 'Удаление учётной записи';
@@ -6532,14 +6400,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Восстановление учётной записи отключено.';
 
   @override
-  String accountRevisionRevisionUpdatedFormattime(
-    int revision,
-    String formatTime,
-  ) {
-    return 'Версия учётной записи $revision · обновлено $formatTime';
-  }
-
-  @override
   String get accountSessions => 'Сеансы учётной записи';
 
   @override
@@ -6557,10 +6417,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String activePaneValuevalue(int valueValue) {
     return 'Активная панель $valueValue';
   }
-
-  @override
-  String get activeAccountOnCurrentPage =>
-      'Активная учётная запись на текущей странице';
 
   @override
   String get activeDevices => 'Активные устройства';
@@ -6634,15 +6490,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get allowFuturePurge => 'Разрешить удаление в будущем';
-
-  @override
-  String get allowedCidrNetworks => 'Разрешённые сети CIDR';
-
-  @override
-  String get allowedCidrsOnePerLine => 'Разрешённые CIDR (по одному в строке)';
-
-  @override
-  String get allowedPorts => 'Разрешённые порты';
 
   @override
   String anEncryptedVaultArchiveCoveringPendingcount(int pendingCount) {
@@ -6976,14 +6823,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get color2 => 'Цвет';
 
   @override
-  String get commaOrLineSeparatedPortNumbers =>
-      'Номера портов через запятую или с новой строки.';
-
-  @override
-  String get commaOrNewlineSeparatedForExample =>
-      'Через запятую или с новой строки, например 22, 2222';
-
-  @override
   String get commandHistory => 'История команд';
 
   @override
@@ -7292,14 +7131,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get createdAt => 'Создано';
 
   @override
-  String createdFormattimeUpdatedFormattime2(
-    String formatTime,
-    String formatTime2,
-  ) {
-    return 'Создано $formatTime · обновлено $formatTime2';
-  }
-
-  @override
   String createdFormat(String format) {
     return 'Создано · $format';
   }
@@ -7425,13 +7256,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get deleteGroup4 => 'Удалить группу?';
 
   @override
-  String get deleteServerManagedGroup => 'Удалить группу, управляемую сервером';
-
-  @override
-  String get deleteServerManagedGroup2 =>
-      'Удалить группу, управляемую сервером?';
-
-  @override
   String get deleteThisItem => 'Удалить этот элемент?';
 
   @override
@@ -7465,16 +7289,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get deliveryWindowUtc => 'Окно доставки (UTC)';
-
-  @override
-  String get deploymentCidrLimits => 'Ограничения CIDR развёртывания';
-
-  @override
-  String get deploymentPortLimits => 'Ограничения портов развёртывания';
-
-  @override
-  String get deploymentRelayAvailability =>
-      'Доступность ретранслятора в развёртывании';
 
   @override
   String get destinationOnSshTarget => 'Назначение на SSH-цели';
@@ -7554,9 +7368,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String disableUsernameServerSessionsWillBe(String username) {
     return 'Отключить $username? Сеансы на сервере будут отозваны, и войти снова будет нельзя. Кэшированные данные устройств не стираются, а существующие прямые SSH-подключения могут продолжаться, пока SSH-серверы их не закроют.';
   }
-
-  @override
-  String get disabledByPolicy => 'Отключено политикой';
 
   @override
   String get discardIsolatedCopy => 'Удалить изолированную копию';
@@ -7652,54 +7463,14 @@ class AppLocalizationsRu extends AppLocalizations {
   String get editText2 => 'Редактировать текст';
 
   @override
-  String editableCeilingValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'Допустимый максимум: $valueValue · CIDR: $summarize · порты: $summarize2';
-  }
-
-  @override
   String get editorCanEditVaultRecords =>
       'Редактор · может изменять записи сейфа';
-
-  @override
-  String get effectiveSshRelayService => 'Фактическая служба SSH-ретрансляции';
-
-  @override
-  String effectiveGroupStateValuevalueCidrsSummarize(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'Фактическое состояние группы: $valueValue · CIDR: $summarize · порты: $summarize2';
-  }
-
-  @override
-  String effectiveStateValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'Фактическое состояние: $valueValue · CIDR: $summarize · порты: $summarize2';
-  }
 
   @override
   String get enableBashCommandHistory => 'Включить историю команд Bash';
 
   @override
   String get enableBashIntegration => 'Включить интеграцию с Bash';
-
-  @override
-  String get enableRelayForThisAccount =>
-      'Включить Relay для этой учётной записи';
-
-  @override
-  String get enableRelayForThisGroup => 'Включить Relay для этой группы';
-
-  @override
-  String get enableSshRelay => 'Включить SSH-ретранслятор';
 
   @override
   String get enableVaultSync => 'Включить синхронизацию с сейфом';
@@ -7888,9 +7659,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get folderName => 'Имя папки';
 
   @override
-  String get forExample104000 => 'Например: 10.40.0.0/16';
-
-  @override
   String get forwardType => 'Тип переадресации';
 
   @override
@@ -7931,24 +7699,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get grantInputControl => 'Передать управление вводом';
 
   @override
-  String get groupRelayPolicy => 'Политика Relay группы';
-
-  @override
   String groupActionsName2(String name) {
     return 'Действия с группой: $name';
   }
 
   @override
   String get groupName3 => 'Имя группы';
-
-  @override
-  String groupRevisionRevisionMembershipRevisionMembershiprevision(
-    int revision,
-    int membershipRevision,
-    int revision2,
-  ) {
-    return 'Версия группы $revision · версия членства $membershipRevision · версия политики $revision2';
-  }
 
   @override
   String groupGroupname(Object groupName) {
@@ -7959,9 +7715,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String headShortauditid(String shortAuditId) {
     return 'Голова $shortAuditId';
   }
-
-  @override
-  String get hideRelayPolicy => 'Скрыть политику Relay';
 
   @override
   String get hidePasswordSecret => 'Скрыть секрет пароля';
@@ -8052,10 +7805,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get includesTheInstanceAccountAndEvery =>
-      'Включает экземпляр, учётную запись и все назначенные серверные группы.';
-
-  @override
   String get inputControlOff => 'Управление вводом: выключено';
 
   @override
@@ -8099,14 +7848,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get instanceJobs => 'Задания экземпляра';
-
-  @override
-  String instanceRevisionRevisionUpdatedFormattime(
-    int revision,
-    String formatTime,
-  ) {
-    return 'Версия экземпляра $revision · обновлено $formatTime';
-  }
 
   @override
   String get instanceSigningKeyFingerprintSha256 =>
@@ -8253,9 +7994,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get lastSuccessfulSync => 'Последняя успешная синхронизация';
 
   @override
-  String get lastUpdated => 'Последнее обновление';
-
-  @override
   String lastVerifiedServerShortkey(String shortKey) {
     return 'Последний проверенный сервер: $shortKey';
   }
@@ -8270,17 +8008,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get leaveSharedTerminal => 'Покинуть общий терминал';
 
   @override
-  String get loadRelayPolicies => 'Загрузить политики Relay';
-
-  @override
   String get loadVaults => 'Загрузить сейфы';
 
   @override
   String get loadAccountInvitations => 'Загрузить приглашения';
-
-  @override
-  String get loadAccountsToAddMembers =>
-      'Загрузите учётные записи, чтобы добавить участников';
 
   @override
   String get loadAdminAccounts => 'Загрузить учётные записи администратора';
@@ -8305,27 +8036,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get loadPushHealth => 'Загрузить состояние push';
 
   @override
-  String get loadRelayPolicy => 'Загрузить политику ретрансляции';
-
-  @override
   String get loadReplicationStatus => 'Загрузить состояние репликации';
 
   @override
   String get loadRestoreSources => 'Загрузить источники восстановления';
 
   @override
-  String get loadServerManagedGroups =>
-      'Загрузить группы, управляемые сервером';
-
-  @override
   String get loadStatus => 'Загрузить состояние';
-
-  @override
-  String get loadingSshRelayPolicy => 'Загрузка политики SSH-ретранслятора…';
-
-  @override
-  String get loadingAccountAndInstancePolicyRevisions =>
-      'Загрузка версий политик учётной записи и экземпляра…';
 
   @override
   String get loadingAccountInvitations => 'Загрузка приглашений…';
@@ -8340,14 +8057,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get loadingEncryptedArchiveSources =>
       'Загрузка источников зашифрованных архивов…';
-
-  @override
-  String get loadingGroupMembershipAndRelayPolicy =>
-      'Загрузка членства группы и политики Relay…';
-
-  @override
-  String get loadingServerManagedGroups =>
-      'Загрузка групп, управляемых сервером…';
 
   @override
   String get local => 'Локально';
@@ -8415,21 +8124,8 @@ class AppLocalizationsRu extends AppLocalizations {
       'Мастер-пароль используется только для вывода ключей на стороне клиента.';
 
   @override
-  String get maxSshRelayConnectionsPerUser =>
-      'Максимум подключений к SSH-ретранслятору на пользователя';
-
-  @override
   String get maxRelayConnectionsPerUser =>
       'Максимум подключений к ретранслятору на пользователя';
-
-  @override
-  String memberEffectiveRelayAccessValuevalueCidrs(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'Фактический доступ участника к Relay: $valueValue · CIDR: $summarize · порты: $summarize2';
-  }
 
   @override
   String get members => 'Участники';
@@ -8501,9 +8197,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get newMasterPassword => 'Новый мастер-пароль';
 
   @override
-  String get newServerGroupName => 'Имя новой серверной группы';
-
-  @override
   String get newSnippet => 'Новый сниппет';
 
   @override
@@ -8514,9 +8207,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get next => 'Далее';
-
-  @override
-  String get nextAccounts => 'Следующие учётные записи';
 
   @override
   String get nextInvitations => 'Следующие приглашения';
@@ -8653,10 +8343,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Запусков планового резервного копирования не записано';
 
   @override
-  String get noServerManagedGroupsYet =>
-      'Групп, управляемых сервером, пока нет.';
-
-  @override
   String get noSessionsFound => 'Сеансы не найдены.';
 
   @override
@@ -8726,10 +8412,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get offlineFirstCiphertextOnly =>
       'Офлайн в приоритете, только шифротекст';
-
-  @override
-  String get oneCanonicalNetworkCidrPerLine =>
-      'По одной канонической сети CIDR в строке.';
 
   @override
   String get oneTimePrometheusScrapeCredential =>
@@ -8900,11 +8582,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Окончательное удаление недоступно: сервер не сообщил срок восстановления.';
 
   @override
-  String permanentlyDeleteNameItsMembershipAnd(String name) {
-    return 'Окончательно удалить «$name», его членство и политику Relay? Неиспользованные билеты Relay его участников будут отозваны, а активные сеансы, разрешённые этой группой, закроются после повторной проверки политики.';
-  }
-
-  @override
   String get permanentlyPurge => 'Удалить окончательно';
 
   @override
@@ -8912,15 +8589,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get policyRevision => 'Версия политики';
-
-  @override
-  String policyRevisionRevisionInstanceRevisionInstancepolicyrevision(
-    int revision,
-    int instancePolicyRevision,
-    String formatTime,
-  ) {
-    return 'Версия политики $revision · версия экземпляра $instancePolicyRevision · обновлено $formatTime';
-  }
 
   @override
   String get port => 'Порт';
@@ -8961,10 +8629,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get previewDisconnectedLayout => 'Предпросмотр макета без подключения';
 
   @override
-  String get previewMemberEffectiveRelayAccess =>
-      'Предпросмотр фактического доступа участника к Relay';
-
-  @override
   String get previewOnly => 'Только предпросмотр';
 
   @override
@@ -8973,9 +8637,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get previous => 'Назад';
-
-  @override
-  String get previousAccounts => 'Предыдущие учётные записи';
 
   @override
   String get previousInvitations => 'Предыдущие приглашения';
@@ -9077,7 +8738,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get readOnlyInstanceIdentityUsageAnd =>
-      'Идентичность экземпляра, использование и политика ретрансляции (только чтение).';
+      'Идентичность экземпляра, использование и состояние ретрансляции (только чтение).';
 
   @override
   String get readOnlyProviderConfigurationAggregateQueue =>
@@ -9223,9 +8884,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get refreshReadiness => 'Обновить готовность';
 
   @override
-  String get refreshRelayPolicy => 'Обновить политику ретрансляции';
-
-  @override
   String get refreshReplicationStatus => 'Обновить состояние репликации';
 
   @override
@@ -9236,10 +8894,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get refreshSchedule => 'Обновить расписание';
-
-  @override
-  String get refreshServerManagedGroups =>
-      'Обновить группы, управляемые сервером';
 
   @override
   String get refreshStatus => 'Обновить состояние';
@@ -9255,41 +8909,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get reject2 => 'Отклонить';
 
   @override
-  String get relayCidrs => 'CIDR ретранслятора';
-
-  @override
-  String get relayAvailable => 'Ретранслятор доступен';
-
-  @override
-  String get relayPolicy => 'Политика Relay';
-
-  @override
-  String get relayPorts => 'Порты ретранслятора';
-
-  @override
   String get relayUnavailable => 'Ретранслятор недоступен';
 
   @override
-  String get reloadAccountAndInstanceRelayPolicies =>
-      'Перезагрузить политики Relay учётной записи и экземпляра';
-
-  @override
   String get reloadFirstPage => 'Перезагрузить первую страницу';
-
-  @override
-  String get reloadGroupAndInstancePoliciesKeep =>
-      'Перезагрузить политики группы и экземпляра, сохранив черновики';
-
-  @override
-  String get reloadLatestGroupKeepDrafts =>
-      'Перезагрузить последнюю версию группы, сохранив черновики';
-
-  @override
-  String get reloadLatestPolicy => 'Перезагрузить последнюю политику';
-
-  @override
-  String get reloadLatestPolicyKeepDraft =>
-      'Перезагрузить последнюю политику, сохранив черновик';
 
   @override
   String get remote => 'Удалённо';
@@ -9372,11 +8995,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get removeTmuxSessionReference => 'Удалить ссылку на сеанс tmux?';
 
   @override
-  String removeUsernameFromGroupDraft(String username) {
-    return 'Удалить $username из черновика группы';
-  }
-
-  @override
   String get rename => 'Переименовать';
 
   @override
@@ -9406,9 +9024,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get reservedUploads => 'Зарезервированные загрузки';
-
-  @override
-  String get resetToInherit => 'Сбросить на наследование';
 
   @override
   String get resolutionSavedOnThisDeviceWaiting =>
@@ -9475,11 +9090,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get restoreThisRecord => 'Восстановить эту запись?';
 
   @override
-  String restoreUsernameInGroupDraft(String username) {
-    return 'Вернуть $username в черновик группы';
-  }
-
-  @override
   String get result => 'Результат';
 
   @override
@@ -9512,12 +9122,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get retryDiscardSafely => 'Безопасно повторить удаление';
-
-  @override
-  String get retryGroupDetails => 'Повторить загрузку сведений о группе';
-
-  @override
-  String get retryGroupList => 'Повторить загрузку списка групп';
 
   @override
   String get retryPasswordChange => 'Повторить смену пароля';
@@ -9803,9 +9407,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get sshRelay => 'SSH-ретранслятор';
 
   @override
-  String get sshRelayPolicy => 'Политика SSH-ретранслятора';
-
-  @override
   String get sshSessionIsDisconnected => 'SSH-сеанс отключён.';
 
   @override
@@ -9843,26 +9444,14 @@ class AppLocalizationsRu extends AppLocalizations {
   String get saveEncryptedProfile => 'Сохранить зашифрованный профиль';
 
   @override
-  String get saveGroupOverride => 'Сохранить переопределение группы';
-
-  @override
   String get saveLocalLayoutAsNamedCopy =>
       'Сохранить локальный макет как именованную копию';
-
-  @override
-  String get saveMembership => 'Сохранить членство';
 
   @override
   String get saveMergedCredential => 'Сохранить объединённые учётные данные';
 
   @override
-  String get saveOverride => 'Сохранить переопределение';
-
-  @override
   String get saveQuota => 'Сохранить квоту';
-
-  @override
-  String get saveRelayPolicy => 'Сохранить политику ретрансляции';
 
   @override
   String get saveReviewedTuple => 'Сохранить проверенный набор';
@@ -9903,10 +9492,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String savedCheckpointShortkey(String shortKey) {
     return 'Сохранённая контрольная точка: $shortKey';
   }
-
-  @override
-  String get savedSettingsCanOnlyNarrowThe =>
-      'Сохранённые настройки могут только сужать неизменяемые ограничения, заданные оператором сервера.';
 
   @override
   String get savedWorkspaces => 'Сохранённые рабочие пространства';
@@ -9975,19 +9560,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get selectedArchive => 'Выбранный архив';
 
   @override
-  String get selectedServerManagedGroup =>
-      'Выбранная группа, управляемая сервером';
-
-  @override
-  String selectedStateValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'Выбранное состояние: $valueValue · CIDR: $summarize · порты: $summarize2';
-  }
-
-  @override
   String get sendANewInvitationFromSettings =>
       'Отправьте новое приглашение в «Настройки» > «Пригласить участника».';
 
@@ -10012,18 +9584,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String serverSpaceServerspaceid(String serverSpaceId) {
     return 'Пространство сервера: $serverSpaceId';
   }
-
-  @override
-  String get serverManagedAccessGroups =>
-      'Группы доступа, управляемые сервером';
-
-  @override
-  String get serverManagedGroupActionFailed =>
-      'Действие с группой, управляемой сервером, не выполнено';
-
-  @override
-  String get serverManagedGroupSaveFailed =>
-      'Не удалось сохранить группу, управляемую сервером';
 
   @override
   String serverLocalConflictBranchesConflictcount(int conflictCount) {
@@ -10453,10 +10013,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Настройка по умолчанию подтверждена после синхронизации сейфа.';
 
   @override
-  String get theDeploymentGateIsAvailableWith =>
-      'Переключатель развёртывания доступен при ATERMIUS_RELAY_ENABLED=true. Фактическое разрешение всегда ограничено настроенными CIDR и портами.';
-
-  @override
   String get theExportContainsARandomReport =>
       'Экспорт содержит случайный ID отчёта, фиксированный код ошибки, версию клиента, счётчики синхронизации и даты с точностью до дня UTC. Записи сейфа, сведения об учётной записи, адреса серверов и идентификаторы устройств никогда не включаются.';
 
@@ -10498,14 +10054,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Сохранение предыдущего кода не подтверждено. Обновите восстановление, чтобы показать новый код.';
 
   @override
-  String get theSavedPolicyExceedsTheCurrent =>
-      'Сохранённая политика превышает текущие лимиты развёртывания; фактическое разрешение остаётся ограничено текущими лимитами. Сузьте CIDR и порты ниже перед сохранением; для работы службы также нужен ATERMIUS_RELAY_ENABLED=true.';
-
-  @override
-  String get theSavedPolicyRemainsSelectedAs =>
-      'Сохранённая политика остаётся включённой, но фактическая служба ретрансляции недоступна, пока переключатель развёртывания выключен. Требуется ATERMIUS_RELAY_ENABLED=true; отключите этот выбор, прежде чем сохранять другие изменения. Веб-интерфейс не может изменить этот переключатель.';
-
-  @override
   String get theSecretIsReadFromThe =>
       'Секрет считывается из зашифрованных учётных данных при запуске сниппета и никогда не копируется в запись или предпросмотр сниппета.';
 
@@ -10528,10 +10076,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get theServerCanCopyEncryptedInstance =>
       'Сервер может копировать зашифрованные архивы экземпляра в S3-совместимое хранилище, настроенное оператором. Адрес назначения и учётные данные остаются на сервере. Проверка доступа выполняет только HeadBucket и не проверяет загрузку, многочастные операции, восстановление или совместимость с провайдером в целом.';
-
-  @override
-  String get theServerDeploymentGateMustAlso =>
-      'Также должен быть включён соответствующий переключатель развёртывания на сервере.';
 
   @override
   String get theServerDidNotRequestA => 'Сервер не запросил ответ.';
@@ -10588,10 +10132,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get theUpdateCheckCouldNotConfirm =>
       'Проверке обновлений не удалось подтвердить текущую веб-сборку.';
-
-  @override
-  String get theseInstanceGroupsControlSshRelay =>
-      'Эти группы экземпляра управляют доступом к SSH Relay. Они не связаны с зашифрованными группами рабочего пространства и не содержат данных сейфа.';
 
   @override
   String get thisGroupDefaultIsUnavailableChoose =>
@@ -10678,9 +10218,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Группа изменена на другом устройстве. Синхронизируйте и откройте её заново, затем повторите попытку.';
 
   @override
-  String get thisGroupHasNoMembers => 'В этой группе нет участников.';
-
-  @override
   String get thisImmediatelyRevokesEverySessionAnd =>
       'Это сразу отзывает все сеансы и устройства. В срок окончательного удаления на сервере личные сейфы и данные учётной записи удаляются, а ваш доступ к общим сейфам прекращается. Данные общих сейфов других участников не удаляются.';
 
@@ -10758,10 +10295,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get title => 'Название';
 
   @override
-  String get toEnableSshRelayTheServer =>
-      'Чтобы включить SSH-ретранслятор, оператор сервера должен задать ATERMIUS_RELAY_ENABLED=true и настроить лимиты развёртывания. Веб-интерфейс не может изменить этот переключатель.';
-
-  @override
   String get topLevelGroup2 => 'Группа верхнего уровня';
 
   @override
@@ -10805,14 +10338,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get unableToLoadAccountRelayPolicy =>
-      'Не удалось загрузить политику Relay учётной записи';
-
-  @override
-  String get unableToLoadMemberEffectiveRelay =>
-      'Не удалось загрузить фактический доступ участника к Relay';
-
-  @override
   String unableToLoadOffSiteBackup(String error) {
     return 'Не удалось загрузить состояние внешнего резервного копирования: $error';
   }
@@ -10826,14 +10351,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String unableToLoadScheduledBackupsError(String error) {
     return 'Не удалось загрузить плановое резервное копирование: $error';
   }
-
-  @override
-  String get unableToLoadServerManagedGroup =>
-      'Не удалось загрузить сведения о группе, управляемой сервером';
-
-  @override
-  String get unableToLoadServerManagedGroups =>
-      'Не удалось загрузить группы, управляемые сервером';
 
   @override
   String unableToPrepareIsolatedRestoreCopy(String error) {
@@ -11290,15 +10807,6 @@ class AppLocalizationsRu extends AppLocalizations {
     String format,
   ) {
     return '$labelFor · ID $substring · удалено $format';
-  }
-
-  @override
-  String membercountMembersValuevalueRevisionRevision(
-    int memberCount,
-    String valueValue,
-    int revision,
-  ) {
-    return 'Участников: $memberCount · $valueValue · версия $revision';
   }
 
   @override
@@ -12120,10 +11628,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get manageBackupsAndRestoreCopiesAnd =>
       'Управление резервными копиями и копиями для восстановления, проверка заданий обслуживания экземпляра.';
-
-  @override
-  String get manageInstanceAccountsInvitationsRelayGroups =>
-      'Управление учётными записями экземпляра, приглашениями, группами ретрансляции и политиками подключения.';
 
   @override
   String get manageNotificationsAndClientUpdates =>
@@ -19736,14 +19240,14 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get adminPanelUsersDescription =>
-      'Просматривайте учётные записи этого экземпляра, отключайте и снова включайте их, отзывайте сеансы, задавайте политику ретрансляции для отдельных учётных записей и выдавайте приглашения.';
+      'Просматривайте учётные записи этого экземпляра, отключайте и снова включайте их, отзывайте сеансы и выдавайте приглашения.';
 
   @override
-  String get adminPanelAccessTitle => 'Доступ и политика ретрансляции';
+  String get adminPanelAccessTitle => 'Доступ';
 
   @override
   String get adminPanelAccessDescription =>
-      'Управляйте политикой ретрансляции всего экземпляра, группами ретрансляции и видимостью учётных данных.';
+      'Управляйте видимостью учётных данных: режимом по умолчанию для новых учётных записей и ключом депонирования.';
 
   @override
   String get adminPanelVaultsTitle => 'Хранилища и квоты';
@@ -19930,9 +19434,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String waCleanup(int count) {
     return 'Старые тома на очистке · $count';
   }
-
-  @override
-  String get waAccess => 'Политики доступа Relay';
 
   @override
   String get waNodeDetails => 'Сведения об узле';

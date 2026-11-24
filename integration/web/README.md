@@ -24,8 +24,7 @@ these steps through `support/hosted_web.cjs` (`ADMIN_CONSOLE_ENTRY`,
 Scripts that follow the current UI and pass on the current bundle:
 `test:password-change`, `test:session-refresh-multitab`, `test:multi-vault-switch`,
 `test:admin-audit`, `test:admin-accounts`, `test:admin-push-health`,
-`test:admin-relay-policy`, `test:admin-relay-groups`, `test:admin-jobs`,
-`test:admin-restore-stage`. The `max-panes` and `rename-sync` modes of
+`test:admin-jobs`, `test:admin-restore-stage`. The `max-panes` and `rename-sync` modes of
 `test:workspace-layout` pass in most runs but not all.
 
 Partly brought up to date and still failing: `test:profiles` (stops in its
@@ -563,33 +562,24 @@ preserved Host and cross-node session revocation against PostgreSQL.
 
 ## PostgreSQL SSH Relay acceptance
 
-The opt-in PostgreSQL HTTP fixture runs three focused Relay cases against two
+The opt-in PostgreSQL HTTP fixture runs a focused Relay case against two
 PG-backed server nodes. It verifies a one-use ticket issued by node A and
 consumed by node B, a real SSH shell command, SFTP upload/download byte
-equality, replay rejection, administrator policy/group APIs, and the current
-Web Settings flow against PostgreSQL. The Chromium case registers an
-allowlisted owner through Web, saves instance policy, creates a server-managed
-group, saves its narrower policy, and reads both states from node B. Run the
-three focused cases with a disposable database whose name starts with
-`atermius_test` or
-`atermius_pg_test`:
+equality and replay rejection. Run it with a disposable database whose name
+starts with `atermius_test` or `atermius_pg_test`:
 
 ```sh
 ATERMIUS_RUN_PG_HTTP_ACCEPTANCE=1 \
 ATERMIUS_TEST_PG_URL=postgresql://.../atermius_test_sync_http \
 ATERMIUS_PG_HTTP_SERVER_BIN=/path/to/atermius-server \
 pytest -q integration/test_pg_sync_http_acceptance.py \
-  -k 'test_pg_http_relay_cross_node_openssh_shell_sftp_acceptance or test_pg_http_relay_admin_policy_groups_privacy_and_watermark_acceptance or test_pg_http_admin_relay_settings_browser_acceptance'
+  -k 'test_pg_http_relay_cross_node_openssh_shell_sftp_acceptance'
 ```
 
 The fixture requires Linux root, PostgreSQL 17, OpenSSH tools, `/run/sshd`,
 and the Python acceptance dependencies. It creates and removes its schema and
-server processes; use a disposable database. The PG Chromium case covers
-instance-policy read/save and group create/override save from Settings. It does
-not cover per-user override editing in PG Chromium, other browser engines,
-native clients, production networking, or general PostgreSQL parity. The
-broader Relay Settings lifecycle and group membership UI remain covered by the
-separate SQLite Chromium runners.
+server processes; use a disposable database. It does not cover other browser
+engines, native clients, production networking, or general PostgreSQL parity.
 
 Extended PG Relay lifecycle cases live in a separate module so the deliberate
 node-A crash is isolated from the other tests. Run them with the same
@@ -1077,8 +1067,8 @@ container's non-loopback `eth0` IPv4 address and a Target bound only to
 `127.0.0.1`. It configures the Bastion key to permit forwarding only to that
 Target address and port. The Web UI saves a Bastion Host and a separate Target
 Host that references it as its single Jump Host, each with its own credential
-and KnownHost trust. The Relay allowlist contains only the Bastion address and
-port; the harness inspects ticket requests and asserts none names the Target.
+and KnownHost trust. The harness inspects Relay ticket requests and asserts
+each names only the Bastion address and port, never the Target.
 The browser opens a real terminal and performs SFTP against the loopback Target
 through the Bastion. It rotates the Target key and the Bastion key separately
 and verifies each changed key is rejected at its own SSH hop. Terminal/SFTP
@@ -1112,7 +1102,7 @@ invocation with the expected text and Credential arguments. The result UI masks
 an exact secret echo in stdout and stderr; transformed or partial echoes are not
 covered. Shell syntax inside either parameter remains literal. The server
 SQLite/WAL/SHM scan finds no secret marker, and each Relay ticket targets only
-the allowlisted Bastion.
+the Bastion.
 Credential values are decrypted and resolved on the client, then sent as stdin
 inside the encrypted SSH exec channel. The remote process receives them as argv,
 so other processes running under the same remote UID may observe them. This
@@ -1205,8 +1195,7 @@ password-only Unix account and password are created for each run; each server
 has a different temporary host key. SSH forwarding, public-key authentication,
 keyboard-interactive authentication, agent forwarding, and X11 are disabled.
 The temporary SSHD listeners bind only to the runner's RFC1918 private
-non-loopback `eth0` address. The Relay allowlist contains that address and the
-exact six test ports. Run this acceptance inside a private test network with
+non-loopback `eth0` address. Run this acceptance inside a private test network with
 public egress disabled: the temporary interactive shell runs under the host's
 network namespace while the fixture is alive.
 
@@ -1417,8 +1406,7 @@ v1 payload contract; this repository does not contain an archived historical
 client binary, so this is not a full old-build/device acceptance run.
 
 SQLite/WAL/SHM checks ensure fixture endpoint and fingerprint markers remain
-encrypted. The server Relay allowlist contains only the fixture's `eth0`
-address and two SSH ports. SSHD disables root and password login, TTY,
+encrypted. SSHD disables root and password login, TTY,
 forwarding, and tunnels; the synthetic SSH username is invalid, so the test
 covers host-key validation before authentication and never opens a shell.
 Browser state, database, generated keys, and logs are temporary and removed on
@@ -1496,50 +1484,3 @@ passed **1,055 tests with 3 skipped**. The current Web Release bundle
 `71b1ced0d7954073c2f1cca0354c65b614c59d344bfe684f7b0ccf02c74b4c1e`) was
 rebuilt after this UI change. The device-report scenario is covered by Flutter
 widgets, not a separate Chromium journey.
-
-## Administrator per-account Relay policy acceptance
-
-`WEB-ADMIN-RELAY-POLICY-01` now covers both the instance-wide Settings policy
-and the account-scoped Relay panel on an active, non-current account card. The
-runner first verifies that the invited target and current administrator both
-inherit the instance selection. The target account panel must make no user
-policy request while collapsed; expanding it loads the account and instance
-revisions and renders the inherited state. Saving a disabled account selection
-must create a user override through the UI, with both
-`expected_revision` and `expected_instance_policy_revision` in the strict PUT
-body. Resetting the override must return the target to inherited state without
-changing the current administrator's account policy.
-
-The runner injects a competing account write and a separate instance policy
-write. Each stale UI save must receive HTTP 409 while retaining the edited
-checkbox, CIDR and port draft. Reloading the latest policy must retain the
-draft; after the instance conflict is resolved by reloading, the UI resets the
-account to inherit. The final admin audit read checks the exact number and
-resource types of successful policy writes, confirms stale writes created no
-ledger entries, and verifies user resource IDs are opaque HMAC identifiers.
-Member Settings must hide both Relay policy panels, and member GET/PUT/DELETE
-requests to the selected user's policy endpoint must return 403. Policy DTOs,
-audit rows, browser errors and rendered text are checked for account credentials
-and private server paths.
-
-Build the current Flutter Web release bundle and install the pinned Playwright
-dependency as described above, then run:
-
-```sh
-npm run test:admin-relay-policy
-```
-
-The runner builds the Rust server, then starts a disposable instance with
-private deployment limits. It requires Node 18+, Cargo, Playwright Chromium,
-and an RFC1918 IPv4 address on `eth0`; browser requests are restricted to the
-fixture origin. The Web bundle and server must both include the per-account
-Relay PUT contract carrying `expected_instance_policy_revision`. This slice is
-accepted on the current release bundle (`main.dart.js` SHA-256
-`71b1ced0d7954073c2f1cca0354c65b614c59d344bfe684f7b0ccf02c74b4c1e`):
-`TMPDIR=/tmp/aterminal-tests npm_config_cache=/tmp/aterminal-npm-cache CARGO_BUILD_JOBS=2 npm run test:admin-relay-policy --prefix integration/web` exited 0
-with `WEB-ADMIN-RELAY-POLICY-01 passed`. The browser run verified lazy account
-policy loading, inherited state, dual-revision save, independent stale-account
-and stale-instance 409 responses retaining the draft, reload and reset-to-inherit,
-current-admin isolation, member/anonymous access gates, opaque HMAC audit IDs,
-privacy scans, self-only CSP, zero external requests/page errors, and fixture
-cleanup. See `docs/WEB-ACCEPTANCE-MATRIX.md` for scope and known limitations.

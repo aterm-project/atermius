@@ -11,7 +11,6 @@ import '../api/workspace_agents.dart';
 import '../app_controller.dart';
 import '../domain/quick_connect.dart';
 import '../l10n/l10n.dart';
-import 'admin_panel.dart';
 import 'app_motion.dart';
 
 class WorkspaceAgentsAdmin extends StatefulWidget {
@@ -313,10 +312,6 @@ class _WorkspaceAgentsAdminState extends State<WorkspaceAgentsAdmin>
                           ),
                     child: Text(host ? l.waPublish : l.waCreate),
                   ),
-                TextButton(
-                  onPressed: () => AdminPanel.requestSection('access'),
-                  child: Text(l.waAccess),
-                ),
               ],
             ),
             if (data.clusters.isEmpty) Text(l.waNoClusters),

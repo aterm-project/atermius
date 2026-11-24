@@ -4,8 +4,9 @@
  * two-tab userauth-versus-revoke boundary before the changed-key checks.
  *
  * All browser data, server state, SSH host keys and logs are confined to a
- * disposable temporary directory. The SSHD binds only eth0's address and the
- * server Relay allowlist contains exactly that address and the SSHD port.
+ * disposable temporary directory. The SSHD binds only eth0's address, which
+ * the server Relay reaches directly (it refuses only loopback, link-local and
+ * cloud metadata addresses).
  * Root SSH login, password authentication, forwarding, TTY and tunnels are
  * disabled. SSH identities and userauth gate state are run-scoped fixtures;
  * none of the SSHD instances can open an interactive session.
@@ -1916,8 +1917,6 @@ async function main() {
       ATERMIUS_PUBLIC_ORIGIN: baseUrl,
       ATERMIUS_REGISTRATION_OPEN: 'false',
       ATERMIUS_RELAY_ENABLED: 'true',
-      ATERMIUS_RELAY_ALLOW_CIDRS: `${address}/32`,
-      ATERMIUS_RELAY_ALLOW_PORTS: `${sshPort},${conflictPort},${sameProfileAuthPort}`,
       RUST_LOG: process.env.RUST_LOG || 'warn',
     };
     activeStage = 'temporary SSH host-key fixture';

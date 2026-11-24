@@ -35,8 +35,8 @@ Future<TelnetByteChannel> connectTelnetDirect(String host, int port) =>
     platform.connectTelnetDirect(host, port);
 
 /// Opens Telnet through the authenticated server Relay. The Relay applies the
-/// same server-side CIDR/port allowlists, per-user policy, one-use ticket and
-/// audit rules as SSH; it forwards opaque TCP bytes only.
+/// same server-side target checks, one-use ticket and audit rules as SSH; it
+/// forwards opaque TCP bytes only.
 ///
 /// There is deliberately no inner timeout around the WebSocket setup:
 /// [connectRelaySocket] bounds its own handshake, and the caller

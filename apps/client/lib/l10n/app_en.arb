@@ -559,10 +559,6 @@
   "@accountRecoveredSignInWithThe2": {},
   "accountRecoveryIsBusy": "Account recovery is busy.",
   "@accountRecoveryIsBusy": {},
-  "accountRelayPolicyResetToInherit": "Account relay policy reset to inherit.",
-  "@accountRelayPolicyResetToInherit": {},
-  "accountRelayPolicySaved": "Account relay policy saved.",
-  "@accountRelayPolicySaved": {},
   "accountStatusUpdatedToStatusRevokedsessions": "Account status updated to {status}; {revokedSessions, plural, =1{1 session} other{{revokedSessions} sessions}} revoked.",
   "@accountStatusUpdatedToStatusRevokedsessions": {
     "placeholders": {
@@ -622,16 +618,10 @@
   "@currentAccountSessionExpired": {},
   "enterTheAccountName": "Enter the account name.",
   "@enterTheAccountName": {},
-  "groupRelayPolicyResetToInherit": "Group Relay policy reset to inherit.",
-  "@groupRelayPolicyResetToInherit": {},
-  "groupRelayPolicySaved": "Group Relay policy saved.",
-  "@groupRelayPolicySaved": {},
   "groupDefault": "Group default",
   "@groupDefault": {},
   "groupDefaultIsUnavailableChooseA": "Group default is unavailable. Choose a Host override or repair the Group default.",
   "@groupDefaultIsUnavailableChooseA": {},
-  "groupMembershipSaved": "Group membership saved.",
-  "@groupMembershipSaved": {},
   "hostChangedRepeatedlyWhileSavingReopen": "Host changed repeatedly while saving; reopen and retry.",
   "@hostChangedRepeatedlyWhileSavingReopen": {},
   "hostIdentityChangedWhileTheEditor": "Host identity changed while the editor was open.",
@@ -740,12 +730,6 @@
       }
     }
   },
-  "loadAConsistentAccountAndInstance": "Load a consistent account and instance policy before resetting.",
-  "@loadAConsistentAccountAndInstance": {},
-  "loadAConsistentAccountAndInstance2": "Load a consistent account and instance policy before saving.",
-  "@loadAConsistentAccountAndInstance2": {},
-  "loadTheLatestSshRelayPolicy": "Load the latest SSH relay policy before saving.",
-  "@loadTheLatestSshRelayPolicy": {},
   "theMfaSignInResponseDoesnt": "The MFA sign-in response doesn't match the current account or device.",
   "@theMfaSignInResponseDoesnt": {},
   "mfaSettingsAreBeingProcessed": "MFA settings are being processed.",
@@ -794,16 +778,6 @@
   "@recoveryIdentityEnvelopeIsMissing": {},
   "referencedCredentialChangedAfterPreviewReview": "Referenced Credential changed after preview. Review the command and try again.",
   "@referencedCredentialChangedAfterPreviewReview": {},
-  "reloadTheLatestAccountAndInstance": "Reload the latest account and instance policies before resetting.",
-  "@reloadTheLatestAccountAndInstance": {},
-  "reloadTheLatestAccountAndInstance2": "Reload the latest account and instance policies before saving.",
-  "@reloadTheLatestAccountAndInstance2": {},
-  "reloadTheLatestGroupAndInstance": "Reload the latest group and instance policies before resetting.",
-  "@reloadTheLatestGroupAndInstance": {},
-  "reloadTheLatestGroupAndInstance2": "Reload the latest group and instance policies before saving.",
-  "@reloadTheLatestGroupAndInstance2": {},
-  "reloadTheLatestPolicyAfterThe": "Reload the latest policy after the revision conflict before retrying.",
-  "@reloadTheLatestPolicyAfterThe": {},
   "restoreIsEncryptedAndQueuedOn": "Restore is encrypted and queued on this device; sync status will retry.",
   "@restoreIsEncryptedAndQueuedOn": {},
   "restoreIsEncryptedLocallyAndWaiting": "Restore is encrypted locally and waiting to sync.",
@@ -852,8 +826,6 @@
       }
     }
   },
-  "sshRelayPolicySaved": "SSH relay policy saved.",
-  "@sshRelayPolicySaved": {},
   "sshHostKeyTrustWasConfirmed": "SSH host key trust was confirmed by sync in the current Vault.",
   "@sshHostKeyTrustWasConfirmed": {},
   "sshHostKeyTrustWasRevoked": "SSH host key trust was revoked and saved encrypted to the current Vault.",
@@ -896,8 +868,6 @@
   "@selectAVaultBeforeResolvingThis": {},
   "selectAVaultBeforeResolvingThis2": "Select a Vault before resolving this Host.",
   "@selectAVaultBeforeResolvingThis2": {},
-  "selectAnActiveMemberOfThis": "Select an active member of this server-managed group.",
-  "@selectAnActiveMemberOfThis": {},
   "selectedSessionRevoked": "Selected session revoked.",
   "@selectedSessionRevoked": {},
   "selectedSessionWasAlreadyRevoked": "Selected session was already revoked.",
@@ -938,8 +908,6 @@
   "@theHostDidNotReturnA": {},
   "theSshExecRequestFailedAfter": "The SSH exec request failed after dispatch.",
   "@theSshExecRequestFailedAfter": {},
-  "theAccountNowInheritsTheInstance": "The account now inherits the instance relay policy.",
-  "@theAccountNowInheritsTheInstance": {},
   "theEffectiveSshCredentialIsUnavailable": "The effective SSH credential is unavailable. Choose a valid Host override or repair the Group default.",
   "@theEffectiveSshCredentialIsUnavailable": {},
   "theEnabledRecoveryIdentityHasAn": "The enabled Recovery identity has an invalid generation.",
@@ -948,18 +916,6 @@
   "@theEncryptedSshHostKeyApproval": {},
   "theExistingRecoveryDescriptorDoesNot": "The existing Recovery descriptor does not match its wrapped identity.",
   "@theExistingRecoveryDescriptorDoesNot": {},
-  "theGroupNowInheritsTheInstance": "The group now inherits the instance Relay policy.",
-  "@theGroupNowInheritsTheInstance": {},
-  "theInstanceRelayPolicyChangedWhile": "The instance Relay policy changed while this group was loading. Reload to get a consistent snapshot.",
-  "@theInstanceRelayPolicyChangedWhile": {},
-  "theInstanceRelayPolicyChangedReload": "The instance Relay policy changed. Reload this group before reviewing effective access.",
-  "@theInstanceRelayPolicyChangedReload": {},
-  "theInstancePolicyChangedWhileResetting": "The instance policy changed while resetting. Reload the latest policies; your draft is preserved.",
-  "@theInstancePolicyChangedWhileResetting": {},
-  "theInstancePolicyChangedWhileSaving": "The instance policy changed while saving. Reload the latest policies; your draft is preserved.",
-  "@theInstancePolicyChangedWhileSaving": {},
-  "theInstanceRelayPolicyChangedWhile2": "The instance relay policy changed while this account policy was loading. Reload to get a consistent snapshot.",
-  "@theInstanceRelayPolicyChangedWhile2": {},
   "theMergedHostRecordIsInvalid": "The merged Host record is invalid.",
   "@theMergedHostRecordIsInvalid": {},
   "theNewMasterPasswordMustContain": "The new master password must contain at least 12 characters.",
@@ -974,8 +930,6 @@
   "@theRecoveryCompletionReceiptIsInvalid": {},
   "theRecoveryResponseDidNotMatch": "The recovery response did not match this account.",
   "@theRecoveryResponseDidNotMatch": {},
-  "theRelayPolicyChangedElsewhereReload": "The relay policy changed elsewhere. Reload the latest settings before retrying.",
-  "@theRelayPolicyChangedElsewhereReload": {},
   "theReviewedSshSessionForHostname": "The reviewed SSH session for {hostName} changed before dispatch.",
   "@theReviewedSshSessionForHostname": {
     "placeholders": {
@@ -986,8 +940,6 @@
   },
   "theServerCouldNotVerifyAccess": "The server could not verify access to the configured S3 backup bucket.",
   "@theServerCouldNotVerifyAccess": {},
-  "theServerDeploymentDoesNotCurrently": "The server deployment does not currently allow this relay setting. Your edits are still here; review the deployment limits and retry.",
-  "@theServerDeploymentDoesNotCurrently": {},
   "theServerOrAuthenticationStateChanged": "The server or authentication state changed during recovery. Start again.",
   "@theServerOrAuthenticationStateChanged": {},
   "theServerRestorePeriodHasNot": "The server restore period has not ended.",
@@ -1004,10 +956,6 @@
   "@thisWorkspaceReferencesAHostThat": {},
   "tooManySshHostKeyChecks": "Too many SSH host-key checks were requested for this route.",
   "@tooManySshHostKeyChecks": {},
-  "unableToLoadTheSshRelay": "Unable to load the SSH relay policy. Check your connection and retry.",
-  "@unableToLoadTheSshRelay": {},
-  "unableToSaveTheSshRelay": "Unable to save the SSH relay policy. Check your connection and retry.",
-  "@unableToSaveTheSshRelay": {},
   "vaultChangedWhileSshHostKey": "Vault changed while SSH host-key approval was reviewed.",
   "@vaultChangedWhileSshHostKey": {},
   "vaultChangedWhileSshHostKey2": "Vault changed while SSH host-key approval was saved.",
@@ -1630,8 +1578,6 @@
   "@anExistingRepairTombstoneAlreadySpecifies": {},
   "theRecordRetainedByAnExisting": "The record retained by an existing repair tombstone is inconsistent and needs a manual check.",
   "@theRecordRetainedByAnExisting": {},
-  "aServerAccessGroupWithThe": "A server access group with the same name already exists (ignoring case and Unicode compatibility characters).",
-  "@aServerAccessGroupWithThe": {},
   "thePreviouslySubmittedMasterPasswordChange": "The previously submitted master password change was confirmed; other sign-in sessions were revoked.",
   "@thePreviouslySubmittedMasterPasswordChange": {},
   "attachedToTheSavedTmuxSession": "Attached to the saved tmux session.",
@@ -1800,8 +1746,6 @@
   "@theSelectedArchiveIsInvalidRefresh": {},
   "theSelectedArchiveSourceIsInvalid": "The selected archive source is invalid. Refresh the source list and try again.",
   "@theSelectedArchiveSourceIsInvalid": {},
-  "theSelectedServerAccessGroupNo": "The selected server access group no longer exists. Refresh the list.",
-  "@theSelectedServerAccessGroupNo": {},
   "theApprovalFileDoesntMatchThe": "The approval file doesn't match the device request generated by this browser.",
   "@theApprovalFileDoesntMatchThe": {},
   "theVaultKeyEnvelopeContextIn": "The Vault key envelope context in the approval file is invalid.",
@@ -1929,8 +1873,6 @@
   "@theServerHasntConfiguredEncryptedBackups": {},
   "theServerHasntConfiguredIsolatedRestore": "The server hasn't configured isolated restore storage. Contact the instance operator.",
   "@theServerHasntConfiguredIsolatedRestore": {},
-  "theServerAccessGroupWasUpdated": "The server access group was updated by another administrator. Reload the latest data; your current draft is kept.",
-  "@theServerAccessGroupWasUpdated": {},
   "theServersInitialVaultMembershipRecord": "The server's initial Vault membership record has an invalid format.",
   "@theServersInitialVaultMembershipRecord": {},
   "theServerVaultKeyEnvelopeDoesnt": "The server Vault key envelope doesn't match the creation data staged on this device.",
@@ -3383,7 +3325,7 @@
   "@remoteDesktopSetupTimedOutCheck": {},
   "remoteDesktopStreamFailed": "Remote desktop stream failed.",
   "@remoteDesktopStreamFailed": {},
-  "unableToConnectCheckTheDesktop": "Unable to connect. Check the desktop gateway, Relay policy, credentials and certificate trust.",
+  "unableToConnectCheckTheDesktop": "Unable to connect. Check the desktop gateway, credentials and certificate trust.",
   "@unableToConnectCheckTheDesktop": {},
   "theHostSettingsChangedReconnect": "The host settings changed. Reconnect.",
   "@theHostSettingsChangedReconnect": {},
@@ -4124,9 +4066,9 @@
   "@theUntrustedSshHostKeyWas": {},
   "couldntEstablishTheSshRelayWebsocket": "Couldn't establish the SSH relay WebSocket. Check the instance HTTPS/WSS address, relay origin settings and network, then try again.",
   "@couldntEstablishTheSshRelayWebsocket": {},
-  "theServerRelayPolicyRejectedThis": "The server relay policy rejected this target address or port. Ask an administrator to check the SSH target allowlist.",
-  "@theServerRelayPolicyRejectedThis": {},
-  "theServerHasntEnabledTheSsh": "The server hasn't enabled the SSH relay. Ask an administrator to configure the relay and target networks.",
+  "theServerRefusesToConnectToThis": "The server refuses to connect to this address. Loopback, link-local and cloud metadata addresses can't be reached through the server.",
+  "@theServerRefusesToConnectToThis": {},
+  "theServerHasntEnabledTheSsh": "The server hasn't enabled the SSH relay. Ask an administrator to enable it.",
   "@theServerHasntEnabledTheSsh": {},
   "localStorageNeedsRecoveryReadingEditing2": "Local storage needs recovery. Reading, editing and syncing this database are paused; close all Atermius tabs and reopen to restore the last persisted data.",
   "@localStorageNeedsRecoveryReadingEditing2": {},
@@ -4348,8 +4290,6 @@
   },
   "n0Auto": "0 = auto",
   "@n0Auto": {},
-  "n180UnicodeCharactersUniqueWithout": "1–80 Unicode characters; unique without regard to case.",
-  "@n180UnicodeCharactersUniqueWithout": {},
   "aHostCanHaveAtMost": "A Host can have at most {maxHostPortForwardProfiles} port forward profiles.",
   "@aHostCanHaveAtMost": {
     "placeholders": {
@@ -4358,8 +4298,6 @@
       }
     }
   },
-  "aConcurrentChangeWasDetectedYour": "A concurrent change was detected. Your name, membership and policy drafts are preserved.",
-  "@aConcurrentChangeWasDetectedYour": {},
   "aNewEncryptedRevisionWillBe": "A new encrypted revision will be created against the current remote head. The old branch remains recorded until the server accepts the resolution.",
   "@aNewEncryptedRevisionWillBe": {},
   "aNewerAtermiusWebBuildIs": "A new Atermius Web version has been downloaded and is ready.",
@@ -4394,8 +4332,6 @@
   "@aRandomRecoveryCodeEncryptsA": {},
   "aSplitWorkspaceNeedsAtLeast": "A split Workspace needs at least two panes",
   "@aSplitWorkspaceNeedsAtLeast": {},
-  "aUsersEffectiveRelayAccessAlso": "A user’s effective Relay access also intersects their account policy, every other server group, and the deployment limits.",
-  "@aUsersEffectiveRelayAccessAlso": {},
   "active": "ACTIVE",
   "@active": {},
   "apiEndpoint": "API endpoint",
@@ -4416,10 +4352,6 @@
   "@accountDevice": {},
   "accountId": "Account ID",
   "@accountId": {},
-  "accountRelayPolicy": "Account Relay policy",
-  "@accountRelayPolicy": {},
-  "accountRelayPolicySaveFailed": "Account Relay policy save failed",
-  "@accountRelayPolicySaveFailed": {},
   "accountDeletion": "Account deletion",
   "@accountDeletion": {},
   "accountDeletionImmediatelyRevokesAllSessions": "Account deletion immediately revokes all sessions and devices. At the server deadline, personal Vaults and account data are purged; your membership and key access to other people’s Vaults are removed. Other members’ shared Vault data is not deleted. An Owner of a shared Vault with other active or invited members must resolve that membership first.",
@@ -4486,17 +4418,6 @@
   },
   "accountRecoveryWasDisabled": "Account recovery was disabled.",
   "@accountRecoveryWasDisabled": {},
-  "accountRevisionRevisionUpdatedFormattime": "Account revision {revision} · updated {formatTime}",
-  "@accountRevisionRevisionUpdatedFormattime": {
-    "placeholders": {
-      "revision": {
-        "type": "int"
-      },
-      "formatTime": {
-        "type": "String"
-      }
-    }
-  },
   "accountSessions": "Account sessions",
   "@accountSessions": {},
   "accounts": "Accounts",
@@ -4519,8 +4440,6 @@
       }
     }
   },
-  "activeAccountOnCurrentPage": "Active account on current page",
-  "@activeAccountOnCurrentPage": {},
   "activeDevices": "Active devices",
   "@activeDevices": {},
   "activePane": "Active pane",
@@ -4569,12 +4488,6 @@
   "@allowFutureAutomaticPurge": {},
   "allowFuturePurge": "Allow future purge",
   "@allowFuturePurge": {},
-  "allowedCidrNetworks": "Allowed CIDR networks",
-  "@allowedCidrNetworks": {},
-  "allowedCidrsOnePerLine": "Allowed CIDRs (one per line)",
-  "@allowedCidrsOnePerLine": {},
-  "allowedPorts": "Allowed ports",
-  "@allowedPorts": {},
   "anEncryptedVaultArchiveCoveringPendingcount": "An encrypted Vault archive covering {pendingCount, plural, =1{1 pending operation} other{{pendingCount} pending operations}} was exported recently. The outbox remains stored locally and will sync after reload.",
   "@anEncryptedVaultArchiveCoveringPendingcount": {
     "placeholders": {
@@ -4829,10 +4742,6 @@
   "@closeSavedLayoutPreview": {},
   "color2": "Color",
   "@color2": {},
-  "commaOrLineSeparatedPortNumbers": "Comma or line separated port numbers.",
-  "@commaOrLineSeparatedPortNumbers": {},
-  "commaOrNewlineSeparatedForExample": "Comma or newline separated, for example 22, 2222",
-  "@commaOrNewlineSeparatedForExample": {},
   "commandHistory": "Command history",
   "@commandHistory": {},
   "commandSnippets": "Command snippets",
@@ -5036,17 +4945,6 @@
   "@created": {},
   "createdAt": "Created at",
   "@createdAt": {},
-  "createdFormattimeUpdatedFormattime2": "Created {formatTime} · updated {formatTime2}",
-  "@createdFormattimeUpdatedFormattime2": {
-    "placeholders": {
-      "formatTime": {
-        "type": "String"
-      },
-      "formatTime2": {
-        "type": "String"
-      }
-    }
-  },
   "createdFormat": "Created · {format}",
   "@createdFormat": {
     "placeholders": {
@@ -5175,10 +5073,6 @@
   "@deleteGroup3": {},
   "deleteGroup4": "Delete group?",
   "@deleteGroup4": {},
-  "deleteServerManagedGroup": "Delete server-managed group",
-  "@deleteServerManagedGroup": {},
-  "deleteServerManagedGroup2": "Delete server-managed group?",
-  "@deleteServerManagedGroup2": {},
   "deleteThisItem": "Delete this item?",
   "@deleteThisItem": {},
   "deletingAccountAdministrativeActionsUnavailable": "Deleting account · administrative actions unavailable",
@@ -5203,12 +5097,6 @@
   "@deliveryHistoryIsUnavailableOnThis": {},
   "deliveryWindowUtc": "Delivery window (UTC)",
   "@deliveryWindowUtc": {},
-  "deploymentCidrLimits": "Deployment CIDR limits",
-  "@deploymentCidrLimits": {},
-  "deploymentPortLimits": "Deployment port limits",
-  "@deploymentPortLimits": {},
-  "deploymentRelayAvailability": "Deployment relay availability",
-  "@deploymentRelayAvailability": {},
   "destinationOnSshTarget": "Destination on SSH target",
   "@destinationOnSshTarget": {},
   "destinationOnThisDevice": "Destination on this device",
@@ -5267,8 +5155,6 @@
       }
     }
   },
-  "disabledByPolicy": "Disabled by policy",
-  "@disabledByPolicy": {},
   "discardIsolatedCopy": "Discard isolated copy",
   "@discardIsolatedCopy": {},
   "discardIsolatedRestoreCopy": "Discard isolated restore copy?",
@@ -5342,62 +5228,12 @@
   "@editQuota": {},
   "editText2": "Edit text",
   "@editText2": {},
-  "editableCeilingValuevalueCidrsSummarizePorts": "Editable ceiling: {valueValue} · CIDRs: {summarize} · ports: {summarize2}",
-  "@editableCeilingValuevalueCidrsSummarizePorts": {
-    "placeholders": {
-      "valueValue": {
-        "type": "String"
-      },
-      "summarize": {
-        "type": "String"
-      },
-      "summarize2": {
-        "type": "String"
-      }
-    }
-  },
   "editorCanEditVaultRecords": "Editor · can edit Vault records",
   "@editorCanEditVaultRecords": {},
-  "effectiveSshRelayService": "Effective SSH relay service",
-  "@effectiveSshRelayService": {},
-  "effectiveGroupStateValuevalueCidrsSummarize": "Effective group state: {valueValue} · CIDRs: {summarize} · ports: {summarize2}",
-  "@effectiveGroupStateValuevalueCidrsSummarize": {
-    "placeholders": {
-      "valueValue": {
-        "type": "String"
-      },
-      "summarize": {
-        "type": "String"
-      },
-      "summarize2": {
-        "type": "String"
-      }
-    }
-  },
-  "effectiveStateValuevalueCidrsSummarizePorts": "Effective state: {valueValue} · CIDRs: {summarize} · ports: {summarize2}",
-  "@effectiveStateValuevalueCidrsSummarizePorts": {
-    "placeholders": {
-      "valueValue": {
-        "type": "String"
-      },
-      "summarize": {
-        "type": "String"
-      },
-      "summarize2": {
-        "type": "String"
-      }
-    }
-  },
   "enableBashCommandHistory": "Enable Bash command history",
   "@enableBashCommandHistory": {},
   "enableBashIntegration": "Enable Bash integration",
   "@enableBashIntegration": {},
-  "enableRelayForThisAccount": "Enable Relay for this account",
-  "@enableRelayForThisAccount": {},
-  "enableRelayForThisGroup": "Enable Relay for this group",
-  "@enableRelayForThisGroup": {},
-  "enableSshRelay": "Enable SSH relay",
-  "@enableSshRelay": {},
   "enableVaultSync": "Enable Vault sync",
   "@enableVaultSync": {},
   "enableAndCopy": "Enable and copy",
@@ -5537,8 +5373,6 @@
   "@focus": {},
   "folderName": "Folder name",
   "@folderName": {},
-  "forExample104000": "For example: 10.40.0.0/16",
-  "@forExample104000": {},
   "forwardType": "Forward type",
   "@forwardType": {},
   "freeFormScriptLegacy": "Free-form script (legacy)",
@@ -5565,8 +5399,6 @@
   "@grantFor5Minutes": {},
   "grantInputControl": "Grant input control",
   "@grantInputControl": {},
-  "groupRelayPolicy": "Group Relay policy",
-  "@groupRelayPolicy": {},
   "groupActionsName2": "Group actions: {name}",
   "@groupActionsName2": {
     "placeholders": {
@@ -5577,20 +5409,6 @@
   },
   "groupName3": "Group name",
   "@groupName3": {},
-  "groupRevisionRevisionMembershipRevisionMembershiprevision": "Group revision {revision} · membership revision {membershipRevision} · policy revision {revision2}",
-  "@groupRevisionRevisionMembershipRevisionMembershiprevision": {
-    "placeholders": {
-      "revision": {
-        "type": "int"
-      },
-      "membershipRevision": {
-        "type": "int"
-      },
-      "revision2": {
-        "type": "int"
-      }
-    }
-  },
   "groupGroupname": "Group: {groupName}",
   "@groupGroupname": {
     "placeholders": {
@@ -5607,8 +5425,6 @@
       }
     }
   },
-  "hideRelayPolicy": "Hide Relay policy",
-  "@hideRelayPolicy": {},
   "hidePasswordSecret": "Hide password secret",
   "@hidePasswordSecret": {},
   "hideSessions": "Hide sessions",
@@ -5682,8 +5498,6 @@
       }
     }
   },
-  "includesTheInstanceAccountAndEvery": "Includes the instance, account and every assigned server group.",
-  "@includesTheInstanceAccountAndEvery": {},
   "inputControlOff": "Input control: off",
   "@inputControlOff": {},
   "inputControlRevoking": "Input control: revoking",
@@ -5716,17 +5530,6 @@
   "@instanceBackupStatus": {},
   "instanceJobs": "Instance jobs",
   "@instanceJobs": {},
-  "instanceRevisionRevisionUpdatedFormattime": "Instance revision {revision} · updated {formatTime}",
-  "@instanceRevisionRevisionUpdatedFormattime": {
-    "placeholders": {
-      "revision": {
-        "type": "int"
-      },
-      "formatTime": {
-        "type": "String"
-      }
-    }
-  },
   "instanceSigningKeyFingerprintSha256": "Instance signing key fingerprint · SHA-256",
   "@instanceSigningKeyFingerprintSha256": {},
   "instanceWideBootstrapAndNetworkPolicy": "Instance-wide bootstrap and network policy are managed by the self-hosted server operator.",
@@ -5827,8 +5630,6 @@
   "@lastRunStatus": {},
   "lastSuccessfulSync": "Last successful sync",
   "@lastSuccessfulSync": {},
-  "lastUpdated": "Last updated",
-  "@lastUpdated": {},
   "lastVerifiedServerShortkey": "Last verified server: {shortKey}",
   "@lastVerifiedServerShortkey": {
     "placeholders": {
@@ -5843,14 +5644,10 @@
   "@leased": {},
   "leaveSharedTerminal": "Leave shared terminal",
   "@leaveSharedTerminal": {},
-  "loadRelayPolicies": "Load Relay policies",
-  "@loadRelayPolicies": {},
   "loadVaults": "Load Vaults",
   "@loadVaults": {},
   "loadAccountInvitations": "Load account invitations",
   "@loadAccountInvitations": {},
-  "loadAccountsToAddMembers": "Load accounts to add members",
-  "@loadAccountsToAddMembers": {},
   "loadAdminAccounts": "Load admin accounts",
   "@loadAdminAccounts": {},
   "loadAdminAudit": "Load admin audit",
@@ -5865,20 +5662,12 @@
   "@loadOverview": {},
   "loadPushHealth": "Load push health",
   "@loadPushHealth": {},
-  "loadRelayPolicy": "Load relay policy",
-  "@loadRelayPolicy": {},
   "loadReplicationStatus": "Load replication status",
   "@loadReplicationStatus": {},
   "loadRestoreSources": "Load restore sources",
   "@loadRestoreSources": {},
-  "loadServerManagedGroups": "Load server-managed groups",
-  "@loadServerManagedGroups": {},
   "loadStatus": "Load status",
   "@loadStatus": {},
-  "loadingSshRelayPolicy": "Loading SSH relay policy…",
-  "@loadingSshRelayPolicy": {},
-  "loadingAccountAndInstancePolicyRevisions": "Loading account and instance policy revisions…",
-  "@loadingAccountAndInstancePolicyRevisions": {},
   "loadingAccountInvitations": "Loading account invitations…",
   "@loadingAccountInvitations": {},
   "loadingAccountSessions": "Loading account sessions…",
@@ -5887,10 +5676,6 @@
   "@loadingBackupSchedule": {},
   "loadingEncryptedArchiveSources": "Loading encrypted archive sources…",
   "@loadingEncryptedArchiveSources": {},
-  "loadingGroupMembershipAndRelayPolicy": "Loading group membership and Relay policy…",
-  "@loadingGroupMembershipAndRelayPolicy": {},
-  "loadingServerManagedGroups": "Loading server-managed groups…",
-  "@loadingServerManagedGroups": {},
   "local": "Local",
   "@local": {},
   "localArchive": "Local archive",
@@ -5949,24 +5734,8 @@
   "@manageVaultMembers": {},
   "masterPasswordIsUsedOnlyFor": "Master password is used only for client-side key derivation.",
   "@masterPasswordIsUsedOnlyFor": {},
-  "maxSshRelayConnectionsPerUser": "Max SSH relay connections per user",
-  "@maxSshRelayConnectionsPerUser": {},
   "maxRelayConnectionsPerUser": "Max relay connections per user",
   "@maxRelayConnectionsPerUser": {},
-  "memberEffectiveRelayAccessValuevalueCidrs": "Member effective Relay access: {valueValue} · CIDRs: {summarize} · ports: {summarize2}",
-  "@memberEffectiveRelayAccessValuevalueCidrs": {
-    "placeholders": {
-      "valueValue": {
-        "type": "String"
-      },
-      "summarize": {
-        "type": "String"
-      },
-      "summarize2": {
-        "type": "String"
-      }
-    }
-  },
   "members": "Members",
   "@members": {},
   "membersCurrentvaultname": "Members · {currentVaultName}",
@@ -6025,8 +5794,6 @@
   "@newHostGroup": {},
   "newMasterPassword": "New master password",
   "@newMasterPassword": {},
-  "newServerGroupName": "New server group name",
-  "@newServerGroupName": {},
   "newSnippet": "New snippet",
   "@newSnippet": {},
   "newSplitSideBySide": "New split: side by side",
@@ -6035,8 +5802,6 @@
   "@newSplitStacked": {},
   "next": "Next",
   "@next": {},
-  "nextAccounts": "Next accounts",
-  "@nextAccounts": {},
   "nextInvitations": "Next invitations",
   "@nextInvitations": {},
   "nextRun": "Next run",
@@ -6117,8 +5882,6 @@
   "@noSavedWorkspaces": {},
   "noScheduledBackupRunsRecorded": "No scheduled backup runs recorded",
   "@noScheduledBackupRunsRecorded": {},
-  "noServerManagedGroupsYet": "No server-managed groups yet.",
-  "@noServerManagedGroupsYet": {},
   "noSessionsFound": "No sessions found.",
   "@noSessionsFound": {},
   "noSessionsOnThisPage": "No sessions on this page.",
@@ -6165,8 +5928,6 @@
   "@offlineDeviceCopiesAndRetainedBackups": {},
   "offlineFirstCiphertextOnly": "Offline-first, ciphertext-only",
   "@offlineFirstCiphertextOnly": {},
-  "oneCanonicalNetworkCidrPerLine": "One canonical network CIDR per line.",
-  "@oneCanonicalNetworkCidrPerLine": {},
   "oneTimePrometheusScrapeCredential": "One-time Prometheus scrape credential",
   "@oneTimePrometheusScrapeCredential": {},
   "oneTimeInvitationToken": "One-time invitation token",
@@ -6305,34 +6066,12 @@
   "@permanentPurgeBecomesAvailableAfterThis": {},
   "permanentPurgeIsUnavailableBecauseThis": "Permanent purge is unavailable because this server did not provide a restore deadline.",
   "@permanentPurgeIsUnavailableBecauseThis": {},
-  "permanentlyDeleteNameItsMembershipAnd": "Permanently delete “{name}”, its membership and Relay policy? Unused Relay tickets for its members will be revoked, and active sessions granted by this group will close after policy recheck.",
-  "@permanentlyDeleteNameItsMembershipAnd": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
   "permanentlyPurge": "Permanently purge",
   "@permanentlyPurge": {},
   "permanentlyPurgeThisRecord": "Permanently purge this record?",
   "@permanentlyPurgeThisRecord": {},
   "policyRevision": "Policy revision",
   "@policyRevision": {},
-  "policyRevisionRevisionInstanceRevisionInstancepolicyrevision": "Policy revision {revision} · instance revision {instancePolicyRevision} · updated {formatTime}",
-  "@policyRevisionRevisionInstanceRevisionInstancepolicyrevision": {
-    "placeholders": {
-      "revision": {
-        "type": "int"
-      },
-      "instancePolicyRevision": {
-        "type": "int"
-      },
-      "formatTime": {
-        "type": "String"
-      }
-    }
-  },
   "port": "Port",
   "@port": {},
   "portableEncryptedVaultArchive": "Portable encrypted Vault archive",
@@ -6355,16 +6094,12 @@
   "@preparingLocalEncryptedArchive": {},
   "previewDisconnectedLayout": "Preview disconnected layout",
   "@previewDisconnectedLayout": {},
-  "previewMemberEffectiveRelayAccess": "Preview member effective Relay access",
-  "@previewMemberEffectiveRelayAccess": {},
   "previewOnly": "Preview only",
   "@previewOnly": {},
   "previewStructuredCommandsOrReviewAnd": "Preview structured commands, or review and confirm scripts before sending them to an active terminal.",
   "@previewStructuredCommandsOrReviewAnd": {},
   "previous": "Previous",
   "@previous": {},
-  "previousAccounts": "Previous accounts",
-  "@previousAccounts": {},
   "previousInvitations": "Previous invitations",
   "@previousInvitations": {},
   "previousSessions": "Previous sessions",
@@ -6423,7 +6158,7 @@
   "@reEnterAccountMasterPassword": {},
   "readOnlyGracePeriodAllMembers": "Read-only grace period · All members can keep reading; writes and member changes are paused. You can create a separately password-protected encrypted archive in Settings.",
   "@readOnlyGracePeriodAllMembers": {},
-  "readOnlyInstanceIdentityUsageAnd": "Read-only instance identity, usage and relay policy.",
+  "readOnlyInstanceIdentityUsageAnd": "Read-only instance identity, usage and relay status.",
   "@readOnlyInstanceIdentityUsageAnd": {},
   "readOnlyProviderConfigurationAggregateQueue": "Read-only provider configuration, aggregate queue counts, and adapter outcomes.",
   "@readOnlyProviderConfigurationAggregateQueue": {},
@@ -6554,8 +6289,6 @@
   "@refreshPushHealth": {},
   "refreshReadiness": "Refresh readiness",
   "@refreshReadiness": {},
-  "refreshRelayPolicy": "Refresh relay policy",
-  "@refreshRelayPolicy": {},
   "refreshReplicationStatus": "Refresh replication status",
   "@refreshReplicationStatus": {},
   "refreshRestoreSources": "Refresh restore sources",
@@ -6564,8 +6297,6 @@
   "@refreshRestoreStatus": {},
   "refreshSchedule": "Refresh schedule",
   "@refreshSchedule": {},
-  "refreshServerManagedGroups": "Refresh server-managed groups",
-  "@refreshServerManagedGroups": {},
   "refreshStatus": "Refresh status",
   "@refreshStatus": {},
   "refreshToLoadApprovedDevicesFrom": "Refresh to load approved devices from the server.",
@@ -6574,28 +6305,10 @@
   "@registeredEndpoints": {},
   "reject2": "Reject",
   "@reject2": {},
-  "relayCidrs": "Relay CIDRs",
-  "@relayCidrs": {},
-  "relayAvailable": "Relay available",
-  "@relayAvailable": {},
-  "relayPolicy": "Relay policy",
-  "@relayPolicy": {},
-  "relayPorts": "Relay ports",
-  "@relayPorts": {},
   "relayUnavailable": "Relay unavailable",
   "@relayUnavailable": {},
-  "reloadAccountAndInstanceRelayPolicies": "Reload account and instance Relay policies",
-  "@reloadAccountAndInstanceRelayPolicies": {},
   "reloadFirstPage": "Reload first page",
   "@reloadFirstPage": {},
-  "reloadGroupAndInstancePoliciesKeep": "Reload group and instance policies, keep drafts",
-  "@reloadGroupAndInstancePoliciesKeep": {},
-  "reloadLatestGroupKeepDrafts": "Reload latest group, keep drafts",
-  "@reloadLatestGroupKeepDrafts": {},
-  "reloadLatestPolicy": "Reload latest policy",
-  "@reloadLatestPolicy": {},
-  "reloadLatestPolicyKeepDraft": "Reload latest policy, keep draft",
-  "@reloadLatestPolicyKeepDraft": {},
   "remote": "Remote",
   "@remote": {},
   "remoteSshListenerAddress": "Remote SSH listener address",
@@ -6674,14 +6387,6 @@
   "@removeTmuxSessionReference2": {},
   "removeTmuxSessionReference": "Remove tmux session reference?",
   "@removeTmuxSessionReference": {},
-  "removeUsernameFromGroupDraft": "Remove {username} from group draft",
-  "@removeUsernameFromGroupDraft": {
-    "placeholders": {
-      "username": {
-        "type": "String"
-      }
-    }
-  },
   "rename": "Rename",
   "@rename": {},
   "renameWorkspace": "Rename workspace",
@@ -6702,8 +6407,6 @@
   "@requiredTextValue": {},
   "reservedUploads": "Reserved uploads",
   "@reservedUploads": {},
-  "resetToInherit": "Reset to inherit",
-  "@resetToInherit": {},
   "resolutionSavedOnThisDeviceWaiting": "Resolution saved on this device; waiting for sync confirmation.",
   "@resolutionSavedOnThisDeviceWaiting": {},
   "resolveOrDiscardThisRecordsOutstanding": "Resolve or discard this record’s outstanding conflict before permanently purging it.",
@@ -6760,14 +6463,6 @@
   },
   "restoreThisRecord": "Restore this record?",
   "@restoreThisRecord": {},
-  "restoreUsernameInGroupDraft": "Restore {username} in group draft",
-  "@restoreUsernameInGroupDraft": {
-    "placeholders": {
-      "username": {
-        "type": "String"
-      }
-    }
-  },
   "result": "Result",
   "@result": {},
   "resumeSession": "Resume session",
@@ -6790,10 +6485,6 @@
   "@retryDiscard": {},
   "retryDiscardSafely": "Retry discard safely",
   "@retryDiscardSafely": {},
-  "retryGroupDetails": "Retry group details",
-  "@retryGroupDetails": {},
-  "retryGroupList": "Retry group list",
-  "@retryGroupList": {},
   "retryPasswordChange": "Retry password change",
   "@retryPasswordChange": {},
   "retryPending": "Retry pending",
@@ -7006,8 +6697,6 @@
   "@sshPortForwarding": {},
   "sshRelay": "SSH relay",
   "@sshRelay": {},
-  "sshRelayPolicy": "SSH relay policy",
-  "@sshRelayPolicy": {},
   "sshSessionIsDisconnected": "SSH session is disconnected.",
   "@sshSessionIsDisconnected": {},
   "sshTerminalInput": "SSH terminal input",
@@ -7036,20 +6725,12 @@
   "@saveEncryptedGroup": {},
   "saveEncryptedProfile": "Save encrypted profile",
   "@saveEncryptedProfile": {},
-  "saveGroupOverride": "Save group override",
-  "@saveGroupOverride": {},
   "saveLocalLayoutAsNamedCopy": "Save local layout as named copy",
   "@saveLocalLayoutAsNamedCopy": {},
-  "saveMembership": "Save membership",
-  "@saveMembership": {},
   "saveMergedCredential": "Save merged Credential",
   "@saveMergedCredential": {},
-  "saveOverride": "Save override",
-  "@saveOverride": {},
   "saveQuota": "Save quota",
   "@saveQuota": {},
-  "saveRelayPolicy": "Save relay policy",
-  "@saveRelayPolicy": {},
   "saveReviewedTuple": "Save reviewed tuple",
   "@saveReviewedTuple": {},
   "saveSchedule": "Save schedule",
@@ -7086,8 +6767,6 @@
       }
     }
   },
-  "savedSettingsCanOnlyNarrowThe": "Saved settings can only narrow the immutable limits configured by the server operator.",
-  "@savedSettingsCanOnlyNarrowThe": {},
   "savedWorkspaces": "Saved workspaces",
   "@savedWorkspaces": {},
   "savedFontsizePxThisEncryptedPreference": "Saved {fontSize} px. This encrypted preference will sync to devices with access to this Vault.",
@@ -7142,22 +6821,6 @@
   "@selectAnActiveVaultBeforeEnabling": {},
   "selectedArchive": "Selected archive",
   "@selectedArchive": {},
-  "selectedServerManagedGroup": "Selected server-managed group",
-  "@selectedServerManagedGroup": {},
-  "selectedStateValuevalueCidrsSummarizePorts": "Selected state: {valueValue} · CIDRs: {summarize} · ports: {summarize2}",
-  "@selectedStateValuevalueCidrsSummarizePorts": {
-    "placeholders": {
-      "valueValue": {
-        "type": "String"
-      },
-      "summarize": {
-        "type": "String"
-      },
-      "summarize2": {
-        "type": "String"
-      }
-    }
-  },
   "sendANewInvitationFromSettings": "Send a new invitation from Settings > Invite member.",
   "@sendANewInvitationFromSettings": {},
   "sendResponses": "Send responses",
@@ -7178,12 +6841,6 @@
       }
     }
   },
-  "serverManagedAccessGroups": "Server-managed access groups",
-  "@serverManagedAccessGroups": {},
-  "serverManagedGroupActionFailed": "Server-managed group action failed",
-  "@serverManagedGroupActionFailed": {},
-  "serverManagedGroupSaveFailed": "Server-managed group save failed",
-  "@serverManagedGroupSaveFailed": {},
   "serverLocalConflictBranchesConflictcount": "Server/local conflict branches: {conflictCount}",
   "@serverLocalConflictBranchesConflictcount": {
     "placeholders": {
@@ -7614,8 +7271,6 @@
   "@theCurrentVaultVersionChangedWhile": {},
   "theDefaultPreferenceWasConfirmedAfter": "The default preference was confirmed after Vault sync.",
   "@theDefaultPreferenceWasConfirmedAfter": {},
-  "theDeploymentGateIsAvailableWith": "The deployment gate is available with ATERMIUS_RELAY_ENABLED=true. Effective authorization always remains limited by the configured CIDRs and ports.",
-  "@theDeploymentGateIsAvailableWith": {},
   "theExportContainsARandomReport": "The export contains a random report ID, a fixed error code, client version, sync counts and dates rounded to UTC days. It never includes Vault records, account details, server addresses or device identifiers.",
   "@theExportContainsARandomReport": {},
   "theFullScriptIsReviewedBefore": "The full script is reviewed before sending to the active PTY.",
@@ -7642,10 +7297,6 @@
   },
   "thePreviousCodeWasNotConfirmed": "The previous code was not confirmed as stored. Rotate recovery to show a replacement code.",
   "@thePreviousCodeWasNotConfirmed": {},
-  "theSavedPolicyExceedsTheCurrent": "The saved policy exceeds the current deployment ceilings. Effective authorization remains restricted by the current limits. Narrow the CIDRs and ports below before saving; ATERMIUS_RELAY_ENABLED=true is also required for the relay service to run.",
-  "@theSavedPolicyExceedsTheCurrent": {},
-  "theSavedPolicyRemainsSelectedAs": "The saved policy remains selected as enabled, but the effective relay service is unavailable while the deployment gate is off. ATERMIUS_RELAY_ENABLED=true is required; turn off the selection before saving other changes. The Web UI cannot change this gate.",
-  "@theSavedPolicyRemainsSelectedAs": {},
   "theSecretIsReadFromThe": "The secret is read from the encrypted Credential when you run this Snippet; it is never copied into the Snippet record or preview.",
   "@theSecretIsReadFromThe": {},
   "theSelectedDefaultPreferenceWasConfirmed": "The selected default preference was confirmed after Vault sync.",
@@ -7658,8 +7309,6 @@
   "@theSelectedTerminalThemeWasConfirmed": {},
   "theServerCanCopyEncryptedInstance": "The server can copy encrypted instance archives to an operator-configured S3-compatible target. The destination and credentials remain on the server. The access check performs HeadBucket only; it does not verify uploads, multipart operations, restore, or provider-wide interoperability.",
   "@theServerCanCopyEncryptedInstance": {},
-  "theServerDeploymentGateMustAlso": "The server deployment gate must also be enabled.",
-  "@theServerDeploymentGateMustAlso": {},
   "theServerDidNotRequestA": "The server did not request a response.",
   "@theServerDidNotRequestA": {},
   "theServerFirstValidatesThatThis": "The server first validates that this copy and its receipt belong to this restore job. It leaves the files untouched if it cannot verify them. Confirmed cleanup permanently removes only this isolated copy; the source encrypted archive and active service data remain unchanged. You can prepare another isolated copy from the source archive later.",
@@ -7694,8 +7343,6 @@
   "@theTerminalChangedBeforeTheSuggestion": {},
   "theUpdateCheckCouldNotConfirm": "The update check could not confirm the current Web build.",
   "@theUpdateCheckCouldNotConfirm": {},
-  "theseInstanceGroupsControlSshRelay": "These instance groups control SSH Relay access. They are separate from encrypted Workspace groups and do not contain Vault data.",
-  "@theseInstanceGroupsControlSshRelay": {},
   "thisGroupDefaultIsUnavailableChoose": "This Group default is unavailable. Choose no default or a valid credential.",
   "@thisGroupDefaultIsUnavailableChoose": {},
   "thisHostConflictHasNoSafely": "This Host conflict has no safely reviewable connection tuple. Use the verified branch actions instead.",
@@ -7750,8 +7397,6 @@
   },
   "thisGroupChangedOnAnotherDevice": "This group changed on another device. Sync and reopen it before retrying.",
   "@thisGroupChangedOnAnotherDevice": {},
-  "thisGroupHasNoMembers": "This group has no members.",
-  "@thisGroupHasNoMembers": {},
   "thisImmediatelyRevokesEverySessionAnd": "This immediately revokes every session and device. At the server purge deadline, personal Vaults and account data are deleted and your access to shared Vaults is removed. Other members’ shared Vault data is not deleted.",
   "@thisImmediatelyRevokesEverySessionAnd": {},
   "thisInstance": "This instance",
@@ -7808,8 +7453,6 @@
   "@thisSnapshotExceedsThisClientsLimit": {},
   "title": "Title",
   "@title": {},
-  "toEnableSshRelayTheServer": "To enable SSH relay, the server operator must set ATERMIUS_RELAY_ENABLED=true and configure deployment limits. The Web UI cannot change this gate.",
-  "@toEnableSshRelayTheServer": {},
   "topLevelGroup2": "Top-level group",
   "@topLevelGroup2": {},
   "transferVaultOwnership": "Transfer Vault ownership?",
@@ -7852,10 +7495,6 @@
       }
     }
   },
-  "unableToLoadAccountRelayPolicy": "Unable to load account Relay policy",
-  "@unableToLoadAccountRelayPolicy": {},
-  "unableToLoadMemberEffectiveRelay": "Unable to load member effective Relay access",
-  "@unableToLoadMemberEffectiveRelay": {},
   "unableToLoadOffSiteBackup": "Unable to load off-site backup status: {error}",
   "@unableToLoadOffSiteBackup": {
     "placeholders": {
@@ -7880,10 +7519,6 @@
       }
     }
   },
-  "unableToLoadServerManagedGroup": "Unable to load server-managed group details",
-  "@unableToLoadServerManagedGroup": {},
-  "unableToLoadServerManagedGroups": "Unable to load server-managed groups",
-  "@unableToLoadServerManagedGroups": {},
   "unableToPrepareIsolatedRestoreCopy": "Unable to prepare isolated restore copy: {error}",
   "@unableToPrepareIsolatedRestoreCopy": {
     "placeholders": {
@@ -8335,20 +7970,6 @@
       },
       "format": {
         "type": "String"
-      }
-    }
-  },
-  "membercountMembersValuevalueRevisionRevision": "{memberCount, plural, =1{1 member} other{{memberCount} members}} · {valueValue} · revision {revision}",
-  "@membercountMembersValuevalueRevisionRevision": {
-    "placeholders": {
-      "memberCount": {
-        "type": "int"
-      },
-      "valueValue": {
-        "type": "String"
-      },
-      "revision": {
-        "type": "int"
       }
     }
   },
@@ -8971,8 +8592,6 @@
   "@adminAccountInvitationActionFailed": {},
   "manageBackupsAndRestoreCopiesAnd": "Manage backups and restore copies, and check instance maintenance jobs.",
   "@manageBackupsAndRestoreCopiesAnd": {},
-  "manageInstanceAccountsInvitationsRelayGroups": "Manage instance accounts, invitations, relay groups and connection policies.",
-  "@manageInstanceAccountsInvitationsRelayGroups": {},
   "manageNotificationsAndClientUpdates": "Manage notifications and client updates.",
   "@manageNotificationsAndClientUpdates": {},
   "theBranchAndTheCurrentRecord": "The branch and the current record are verified, then this device re-signs and syncs it. The original encrypted branch is kept.",
@@ -16375,15 +15994,15 @@
   "@adminPanelUsersTitle": {
     "description": "Administration panel section that lists and edits instance accounts."
   },
-  "adminPanelUsersDescription": "Review the accounts on this instance, disable or re-enable them, revoke their sessions, set per-account relay policy and issue invitations.",
+  "adminPanelUsersDescription": "Review the accounts on this instance, disable or re-enable them, revoke their sessions and issue invitations.",
   "@adminPanelUsersDescription": {
     "description": "Description of the users section of the administration panel."
   },
-  "adminPanelAccessTitle": "Access and relay policy",
+  "adminPanelAccessTitle": "Access",
   "@adminPanelAccessTitle": {
-    "description": "Administration panel section for instance-wide relay policy, relay groups and credential visibility."
+    "description": "Administration panel section for credential visibility."
   },
-  "adminPanelAccessDescription": "Manage the instance-wide relay policy, relay groups and credential visibility.",
+  "adminPanelAccessDescription": "Manage credential visibility: the default mode for new accounts and the escrow key.",
   "@adminPanelAccessDescription": {
     "description": "Description of the access section of the administration panel."
   },
@@ -16499,7 +16118,6 @@
       }
     }
   },
-  "waAccess": "Relay access policies",
   "waNodeDetails": "Node details",
   "waNoTarget": "No compatible destination",
   "waInitial": "Initial workspace",

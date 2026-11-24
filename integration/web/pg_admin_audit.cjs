@@ -1202,10 +1202,14 @@ async function main() {
           payload.instance.protocol_version === 1 &&
           countKeys.join(',') === expectedCounts.join(',') &&
           Object.values(payload.counts).every((value) => Number.isSafeInteger(value) && value >= 0) &&
-          Object.keys(payload.relay || {}).sort().join(',') ===
-            'allow_cidrs,allow_ports,enabled,max_connections_per_user' &&
-          payload.relay.enabled === false && payload.relay.allow_cidrs.length === 0 &&
-          payload.relay.allow_ports.length === 0 &&
+          // No admin-editable relay allowlist: an older server may still
+          // list empty allow_cidrs/allow_ports, a current one leaves them out.
+          Object.keys(payload.relay || {}).every((key) => [
+            'allow_cidrs', 'allow_ports', 'enabled', 'max_connections_per_user',
+          ].includes(key)) &&
+          payload.relay.enabled === false &&
+          (payload.relay.allow_cidrs ?? []).length === 0 &&
+          (payload.relay.allow_ports ?? []).length === 0 &&
           Number.isSafeInteger(payload.relay.max_connections_per_user) &&
           payload.relay.max_connections_per_user > 0 &&
           typeof payload.generated_at === 'string' && Number.isFinite(Date.parse(payload.generated_at)) &&

@@ -756,18 +756,6 @@ abstract class AppLocalizations {
   /// **'Account recovery is busy.'**
   String get accountRecoveryIsBusy;
 
-  /// No description provided for @accountRelayPolicyResetToInherit.
-  ///
-  /// In en, this message translates to:
-  /// **'Account relay policy reset to inherit.'**
-  String get accountRelayPolicyResetToInherit;
-
-  /// No description provided for @accountRelayPolicySaved.
-  ///
-  /// In en, this message translates to:
-  /// **'Account relay policy saved.'**
-  String get accountRelayPolicySaved;
-
   /// No description provided for @accountStatusUpdatedToStatusRevokedsessions.
   ///
   /// In en, this message translates to:
@@ -885,18 +873,6 @@ abstract class AppLocalizations {
   /// **'Enter the account name.'**
   String get enterTheAccountName;
 
-  /// No description provided for @groupRelayPolicyResetToInherit.
-  ///
-  /// In en, this message translates to:
-  /// **'Group Relay policy reset to inherit.'**
-  String get groupRelayPolicyResetToInherit;
-
-  /// No description provided for @groupRelayPolicySaved.
-  ///
-  /// In en, this message translates to:
-  /// **'Group Relay policy saved.'**
-  String get groupRelayPolicySaved;
-
   /// No description provided for @groupDefault.
   ///
   /// In en, this message translates to:
@@ -908,12 +884,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Group default is unavailable. Choose a Host override or repair the Group default.'**
   String get groupDefaultIsUnavailableChooseA;
-
-  /// No description provided for @groupMembershipSaved.
-  ///
-  /// In en, this message translates to:
-  /// **'Group membership saved.'**
-  String get groupMembershipSaved;
 
   /// No description provided for @hostChangedRepeatedlyWhileSavingReopen.
   ///
@@ -1077,24 +1047,6 @@ abstract class AppLocalizations {
   /// **'The Jump Host chain supports up to {maxJumpHostHops} hops.'**
   String theJumpHostChainSupportsUp(int maxJumpHostHops);
 
-  /// No description provided for @loadAConsistentAccountAndInstance.
-  ///
-  /// In en, this message translates to:
-  /// **'Load a consistent account and instance policy before resetting.'**
-  String get loadAConsistentAccountAndInstance;
-
-  /// No description provided for @loadAConsistentAccountAndInstance2.
-  ///
-  /// In en, this message translates to:
-  /// **'Load a consistent account and instance policy before saving.'**
-  String get loadAConsistentAccountAndInstance2;
-
-  /// No description provided for @loadTheLatestSshRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Load the latest SSH relay policy before saving.'**
-  String get loadTheLatestSshRelayPolicy;
-
   /// No description provided for @theMfaSignInResponseDoesnt.
   ///
   /// In en, this message translates to:
@@ -1239,36 +1191,6 @@ abstract class AppLocalizations {
   /// **'Referenced Credential changed after preview. Review the command and try again.'**
   String get referencedCredentialChangedAfterPreviewReview;
 
-  /// No description provided for @reloadTheLatestAccountAndInstance.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload the latest account and instance policies before resetting.'**
-  String get reloadTheLatestAccountAndInstance;
-
-  /// No description provided for @reloadTheLatestAccountAndInstance2.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload the latest account and instance policies before saving.'**
-  String get reloadTheLatestAccountAndInstance2;
-
-  /// No description provided for @reloadTheLatestGroupAndInstance.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload the latest group and instance policies before resetting.'**
-  String get reloadTheLatestGroupAndInstance;
-
-  /// No description provided for @reloadTheLatestGroupAndInstance2.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload the latest group and instance policies before saving.'**
-  String get reloadTheLatestGroupAndInstance2;
-
-  /// No description provided for @reloadTheLatestPolicyAfterThe.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload the latest policy after the revision conflict before retrying.'**
-  String get reloadTheLatestPolicyAfterThe;
-
   /// No description provided for @restoreIsEncryptedAndQueuedOn.
   ///
   /// In en, this message translates to:
@@ -1358,12 +1280,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'SSH host-key verification evidence is missing for {hostName}. Reconnect before running a batch.'**
   String sshHostKeyVerificationEvidenceIs(String hostName);
-
-  /// No description provided for @sshRelayPolicySaved.
-  ///
-  /// In en, this message translates to:
-  /// **'SSH relay policy saved.'**
-  String get sshRelayPolicySaved;
 
   /// No description provided for @sshHostKeyTrustWasConfirmed.
   ///
@@ -1472,12 +1388,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select a Vault before resolving this Host.'**
   String get selectAVaultBeforeResolvingThis2;
-
-  /// No description provided for @selectAnActiveMemberOfThis.
-  ///
-  /// In en, this message translates to:
-  /// **'Select an active member of this server-managed group.'**
-  String get selectAnActiveMemberOfThis;
 
   /// No description provided for @selectedSessionRevoked.
   ///
@@ -1599,12 +1509,6 @@ abstract class AppLocalizations {
   /// **'The SSH exec request failed after dispatch.'**
   String get theSshExecRequestFailedAfter;
 
-  /// No description provided for @theAccountNowInheritsTheInstance.
-  ///
-  /// In en, this message translates to:
-  /// **'The account now inherits the instance relay policy.'**
-  String get theAccountNowInheritsTheInstance;
-
   /// No description provided for @theEffectiveSshCredentialIsUnavailable.
   ///
   /// In en, this message translates to:
@@ -1628,42 +1532,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The existing Recovery descriptor does not match its wrapped identity.'**
   String get theExistingRecoveryDescriptorDoesNot;
-
-  /// No description provided for @theGroupNowInheritsTheInstance.
-  ///
-  /// In en, this message translates to:
-  /// **'The group now inherits the instance Relay policy.'**
-  String get theGroupNowInheritsTheInstance;
-
-  /// No description provided for @theInstanceRelayPolicyChangedWhile.
-  ///
-  /// In en, this message translates to:
-  /// **'The instance Relay policy changed while this group was loading. Reload to get a consistent snapshot.'**
-  String get theInstanceRelayPolicyChangedWhile;
-
-  /// No description provided for @theInstanceRelayPolicyChangedReload.
-  ///
-  /// In en, this message translates to:
-  /// **'The instance Relay policy changed. Reload this group before reviewing effective access.'**
-  String get theInstanceRelayPolicyChangedReload;
-
-  /// No description provided for @theInstancePolicyChangedWhileResetting.
-  ///
-  /// In en, this message translates to:
-  /// **'The instance policy changed while resetting. Reload the latest policies; your draft is preserved.'**
-  String get theInstancePolicyChangedWhileResetting;
-
-  /// No description provided for @theInstancePolicyChangedWhileSaving.
-  ///
-  /// In en, this message translates to:
-  /// **'The instance policy changed while saving. Reload the latest policies; your draft is preserved.'**
-  String get theInstancePolicyChangedWhileSaving;
-
-  /// No description provided for @theInstanceRelayPolicyChangedWhile2.
-  ///
-  /// In en, this message translates to:
-  /// **'The instance relay policy changed while this account policy was loading. Reload to get a consistent snapshot.'**
-  String get theInstanceRelayPolicyChangedWhile2;
 
   /// No description provided for @theMergedHostRecordIsInvalid.
   ///
@@ -1707,12 +1575,6 @@ abstract class AppLocalizations {
   /// **'The recovery response did not match this account.'**
   String get theRecoveryResponseDidNotMatch;
 
-  /// No description provided for @theRelayPolicyChangedElsewhereReload.
-  ///
-  /// In en, this message translates to:
-  /// **'The relay policy changed elsewhere. Reload the latest settings before retrying.'**
-  String get theRelayPolicyChangedElsewhereReload;
-
   /// No description provided for @theReviewedSshSessionForHostname.
   ///
   /// In en, this message translates to:
@@ -1724,12 +1586,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The server could not verify access to the configured S3 backup bucket.'**
   String get theServerCouldNotVerifyAccess;
-
-  /// No description provided for @theServerDeploymentDoesNotCurrently.
-  ///
-  /// In en, this message translates to:
-  /// **'The server deployment does not currently allow this relay setting. Your edits are still here; review the deployment limits and retry.'**
-  String get theServerDeploymentDoesNotCurrently;
 
   /// No description provided for @theServerOrAuthenticationStateChanged.
   ///
@@ -1778,18 +1634,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Too many SSH host-key checks were requested for this route.'**
   String get tooManySshHostKeyChecks;
-
-  /// No description provided for @unableToLoadTheSshRelay.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to load the SSH relay policy. Check your connection and retry.'**
-  String get unableToLoadTheSshRelay;
-
-  /// No description provided for @unableToSaveTheSshRelay.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to save the SSH relay policy. Check your connection and retry.'**
-  String get unableToSaveTheSshRelay;
 
   /// No description provided for @vaultChangedWhileSshHostKey.
   ///
@@ -2973,12 +2817,6 @@ abstract class AppLocalizations {
   /// **'The record retained by an existing repair tombstone is inconsistent and needs a manual check.'**
   String get theRecordRetainedByAnExisting;
 
-  /// No description provided for @aServerAccessGroupWithThe.
-  ///
-  /// In en, this message translates to:
-  /// **'A server access group with the same name already exists (ignoring case and Unicode compatibility characters).'**
-  String get aServerAccessGroupWithThe;
-
   /// No description provided for @thePreviouslySubmittedMasterPasswordChange.
   ///
   /// In en, this message translates to:
@@ -3411,12 +3249,6 @@ abstract class AppLocalizations {
   /// **'The selected archive source is invalid. Refresh the source list and try again.'**
   String get theSelectedArchiveSourceIsInvalid;
 
-  /// No description provided for @theSelectedServerAccessGroupNo.
-  ///
-  /// In en, this message translates to:
-  /// **'The selected server access group no longer exists. Refresh the list.'**
-  String get theSelectedServerAccessGroupNo;
-
   /// No description provided for @theApprovalFileDoesntMatchThe.
   ///
   /// In en, this message translates to:
@@ -3716,12 +3548,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The server hasn\'t configured isolated restore storage. Contact the instance operator.'**
   String get theServerHasntConfiguredIsolatedRestore;
-
-  /// No description provided for @theServerAccessGroupWasUpdated.
-  ///
-  /// In en, this message translates to:
-  /// **'The server access group was updated by another administrator. Reload the latest data; your current draft is kept.'**
-  String get theServerAccessGroupWasUpdated;
 
   /// No description provided for @theServersInitialVaultMembershipRecord.
   ///
@@ -7442,7 +7268,7 @@ abstract class AppLocalizations {
   /// No description provided for @unableToConnectCheckTheDesktop.
   ///
   /// In en, this message translates to:
-  /// **'Unable to connect. Check the desktop gateway, Relay policy, credentials and certificate trust.'**
+  /// **'Unable to connect. Check the desktop gateway, credentials and certificate trust.'**
   String get unableToConnectCheckTheDesktop;
 
   /// No description provided for @theHostSettingsChangedReconnect.
@@ -9084,16 +8910,16 @@ abstract class AppLocalizations {
   /// **'Couldn\'t establish the SSH relay WebSocket. Check the instance HTTPS/WSS address, relay origin settings and network, then try again.'**
   String get couldntEstablishTheSshRelayWebsocket;
 
-  /// No description provided for @theServerRelayPolicyRejectedThis.
+  /// No description provided for @theServerRefusesToConnectToThis.
   ///
   /// In en, this message translates to:
-  /// **'The server relay policy rejected this target address or port. Ask an administrator to check the SSH target allowlist.'**
-  String get theServerRelayPolicyRejectedThis;
+  /// **'The server refuses to connect to this address. Loopback, link-local and cloud metadata addresses can\'t be reached through the server.'**
+  String get theServerRefusesToConnectToThis;
 
   /// No description provided for @theServerHasntEnabledTheSsh.
   ///
   /// In en, this message translates to:
-  /// **'The server hasn\'t enabled the SSH relay. Ask an administrator to configure the relay and target networks.'**
+  /// **'The server hasn\'t enabled the SSH relay. Ask an administrator to enable it.'**
   String get theServerHasntEnabledTheSsh;
 
   /// No description provided for @localStorageNeedsRecoveryReadingEditing2.
@@ -9582,23 +9408,11 @@ abstract class AppLocalizations {
   /// **'0 = auto'**
   String get n0Auto;
 
-  /// No description provided for @n180UnicodeCharactersUniqueWithout.
-  ///
-  /// In en, this message translates to:
-  /// **'1–80 Unicode characters; unique without regard to case.'**
-  String get n180UnicodeCharactersUniqueWithout;
-
   /// No description provided for @aHostCanHaveAtMost.
   ///
   /// In en, this message translates to:
   /// **'A Host can have at most {maxHostPortForwardProfiles} port forward profiles.'**
   String aHostCanHaveAtMost(int maxHostPortForwardProfiles);
-
-  /// No description provided for @aConcurrentChangeWasDetectedYour.
-  ///
-  /// In en, this message translates to:
-  /// **'A concurrent change was detected. Your name, membership and policy drafts are preserved.'**
-  String get aConcurrentChangeWasDetectedYour;
 
   /// No description provided for @aNewEncryptedRevisionWillBe.
   ///
@@ -9649,12 +9463,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'A split Workspace needs at least two panes'**
   String get aSplitWorkspaceNeedsAtLeast;
-
-  /// No description provided for @aUsersEffectiveRelayAccessAlso.
-  ///
-  /// In en, this message translates to:
-  /// **'A user’s effective Relay access also intersects their account policy, every other server group, and the deployment limits.'**
-  String get aUsersEffectiveRelayAccessAlso;
 
   /// No description provided for @active.
   ///
@@ -9715,18 +9523,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Account ID'**
   String get accountId;
-
-  /// No description provided for @accountRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Account Relay policy'**
-  String get accountRelayPolicy;
-
-  /// No description provided for @accountRelayPolicySaveFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Account Relay policy save failed'**
-  String get accountRelayPolicySaveFailed;
 
   /// No description provided for @accountDeletion.
   ///
@@ -9838,15 +9634,6 @@ abstract class AppLocalizations {
   /// **'Account recovery was disabled.'**
   String get accountRecoveryWasDisabled;
 
-  /// No description provided for @accountRevisionRevisionUpdatedFormattime.
-  ///
-  /// In en, this message translates to:
-  /// **'Account revision {revision} · updated {formatTime}'**
-  String accountRevisionRevisionUpdatedFormattime(
-    int revision,
-    String formatTime,
-  );
-
   /// No description provided for @accountSessions.
   ///
   /// In en, this message translates to:
@@ -9876,12 +9663,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Active Pane {valueValue}'**
   String activePaneValuevalue(int valueValue);
-
-  /// No description provided for @activeAccountOnCurrentPage.
-  ///
-  /// In en, this message translates to:
-  /// **'Active account on current page'**
-  String get activeAccountOnCurrentPage;
 
   /// No description provided for @activeDevices.
   ///
@@ -10008,24 +9789,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Allow future purge'**
   String get allowFuturePurge;
-
-  /// No description provided for @allowedCidrNetworks.
-  ///
-  /// In en, this message translates to:
-  /// **'Allowed CIDR networks'**
-  String get allowedCidrNetworks;
-
-  /// No description provided for @allowedCidrsOnePerLine.
-  ///
-  /// In en, this message translates to:
-  /// **'Allowed CIDRs (one per line)'**
-  String get allowedCidrsOnePerLine;
-
-  /// No description provided for @allowedPorts.
-  ///
-  /// In en, this message translates to:
-  /// **'Allowed ports'**
-  String get allowedPorts;
 
   /// No description provided for @anEncryptedVaultArchiveCoveringPendingcount.
   ///
@@ -10529,18 +10292,6 @@ abstract class AppLocalizations {
   /// **'Color'**
   String get color2;
 
-  /// No description provided for @commaOrLineSeparatedPortNumbers.
-  ///
-  /// In en, this message translates to:
-  /// **'Comma or line separated port numbers.'**
-  String get commaOrLineSeparatedPortNumbers;
-
-  /// No description provided for @commaOrNewlineSeparatedForExample.
-  ///
-  /// In en, this message translates to:
-  /// **'Comma or newline separated, for example 22, 2222'**
-  String get commaOrNewlineSeparatedForExample;
-
   /// No description provided for @commandHistory.
   ///
   /// In en, this message translates to:
@@ -11036,15 +10787,6 @@ abstract class AppLocalizations {
   /// **'Created at'**
   String get createdAt;
 
-  /// No description provided for @createdFormattimeUpdatedFormattime2.
-  ///
-  /// In en, this message translates to:
-  /// **'Created {formatTime} · updated {formatTime2}'**
-  String createdFormattimeUpdatedFormattime2(
-    String formatTime,
-    String formatTime2,
-  );
-
   /// No description provided for @createdFormat.
   ///
   /// In en, this message translates to:
@@ -11239,18 +10981,6 @@ abstract class AppLocalizations {
   /// **'Delete group?'**
   String get deleteGroup4;
 
-  /// No description provided for @deleteServerManagedGroup.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete server-managed group'**
-  String get deleteServerManagedGroup;
-
-  /// No description provided for @deleteServerManagedGroup2.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete server-managed group?'**
-  String get deleteServerManagedGroup2;
-
   /// No description provided for @deleteThisItem.
   ///
   /// In en, this message translates to:
@@ -11306,24 +11036,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delivery window (UTC)'**
   String get deliveryWindowUtc;
-
-  /// No description provided for @deploymentCidrLimits.
-  ///
-  /// In en, this message translates to:
-  /// **'Deployment CIDR limits'**
-  String get deploymentCidrLimits;
-
-  /// No description provided for @deploymentPortLimits.
-  ///
-  /// In en, this message translates to:
-  /// **'Deployment port limits'**
-  String get deploymentPortLimits;
-
-  /// No description provided for @deploymentRelayAvailability.
-  ///
-  /// In en, this message translates to:
-  /// **'Deployment relay availability'**
-  String get deploymentRelayAvailability;
 
   /// No description provided for @destinationOnSshTarget.
   ///
@@ -11462,12 +11174,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Disable {username}? Server sessions will be revoked and they will not be able to sign in again. Cached device data will not be erased, and existing direct SSH connections may continue until their SSH servers close them.'**
   String disableUsernameServerSessionsWillBe(String username);
-
-  /// No description provided for @disabledByPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Disabled by policy'**
-  String get disabledByPolicy;
 
   /// No description provided for @discardIsolatedCopy.
   ///
@@ -11630,47 +11336,11 @@ abstract class AppLocalizations {
   /// **'Edit text'**
   String get editText2;
 
-  /// No description provided for @editableCeilingValuevalueCidrsSummarizePorts.
-  ///
-  /// In en, this message translates to:
-  /// **'Editable ceiling: {valueValue} · CIDRs: {summarize} · ports: {summarize2}'**
-  String editableCeilingValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  );
-
   /// No description provided for @editorCanEditVaultRecords.
   ///
   /// In en, this message translates to:
   /// **'Editor · can edit Vault records'**
   String get editorCanEditVaultRecords;
-
-  /// No description provided for @effectiveSshRelayService.
-  ///
-  /// In en, this message translates to:
-  /// **'Effective SSH relay service'**
-  String get effectiveSshRelayService;
-
-  /// No description provided for @effectiveGroupStateValuevalueCidrsSummarize.
-  ///
-  /// In en, this message translates to:
-  /// **'Effective group state: {valueValue} · CIDRs: {summarize} · ports: {summarize2}'**
-  String effectiveGroupStateValuevalueCidrsSummarize(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  );
-
-  /// No description provided for @effectiveStateValuevalueCidrsSummarizePorts.
-  ///
-  /// In en, this message translates to:
-  /// **'Effective state: {valueValue} · CIDRs: {summarize} · ports: {summarize2}'**
-  String effectiveStateValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  );
 
   /// No description provided for @enableBashCommandHistory.
   ///
@@ -11683,24 +11353,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enable Bash integration'**
   String get enableBashIntegration;
-
-  /// No description provided for @enableRelayForThisAccount.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable Relay for this account'**
-  String get enableRelayForThisAccount;
-
-  /// No description provided for @enableRelayForThisGroup.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable Relay for this group'**
-  String get enableRelayForThisGroup;
-
-  /// No description provided for @enableSshRelay.
-  ///
-  /// In en, this message translates to:
-  /// **'Enable SSH relay'**
-  String get enableSshRelay;
 
   /// No description provided for @enableVaultSync.
   ///
@@ -12020,12 +11672,6 @@ abstract class AppLocalizations {
   /// **'Folder name'**
   String get folderName;
 
-  /// No description provided for @forExample104000.
-  ///
-  /// In en, this message translates to:
-  /// **'For example: 10.40.0.0/16'**
-  String get forExample104000;
-
   /// No description provided for @forwardType.
   ///
   /// In en, this message translates to:
@@ -12104,12 +11750,6 @@ abstract class AppLocalizations {
   /// **'Grant input control'**
   String get grantInputControl;
 
-  /// No description provided for @groupRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Group Relay policy'**
-  String get groupRelayPolicy;
-
   /// No description provided for @groupActionsName2.
   ///
   /// In en, this message translates to:
@@ -12122,16 +11762,6 @@ abstract class AppLocalizations {
   /// **'Group name'**
   String get groupName3;
 
-  /// No description provided for @groupRevisionRevisionMembershipRevisionMembershiprevision.
-  ///
-  /// In en, this message translates to:
-  /// **'Group revision {revision} · membership revision {membershipRevision} · policy revision {revision2}'**
-  String groupRevisionRevisionMembershipRevisionMembershiprevision(
-    int revision,
-    int membershipRevision,
-    int revision2,
-  );
-
   /// No description provided for @groupGroupname.
   ///
   /// In en, this message translates to:
@@ -12143,12 +11773,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Head {shortAuditId}'**
   String headShortauditid(String shortAuditId);
-
-  /// No description provided for @hideRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Hide Relay policy'**
-  String get hideRelayPolicy;
 
   /// No description provided for @hidePasswordSecret.
   ///
@@ -12293,12 +11917,6 @@ abstract class AppLocalizations {
   /// **'Imported {imported, plural, =1{1 Host} other{{imported} Hosts}}; records are encrypted and queued to sync.'**
   String importedImportedHostSRecordsAre(int imported);
 
-  /// No description provided for @includesTheInstanceAccountAndEvery.
-  ///
-  /// In en, this message translates to:
-  /// **'Includes the instance, account and every assigned server group.'**
-  String get includesTheInstanceAccountAndEvery;
-
   /// No description provided for @inputControlOff.
   ///
   /// In en, this message translates to:
@@ -12376,15 +11994,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Instance jobs'**
   String get instanceJobs;
-
-  /// No description provided for @instanceRevisionRevisionUpdatedFormattime.
-  ///
-  /// In en, this message translates to:
-  /// **'Instance revision {revision} · updated {formatTime}'**
-  String instanceRevisionRevisionUpdatedFormattime(
-    int revision,
-    String formatTime,
-  );
 
   /// No description provided for @instanceSigningKeyFingerprintSha256.
   ///
@@ -12650,12 +12259,6 @@ abstract class AppLocalizations {
   /// **'Last successful sync'**
   String get lastSuccessfulSync;
 
-  /// No description provided for @lastUpdated.
-  ///
-  /// In en, this message translates to:
-  /// **'Last updated'**
-  String get lastUpdated;
-
   /// No description provided for @lastVerifiedServerShortkey.
   ///
   /// In en, this message translates to:
@@ -12680,12 +12283,6 @@ abstract class AppLocalizations {
   /// **'Leave shared terminal'**
   String get leaveSharedTerminal;
 
-  /// No description provided for @loadRelayPolicies.
-  ///
-  /// In en, this message translates to:
-  /// **'Load Relay policies'**
-  String get loadRelayPolicies;
-
   /// No description provided for @loadVaults.
   ///
   /// In en, this message translates to:
@@ -12697,12 +12294,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Load account invitations'**
   String get loadAccountInvitations;
-
-  /// No description provided for @loadAccountsToAddMembers.
-  ///
-  /// In en, this message translates to:
-  /// **'Load accounts to add members'**
-  String get loadAccountsToAddMembers;
 
   /// No description provided for @loadAdminAccounts.
   ///
@@ -12746,12 +12337,6 @@ abstract class AppLocalizations {
   /// **'Load push health'**
   String get loadPushHealth;
 
-  /// No description provided for @loadRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Load relay policy'**
-  String get loadRelayPolicy;
-
   /// No description provided for @loadReplicationStatus.
   ///
   /// In en, this message translates to:
@@ -12764,29 +12349,11 @@ abstract class AppLocalizations {
   /// **'Load restore sources'**
   String get loadRestoreSources;
 
-  /// No description provided for @loadServerManagedGroups.
-  ///
-  /// In en, this message translates to:
-  /// **'Load server-managed groups'**
-  String get loadServerManagedGroups;
-
   /// No description provided for @loadStatus.
   ///
   /// In en, this message translates to:
   /// **'Load status'**
   String get loadStatus;
-
-  /// No description provided for @loadingSshRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Loading SSH relay policy…'**
-  String get loadingSshRelayPolicy;
-
-  /// No description provided for @loadingAccountAndInstancePolicyRevisions.
-  ///
-  /// In en, this message translates to:
-  /// **'Loading account and instance policy revisions…'**
-  String get loadingAccountAndInstancePolicyRevisions;
 
   /// No description provided for @loadingAccountInvitations.
   ///
@@ -12811,18 +12378,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Loading encrypted archive sources…'**
   String get loadingEncryptedArchiveSources;
-
-  /// No description provided for @loadingGroupMembershipAndRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Loading group membership and Relay policy…'**
-  String get loadingGroupMembershipAndRelayPolicy;
-
-  /// No description provided for @loadingServerManagedGroups.
-  ///
-  /// In en, this message translates to:
-  /// **'Loading server-managed groups…'**
-  String get loadingServerManagedGroups;
 
   /// No description provided for @local.
   ///
@@ -12930,27 +12485,11 @@ abstract class AppLocalizations {
   /// **'Master password is used only for client-side key derivation.'**
   String get masterPasswordIsUsedOnlyFor;
 
-  /// No description provided for @maxSshRelayConnectionsPerUser.
-  ///
-  /// In en, this message translates to:
-  /// **'Max SSH relay connections per user'**
-  String get maxSshRelayConnectionsPerUser;
-
   /// No description provided for @maxRelayConnectionsPerUser.
   ///
   /// In en, this message translates to:
   /// **'Max relay connections per user'**
   String get maxRelayConnectionsPerUser;
-
-  /// No description provided for @memberEffectiveRelayAccessValuevalueCidrs.
-  ///
-  /// In en, this message translates to:
-  /// **'Member effective Relay access: {valueValue} · CIDRs: {summarize} · ports: {summarize2}'**
-  String memberEffectiveRelayAccessValuevalueCidrs(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  );
 
   /// No description provided for @members.
   ///
@@ -13076,12 +12615,6 @@ abstract class AppLocalizations {
   /// **'New master password'**
   String get newMasterPassword;
 
-  /// No description provided for @newServerGroupName.
-  ///
-  /// In en, this message translates to:
-  /// **'New server group name'**
-  String get newServerGroupName;
-
   /// No description provided for @newSnippet.
   ///
   /// In en, this message translates to:
@@ -13105,12 +12638,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Next'**
   String get next;
-
-  /// No description provided for @nextAccounts.
-  ///
-  /// In en, this message translates to:
-  /// **'Next accounts'**
-  String get nextAccounts;
 
   /// No description provided for @nextInvitations.
   ///
@@ -13352,12 +12879,6 @@ abstract class AppLocalizations {
   /// **'No scheduled backup runs recorded'**
   String get noScheduledBackupRunsRecorded;
 
-  /// No description provided for @noServerManagedGroupsYet.
-  ///
-  /// In en, this message translates to:
-  /// **'No server-managed groups yet.'**
-  String get noServerManagedGroupsYet;
-
   /// No description provided for @noSessionsFound.
   ///
   /// In en, this message translates to:
@@ -13477,12 +12998,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Offline-first, ciphertext-only'**
   String get offlineFirstCiphertextOnly;
-
-  /// No description provided for @oneCanonicalNetworkCidrPerLine.
-  ///
-  /// In en, this message translates to:
-  /// **'One canonical network CIDR per line.'**
-  String get oneCanonicalNetworkCidrPerLine;
 
   /// No description provided for @oneTimePrometheusScrapeCredential.
   ///
@@ -13758,12 +13273,6 @@ abstract class AppLocalizations {
   /// **'Permanent purge is unavailable because this server did not provide a restore deadline.'**
   String get permanentPurgeIsUnavailableBecauseThis;
 
-  /// No description provided for @permanentlyDeleteNameItsMembershipAnd.
-  ///
-  /// In en, this message translates to:
-  /// **'Permanently delete “{name}”, its membership and Relay policy? Unused Relay tickets for its members will be revoked, and active sessions granted by this group will close after policy recheck.'**
-  String permanentlyDeleteNameItsMembershipAnd(String name);
-
   /// No description provided for @permanentlyPurge.
   ///
   /// In en, this message translates to:
@@ -13781,16 +13290,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Policy revision'**
   String get policyRevision;
-
-  /// No description provided for @policyRevisionRevisionInstanceRevisionInstancepolicyrevision.
-  ///
-  /// In en, this message translates to:
-  /// **'Policy revision {revision} · instance revision {instancePolicyRevision} · updated {formatTime}'**
-  String policyRevisionRevisionInstanceRevisionInstancepolicyrevision(
-    int revision,
-    int instancePolicyRevision,
-    String formatTime,
-  );
 
   /// No description provided for @port.
   ///
@@ -13858,12 +13357,6 @@ abstract class AppLocalizations {
   /// **'Preview disconnected layout'**
   String get previewDisconnectedLayout;
 
-  /// No description provided for @previewMemberEffectiveRelayAccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Preview member effective Relay access'**
-  String get previewMemberEffectiveRelayAccess;
-
   /// No description provided for @previewOnly.
   ///
   /// In en, this message translates to:
@@ -13881,12 +13374,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Previous'**
   String get previous;
-
-  /// No description provided for @previousAccounts.
-  ///
-  /// In en, this message translates to:
-  /// **'Previous accounts'**
-  String get previousAccounts;
 
   /// No description provided for @previousInvitations.
   ///
@@ -14065,7 +13552,7 @@ abstract class AppLocalizations {
   /// No description provided for @readOnlyInstanceIdentityUsageAnd.
   ///
   /// In en, this message translates to:
-  /// **'Read-only instance identity, usage and relay policy.'**
+  /// **'Read-only instance identity, usage and relay status.'**
   String get readOnlyInstanceIdentityUsageAnd;
 
   /// No description provided for @readOnlyProviderConfigurationAggregateQueue.
@@ -14311,12 +13798,6 @@ abstract class AppLocalizations {
   /// **'Refresh readiness'**
   String get refreshReadiness;
 
-  /// No description provided for @refreshRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh relay policy'**
-  String get refreshRelayPolicy;
-
   /// No description provided for @refreshReplicationStatus.
   ///
   /// In en, this message translates to:
@@ -14340,12 +13821,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Refresh schedule'**
   String get refreshSchedule;
-
-  /// No description provided for @refreshServerManagedGroups.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh server-managed groups'**
-  String get refreshServerManagedGroups;
 
   /// No description provided for @refreshStatus.
   ///
@@ -14371,71 +13846,17 @@ abstract class AppLocalizations {
   /// **'Reject'**
   String get reject2;
 
-  /// No description provided for @relayCidrs.
-  ///
-  /// In en, this message translates to:
-  /// **'Relay CIDRs'**
-  String get relayCidrs;
-
-  /// No description provided for @relayAvailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Relay available'**
-  String get relayAvailable;
-
-  /// No description provided for @relayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Relay policy'**
-  String get relayPolicy;
-
-  /// No description provided for @relayPorts.
-  ///
-  /// In en, this message translates to:
-  /// **'Relay ports'**
-  String get relayPorts;
-
   /// No description provided for @relayUnavailable.
   ///
   /// In en, this message translates to:
   /// **'Relay unavailable'**
   String get relayUnavailable;
 
-  /// No description provided for @reloadAccountAndInstanceRelayPolicies.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload account and instance Relay policies'**
-  String get reloadAccountAndInstanceRelayPolicies;
-
   /// No description provided for @reloadFirstPage.
   ///
   /// In en, this message translates to:
   /// **'Reload first page'**
   String get reloadFirstPage;
-
-  /// No description provided for @reloadGroupAndInstancePoliciesKeep.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload group and instance policies, keep drafts'**
-  String get reloadGroupAndInstancePoliciesKeep;
-
-  /// No description provided for @reloadLatestGroupKeepDrafts.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload latest group, keep drafts'**
-  String get reloadLatestGroupKeepDrafts;
-
-  /// No description provided for @reloadLatestPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload latest policy'**
-  String get reloadLatestPolicy;
-
-  /// No description provided for @reloadLatestPolicyKeepDraft.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload latest policy, keep draft'**
-  String get reloadLatestPolicyKeepDraft;
 
   /// No description provided for @remote.
   ///
@@ -14567,12 +13988,6 @@ abstract class AppLocalizations {
   /// **'Remove tmux session reference?'**
   String get removeTmuxSessionReference;
 
-  /// No description provided for @removeUsernameFromGroupDraft.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove {username} from group draft'**
-  String removeUsernameFromGroupDraft(String username);
-
   /// No description provided for @rename.
   ///
   /// In en, this message translates to:
@@ -14632,12 +14047,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reserved uploads'**
   String get reservedUploads;
-
-  /// No description provided for @resetToInherit.
-  ///
-  /// In en, this message translates to:
-  /// **'Reset to inherit'**
-  String get resetToInherit;
 
   /// No description provided for @resolutionSavedOnThisDeviceWaiting.
   ///
@@ -14737,12 +14146,6 @@ abstract class AppLocalizations {
   /// **'Restore this record?'**
   String get restoreThisRecord;
 
-  /// No description provided for @restoreUsernameInGroupDraft.
-  ///
-  /// In en, this message translates to:
-  /// **'Restore {username} in group draft'**
-  String restoreUsernameInGroupDraft(String username);
-
   /// No description provided for @result.
   ///
   /// In en, this message translates to:
@@ -14808,18 +14211,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry discard safely'**
   String get retryDiscardSafely;
-
-  /// No description provided for @retryGroupDetails.
-  ///
-  /// In en, this message translates to:
-  /// **'Retry group details'**
-  String get retryGroupDetails;
-
-  /// No description provided for @retryGroupList.
-  ///
-  /// In en, this message translates to:
-  /// **'Retry group list'**
-  String get retryGroupList;
 
   /// No description provided for @retryPasswordChange.
   ///
@@ -15295,12 +14686,6 @@ abstract class AppLocalizations {
   /// **'SSH relay'**
   String get sshRelay;
 
-  /// No description provided for @sshRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'SSH relay policy'**
-  String get sshRelayPolicy;
-
   /// No description provided for @sshSessionIsDisconnected.
   ///
   /// In en, this message translates to:
@@ -15367,23 +14752,11 @@ abstract class AppLocalizations {
   /// **'Save encrypted profile'**
   String get saveEncryptedProfile;
 
-  /// No description provided for @saveGroupOverride.
-  ///
-  /// In en, this message translates to:
-  /// **'Save group override'**
-  String get saveGroupOverride;
-
   /// No description provided for @saveLocalLayoutAsNamedCopy.
   ///
   /// In en, this message translates to:
   /// **'Save local layout as named copy'**
   String get saveLocalLayoutAsNamedCopy;
-
-  /// No description provided for @saveMembership.
-  ///
-  /// In en, this message translates to:
-  /// **'Save membership'**
-  String get saveMembership;
 
   /// No description provided for @saveMergedCredential.
   ///
@@ -15391,23 +14764,11 @@ abstract class AppLocalizations {
   /// **'Save merged Credential'**
   String get saveMergedCredential;
 
-  /// No description provided for @saveOverride.
-  ///
-  /// In en, this message translates to:
-  /// **'Save override'**
-  String get saveOverride;
-
   /// No description provided for @saveQuota.
   ///
   /// In en, this message translates to:
   /// **'Save quota'**
   String get saveQuota;
-
-  /// No description provided for @saveRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Save relay policy'**
-  String get saveRelayPolicy;
 
   /// No description provided for @saveReviewedTuple.
   ///
@@ -15480,12 +14841,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Saved checkpoint: {shortKey}'**
   String savedCheckpointShortkey(String shortKey);
-
-  /// No description provided for @savedSettingsCanOnlyNarrowThe.
-  ///
-  /// In en, this message translates to:
-  /// **'Saved settings can only narrow the immutable limits configured by the server operator.'**
-  String get savedSettingsCanOnlyNarrowThe;
 
   /// No description provided for @savedWorkspaces.
   ///
@@ -15595,22 +14950,6 @@ abstract class AppLocalizations {
   /// **'Selected archive'**
   String get selectedArchive;
 
-  /// No description provided for @selectedServerManagedGroup.
-  ///
-  /// In en, this message translates to:
-  /// **'Selected server-managed group'**
-  String get selectedServerManagedGroup;
-
-  /// No description provided for @selectedStateValuevalueCidrsSummarizePorts.
-  ///
-  /// In en, this message translates to:
-  /// **'Selected state: {valueValue} · CIDRs: {summarize} · ports: {summarize2}'**
-  String selectedStateValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  );
-
   /// No description provided for @sendANewInvitationFromSettings.
   ///
   /// In en, this message translates to:
@@ -15652,24 +14991,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Server space: {serverSpaceId}'**
   String serverSpaceServerspaceid(String serverSpaceId);
-
-  /// No description provided for @serverManagedAccessGroups.
-  ///
-  /// In en, this message translates to:
-  /// **'Server-managed access groups'**
-  String get serverManagedAccessGroups;
-
-  /// No description provided for @serverManagedGroupActionFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Server-managed group action failed'**
-  String get serverManagedGroupActionFailed;
-
-  /// No description provided for @serverManagedGroupSaveFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Server-managed group save failed'**
-  String get serverManagedGroupSaveFailed;
 
   /// No description provided for @serverLocalConflictBranchesConflictcount.
   ///
@@ -16336,12 +15657,6 @@ abstract class AppLocalizations {
   /// **'The default preference was confirmed after Vault sync.'**
   String get theDefaultPreferenceWasConfirmedAfter;
 
-  /// No description provided for @theDeploymentGateIsAvailableWith.
-  ///
-  /// In en, this message translates to:
-  /// **'The deployment gate is available with ATERMIUS_RELAY_ENABLED=true. Effective authorization always remains limited by the configured CIDRs and ports.'**
-  String get theDeploymentGateIsAvailableWith;
-
   /// No description provided for @theExportContainsARandomReport.
   ///
   /// In en, this message translates to:
@@ -16402,18 +15717,6 @@ abstract class AppLocalizations {
   /// **'The previous code was not confirmed as stored. Rotate recovery to show a replacement code.'**
   String get thePreviousCodeWasNotConfirmed;
 
-  /// No description provided for @theSavedPolicyExceedsTheCurrent.
-  ///
-  /// In en, this message translates to:
-  /// **'The saved policy exceeds the current deployment ceilings. Effective authorization remains restricted by the current limits. Narrow the CIDRs and ports below before saving; ATERMIUS_RELAY_ENABLED=true is also required for the relay service to run.'**
-  String get theSavedPolicyExceedsTheCurrent;
-
-  /// No description provided for @theSavedPolicyRemainsSelectedAs.
-  ///
-  /// In en, this message translates to:
-  /// **'The saved policy remains selected as enabled, but the effective relay service is unavailable while the deployment gate is off. ATERMIUS_RELAY_ENABLED=true is required; turn off the selection before saving other changes. The Web UI cannot change this gate.'**
-  String get theSavedPolicyRemainsSelectedAs;
-
   /// No description provided for @theSecretIsReadFromThe.
   ///
   /// In en, this message translates to:
@@ -16449,12 +15752,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The server can copy encrypted instance archives to an operator-configured S3-compatible target. The destination and credentials remain on the server. The access check performs HeadBucket only; it does not verify uploads, multipart operations, restore, or provider-wide interoperability.'**
   String get theServerCanCopyEncryptedInstance;
-
-  /// No description provided for @theServerDeploymentGateMustAlso.
-  ///
-  /// In en, this message translates to:
-  /// **'The server deployment gate must also be enabled.'**
-  String get theServerDeploymentGateMustAlso;
 
   /// No description provided for @theServerDidNotRequestA.
   ///
@@ -16539,12 +15836,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The update check could not confirm the current Web build.'**
   String get theUpdateCheckCouldNotConfirm;
-
-  /// No description provided for @theseInstanceGroupsControlSshRelay.
-  ///
-  /// In en, this message translates to:
-  /// **'These instance groups control SSH Relay access. They are separate from encrypted Workspace groups and do not contain Vault data.'**
-  String get theseInstanceGroupsControlSshRelay;
 
   /// No description provided for @thisGroupDefaultIsUnavailableChoose.
   ///
@@ -16672,12 +15963,6 @@ abstract class AppLocalizations {
   /// **'This group changed on another device. Sync and reopen it before retrying.'**
   String get thisGroupChangedOnAnotherDevice;
 
-  /// No description provided for @thisGroupHasNoMembers.
-  ///
-  /// In en, this message translates to:
-  /// **'This group has no members.'**
-  String get thisGroupHasNoMembers;
-
   /// No description provided for @thisImmediatelyRevokesEverySessionAnd.
   ///
   /// In en, this message translates to:
@@ -16792,12 +16077,6 @@ abstract class AppLocalizations {
   /// **'Title'**
   String get title;
 
-  /// No description provided for @toEnableSshRelayTheServer.
-  ///
-  /// In en, this message translates to:
-  /// **'To enable SSH relay, the server operator must set ATERMIUS_RELAY_ENABLED=true and configure deployment limits. The Web UI cannot change this gate.'**
-  String get toEnableSshRelayTheServer;
-
   /// No description provided for @topLevelGroup2.
   ///
   /// In en, this message translates to:
@@ -16870,18 +16149,6 @@ abstract class AppLocalizations {
   /// **'Unable to discard isolated restore copy: {error}'**
   String unableToDiscardIsolatedRestoreCopy(String error);
 
-  /// No description provided for @unableToLoadAccountRelayPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to load account Relay policy'**
-  String get unableToLoadAccountRelayPolicy;
-
-  /// No description provided for @unableToLoadMemberEffectiveRelay.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to load member effective Relay access'**
-  String get unableToLoadMemberEffectiveRelay;
-
   /// No description provided for @unableToLoadOffSiteBackup.
   ///
   /// In en, this message translates to:
@@ -16899,18 +16166,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unable to load scheduled backups: {error}'**
   String unableToLoadScheduledBackupsError(String error);
-
-  /// No description provided for @unableToLoadServerManagedGroup.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to load server-managed group details'**
-  String get unableToLoadServerManagedGroup;
-
-  /// No description provided for @unableToLoadServerManagedGroups.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to load server-managed groups'**
-  String get unableToLoadServerManagedGroups;
 
   /// No description provided for @unableToPrepareIsolatedRestoreCopy.
   ///
@@ -17584,16 +16839,6 @@ abstract class AppLocalizations {
     String labelFor,
     String substring,
     String format,
-  );
-
-  /// No description provided for @membercountMembersValuevalueRevisionRevision.
-  ///
-  /// In en, this message translates to:
-  /// **'{memberCount, plural, =1{1 member} other{{memberCount} members}} · {valueValue} · revision {revision}'**
-  String membercountMembersValuevalueRevisionRevision(
-    int memberCount,
-    String valueValue,
-    int revision,
   );
 
   /// No description provided for @missingcountMissing.
@@ -18855,12 +18100,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Manage backups and restore copies, and check instance maintenance jobs.'**
   String get manageBackupsAndRestoreCopiesAnd;
-
-  /// No description provided for @manageInstanceAccountsInvitationsRelayGroups.
-  ///
-  /// In en, this message translates to:
-  /// **'Manage instance accounts, invitations, relay groups and connection policies.'**
-  String get manageInstanceAccountsInvitationsRelayGroups;
 
   /// No description provided for @manageNotificationsAndClientUpdates.
   ///
@@ -31105,19 +30344,19 @@ abstract class AppLocalizations {
   /// Description of the users section of the administration panel.
   ///
   /// In en, this message translates to:
-  /// **'Review the accounts on this instance, disable or re-enable them, revoke their sessions, set per-account relay policy and issue invitations.'**
+  /// **'Review the accounts on this instance, disable or re-enable them, revoke their sessions and issue invitations.'**
   String get adminPanelUsersDescription;
 
-  /// Administration panel section for instance-wide relay policy, relay groups and credential visibility.
+  /// Administration panel section for credential visibility.
   ///
   /// In en, this message translates to:
-  /// **'Access and relay policy'**
+  /// **'Access'**
   String get adminPanelAccessTitle;
 
   /// Description of the access section of the administration panel.
   ///
   /// In en, this message translates to:
-  /// **'Manage the instance-wide relay policy, relay groups and credential visibility.'**
+  /// **'Manage credential visibility: the default mode for new accounts and the escrow key.'**
   String get adminPanelAccessDescription;
 
   /// Administration panel section that lists vault metadata and storage quotas.
@@ -31425,12 +30664,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Old volumes awaiting cleanup · {count}'**
   String waCleanup(int count);
-
-  /// No description provided for @waAccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Relay access policies'**
-  String get waAccess;
 
   /// No description provided for @waNodeDetails.
   ///

@@ -416,12 +416,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accountRecoveryIsBusy => '账户恢复正忙。';
 
   @override
-  String get accountRelayPolicyResetToInherit => '账户中继策略已重置为继承。';
-
-  @override
-  String get accountRelayPolicySaved => '账户中继策略已保存。';
-
-  @override
   String accountStatusUpdatedToStatusRevokedsessions(
     String status,
     int revokedSessions,
@@ -490,19 +484,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get enterTheAccountName => '请输入账户名。';
 
   @override
-  String get groupRelayPolicyResetToInherit => '分组 Relay 策略已重置为继承。';
-
-  @override
-  String get groupRelayPolicySaved => '分组 Relay 策略已保存。';
-
-  @override
   String get groupDefault => '分组默认值';
 
   @override
   String get groupDefaultIsUnavailableChooseA => '分组默认值不可用。请选择主机覆盖或修复分组默认值。';
-
-  @override
-  String get groupMembershipSaved => '分组成员资格已保存。';
 
   @override
   String get hostChangedRepeatedlyWhileSavingReopen => '保存时主机多次更改；请重新打开后重试。';
@@ -608,15 +593,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get loadAConsistentAccountAndInstance => '重置前请加载一致的账户和实例策略。';
-
-  @override
-  String get loadAConsistentAccountAndInstance2 => '保存前请加载一致的账户和实例策略。';
-
-  @override
-  String get loadTheLatestSshRelayPolicy => '保存前请加载最新的 SSH 中继策略。';
-
-  @override
   String get theMfaSignInResponseDoesnt => 'MFA 登录响应与当前账户或设备不匹配。';
 
   @override
@@ -694,21 +670,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '预览后引用的凭据已更改。请检查命令后重试。';
 
   @override
-  String get reloadTheLatestAccountAndInstance => '重置前请重新加载最新的账户和实例策略。';
-
-  @override
-  String get reloadTheLatestAccountAndInstance2 => '保存前请重新加载最新的账户和实例策略。';
-
-  @override
-  String get reloadTheLatestGroupAndInstance => '重置前请重新加载最新的分组和实例策略。';
-
-  @override
-  String get reloadTheLatestGroupAndInstance2 => '保存前请重新加载最新的分组和实例策略。';
-
-  @override
-  String get reloadTheLatestPolicyAfterThe => '修订冲突后请先重新加载最新策略再重试。';
-
-  @override
   String get restoreIsEncryptedAndQueuedOn => '恢复已加密并在此设备上排队；同步状态将重试。';
 
   @override
@@ -759,9 +720,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String sshHostKeyVerificationEvidenceIs(String hostName) {
     return '缺少 $hostName 的 SSH 主机密钥验证证据。运行批处理前请重新连接。';
   }
-
-  @override
-  String get sshRelayPolicySaved => 'SSH 中继策略已保存。';
 
   @override
   String get sshHostKeyTrustWasConfirmed => 'SSH 主机密钥信任已在当前 Vault 同步确认。';
@@ -822,9 +780,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get selectAVaultBeforeResolvingThis2 => '解析此主机前请先选择保险库。';
-
-  @override
-  String get selectAnActiveMemberOfThis => '请选择此服务器管理分组中的活动成员。';
 
   @override
   String get selectedSessionRevoked => '所选会话已撤销。';
@@ -889,9 +844,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get theSshExecRequestFailedAfter => 'SSH exec 请求在派发后失败。';
 
   @override
-  String get theAccountNowInheritsTheInstance => '此账户现在继承实例中继策略。';
-
-  @override
   String get theEffectiveSshCredentialIsUnavailable =>
       '生效的 SSH 凭据不可用。请选择有效的主机覆盖或修复分组默认值。';
 
@@ -903,29 +855,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get theExistingRecoveryDescriptorDoesNot => '现有恢复描述符与其封装的身份不符。';
-
-  @override
-  String get theGroupNowInheritsTheInstance => '此分组现在继承实例 Relay 策略。';
-
-  @override
-  String get theInstanceRelayPolicyChangedWhile =>
-      '加载此分组期间实例 Relay 策略已更改。请重新加载以获取一致的快照。';
-
-  @override
-  String get theInstanceRelayPolicyChangedReload =>
-      '实例 Relay 策略已更改。查看实际访问权限前请重新加载此分组。';
-
-  @override
-  String get theInstancePolicyChangedWhileResetting =>
-      '重置期间实例策略已更改。请重新加载最新策略；你的草稿已保留。';
-
-  @override
-  String get theInstancePolicyChangedWhileSaving =>
-      '保存期间实例策略已更改。请重新加载最新策略；你的草稿已保留。';
-
-  @override
-  String get theInstanceRelayPolicyChangedWhile2 =>
-      '加载此账户策略期间实例中继策略已更改。请重新加载以获取一致的快照。';
 
   @override
   String get theMergedHostRecordIsInvalid => '合并后的主机记录无效。';
@@ -949,20 +878,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get theRecoveryResponseDidNotMatch => '恢复响应与此账户不匹配。';
 
   @override
-  String get theRelayPolicyChangedElsewhereReload =>
-      '中继策略已在其他地方更改。重试前请重新加载最新设置。';
-
-  @override
   String theReviewedSshSessionForHostname(String hostName) {
     return '在派发前，$hostName 的已审阅 SSH 会话已更改。';
   }
 
   @override
   String get theServerCouldNotVerifyAccess => '服务器无法验证对已配置 S3 备份存储桶的访问。';
-
-  @override
-  String get theServerDeploymentDoesNotCurrently =>
-      '服务器部署当前不允许此中继设置。你的编辑仍保留在这里；请检查部署限制后重试。';
 
   @override
   String get theServerOrAuthenticationStateChanged => '恢复期间服务器或认证状态已更改。请重新开始。';
@@ -987,12 +908,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get tooManySshHostKeyChecks => '此路由请求的 SSH 主机密钥检查过多。';
-
-  @override
-  String get unableToLoadTheSshRelay => '无法加载 SSH 中继策略。请检查连接后重试。';
-
-  @override
-  String get unableToSaveTheSshRelay => '无法保存 SSH 中继策略。请检查连接后重试。';
 
   @override
   String get vaultChangedWhileSshHostKey => '审阅 SSH 主机密钥批准期间保险库已更改。';
@@ -1690,9 +1605,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get theRecordRetainedByAnExisting => '已有修复墓碑的保留记录不一致，需要人工检查。';
 
   @override
-  String get aServerAccessGroupWithThe => '已有同名服务器访问组（忽略大小写及 Unicode 兼容字符）。';
-
-  @override
   String get thePreviouslySubmittedMasterPasswordChange =>
       '已确认此前提交的主密码变更；其他登录会话已撤销。';
 
@@ -1939,9 +1851,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get theSelectedArchiveSourceIsInvalid => '所选归档来源无效，请刷新来源列表后重试。';
 
   @override
-  String get theSelectedServerAccessGroupNo => '所选服务器访问组已不存在，请刷新列表。';
-
-  @override
   String get theApprovalFileDoesntMatchThe => '批准文件与此浏览器生成的设备申请不匹配。';
 
   @override
@@ -2107,10 +2016,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get theServerHasntConfiguredIsolatedRestore =>
       '服务器尚未配置隔离还原存储，请联系实例运维人员。';
-
-  @override
-  String get theServerAccessGroupWasUpdated =>
-      '服务器访问组在另一管理员处已更新。请重新加载最新数据；当前草稿仍保留。';
 
   @override
   String get theServersInitialVaultMembershipRecord => '服务端 Vault 初始成员记录格式无效。';
@@ -4171,7 +4076,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get remoteDesktopStreamFailed => '远程桌面流失败。';
 
   @override
-  String get unableToConnectCheckTheDesktop => '无法连接。请检查桌面网关、Relay 策略、凭据和证书信任。';
+  String get unableToConnectCheckTheDesktop => '无法连接。请检查桌面网关、凭据和证书信任。';
 
   @override
   String get theHostSettingsChangedReconnect => '主机配置已变化，请重新连接。';
@@ -5098,11 +5003,11 @@ class AppLocalizationsZh extends AppLocalizations {
       '无法建立 SSH 中继 WebSocket。请检查实例的 HTTPS/WSS 地址、中继来源配置和网络后重试。';
 
   @override
-  String get theServerRelayPolicyRejectedThis =>
-      '服务端中继策略拒绝此目标地址或端口。请联系管理员检查 SSH 目标 allowlist。';
+  String get theServerRefusesToConnectToThis =>
+      '服务端拒绝连接此地址。回环、链路本地和云元数据地址无法经由服务端访问。';
 
   @override
-  String get theServerHasntEnabledTheSsh => '服务端尚未启用 SSH 中继，请联系管理员配置中继及目标网段。';
+  String get theServerHasntEnabledTheSsh => '服务端尚未启用 SSH 中继，请联系管理员启用。';
 
   @override
   String get localStorageNeedsRecoveryReadingEditing2 =>
@@ -5379,16 +5284,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get n0Auto => '0 = 自动';
 
   @override
-  String get n180UnicodeCharactersUniqueWithout =>
-      '1–80 个 Unicode 字符；不区分大小写且必须唯一。';
-
-  @override
   String aHostCanHaveAtMost(int maxHostPortForwardProfiles) {
     return '一台主机最多可有 $maxHostPortForwardProfiles 个端口转发配置。';
   }
-
-  @override
-  String get aConcurrentChangeWasDetectedYour => '检测到并发更改。你的名称、成员资格和策略草稿已保留。';
 
   @override
   String get aNewEncryptedRevisionWillBe =>
@@ -5427,10 +5325,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aSplitWorkspaceNeedsAtLeast => '分屏工作区至少需要两个窗格';
 
   @override
-  String get aUsersEffectiveRelayAccessAlso =>
-      '用户的实际 Relay 访问权限还会与其账户策略、所有其他服务器分组以及部署限制取交集。';
-
-  @override
   String get active => '活动';
 
   @override
@@ -5459,12 +5353,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get accountId => '账户 ID';
-
-  @override
-  String get accountRelayPolicy => '账户 Relay 策略';
-
-  @override
-  String get accountRelayPolicySaveFailed => '账户 Relay 策略保存失败';
 
   @override
   String get accountDeletion => '账户删除';
@@ -5534,14 +5422,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accountRecoveryWasDisabled => '账户恢复已停用。';
 
   @override
-  String accountRevisionRevisionUpdatedFormattime(
-    int revision,
-    String formatTime,
-  ) {
-    return '账户修订版本 $revision · 更新于 $formatTime';
-  }
-
-  @override
   String get accountSessions => '账户会话';
 
   @override
@@ -5559,9 +5439,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String activePaneValuevalue(int valueValue) {
     return '活动窗格 $valueValue';
   }
-
-  @override
-  String get activeAccountOnCurrentPage => '当前页面上的活动账户';
 
   @override
   String get activeDevices => '活动设备';
@@ -5629,15 +5506,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get allowFuturePurge => '允许以后清除';
-
-  @override
-  String get allowedCidrNetworks => '允许的 CIDR 网络';
-
-  @override
-  String get allowedCidrsOnePerLine => '允许的 CIDR（每行一个）';
-
-  @override
-  String get allowedPorts => '允许的端口';
 
   @override
   String anEncryptedVaultArchiveCoveringPendingcount(int pendingCount) {
@@ -5944,12 +5812,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get color2 => '颜色';
 
   @override
-  String get commaOrLineSeparatedPortNumbers => '以逗号或换行分隔的端口号。';
-
-  @override
-  String get commaOrNewlineSeparatedForExample => '以逗号或换行分隔，例如 22, 2222';
-
-  @override
   String get commandHistory => '命令历史';
 
   @override
@@ -6221,14 +6083,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get createdAt => '创建时间';
 
   @override
-  String createdFormattimeUpdatedFormattime2(
-    String formatTime,
-    String formatTime2,
-  ) {
-    return '创建于 $formatTime · 更新于 $formatTime2';
-  }
-
-  @override
   String createdFormat(String format) {
     return '创建于 · $format';
   }
@@ -6351,12 +6205,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get deleteGroup4 => '删除分组？';
 
   @override
-  String get deleteServerManagedGroup => '删除服务器管理的分组';
-
-  @override
-  String get deleteServerManagedGroup2 => '删除服务器管理的分组？';
-
-  @override
   String get deleteThisItem => '删除此项？';
 
   @override
@@ -6388,15 +6236,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get deliveryWindowUtc => '投递时段（UTC）';
-
-  @override
-  String get deploymentCidrLimits => '部署 CIDR 限制';
-
-  @override
-  String get deploymentPortLimits => '部署端口限制';
-
-  @override
-  String get deploymentRelayAvailability => '部署的中继可用性';
 
   @override
   String get destinationOnSshTarget => 'SSH 目标上的目标';
@@ -6470,9 +6309,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String disableUsernameServerSessionsWillBe(String username) {
     return '停用 $username？服务器会话将被撤销，且无法再次登录。缓存的设备数据不会被擦除，现有的直连 SSH 连接可能会持续到其 SSH 服务器关闭为止。';
   }
-
-  @override
-  String get disabledByPolicy => '已被策略禁用';
 
   @override
   String get discardIsolatedCopy => '丢弃隔离副本';
@@ -6565,52 +6401,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get editText2 => '编辑文本';
 
   @override
-  String editableCeilingValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return '可编辑上限：$valueValue · CIDR：$summarize · 端口：$summarize2';
-  }
-
-  @override
   String get editorCanEditVaultRecords => '编辑者 · 可以编辑保险库记录';
-
-  @override
-  String get effectiveSshRelayService => '实际 SSH 中继服务';
-
-  @override
-  String effectiveGroupStateValuevalueCidrsSummarize(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return '分组实际状态：$valueValue · CIDR：$summarize · 端口：$summarize2';
-  }
-
-  @override
-  String effectiveStateValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return '实际状态：$valueValue · CIDR：$summarize · 端口：$summarize2';
-  }
 
   @override
   String get enableBashCommandHistory => '启用 Bash 命令历史';
 
   @override
   String get enableBashIntegration => '启用 Bash 集成';
-
-  @override
-  String get enableRelayForThisAccount => '为此账户启用 Relay';
-
-  @override
-  String get enableRelayForThisGroup => '为此分组启用 Relay';
-
-  @override
-  String get enableSshRelay => '启用 SSH 中继';
 
   @override
   String get enableVaultSync => '启用保险库同步';
@@ -6792,9 +6589,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get folderName => '文件夹名称';
 
   @override
-  String get forExample104000 => '例如：10.40.0.0/16';
-
-  @override
   String get forwardType => '转发类型';
 
   @override
@@ -6834,24 +6628,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get grantInputControl => '授予输入控制';
 
   @override
-  String get groupRelayPolicy => '分组 Relay 策略';
-
-  @override
   String groupActionsName2(String name) {
     return '分组操作：$name';
   }
 
   @override
   String get groupName3 => '分组名称';
-
-  @override
-  String groupRevisionRevisionMembershipRevisionMembershiprevision(
-    int revision,
-    int membershipRevision,
-    int revision2,
-  ) {
-    return '分组修订版本 $revision · 成员资格修订版本 $membershipRevision · 策略修订版本 $revision2';
-  }
 
   @override
   String groupGroupname(Object groupName) {
@@ -6862,9 +6644,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String headShortauditid(String shortAuditId) {
     return '头部 $shortAuditId';
   }
-
-  @override
-  String get hideRelayPolicy => '隐藏 Relay 策略';
 
   @override
   String get hidePasswordSecret => '隐藏密码机密';
@@ -6949,9 +6728,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get includesTheInstanceAccountAndEvery => '包括实例、账户以及所有已分配的服务器分组。';
-
-  @override
   String get inputControlOff => '输入控制：关闭';
 
   @override
@@ -6993,14 +6769,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get instanceJobs => '实例任务';
-
-  @override
-  String instanceRevisionRevisionUpdatedFormattime(
-    int revision,
-    String formatTime,
-  ) {
-    return '实例修订版本 $revision · 更新于 $formatTime';
-  }
 
   @override
   String get instanceSigningKeyFingerprintSha256 => '实例签名密钥指纹 · SHA-256';
@@ -7140,9 +6908,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lastSuccessfulSync => '上次成功同步';
 
   @override
-  String get lastUpdated => '上次更新';
-
-  @override
   String lastVerifiedServerShortkey(String shortKey) {
     return '上次验证的服务器：$shortKey';
   }
@@ -7157,16 +6922,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get leaveSharedTerminal => '离开共享终端';
 
   @override
-  String get loadRelayPolicies => '加载 Relay 策略';
-
-  @override
   String get loadVaults => '加载保险库';
 
   @override
   String get loadAccountInvitations => '加载账户邀请';
-
-  @override
-  String get loadAccountsToAddMembers => '加载账户以添加成员';
 
   @override
   String get loadAdminAccounts => '加载管理账户';
@@ -7190,25 +6949,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loadPushHealth => '加载推送健康状况';
 
   @override
-  String get loadRelayPolicy => '加载中继策略';
-
-  @override
   String get loadReplicationStatus => '加载复制状态';
 
   @override
   String get loadRestoreSources => '加载恢复来源';
 
   @override
-  String get loadServerManagedGroups => '加载服务器管理的分组';
-
-  @override
   String get loadStatus => '加载状态';
-
-  @override
-  String get loadingSshRelayPolicy => '正在加载 SSH 中继策略…';
-
-  @override
-  String get loadingAccountAndInstancePolicyRevisions => '正在加载账户和实例策略修订版本…';
 
   @override
   String get loadingAccountInvitations => '正在加载账户邀请…';
@@ -7221,12 +6968,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get loadingEncryptedArchiveSources => '正在加载加密归档来源…';
-
-  @override
-  String get loadingGroupMembershipAndRelayPolicy => '正在加载分组成员资格和 Relay 策略…';
-
-  @override
-  String get loadingServerManagedGroups => '正在加载服务器管理的分组…';
 
   @override
   String get local => '本地';
@@ -7292,19 +7033,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get masterPasswordIsUsedOnlyFor => '主密码仅用于客户端密钥派生。';
 
   @override
-  String get maxSshRelayConnectionsPerUser => '每个用户的最大 SSH 中继连接数';
-
-  @override
   String get maxRelayConnectionsPerUser => '每个用户的最大中继连接数';
-
-  @override
-  String memberEffectiveRelayAccessValuevalueCidrs(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return '成员实际 Relay 访问：$valueValue · CIDR：$summarize · 端口：$summarize2';
-  }
 
   @override
   String get members => '成员';
@@ -7376,9 +7105,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get newMasterPassword => '新主密码';
 
   @override
-  String get newServerGroupName => '新服务器分组名称';
-
-  @override
   String get newSnippet => '新建片段';
 
   @override
@@ -7389,9 +7115,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get next => '下一页';
-
-  @override
-  String get nextAccounts => '下一页账户';
 
   @override
   String get nextInvitations => '下一页邀请';
@@ -7516,9 +7239,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noScheduledBackupRunsRecorded => '尚无计划备份运行记录';
 
   @override
-  String get noServerManagedGroupsYet => '还没有服务器管理的分组。';
-
-  @override
   String get noSessionsFound => '未找到会话。';
 
   @override
@@ -7583,9 +7303,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get offlineFirstCiphertextOnly => '离线优先，仅存密文';
-
-  @override
-  String get oneCanonicalNetworkCidrPerLine => '每行一个规范网络 CIDR。';
 
   @override
   String get oneTimePrometheusScrapeCredential => '一次性 Prometheus 抓取凭据';
@@ -7747,11 +7464,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '由于此服务器未提供恢复截止时间，无法永久清除。';
 
   @override
-  String permanentlyDeleteNameItsMembershipAnd(String name) {
-    return '永久删除“$name”及其成员资格和 Relay 策略？其成员未使用的 Relay 票据将被撤销，由此分组授予的活动会话将在策略重新检查后关闭。';
-  }
-
-  @override
   String get permanentlyPurge => '永久清除';
 
   @override
@@ -7759,15 +7471,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get policyRevision => '策略修订版本';
-
-  @override
-  String policyRevisionRevisionInstanceRevisionInstancepolicyrevision(
-    int revision,
-    int instancePolicyRevision,
-    String formatTime,
-  ) {
-    return '策略修订版本 $revision · 实例修订版本 $instancePolicyRevision · 更新于 $formatTime';
-  }
 
   @override
   String get port => '端口';
@@ -7803,9 +7506,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get previewDisconnectedLayout => '预览未连接的布局';
 
   @override
-  String get previewMemberEffectiveRelayAccess => '预览成员的实际 Relay 访问权限';
-
-  @override
   String get previewOnly => '仅预览';
 
   @override
@@ -7814,9 +7514,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get previous => '上一页';
-
-  @override
-  String get previousAccounts => '上一页账户';
 
   @override
   String get previousInvitations => '上一页邀请';
@@ -7911,7 +7608,7 @@ class AppLocalizationsZh extends AppLocalizations {
       'Read-only grace period · 所有成员可继续读取；写入与成员变更已暂停。可在 Settings 创建独立密码保护的加密归档。';
 
   @override
-  String get readOnlyInstanceIdentityUsageAnd => '只读的实例身份、用量和中继策略。';
+  String get readOnlyInstanceIdentityUsageAnd => '只读的实例身份、用量和中继状态。';
 
   @override
   String get readOnlyProviderConfigurationAggregateQueue =>
@@ -8054,9 +7751,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get refreshReadiness => '刷新就绪状态';
 
   @override
-  String get refreshRelayPolicy => '刷新中继策略';
-
-  @override
   String get refreshReplicationStatus => '刷新复制状态';
 
   @override
@@ -8067,9 +7761,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get refreshSchedule => '刷新计划';
-
-  @override
-  String get refreshServerManagedGroups => '刷新服务器管理的分组';
 
   @override
   String get refreshStatus => '刷新状态';
@@ -8084,37 +7775,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reject2 => '拒绝';
 
   @override
-  String get relayCidrs => '中继 CIDR';
-
-  @override
-  String get relayAvailable => '中继可用';
-
-  @override
-  String get relayPolicy => 'Relay 策略';
-
-  @override
-  String get relayPorts => '中继端口';
-
-  @override
   String get relayUnavailable => '中继不可用';
 
   @override
-  String get reloadAccountAndInstanceRelayPolicies => '重新加载账户和实例 Relay 策略';
-
-  @override
   String get reloadFirstPage => '重新加载第一页';
-
-  @override
-  String get reloadGroupAndInstancePoliciesKeep => '重新加载分组和实例策略，保留草稿';
-
-  @override
-  String get reloadLatestGroupKeepDrafts => '重新加载最新分组，保留草稿';
-
-  @override
-  String get reloadLatestPolicy => '重新加载最新策略';
-
-  @override
-  String get reloadLatestPolicyKeepDraft => '重新加载最新策略，保留草稿';
 
   @override
   String get remote => '远程';
@@ -8194,11 +7858,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get removeTmuxSessionReference => '移除 tmux 会话引用？';
 
   @override
-  String removeUsernameFromGroupDraft(String username) {
-    return '从分组草稿中移除 $username';
-  }
-
-  @override
   String get rename => '重命名';
 
   @override
@@ -8227,9 +7886,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get reservedUploads => '已预留的上传';
-
-  @override
-  String get resetToInherit => '重置为继承';
 
   @override
   String get resolutionSavedOnThisDeviceWaiting => '解决方案已保存在此设备上；等待同步确认。';
@@ -8294,11 +7950,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get restoreThisRecord => '恢复此记录？';
 
   @override
-  String restoreUsernameInGroupDraft(String username) {
-    return '在分组草稿中恢复 $username';
-  }
-
-  @override
   String get result => '结果';
 
   @override
@@ -8330,12 +7981,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get retryDiscardSafely => '安全重试丢弃';
-
-  @override
-  String get retryGroupDetails => '重试加载分组详情';
-
-  @override
-  String get retryGroupList => '重试加载分组列表';
 
   @override
   String get retryPasswordChange => '重试更改密码';
@@ -8598,9 +8243,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sshRelay => 'SSH 中继';
 
   @override
-  String get sshRelayPolicy => 'SSH 中继策略';
-
-  @override
   String get sshSessionIsDisconnected => 'SSH 会话已断开。';
 
   @override
@@ -8636,25 +8278,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get saveEncryptedProfile => '保存加密配置';
 
   @override
-  String get saveGroupOverride => '保存分组覆盖设置';
-
-  @override
   String get saveLocalLayoutAsNamedCopy => '将本地布局另存为命名副本';
-
-  @override
-  String get saveMembership => '保存成员资格';
 
   @override
   String get saveMergedCredential => '保存合并后的凭据';
 
   @override
-  String get saveOverride => '保存覆盖设置';
-
-  @override
   String get saveQuota => '保存配额';
-
-  @override
-  String get saveRelayPolicy => '保存中继策略';
 
   @override
   String get saveReviewedTuple => '保存已检查的设置整体';
@@ -8695,9 +8325,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String savedCheckpointShortkey(String shortKey) {
     return '已保存的检查点：$shortKey';
   }
-
-  @override
-  String get savedSettingsCanOnlyNarrowThe => '保存的设置只能收窄服务器运营者配置的不可变限制。';
 
   @override
   String get savedWorkspaces => '已保存的工作区';
@@ -8762,18 +8389,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get selectedArchive => '所选归档';
 
   @override
-  String get selectedServerManagedGroup => '所选的服务器管理分组';
-
-  @override
-  String selectedStateValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return '所选状态：$valueValue · CIDR：$summarize · 端口：$summarize2';
-  }
-
-  @override
   String get sendANewInvitationFromSettings => '请从“设置 > 邀请成员”发送新的邀请。';
 
   @override
@@ -8795,15 +8410,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String serverSpaceServerspaceid(String serverSpaceId) {
     return '服务器空间：$serverSpaceId';
   }
-
-  @override
-  String get serverManagedAccessGroups => '服务器管理的访问分组';
-
-  @override
-  String get serverManagedGroupActionFailed => '服务器管理分组操作失败';
-
-  @override
-  String get serverManagedGroupSaveFailed => '服务器管理分组保存失败';
 
   @override
   String serverLocalConflictBranchesConflictcount(int conflictCount) {
@@ -9218,10 +8824,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get theDefaultPreferenceWasConfirmedAfter => '默认偏好已在保险库同步后确认。';
 
   @override
-  String get theDeploymentGateIsAvailableWith =>
-      '部署开关在 ATERMIUS_RELAY_ENABLED=true 时可用。实际授权始终受已配置的 CIDR 和端口限制。';
-
-  @override
   String get theExportContainsARandomReport =>
       '导出内容包含随机报告 ID、固定错误代码、客户端版本、同步计数以及取整到 UTC 日的日期。绝不包含保险库记录、账户详情、服务器地址或设备标识符。';
 
@@ -9259,14 +8861,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get thePreviousCodeWasNotConfirmed => '上一个代码未确认已保存。请轮换恢复以显示替代代码。';
 
   @override
-  String get theSavedPolicyExceedsTheCurrent =>
-      '已保存的策略超出当前部署上限。实际授权仍受当前限制约束。保存前请收窄下方的 CIDR 和端口；中继服务运行还需要 ATERMIUS_RELAY_ENABLED=true。';
-
-  @override
-  String get theSavedPolicyRemainsSelectedAs =>
-      '已保存的策略仍选择为启用，但在部署开关关闭期间，实际中继服务不可用。需要 ATERMIUS_RELAY_ENABLED=true；保存其他更改前请先关闭该选择。Web 界面无法更改此开关。';
-
-  @override
   String get theSecretIsReadFromThe => '运行此片段时会从加密凭据中读取机密；它永远不会被复制到片段记录或预览中。';
 
   @override
@@ -9284,9 +8878,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get theServerCanCopyEncryptedInstance =>
       '服务器可将加密的实例归档复制到运营者配置的 S3 兼容目标。目标和凭据保留在服务器上。访问检查仅执行 HeadBucket，不验证上传、分段操作、恢复或提供方范围的互操作性。';
-
-  @override
-  String get theServerDeploymentGateMustAlso => '服务器部署开关也必须启用。';
 
   @override
   String get theServerDidNotRequestA => '服务器未请求响应。';
@@ -9340,10 +8931,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get theUpdateCheckCouldNotConfirm => '更新检查无法确认当前的 Web 版本。';
-
-  @override
-  String get theseInstanceGroupsControlSshRelay =>
-      '这些实例分组控制 SSH Relay 访问。它们独立于加密的工作区分组，不包含保险库数据。';
 
   @override
   String get thisGroupDefaultIsUnavailableChoose => '此分组默认值不可用。请选择不设默认值或有效凭据。';
@@ -9421,9 +9008,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get thisGroupChangedOnAnotherDevice => '此分组已在另一台设备上更改。请同步并重新打开后再重试。';
 
   @override
-  String get thisGroupHasNoMembers => '此分组没有成员。';
-
-  @override
   String get thisImmediatelyRevokesEverySessionAnd =>
       '这会立即撤销所有会话和设备。到服务器清除截止时间时，个人保险库和账户数据会被删除，你对共享保险库的访问也会被移除。其他成员的共享保险库数据不会被删除。';
 
@@ -9498,10 +9082,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get title => '标题';
 
   @override
-  String get toEnableSshRelayTheServer =>
-      '要启用 SSH 中继，服务器运营者必须设置 ATERMIUS_RELAY_ENABLED=true 并配置部署限制。Web 界面无法更改此开关。';
-
-  @override
   String get topLevelGroup2 => '顶级分组';
 
   @override
@@ -9544,12 +9124,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get unableToLoadAccountRelayPolicy => '无法加载账户 Relay 策略';
-
-  @override
-  String get unableToLoadMemberEffectiveRelay => '无法加载成员的实际 Relay 访问权限';
-
-  @override
   String unableToLoadOffSiteBackup(String error) {
     return '无法加载异地备份状态：$error';
   }
@@ -9563,12 +9137,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String unableToLoadScheduledBackupsError(String error) {
     return '无法加载计划备份：$error';
   }
-
-  @override
-  String get unableToLoadServerManagedGroup => '无法加载服务器管理分组的详情';
-
-  @override
-  String get unableToLoadServerManagedGroups => '无法加载服务器管理的分组';
 
   @override
   String unableToPrepareIsolatedRestoreCopy(String error) {
@@ -9985,15 +9553,6 @@ class AppLocalizationsZh extends AppLocalizations {
     String format,
   ) {
     return '$labelFor · ID $substring · 删除于 $format';
-  }
-
-  @override
-  String membercountMembersValuevalueRevisionRevision(
-    int memberCount,
-    String valueValue,
-    int revision,
-  ) {
-    return '$memberCount 名成员 · $valueValue · 修订版本 $revision';
   }
 
   @override
@@ -10712,10 +10271,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get manageBackupsAndRestoreCopiesAnd => '管理备份和恢复副本，检查实例维护任务。';
-
-  @override
-  String get manageInstanceAccountsInvitationsRelayGroups =>
-      '管理实例账户、邀请、中继组及连接策略。';
 
   @override
   String get manageNotificationsAndClientUpdates => '管理通知和客户端更新。';
@@ -17621,14 +17176,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get adminPanelUsersTitle => '用户';
 
   @override
-  String get adminPanelUsersDescription =>
-      '查看本实例的账户，停用或重新启用账户，撤销会话，设置单个账户的中继策略并签发邀请。';
+  String get adminPanelUsersDescription => '查看本实例的账户，停用或重新启用账户，撤销会话并签发邀请。';
 
   @override
-  String get adminPanelAccessTitle => '访问与中继策略';
+  String get adminPanelAccessTitle => '访问权限';
 
   @override
-  String get adminPanelAccessDescription => '管理全实例的中继策略、中继组和凭据可见性。';
+  String get adminPanelAccessDescription => '管理凭据可见性：新账户的默认模式和托管密钥。';
 
   @override
   String get adminPanelVaultsTitle => '保险库与配额';
@@ -17803,9 +17357,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String waCleanup(int count) {
     return '待清理旧卷 · $count';
   }
-
-  @override
-  String get waAccess => 'Relay 访问策略';
 
   @override
   String get waNodeDetails => '节点详情';

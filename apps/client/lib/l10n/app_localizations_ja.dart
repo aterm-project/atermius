@@ -437,12 +437,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get accountRecoveryIsBusy => 'アカウントの復旧を処理中です。';
 
   @override
-  String get accountRelayPolicyResetToInherit => 'アカウントのリレーポリシーを継承にリセットしました。';
-
-  @override
-  String get accountRelayPolicySaved => 'アカウントのリレーポリシーを保存しました。';
-
-  @override
   String accountStatusUpdatedToStatusRevokedsessions(
     String status,
     int revokedSessions,
@@ -520,20 +514,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get enterTheAccountName => 'アカウント名を入力してください。';
 
   @override
-  String get groupRelayPolicyResetToInherit => 'グループの Relay ポリシーを継承にリセットしました。';
-
-  @override
-  String get groupRelayPolicySaved => 'グループの Relay ポリシーを保存しました。';
-
-  @override
   String get groupDefault => 'グループの既定値';
 
   @override
   String get groupDefaultIsUnavailableChooseA =>
       'グループの既定値は利用できません。ホストの上書きを選択するか、グループの既定値を修復してください。';
-
-  @override
-  String get groupMembershipSaved => 'グループのメンバーシップを保存しました。';
 
   @override
   String get hostChangedRepeatedlyWhileSavingReopen =>
@@ -648,17 +633,6 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get loadAConsistentAccountAndInstance =>
-      'リセットする前に、一貫したアカウントとインスタンスのポリシーを読み込んでください。';
-
-  @override
-  String get loadAConsistentAccountAndInstance2 =>
-      '保存する前に、一貫したアカウントとインスタンスのポリシーを読み込んでください。';
-
-  @override
-  String get loadTheLatestSshRelayPolicy => '保存する前に最新の SSH リレーのポリシーを読み込んでください。';
-
-  @override
   String get theMfaSignInResponseDoesnt =>
       'MFA サインインの応答が現在のアカウントまたはデバイスと一致しません。';
 
@@ -745,26 +719,6 @@ class AppLocalizationsJa extends AppLocalizations {
       'プレビュー後に参照している認証情報が変更されました。コマンドを確認してから再試行してください。';
 
   @override
-  String get reloadTheLatestAccountAndInstance =>
-      'リセットする前に、最新のアカウントとインスタンスのポリシーを再読み込みしてください。';
-
-  @override
-  String get reloadTheLatestAccountAndInstance2 =>
-      '保存する前に、最新のアカウントとインスタンスのポリシーを再読み込みしてください。';
-
-  @override
-  String get reloadTheLatestGroupAndInstance =>
-      'リセットする前に、最新のグループとインスタンスのポリシーを再読み込みしてください。';
-
-  @override
-  String get reloadTheLatestGroupAndInstance2 =>
-      '保存する前に、最新のグループとインスタンスのポリシーを再読み込みしてください。';
-
-  @override
-  String get reloadTheLatestPolicyAfterThe =>
-      'リビジョンの競合後は、最新のポリシーを再読み込みしてから再試行してください。';
-
-  @override
   String get restoreIsEncryptedAndQueuedOn =>
       '復元は暗号化されてこのデバイスのキューに追加されました。同期の状態は再試行されます。';
 
@@ -822,9 +776,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String sshHostKeyVerificationEvidenceIs(String hostName) {
     return '$hostName の SSH ホスト鍵の検証証拠がありません。一括処理を実行する前に再接続してください。';
   }
-
-  @override
-  String get sshRelayPolicySaved => 'SSH リレーのポリシーを保存しました。';
 
   @override
   String get sshHostKeyTrustWasConfirmed => 'SSH ホスト鍵の信頼が現在の保管庫での同期により確認されました。';
@@ -891,9 +842,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get selectAVaultBeforeResolvingThis2 => 'このホストを解決する前に保管庫を選択してください。';
-
-  @override
-  String get selectAnActiveMemberOfThis => 'このサーバー管理のグループのアクティブなメンバーを選択してください。';
 
   @override
   String get selectedSessionRevoked => '選択したセッションを失効させました。';
@@ -966,10 +914,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get theSshExecRequestFailedAfter => 'SSH exec のリクエストは送信後に失敗しました。';
 
   @override
-  String get theAccountNowInheritsTheInstance =>
-      'このアカウントはインスタンスのリレーポリシーを継承するようになりました。';
-
-  @override
   String get theEffectiveSshCredentialIsUnavailable =>
       '有効な SSH 認証情報を利用できません。有効なホストの上書きを選択するか、グループの既定値を修復してください。';
 
@@ -983,30 +927,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get theExistingRecoveryDescriptorDoesNot =>
       '既存の復旧記述子がラップされた ID と一致しません。';
-
-  @override
-  String get theGroupNowInheritsTheInstance =>
-      'このグループはインスタンスの Relay ポリシーを継承するようになりました。';
-
-  @override
-  String get theInstanceRelayPolicyChangedWhile =>
-      'このグループの読み込み中にインスタンスの Relay ポリシーが変更されました。一貫したスナップショットを取得するには再読み込みしてください。';
-
-  @override
-  String get theInstanceRelayPolicyChangedReload =>
-      'インスタンスの Relay ポリシーが変更されました。実効アクセスを確認する前にこのグループを再読み込みしてください。';
-
-  @override
-  String get theInstancePolicyChangedWhileResetting =>
-      'リセット中にインスタンスのポリシーが変更されました。最新のポリシーを再読み込みしてください。下書きは保持されています。';
-
-  @override
-  String get theInstancePolicyChangedWhileSaving =>
-      '保存中にインスタンスのポリシーが変更されました。最新のポリシーを再読み込みしてください。下書きは保持されています。';
-
-  @override
-  String get theInstanceRelayPolicyChangedWhile2 =>
-      'このアカウントのポリシーの読み込み中にインスタンスのリレーポリシーが変更されました。一貫したスナップショットを取得するには再読み込みしてください。';
 
   @override
   String get theMergedHostRecordIsInvalid => 'マージしたホストのレコードが無効です。';
@@ -1031,10 +951,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get theRecoveryResponseDidNotMatch => '復旧の応答がこのアカウントと一致しませんでした。';
 
   @override
-  String get theRelayPolicyChangedElsewhereReload =>
-      'リレーのポリシーが別の場所で変更されました。再試行する前に最新の設定を再読み込みしてください。';
-
-  @override
   String theReviewedSshSessionForHostname(String hostName) {
     return '送信前に $hostName の確認済みの SSH セッションが変更されました。';
   }
@@ -1042,10 +958,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get theServerCouldNotVerifyAccess =>
       'サーバーは設定済みの S3 バックアップバケットへのアクセスを確認できませんでした。';
-
-  @override
-  String get theServerDeploymentDoesNotCurrently =>
-      'サーバーのデプロイでは現在このリレー設定は許可されていません。編集内容はここに残っています。デプロイの制限を確認してから再試行してください。';
 
   @override
   String get theServerOrAuthenticationStateChanged =>
@@ -1074,14 +986,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get tooManySshHostKeyChecks => 'この経路で要求された SSH ホスト鍵のチェックが多すぎます。';
-
-  @override
-  String get unableToLoadTheSshRelay =>
-      'SSH リレーのポリシーを読み込めません。接続を確認してから再試行してください。';
-
-  @override
-  String get unableToSaveTheSshRelay =>
-      'SSH リレーのポリシーを保存できません。接続を確認してから再試行してください。';
 
   @override
   String get vaultChangedWhileSshHostKey => 'SSH ホスト鍵の承認を確認している間に保管庫が変更されました。';
@@ -1856,10 +1760,6 @@ class AppLocalizationsJa extends AppLocalizations {
       '既存の修復用削除マーカーで保持されたレコードが一致しないため、手動での確認が必要です。';
 
   @override
-  String get aServerAccessGroupWithThe =>
-      '同じ名前のサーバーアクセスグループがすでに存在します（大文字小文字と Unicode 互換文字は区別しません）。';
-
-  @override
   String get thePreviouslySubmittedMasterPasswordChange =>
       '以前に送信したマスターパスワードの変更を確認しました。他のサインインセッションは失効しました。';
 
@@ -2136,10 +2036,6 @@ class AppLocalizationsJa extends AppLocalizations {
       '選択したアーカイブのソースが無効です。ソース一覧を更新してから、もう一度お試しください。';
 
   @override
-  String get theSelectedServerAccessGroupNo =>
-      '選択したサーバーアクセスグループはもう存在しません。一覧を更新してください。';
-
-  @override
   String get theApprovalFileDoesntMatchThe =>
       '承認ファイルがこのブラウザで生成したデバイスのリクエストと一致しません。';
 
@@ -2327,10 +2223,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get theServerHasntConfiguredIsolatedRestore =>
       'サーバーに隔離された復元用ストレージが設定されていません。インスタンスの運用者に連絡してください。';
-
-  @override
-  String get theServerAccessGroupWasUpdated =>
-      'サーバーアクセスグループは別の管理者によって更新されました。最新のデータを再読み込みしてください。現在の下書きは保持されています。';
 
   @override
   String get theServersInitialVaultMembershipRecord =>
@@ -4620,7 +4512,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get unableToConnectCheckTheDesktop =>
-      '接続できません。デスクトップゲートウェイ、Relay ポリシー、認証情報、証明書の信頼を確認してください。';
+      '接続できません。デスクトップゲートウェイ、認証情報、証明書の信頼を確認してください。';
 
   @override
   String get theHostSettingsChangedReconnect => 'ホストの設定が変更されました。再接続してください。';
@@ -5600,12 +5492,12 @@ class AppLocalizationsJa extends AppLocalizations {
       'SSH リレーの WebSocket を確立できませんでした。インスタンスの HTTPS/WSS アドレス、リレーのオリジン設定、ネットワークを確認してから、もう一度お試しください。';
 
   @override
-  String get theServerRelayPolicyRejectedThis =>
-      'サーバーのリレーポリシーにより、この接続先アドレスまたはポートは拒否されました。管理者に SSH 接続先の許可リストを確認してもらってください。';
+  String get theServerRefusesToConnectToThis =>
+      'サーバーはこのアドレスへの接続を拒否しました。ループバック、リンクローカル、クラウドメタデータのアドレスにはサーバー経由で接続できません。';
 
   @override
   String get theServerHasntEnabledTheSsh =>
-      'サーバーで SSH リレーが有効になっていません。管理者にリレーと接続先ネットワークの設定を依頼してください。';
+      'サーバーで SSH リレーが有効になっていません。管理者に有効化を依頼してください。';
 
   @override
   String get localStorageNeedsRecoveryReadingEditing2 =>
@@ -5901,17 +5793,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get n0Auto => '0 = 自動';
 
   @override
-  String get n180UnicodeCharactersUniqueWithout =>
-      '1〜80 文字の Unicode。大文字と小文字を区別せず一意である必要があります。';
-
-  @override
   String aHostCanHaveAtMost(int maxHostPortForwardProfiles) {
     return '1 台のホストに設定できるポート転送プロファイルは最大 $maxHostPortForwardProfiles 個です。';
   }
-
-  @override
-  String get aConcurrentChangeWasDetectedYour =>
-      '同時に行われた変更を検出しました。名前、メンバーシップ、ポリシーの下書きは保持されています。';
 
   @override
   String get aNewEncryptedRevisionWillBe =>
@@ -5952,10 +5836,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get aSplitWorkspaceNeedsAtLeast => '分割ワークスペースには 2 つ以上のペインが必要です';
 
   @override
-  String get aUsersEffectiveRelayAccessAlso =>
-      'ユーザーの実効 Relay アクセスは、アカウントのポリシー、他のすべてのサーバーグループ、デプロイの制限との共通部分になります。';
-
-  @override
   String get active => 'アクティブ';
 
   @override
@@ -5984,12 +5864,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get accountId => 'アカウント ID';
-
-  @override
-  String get accountRelayPolicy => 'アカウントの Relay ポリシー';
-
-  @override
-  String get accountRelayPolicySaveFailed => 'アカウントの Relay ポリシーを保存できませんでした';
 
   @override
   String get accountDeletion => 'アカウントの削除';
@@ -6059,14 +5933,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get accountRecoveryWasDisabled => 'アカウントの復旧を無効にしました。';
 
   @override
-  String accountRevisionRevisionUpdatedFormattime(
-    int revision,
-    String formatTime,
-  ) {
-    return 'アカウントのリビジョン $revision · 更新 $formatTime';
-  }
-
-  @override
   String get accountSessions => 'アカウントのセッション';
 
   @override
@@ -6084,9 +5950,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String activePaneValuevalue(int valueValue) {
     return 'アクティブなペイン $valueValue';
   }
-
-  @override
-  String get activeAccountOnCurrentPage => '現在のページのアクティブなアカウント';
 
   @override
   String get activeDevices => 'アクティブなデバイス';
@@ -6155,15 +6018,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get allowFuturePurge => '今後の削除を許可';
-
-  @override
-  String get allowedCidrNetworks => '許可する CIDR ネットワーク';
-
-  @override
-  String get allowedCidrsOnePerLine => '許可する CIDR（1 行に 1 つ）';
-
-  @override
-  String get allowedPorts => '許可するポート';
 
   @override
   String anEncryptedVaultArchiveCoveringPendingcount(int pendingCount) {
@@ -6476,12 +6330,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get color2 => '色';
 
   @override
-  String get commaOrLineSeparatedPortNumbers => 'カンマまたは改行で区切ったポート番号。';
-
-  @override
-  String get commaOrNewlineSeparatedForExample => 'カンマまたは改行で区切ります（例：22, 2222）';
-
-  @override
   String get commandHistory => 'コマンド履歴';
 
   @override
@@ -6773,14 +6621,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get createdAt => '作成日時';
 
   @override
-  String createdFormattimeUpdatedFormattime2(
-    String formatTime,
-    String formatTime2,
-  ) {
-    return '作成 $formatTime · 更新 $formatTime2';
-  }
-
-  @override
   String createdFormat(String format) {
     return '作成 · $format';
   }
@@ -6904,12 +6744,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get deleteGroup4 => 'グループを削除しますか？';
 
   @override
-  String get deleteServerManagedGroup => 'サーバー管理のグループを削除';
-
-  @override
-  String get deleteServerManagedGroup2 => 'サーバー管理のグループを削除しますか？';
-
-  @override
   String get deleteThisItem => 'この項目を削除しますか？';
 
   @override
@@ -6942,15 +6776,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get deliveryWindowUtc => '配信の時間帯（UTC）';
-
-  @override
-  String get deploymentCidrLimits => 'デプロイの CIDR 制限';
-
-  @override
-  String get deploymentPortLimits => 'デプロイのポート制限';
-
-  @override
-  String get deploymentRelayAvailability => 'デプロイのリレーの利用可否';
 
   @override
   String get destinationOnSshTarget => 'SSH 接続先上の宛先';
@@ -7025,9 +6850,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String disableUsernameServerSessionsWillBe(String username) {
     return '$username を無効にしますか？サーバーのセッションは失効し、再度サインインできなくなります。キャッシュされたデバイスのデータは消去されず、既存の直接の SSH 接続は SSH サーバーが閉じるまで続く場合があります。';
   }
-
-  @override
-  String get disabledByPolicy => 'ポリシーで無効化されています';
 
   @override
   String get discardIsolatedCopy => '隔離コピーを破棄';
@@ -7120,52 +6942,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get editText2 => 'テキストを編集';
 
   @override
-  String editableCeilingValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return '編集可能な上限：$valueValue · CIDR：$summarize · ポート：$summarize2';
-  }
-
-  @override
   String get editorCanEditVaultRecords => '編集者 · 保管庫のレコードを編集できます';
-
-  @override
-  String get effectiveSshRelayService => '実効 SSH リレーサービス';
-
-  @override
-  String effectiveGroupStateValuevalueCidrsSummarize(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'グループの実効状態：$valueValue · CIDR：$summarize · ポート：$summarize2';
-  }
-
-  @override
-  String effectiveStateValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return '実効状態：$valueValue · CIDR：$summarize · ポート：$summarize2';
-  }
 
   @override
   String get enableBashCommandHistory => 'Bash のコマンド履歴を有効化';
 
   @override
   String get enableBashIntegration => 'Bash 連携を有効化';
-
-  @override
-  String get enableRelayForThisAccount => 'このアカウントで Relay を有効化';
-
-  @override
-  String get enableRelayForThisGroup => 'このグループで Relay を有効化';
-
-  @override
-  String get enableSshRelay => 'SSH リレーを有効化';
 
   @override
   String get enableVaultSync => '保管庫の同期を有効化';
@@ -7349,9 +7132,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get folderName => 'フォルダー名';
 
   @override
-  String get forExample104000 => '例：10.40.0.0/16';
-
-  @override
   String get forwardType => '転送の種類';
 
   @override
@@ -7391,24 +7171,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get grantInputControl => '入力の操作権を付与';
 
   @override
-  String get groupRelayPolicy => 'グループの Relay ポリシー';
-
-  @override
   String groupActionsName2(String name) {
     return 'グループの操作：$name';
   }
 
   @override
   String get groupName3 => 'グループ名';
-
-  @override
-  String groupRevisionRevisionMembershipRevisionMembershiprevision(
-    int revision,
-    int membershipRevision,
-    int revision2,
-  ) {
-    return 'グループのリビジョン $revision · メンバーシップのリビジョン $membershipRevision · ポリシーのリビジョン $revision2';
-  }
 
   @override
   String groupGroupname(Object groupName) {
@@ -7419,9 +7187,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String headShortauditid(String shortAuditId) {
     return '先頭 $shortAuditId';
   }
-
-  @override
-  String get hideRelayPolicy => 'Relay ポリシーを隠す';
 
   @override
   String get hidePasswordSecret => 'パスワードのシークレットを隠す';
@@ -7509,10 +7274,6 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get includesTheInstanceAccountAndEvery =>
-      'インスタンス、アカウント、割り当て済みのすべてのサーバーグループを含みます。';
-
-  @override
   String get inputControlOff => '入力操作：オフ';
 
   @override
@@ -7554,14 +7315,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get instanceJobs => 'インスタンスのジョブ';
-
-  @override
-  String instanceRevisionRevisionUpdatedFormattime(
-    int revision,
-    String formatTime,
-  ) {
-    return 'インスタンスのリビジョン $revision · 更新 $formatTime';
-  }
 
   @override
   String get instanceSigningKeyFingerprintSha256 =>
@@ -7703,9 +7456,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get lastSuccessfulSync => '最後に成功した同期';
 
   @override
-  String get lastUpdated => '最終更新';
-
-  @override
   String lastVerifiedServerShortkey(String shortKey) {
     return '最後に検証したサーバー：$shortKey';
   }
@@ -7720,16 +7470,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get leaveSharedTerminal => '共有ターミナルから退出';
 
   @override
-  String get loadRelayPolicies => 'Relay ポリシーを読み込む';
-
-  @override
   String get loadVaults => '保管庫を読み込む';
 
   @override
   String get loadAccountInvitations => 'アカウントの招待を読み込む';
-
-  @override
-  String get loadAccountsToAddMembers => 'アカウントを読み込んでメンバーを追加';
 
   @override
   String get loadAdminAccounts => '管理者用のアカウントを読み込む';
@@ -7753,26 +7497,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get loadPushHealth => 'プッシュの状態を読み込む';
 
   @override
-  String get loadRelayPolicy => 'リレーのポリシーを読み込む';
-
-  @override
   String get loadReplicationStatus => 'レプリケーションの状態を読み込む';
 
   @override
   String get loadRestoreSources => '復元元を読み込む';
 
   @override
-  String get loadServerManagedGroups => 'サーバー管理のグループを読み込む';
-
-  @override
   String get loadStatus => '状態を読み込む';
-
-  @override
-  String get loadingSshRelayPolicy => 'SSH リレーのポリシーを読み込んでいます…';
-
-  @override
-  String get loadingAccountAndInstancePolicyRevisions =>
-      'アカウントとインスタンスのポリシーのリビジョンを読み込んでいます…';
 
   @override
   String get loadingAccountInvitations => 'アカウントの招待を読み込んでいます…';
@@ -7785,13 +7516,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get loadingEncryptedArchiveSources => '暗号化アーカイブのソースを読み込んでいます…';
-
-  @override
-  String get loadingGroupMembershipAndRelayPolicy =>
-      'グループのメンバーシップと Relay ポリシーを読み込んでいます…';
-
-  @override
-  String get loadingServerManagedGroups => 'サーバー管理のグループを読み込んでいます…';
 
   @override
   String get local => 'ローカル';
@@ -7857,19 +7581,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get masterPasswordIsUsedOnlyFor => 'マスターパスワードはクライアント側の鍵導出にのみ使用されます。';
 
   @override
-  String get maxSshRelayConnectionsPerUser => 'ユーザーあたりの最大 SSH リレー接続数';
-
-  @override
   String get maxRelayConnectionsPerUser => 'ユーザーあたりの最大リレー接続数';
-
-  @override
-  String memberEffectiveRelayAccessValuevalueCidrs(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return 'メンバーの実効 Relay アクセス：$valueValue · CIDR：$summarize · ポート：$summarize2';
-  }
 
   @override
   String get members => 'メンバー';
@@ -7941,9 +7653,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get newMasterPassword => '新しいマスターパスワード';
 
   @override
-  String get newServerGroupName => '新しいサーバーグループの名前';
-
-  @override
   String get newSnippet => '新しいスニペット';
 
   @override
@@ -7954,9 +7663,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get next => '次へ';
-
-  @override
-  String get nextAccounts => '次のアカウント';
 
   @override
   String get nextInvitations => '次の招待';
@@ -8083,9 +7789,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get noScheduledBackupRunsRecorded => 'スケジュールバックアップの実行記録はありません';
 
   @override
-  String get noServerManagedGroupsYet => 'サーバー管理のグループはまだありません。';
-
-  @override
   String get noSessionsFound => 'セッションが見つかりません。';
 
   @override
@@ -8153,9 +7856,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get offlineFirstCiphertextOnly => 'オフラインファースト、暗号文のみ';
-
-  @override
-  String get oneCanonicalNetworkCidrPerLine => '1 行に 1 つの正規化されたネットワーク CIDR。';
 
   @override
   String get oneTimePrometheusScrapeCredential => 'ワンタイムの Prometheus スクレイプ認証情報';
@@ -8321,11 +8021,6 @@ class AppLocalizationsJa extends AppLocalizations {
       'このサーバーが復元期限を提供していないため、完全削除はできません。';
 
   @override
-  String permanentlyDeleteNameItsMembershipAnd(String name) {
-    return '「$name」とそのメンバーシップ、Relay ポリシーを完全に削除しますか？メンバーの未使用の Relay チケットは失効し、このグループで許可されたアクティブなセッションはポリシーの再チェック後に閉じられます。';
-  }
-
-  @override
   String get permanentlyPurge => '完全に削除';
 
   @override
@@ -8333,15 +8028,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get policyRevision => 'ポリシーのリビジョン';
-
-  @override
-  String policyRevisionRevisionInstanceRevisionInstancepolicyrevision(
-    int revision,
-    int instancePolicyRevision,
-    String formatTime,
-  ) {
-    return 'ポリシーのリビジョン $revision · インスタンスのリビジョン $instancePolicyRevision · 更新 $formatTime';
-  }
 
   @override
   String get port => 'ポート';
@@ -8378,9 +8064,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get previewDisconnectedLayout => '未接続のレイアウトをプレビュー';
 
   @override
-  String get previewMemberEffectiveRelayAccess => 'メンバーの実効 Relay アクセスをプレビュー';
-
-  @override
   String get previewOnly => 'プレビューのみ';
 
   @override
@@ -8389,9 +8072,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get previous => '前へ';
-
-  @override
-  String get previousAccounts => '前のアカウント';
 
   @override
   String get previousInvitations => '前の招待';
@@ -8489,7 +8169,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get readOnlyInstanceIdentityUsageAnd =>
-      '読み取り専用のインスタンス ID、使用状況、リレーポリシー。';
+      '読み取り専用のインスタンス ID、使用状況、リレーの状態。';
 
   @override
   String get readOnlyProviderConfigurationAggregateQueue =>
@@ -8633,9 +8313,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get refreshReadiness => '準備状況を更新';
 
   @override
-  String get refreshRelayPolicy => 'リレーのポリシーを更新';
-
-  @override
   String get refreshReplicationStatus => 'レプリケーションの状態を更新';
 
   @override
@@ -8646,9 +8323,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get refreshSchedule => 'スケジュールを更新';
-
-  @override
-  String get refreshServerManagedGroups => 'サーバー管理のグループを更新';
 
   @override
   String get refreshStatus => '状態を更新';
@@ -8663,39 +8337,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get reject2 => '拒否';
 
   @override
-  String get relayCidrs => 'リレーの CIDR';
-
-  @override
-  String get relayAvailable => 'リレーを利用可能';
-
-  @override
-  String get relayPolicy => 'Relay ポリシー';
-
-  @override
-  String get relayPorts => 'リレーのポート';
-
-  @override
   String get relayUnavailable => 'リレーは利用できません';
 
   @override
-  String get reloadAccountAndInstanceRelayPolicies =>
-      'アカウントとインスタンスの Relay ポリシーを再読み込み';
-
-  @override
   String get reloadFirstPage => '最初のページを再読み込み';
-
-  @override
-  String get reloadGroupAndInstancePoliciesKeep =>
-      'グループとインスタンスのポリシーを再読み込みし、下書きを保持';
-
-  @override
-  String get reloadLatestGroupKeepDrafts => '最新のグループを再読み込みし、下書きを保持';
-
-  @override
-  String get reloadLatestPolicy => '最新のポリシーを再読み込み';
-
-  @override
-  String get reloadLatestPolicyKeepDraft => '最新のポリシーを再読み込みし、下書きを保持';
 
   @override
   String get remote => 'リモート';
@@ -8775,11 +8420,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get removeTmuxSessionReference => 'tmux セッションの参照を削除しますか？';
 
   @override
-  String removeUsernameFromGroupDraft(String username) {
-    return 'グループの下書きから $username を削除';
-  }
-
-  @override
   String get rename => '名前を変更';
 
   @override
@@ -8809,9 +8449,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get reservedUploads => '予約済みのアップロード';
-
-  @override
-  String get resetToInherit => '継承にリセット';
 
   @override
   String get resolutionSavedOnThisDeviceWaiting =>
@@ -8877,11 +8514,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get restoreThisRecord => 'このレコードを復元しますか？';
 
   @override
-  String restoreUsernameInGroupDraft(String username) {
-    return 'グループの下書きで $username を元に戻す';
-  }
-
-  @override
   String get result => '結果';
 
   @override
@@ -8913,12 +8545,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get retryDiscardSafely => '破棄を安全に再試行';
-
-  @override
-  String get retryGroupDetails => 'グループの詳細を再読み込み';
-
-  @override
-  String get retryGroupList => 'グループ一覧を再読み込み';
 
   @override
   String get retryPasswordChange => 'パスワードの変更を再試行';
@@ -9184,9 +8810,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get sshRelay => 'SSH リレー';
 
   @override
-  String get sshRelayPolicy => 'SSH リレーのポリシー';
-
-  @override
   String get sshSessionIsDisconnected => 'SSH セッションは切断されています。';
 
   @override
@@ -9222,25 +8845,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get saveEncryptedProfile => '暗号化プロファイルを保存';
 
   @override
-  String get saveGroupOverride => 'グループの上書きを保存';
-
-  @override
   String get saveLocalLayoutAsNamedCopy => 'ローカルのレイアウトに名前を付けて保存';
-
-  @override
-  String get saveMembership => 'メンバーシップを保存';
 
   @override
   String get saveMergedCredential => '統合した認証情報を保存';
 
   @override
-  String get saveOverride => '上書きを保存';
-
-  @override
   String get saveQuota => 'クォータを保存';
-
-  @override
-  String get saveRelayPolicy => 'リレーのポリシーを保存';
 
   @override
   String get saveReviewedTuple => '確認済みのまとまりを保存';
@@ -9281,10 +8892,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String savedCheckpointShortkey(String shortKey) {
     return '保存済みのチェックポイント：$shortKey';
   }
-
-  @override
-  String get savedSettingsCanOnlyNarrowThe =>
-      '保存した設定で可能なのは、サーバー運用者が設定した変更不可の制限を狭めることだけです。';
 
   @override
   String get savedWorkspaces => '保存済みのワークスペース';
@@ -9350,18 +8957,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get selectedArchive => '選択したアーカイブ';
 
   @override
-  String get selectedServerManagedGroup => '選択したサーバー管理のグループ';
-
-  @override
-  String selectedStateValuevalueCidrsSummarizePorts(
-    String valueValue,
-    String summarize,
-    String summarize2,
-  ) {
-    return '選択した状態：$valueValue · CIDR：$summarize · ポート：$summarize2';
-  }
-
-  @override
   String get sendANewInvitationFromSettings => '「設定」>「メンバーを招待」から新しい招待を送ってください。';
 
   @override
@@ -9383,15 +8978,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String serverSpaceServerspaceid(String serverSpaceId) {
     return 'サーバースペース：$serverSpaceId';
   }
-
-  @override
-  String get serverManagedAccessGroups => 'サーバー管理のアクセスグループ';
-
-  @override
-  String get serverManagedGroupActionFailed => 'サーバー管理のグループの操作に失敗しました';
-
-  @override
-  String get serverManagedGroupSaveFailed => 'サーバー管理のグループを保存できませんでした';
 
   @override
   String serverLocalConflictBranchesConflictcount(int conflictCount) {
@@ -9811,10 +9397,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get theDefaultPreferenceWasConfirmedAfter => '既定の設定は保管庫の同期後に確認されました。';
 
   @override
-  String get theDeploymentGateIsAvailableWith =>
-      'ATERMIUS_RELAY_ENABLED=true の場合、デプロイの設定を利用できます。実効的な許可は常に設定された CIDR とポートで制限されます。';
-
-  @override
   String get theExportContainsARandomReport =>
       'エクスポートには、ランダムなレポート ID、固定のエラーコード、クライアントのバージョン、同期の件数、UTC の日単位に丸めた日付が含まれます。保管庫のレコード、アカウントの詳細、サーバーのアドレス、デバイスの識別子は決して含まれません。';
 
@@ -9856,14 +9438,6 @@ class AppLocalizationsJa extends AppLocalizations {
       '前回のコードは保存済みとして確認されていません。復旧を更新して代わりのコードを表示してください。';
 
   @override
-  String get theSavedPolicyExceedsTheCurrent =>
-      '保存されたポリシーが現在のデプロイの上限を超えています。実効的な許可は引き続き現在の制限で制約されます。保存する前に下の CIDR とポートを狭めてください。リレーサービスの実行には ATERMIUS_RELAY_ENABLED=true も必要です。';
-
-  @override
-  String get theSavedPolicyRemainsSelectedAs =>
-      '保存されたポリシーは有効のまま選択されていますが、デプロイの設定がオフの間は実効的なリレーサービスを利用できません。ATERMIUS_RELAY_ENABLED=true が必要です。他の変更を保存する前に、この選択をオフにしてください。Web UI からこの設定は変更できません。';
-
-  @override
   String get theSecretIsReadFromThe =>
       'シークレットはこのスニペットの実行時に暗号化された認証情報から読み取られ、スニペットのレコードやプレビューにコピーされることはありません。';
 
@@ -9886,9 +9460,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get theServerCanCopyEncryptedInstance =>
       'サーバーは、暗号化されたインスタンスアーカイブを運用者が設定した S3 互換の保存先にコピーできます。保存先と認証情報はサーバー上に保持されます。アクセスチェックは HeadBucket のみを実行し、アップロード、マルチパート操作、復元、プロバイダー全体の互換性は検証しません。';
-
-  @override
-  String get theServerDeploymentGateMustAlso => 'サーバーのデプロイ設定も有効にする必要があります。';
 
   @override
   String get theServerDidNotRequestA => 'サーバーは応答を要求しませんでした。';
@@ -9943,10 +9514,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get theUpdateCheckCouldNotConfirm => '更新の確認で現在の Web ビルドを確認できませんでした。';
-
-  @override
-  String get theseInstanceGroupsControlSshRelay =>
-      'これらのインスタンスグループは SSH Relay へのアクセスを制御します。暗号化されたワークスペースのグループとは別のもので、保管庫のデータは含みません。';
 
   @override
   String get thisGroupDefaultIsUnavailableChoose =>
@@ -10031,9 +9598,6 @@ class AppLocalizationsJa extends AppLocalizations {
       'このグループは別のデバイスで変更されました。同期して開き直してから再試行してください。';
 
   @override
-  String get thisGroupHasNoMembers => 'このグループにはメンバーがいません。';
-
-  @override
   String get thisImmediatelyRevokesEverySessionAnd =>
       'すべてのセッションとデバイスが直ちに失効します。サーバーの完全削除期限になると、個人用保管庫とアカウントのデータが削除され、共有保管庫へのアクセスも削除されます。他のメンバーの共有保管庫のデータは削除されません。';
 
@@ -10109,10 +9673,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get title => 'タイトル';
 
   @override
-  String get toEnableSshRelayTheServer =>
-      'SSH リレーを有効にするには、サーバーの運用者が ATERMIUS_RELAY_ENABLED=true を設定し、デプロイの制限を構成する必要があります。Web UI からこの設定は変更できません。';
-
-  @override
   String get topLevelGroup2 => '最上位グループ';
 
   @override
@@ -10155,12 +9715,6 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get unableToLoadAccountRelayPolicy => 'アカウントの Relay ポリシーを読み込めません';
-
-  @override
-  String get unableToLoadMemberEffectiveRelay => 'メンバーの実効 Relay アクセスを読み込めません';
-
-  @override
   String unableToLoadOffSiteBackup(String error) {
     return 'オフサイトバックアップの状態を読み込めません：$error';
   }
@@ -10174,12 +9728,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String unableToLoadScheduledBackupsError(String error) {
     return 'スケジュールバックアップを読み込めません：$error';
   }
-
-  @override
-  String get unableToLoadServerManagedGroup => 'サーバー管理のグループの詳細を読み込めません';
-
-  @override
-  String get unableToLoadServerManagedGroups => 'サーバー管理のグループを読み込めません';
 
   @override
   String unableToPrepareIsolatedRestoreCopy(String error) {
@@ -10602,15 +10150,6 @@ class AppLocalizationsJa extends AppLocalizations {
     String format,
   ) {
     return '$labelFor · ID $substring · 削除 $format';
-  }
-
-  @override
-  String membercountMembersValuevalueRevisionRevision(
-    int memberCount,
-    String valueValue,
-    int revision,
-  ) {
-    return 'メンバー $memberCount 人 · $valueValue · リビジョン $revision';
   }
 
   @override
@@ -11360,10 +10899,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get manageBackupsAndRestoreCopiesAnd =>
       'バックアップと復元用コピーを管理し、インスタンスのメンテナンスジョブを確認します。';
-
-  @override
-  String get manageInstanceAccountsInvitationsRelayGroups =>
-      'インスタンスのアカウント、招待、リレーグループ、接続ポリシーを管理します。';
 
   @override
   String get manageNotificationsAndClientUpdates => '通知とクライアントの更新を管理します。';
@@ -18540,14 +18075,14 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get adminPanelUsersDescription =>
-      'このインスタンスのアカウントを確認し、無効化または再有効化、セッションの取り消し、アカウントごとのリレーポリシー設定、招待の発行を行います。';
+      'このインスタンスのアカウントを確認し、無効化または再有効化、セッションの取り消し、招待の発行を行います。';
 
   @override
-  String get adminPanelAccessTitle => 'アクセスとリレーポリシー';
+  String get adminPanelAccessTitle => 'アクセス';
 
   @override
   String get adminPanelAccessDescription =>
-      'インスタンス全体のリレーポリシー、リレーグループ、資格情報の可視性を管理します。';
+      '資格情報の可視性（新規アカウントの既定モードとエスクロー鍵）を管理します。';
 
   @override
   String get adminPanelVaultsTitle => '保管庫とクォータ';
@@ -18723,9 +18258,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String waCleanup(int count) {
     return '削除待ちの旧ボリューム · $count';
   }
-
-  @override
-  String get waAccess => 'Relay アクセスポリシー';
 
   @override
   String get waNodeDetails => 'ノード詳細';

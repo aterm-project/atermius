@@ -738,8 +738,6 @@ async function main() {
       ATERMIUS_PUBLIC_ORIGIN: baseUrl,
       ATERMIUS_REGISTRATION_OPEN: 'false',
       ATERMIUS_RELAY_ENABLED: 'true',
-      ATERMIUS_RELAY_ALLOW_CIDRS: '127.0.0.1/32',
-      ATERMIUS_RELAY_ALLOW_PORTS: `${TARGET_PORT}`,
       RUST_LOG: process.env.RUST_LOG || 'warn',
     };
     serverProcess = spawn(SERVER_BINARY, ['serve'], {

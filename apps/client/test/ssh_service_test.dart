@@ -1184,7 +1184,7 @@ void main() {
     );
   });
 
-  test('relay policy and host-key failures have distinct user messages', () {
+  test('relay refusal and host-key failures have distinct user messages', () {
     final disabled = sshConnectionFriendlyError(
       const ApiException(
         statusCode: 503,
@@ -1196,7 +1196,7 @@ void main() {
       const ApiException(
         statusCode: 403,
         code: 'TARGET_DENIED',
-        message: 'outside allowlist',
+        message: 'target address is not allowed',
       ),
     );
     final invalidTarget = sshConnectionFriendlyError(
@@ -1214,7 +1214,11 @@ void main() {
     );
 
     expect(disabled, contains('尚未启用'));
-    expect(denied, contains('allowlist'));
+    // No allowlist to ask an administrator about: the server refuses only
+    // addresses it must never reach.
+    expect(denied, contains('拒绝连接此地址'));
+    expect(denied, contains('回环'));
+    expect(denied, isNot(contains('allowlist')));
     expect(invalidTarget, contains('DNS 主机名'));
     expect(rejected, contains('已拒绝'));
     expect(changed, contains('指纹不同'));

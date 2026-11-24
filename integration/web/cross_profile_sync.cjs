@@ -8362,10 +8362,6 @@ async function main() {
     ATERMIUS_PUBLIC_ORIGIN: baseUrl,
     ATERMIUS_REGISTRATION_OPEN: 'false',
     ATERMIUS_RELAY_ENABLED: VAULT_PREFERENCE_ONLY ? 'true' : 'false',
-    ...(VAULT_PREFERENCE_ONLY ? {
-      ATERMIUS_RELAY_ALLOW_CIDRS: `${shortcutSshAddress}/32`,
-      ATERMIUS_RELAY_ALLOW_PORTS: String(shortcutSshPort),
-    } : {}),
     // The browser test ages only its disposable Vault's change_events before
     // invoking the production maintenance command. One day is the minimum
     // supported retention, keeping the fixture out of production defaults.

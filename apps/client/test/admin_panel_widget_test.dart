@@ -1,6 +1,8 @@
 import 'package:aterm_client/api/workspace_agents.dart';
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
+import 'package:aterm_client/credential_visibility/credential_visibility_api.dart'
+    show credentialVisibilityCapability;
 import 'package:aterm_client/l10n/l10n.dart';
 import 'package:aterm_client/platform/server_hosted.dart';
 import 'package:aterm_client/storage/client_database.dart';
@@ -8,6 +10,8 @@ import 'package:aterm_client/storage/secure_store.dart';
 import 'package:aterm_client/ui/admin_panel.dart';
 import 'package:aterm_client/ui/app_shell.dart';
 import 'package:aterm_client/ui/app_theme.dart';
+import 'package:aterm_client/ui/credential_visibility/credential_visibility_admin_ui.dart'
+    show CredentialVisibilityAdminCard;
 import 'package:aterm_client/ui/settings_scaffold.dart';
 import 'package:aterm_client/ui/workspace_status_bar.dart';
 import 'package:aterm_client/ui/workspace_tab_bar.dart';
@@ -19,10 +23,11 @@ import 'package:sodium/sodium_sumo.dart';
 
 import 'support/settings_navigation.dart';
 
+/// Sections of a server without credential visibility: the access section,
+/// which holds nothing else, is not offered.
 const _adminSectionIds = [
   'instance',
   'users',
-  'access',
   'instance-vaults',
   'backup',
   'audit',
@@ -525,6 +530,102 @@ void main() {
     }
   });
 
+  testWidgets('the access section holds only credential visibility', (
+    tester,
+  ) async {
+    final harness = await _Harness.create(isAdmin: true);
+    try {
+      harness.app.instance = const InstanceInfo(
+        instanceId: 'test-instance',
+        serverSpaceId: 'test-space',
+        generation: '1',
+        protocolVersion: 1,
+        setupRequired: false,
+        capabilities: [credentialVisibilityCapability],
+      );
+      harness.app.page = WorkspacePage.admin;
+      await _pump(tester, harness.app);
+      expect(
+        tester
+            .widget<SettingsScaffold>(find.byKey(_panel))
+            .sections
+            .map((section) => section.id),
+        [
+          'instance',
+          'users',
+          'access',
+          'instance-vaults',
+          'backup',
+          'audit',
+        ],
+      );
+      await openSettingsCategory(tester, 'access');
+      await tester.pumpAndSettle();
+      final section = find.byKey(
+        const ValueKey('admin_panel_section_access'),
+      );
+      expect(section, findsOneWidget);
+      expect(find.text(currentL10n.adminPanelAccessTitle), findsWidgets);
+      expect(
+        find.descendant(
+          of: section,
+          matching: find.byType(CredentialVisibilityAdminCard),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: section, matching: find.byType(Card)),
+        findsOneWidget,
+      );
+      // No relay policy, relay groups or allowlist editor: the server opens
+      // relay connections itself.
+      for (final key in [
+        'admin-relay-policy-load',
+        'admin-relay-policy-cidrs',
+        'admin_relay_groups_refresh',
+        'admin_relay_group_create_name',
+      ]) {
+        expect(find.byKey(ValueKey(key)), findsNothing, reason: key);
+      }
+      expect(
+        find.textContaining(RegExp('relay', caseSensitive: false)),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    } finally {
+      await _dispose(tester, harness);
+    }
+  });
+
+  testWidgets('an account opened from the users table has no relay policy', (
+    tester,
+  ) async {
+    final harness = await _Harness.create(isAdmin: true);
+    try {
+      harness.app.page = WorkspacePage.admin;
+      await _pump(tester, harness.app);
+      await openSettingsCategory(tester, 'users');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('admin_account_$_memberId')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('admin_account_drawer_$_memberId')),
+        findsOneWidget,
+      );
+      expect(find.text('View sessions'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('admin_account_relay_policy_$_memberId')),
+        findsNothing,
+      );
+      expect(
+        find.textContaining(RegExp('relay', caseSensitive: false)),
+        findsNothing,
+      );
+    } finally {
+      await _dispose(tester, harness);
+    }
+  });
+
   testWidgets('a requested admin section is selected when the panel opens', (
     tester,
   ) async {
@@ -825,11 +926,6 @@ final _overviewJson = <String, dynamic>{
     'reserved_upload_bytes': 0,
     'vault_quota_bytes': 1048576,
   },
-  'relay': {
-    'enabled': true,
-    'allow_cidrs': ['10.0.0.0/8'],
-    'allow_ports': [22],
-    'max_connections_per_user': 3,
-  },
+  'relay': {'enabled': true, 'max_connections_per_user': 3},
   'generated_at': '2026-09-29T12:30:00Z',
 };

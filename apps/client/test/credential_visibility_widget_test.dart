@@ -1591,12 +1591,7 @@ void main() {
                 ])
                   key: 0,
               },
-              'relay': {
-                'enabled': false,
-                'allow_cidrs': <String>[],
-                'allow_ports': <int>[],
-                'max_connections_per_user': 1,
-              },
+              'relay': {'enabled': false, 'max_connections_per_user': 1},
               'generated_at': '2026-11-14T10:00:00Z',
               'database_encryption': ?databaseEncryption,
             });
