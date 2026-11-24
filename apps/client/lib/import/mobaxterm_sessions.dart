@@ -43,7 +43,10 @@ const _pipe = '__PIPE__';
 /// True when [bytes] contain a `[Bookmarks…]` section header at the start of
 /// a line, which every MobaXterm session file has.
 bool looksLikeMobaXtermSessions(List<int> bytes) {
-  final limit = bytes.length < 1 << 20 ? bytes.length : 1 << 20;
+  // MobaXterm.ini can put [Bookmarks] after megabytes of settings and history.
+  final limit = bytes.length < maxMobaXtermFileBytes
+      ? bytes.length
+      : maxMobaXtermFileBytes;
   const header = '[bookmarks';
   var lineStart = true;
   for (var index = 0; index < limit; index++) {
@@ -231,7 +234,9 @@ class MobaXtermImporter {
       );
     }
     final rows = _withGateways(sessions);
-    if (rows.length > maxTermiusImportRows) {
+    // The limit is on sessions (checked above); the gateway Hosts this adds
+    // are bounded separately so a large file is never refused for them.
+    if (rows.length - sessions.length > maxTermiusImportRows) {
       return _failure(TermiusIssueCode.tooManyRows, count: maxTermiusImportRows);
     }
     return TermiusImportDocument(
@@ -360,8 +365,7 @@ class MobaXtermImporter {
         if (field(7).trim().isNotEmpty) {
           issue(TermiusIssueCode.sshOptionIgnored, detail: 'RemoteCommand');
         }
-        final proxy = field(19).trim();
-        if (proxy.isNotEmpty && proxy != '0') {
+        if (_proxySet(field(19))) {
           issue(TermiusIssueCode.sshOptionIgnored, detail: 'Proxy');
         }
       case 1:
@@ -370,14 +374,26 @@ class MobaXtermImporter {
       case 4:
         protocol = HostProtocol.rdp;
         gatewayIndexes = const [13, 14, 15, 18];
+        if (field(12).trim().isNotEmpty) {
+          issue(TermiusIssueCode.sshOptionIgnored, detail: 'RemoteCommand');
+        }
+        if (field(20).trim().isNotEmpty) {
+          issue(TermiusIssueCode.sshOptionIgnored, detail: 'RDP Gateway');
+        }
       case 5:
         protocol = HostProtocol.vnc;
         userIndex = -1;
         gatewayIndexes = const [5, 6, 7, 8];
+        if (_proxySet(field(13))) {
+          issue(TermiusIssueCode.sshOptionIgnored, detail: 'Proxy');
+        }
       case 7:
         protocol = HostProtocol.ssh;
         keyIndex = 9;
         issue(TermiusIssueCode.mobaSftpAsSsh);
+        if (_proxySet(field(10))) {
+          issue(TermiusIssueCode.sshOptionIgnored, detail: 'Proxy');
+        }
       default:
         issue(
           TermiusIssueCode.mobaUnsupportedSession,
@@ -403,7 +419,11 @@ class MobaXtermImporter {
     if (port == null) issue(TermiusIssueCode.invalidPort, blocking: true);
 
     var username = userIndex < 0 ? '' : _username(field(userIndex), issue);
-    if (username.isNotEmpty && !_isValidUsername(username)) {
+    if (username.isNotEmpty &&
+        !_isValidUsername(
+          username,
+          allowSpaces: protocol == HostProtocol.rdp,
+        )) {
       issue(TermiusIssueCode.invalidUsername, blocking: true);
       username = '';
     } else if (username.isEmpty && protocol == HostProtocol.ssh) {
@@ -487,7 +507,11 @@ class MobaXtermImporter {
 
     final output = <TermiusImportRow>[];
     var nextRow = 0;
-    TermiusImportRow renumber(TermiusImportRow row, {String? jumpAlias}) {
+    TermiusImportRow renumber(
+      TermiusImportRow row, {
+      String? jumpAlias,
+      _Gateway? via,
+    }) {
       nextRow++;
       return TermiusImportRow(
         row: nextRow,
@@ -500,6 +524,9 @@ class MobaXtermImporter {
         groupPath: row.groupPath,
         tags: row.tags,
         jumpAlias: jumpAlias ?? row.jumpAlias,
+        jumpEndpoint: via == null
+            ? row.jumpEndpoint
+            : (address: via.host, port: via.port ?? 22, username: via.user),
         issues: [
           for (final issue in row.issues)
             TermiusIssue(
@@ -516,6 +543,7 @@ class MobaXtermImporter {
 
     for (final session in sessions) {
       String? previousAlias;
+      _Gateway? previous;
       final chain = <String>[];
       for (final gateway in session.gateways) {
         chain.add(gateway.endpointKey);
@@ -534,12 +562,16 @@ class MobaXtermImporter {
                 groupPath: session.row.groupPath,
               ),
               jumpAlias: previousAlias,
+              via: previous,
             ),
           );
         }
         previousAlias = alias;
+        previous = gateway;
       }
-      output.add(renumber(session.row, jumpAlias: previousAlias));
+      output.add(
+        renumber(session.row, jumpAlias: previousAlias, via: previous),
+      );
     }
     return output;
   }
@@ -668,10 +700,18 @@ bool _isValidAddress(String value) =>
     !value.contains(RegExp(r'[\s\u0000-\u001F\u007F,/\\"\x27`$;|&<>()%#]')) &&
     !value.startsWith('-');
 
-bool _isValidUsername(String value) =>
+/// Windows account names ([allowSpaces], RDP) may contain spaces; SSH user
+/// names may not.
+bool _isValidUsername(String value, {bool allowSpaces = false}) =>
     !_hasControl(value) &&
-    !value.contains(RegExp(r'\s')) &&
+    (allowSpaces || !value.contains(RegExp(r'\s'))) &&
     utf8.encode(value).length <= _maxUsernameBytes;
+
+/// A MobaXterm proxy type field: empty or "0" means none.
+bool _proxySet(String raw) {
+  final value = raw.trim();
+  return value.isNotEmpty && value != '0';
+}
 
 String _safeDetail(String value) {
   final cleaned = value.replaceAll(RegExp(r'[\u0000-\u001F\u007F]'), '?');

@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 
 import '../import/mobaxterm_sessions.dart';
 import '../import/openssh_config_import.dart';
-import '../import/termius_csv.dart';
 import '../import/termius_export_file.dart';
 import '../import/termius_import_picker.dart';
 import '../import/termius_json.dart';
@@ -504,7 +503,9 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
     final injected = widget.pickBytesForTesting;
     if (injected != null) return injected(source);
     final limit = switch (source) {
-      TermiusImportSource.csv => maxTermiusCsvBytes,
+      // A MobaXterm.ini picked here is larger than any CSV; the CSV and JSON
+      // parsers still refuse files over their own limit.
+      TermiusImportSource.csv => maxMobaXtermFileBytes,
       TermiusImportSource.openSshConfig => maxOpenSshConfigBytes,
       TermiusImportSource.openSshBundle => maxTermiusBundleBytes,
       TermiusImportSource.json => maxTermiusJsonBytes,

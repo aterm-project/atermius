@@ -219,6 +219,7 @@ class TermiusImportRow {
     this.privateKey,
     this.passphrase,
     this.jumpAlias,
+    this.jumpEndpoint,
     this.forwards = const [],
     this.certificate,
     List<TermiusIssue>? issues,
@@ -243,6 +244,13 @@ class TermiusImportRow {
   /// Passphrase of [privateKey] when the source stores one. Never logged.
   final String? passphrase;
   final String? jumpAlias;
+
+  /// The SSH endpoint [jumpAlias] stands for, when the source names its jump
+  /// host by address (MobaXterm gateways) rather than by a Host name. A saved
+  /// Host that only shares the name is then used only when it is this
+  /// endpoint; otherwise a saved Host with this endpoint is used, if there is
+  /// exactly one.
+  final ({String address, int port, String username})? jumpEndpoint;
   final List<SshPortForwardProfile> forwards;
 
   /// OpenSSH user certificate line (public data) from a selected bundle.
@@ -1244,9 +1252,28 @@ class TermiusImportPlanner {
     }
 
     // ProxyJump (OpenSSH only): resolve aliases to planned or saved Hosts.
+    // Aliases that only a saved Host's name answers are remembered: a jump
+    // given by endpoint must not land on an unrelated Host of that name.
+    final savedByNameOnly = <String>{};
     for (final name in existingNames.keys) {
       final hosts = existingNames[name]!;
-      if (hosts.length == 1) idByAlias.putIfAbsent(name, () => hosts.single.id);
+      if (hosts.length == 1 && !idByAlias.containsKey(name)) {
+        idByAlias[name] = hosts.single.id;
+        savedByNameOnly.add(name);
+      }
+    }
+    final savedById = {for (final host in catalog.hosts) host.id: host};
+    bool isEndpoint(
+      HostRecord host,
+      ({String address, int port, String username}) endpoint,
+    ) {
+      final user = endpoint.username.isEmpty
+          ? (defaultSshUser ?? '')
+          : endpoint.username;
+      return host.protocol == HostProtocol.ssh &&
+          host.address.toLowerCase() == endpoint.address.toLowerCase() &&
+          host.port == endpoint.port &&
+          (user.isEmpty || host.username == user);
     }
     final graph = <String, String?>{
       for (final host in catalog.hosts) host.id: host.jumpHostId,
@@ -1257,7 +1284,20 @@ class TermiusImportPlanner {
       final alias = row.source.jumpAlias;
       var host = entry.value;
       if (alias != null) {
-        final jumpId = idByAlias[alias.trim().toLowerCase()];
+        final aliasKey = alias.trim().toLowerCase();
+        var jumpId = idByAlias[aliasKey];
+        final endpoint = row.source.jumpEndpoint;
+        if (endpoint != null &&
+            (jumpId == null || savedByNameOnly.contains(aliasKey))) {
+          final named = jumpId == null ? null : savedById[jumpId];
+          if (named == null || !isEndpoint(named, endpoint)) {
+            final matches = [
+              for (final saved in catalog.hosts)
+                if (isEndpoint(saved, endpoint)) saved,
+            ];
+            jumpId = matches.length == 1 ? matches.single.id : null;
+          }
+        }
         if (jumpId == null || jumpId == host.id) {
           row.issues.add(
             TermiusIssue(

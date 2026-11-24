@@ -54,39 +54,48 @@ String _ssh(
   return _session(109, fields);
 }
 
-String _rdp(String host, {String user = '', String gateway = ''}) {
+String _rdp(
+  String host, {
+  String user = '',
+  String gateway = '',
+  String command = '',
+  String rdpGateway = '',
+}) {
   final fields = List.filled(32, '0');
   fields[0] = '4';
   fields[1] = host;
   fields[2] = '3389';
   fields[3] = user;
-  fields[12] = '';
+  fields[12] = command;
   fields[13] = gateway;
   fields[14] = gateway.isEmpty ? '' : '22';
   fields[15] = gateway.isEmpty ? '' : 'jump';
   fields[18] = '';
+  fields[20] = rdpGateway;
   return _session(91, fields);
 }
 
-String _vnc(String host, String port) {
+String _vnc(String host, String port, {String proxyType = '0'}) {
   final fields = List.filled(18, '');
   fields[0] = '5';
   fields[1] = host;
   fields[2] = port;
   fields[3] = '-1';
   fields[4] = '0';
+  fields[13] = proxyType;
   return _session(128, fields);
 }
 
 String _telnet(String host) => _session(98, ['1', host, '23', '', '', '2']);
 
-String _sftp(String host, String user, String key) {
+String _sftp(String host, String user, String key, {String proxy = '0'}) {
   final fields = List.filled(16, '');
   fields[0] = '7';
   fields[1] = host;
   fields[2] = '2222';
   fields[3] = user;
   fields[9] = key;
+  fields[10] = proxy;
   return _session(140, fields);
 }
 
@@ -380,6 +389,119 @@ void main() {
     });
   });
 
+  group('MobaXterm review fixes', () {
+    test('a gateway never lands on an unrelated saved Host of that name', () {
+      final document = MobaXtermImporter.parse(
+        _file([
+          '[Bookmarks]',
+          'SubRep=',
+          'ImgNum=42',
+          'bastion=${_ssh('bastion.example', user: 'jump')}',
+          'Windows box=${_rdp('win.example', user: 'Administrator', gateway: 'bastion.example')}',
+        ]),
+      );
+      const unrelated = HostRecord(
+        id: 'saved-bastion',
+        name: 'bastion',
+        address: '10.9.9.9',
+        username: 'root',
+      );
+      final bastionRow = _row(document, 'bastion').row;
+      TermiusImportPlan plan(List<HostRecord> saved) => TermiusImportPlanner.plan(
+        document,
+        TermiusCatalog(hosts: saved, groups: const []),
+        excludedRows: {bastionRow},
+      );
+      // Only the name matches: the session is blocked, not linked.
+      final blocked = plan(const [unrelated]);
+      final windows = blocked.rows.singleWhere(
+        (row) => row.source.label == 'Windows box',
+      );
+      expect(windows.disposition, TermiusRowDisposition.blocked);
+      expect(
+        windows.issues.map((issue) => issue.code),
+        contains(TermiusIssueCode.sshJumpMissing),
+      );
+      // A saved Host with the gateway's endpoint is used, whatever its name.
+      const sameEndpoint = HostRecord(
+        id: 'saved-jump',
+        name: 'Jump box',
+        address: 'BASTION.example',
+        username: 'jump',
+      );
+      final linked = plan(const [unrelated, sameEndpoint]);
+      expect(
+        linked.hostsToCreate.singleWhere((h) => h.name == 'Windows box').jumpHostId,
+        'saved-jump',
+      );
+      // Within the file the gateway session is still used, as before.
+      final inFile = TermiusImportPlanner.plan(
+        document,
+        TermiusCatalog(hosts: const [unrelated], groups: const []),
+      );
+      final hosts = {for (final h in inFile.hostsToCreate) h.name: h};
+      expect(hosts['Windows box']!.jumpHostId, hosts['bastion']!.id);
+    });
+
+    test('settings that cannot be applied are reported, not dropped', () {
+      final document = MobaXtermImporter.parse(
+        _file([
+          '[Bookmarks]',
+          'SubRep=',
+          'ImgNum=42',
+          'rdp=${_rdp('win.example', user: 'John Smith', command: 'notepad', rdpGateway: 'rdgw.example')}',
+          'vnc=${_vnc('vnc.example', '5900', proxyType: '2')}',
+          'sftp=${_sftp('files.example', 'ftp', '', proxy: '3')}',
+          'plain=${_vnc('plain.example', '5900')}',
+          'spaced=${_ssh('ssh.example', user: 'John Smith')}',
+        ]),
+      );
+      List<String?> ignored(String label) => [
+        for (final issue in _row(document, label).issues)
+          if (issue.code == TermiusIssueCode.sshOptionIgnored) issue.detail,
+      ];
+      expect(ignored('rdp'), ['RemoteCommand', 'RDP Gateway']);
+      expect(ignored('vnc'), ['Proxy']);
+      expect(ignored('sftp'), ['Proxy']);
+      expect(ignored('plain'), isEmpty);
+      // Windows account names may contain spaces; SSH user names may not.
+      expect(_row(document, 'rdp').blocked, isFalse);
+      expect(_row(document, 'rdp').username, 'John Smith');
+      expect(
+        _codes(_row(document, 'spaced')),
+        contains(TermiusIssueCode.invalidUsername),
+      );
+    });
+
+    test('gateway Hosts do not count toward the session limit', () {
+      final lines = ['[Bookmarks]', 'SubRep=', 'ImgNum=42'];
+      for (var index = 0; index < maxTermiusImportRows; index++) {
+        final gateway = index < 20 ? 'gw$index.example' : '';
+        lines.add(
+          's$index=${_ssh('h$index.example', user: 'u', gatewayHosts: gateway, gatewayUsers: gateway.isEmpty ? '' : 'ops')}',
+        );
+      }
+      final document = MobaXtermImporter.parse(_file(lines));
+      expect(document.blocksWholeFile, isFalse);
+      expect(document.rows, hasLength(maxTermiusImportRows + 20));
+    });
+
+    test('[Bookmarks] late in a large MobaXterm.ini is still recognised', () {
+      final bytes = utf8.encode(
+        _file([
+          '[Misc]',
+          for (var index = 0; index < 40000; index++) 'History$index=ssh user@host$index.example',
+          '[Bookmarks]',
+          'SubRep=',
+          'ImgNum=42',
+          'late=${_ssh('late.example', user: 'u')}',
+        ]),
+      );
+      expect(bytes.length, greaterThan(1 << 20));
+      expect(looksLikeMobaXtermSessions(bytes), isTrue);
+    });
+  });
+
   group('decodeWindowsText', () {
     List<int> ini(List<int> folder, List<int> name) => [
       ...ascii.encode('[Bookmarks_1]\r\nSubRep='),
@@ -427,6 +549,36 @@ void main() {
       final russian = decodeWindowsText(server, languageCode: 'ru');
       expect(russian.text, 'Сервер');
       expect(russian.codePage, LegacyCodePage.windows1251);
+    });
+
+    test('accented Latin and Cyrillic words are not read as Chinese', () {
+      // "Produção\Homologação" folder, "Serviço" session, Windows-1252.
+      final latin = ini(
+        [...latin1.encode('Produ'), 0xE7, 0xE3, 0x6F, 0x5C, ...latin1.encode('Homologa'), 0xE7, 0xE3, 0x6F],
+        [...latin1.encode('Servi'), 0xE7, 0x6F],
+      );
+      for (final language in ['en', null, 'de']) {
+        final row = MobaXtermImporter.parseBytes(latin, languageCode: language).rows.single;
+        expect(row.groupPath, ['Produção', 'Homologação'], reason: '$language');
+        expect(row.label, 'Serviço', reason: '$language');
+      }
+      // German "Größe" and French "Été".
+      expect(
+        decodeWindowsText([0x47, 0x72, 0xF6, 0xDF, 0x65], languageCode: 'en').text,
+        'Größe',
+      );
+      expect(
+        decodeWindowsText([0xC9, 0x74, 0xE9], languageCode: 'en').text,
+        'Été',
+      );
+      // "Тест" folder, "База" session in Windows-1251 under an English UI.
+      final cyrillic = ini(
+        [0xD2, 0xE5, 0xF1, 0xF2],
+        [0xC1, 0xE0, 0xE7, 0xE0],
+      );
+      final row = MobaXtermImporter.parseBytes(cyrillic, languageCode: 'en').rows.single;
+      expect(row.groupPath, ['Тест']);
+      expect(row.label, 'База');
     });
 
     test('UTF-8 with or without BOM wins over code pages', () {
