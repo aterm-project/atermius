@@ -10,6 +10,7 @@ import 'app_update_backend.dart';
 import 'app_update_channel.dart';
 import 'app_update_download.dart';
 import 'app_update_state.dart';
+import 'app_update_windows_elevation.dart';
 import 'release_tag.dart';
 
 // How a desktop copy of Atermius replaces itself
@@ -39,8 +40,15 @@ const _rootArg = '${_flagPrefix}root=';
 const _tagArg = '${_flagPrefix}tag=';
 const _pidArg = '${_flagPrefix}pid=';
 
+/// The installer runs with administrator rights (Windows, UAC).
+const _elevatedFlag = '${_flagPrefix}elevated';
+
 /// How often one release may be tried before it is skipped for good.
 const _maxAttempts = 2;
+
+/// Test builds of the updater only: always take the administrator path
+/// (Wine has no UAC and lets root write everywhere).
+const _testElevation = bool.fromEnvironment('ATERMIUS_UPDATE_TEST_ELEVATION');
 final _safeTag = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$');
 
 /// Where the updater keeps its files and which installed copy it serves.
@@ -228,7 +236,7 @@ Future<List<String>> appUpdateStartup(List<String> arguments) async {
     if (staged == null || !_writable(layout.installDir)) return rest;
     final lock = _instanceLock(layout)!;
     if (!lock.tryExclusive()) return rest;
-    if (await _handOver(layout, staged, const [])) {
+    if (await _handOver(layout, staged, const []) == _HandOver.started) {
       lock.release();
       exit(0);
     }
@@ -263,14 +271,21 @@ bool _writable(Directory dir) {
   }
 }
 
+enum _HandOver { started, cancelled, failed }
+
 /// Starts the staged version as installer and waits until it reports that
-/// it is running. False (and the release blocked) when it never does: the
-/// current version then simply keeps running.
-Future<bool> _handOver(
+/// it is running. [_HandOver.failed] (and the release blocked) when it never
+/// does: the current version then simply keeps running.
+///
+/// With [elevated] (Windows, installed where the user cannot write) the
+/// installer is started through the UAC prompt; declining it changes
+/// nothing and does not count as an attempt.
+Future<_HandOver> _handOver(
   AppUpdateDesktopLayout layout,
   AppUpdateStaged staged,
   List<String> restartArguments, {
   Duration ackTimeout = const Duration(seconds: 20),
+  bool elevated = false,
 }) async {
   final ack = layout.ackFile;
   try {
@@ -286,33 +301,52 @@ Future<bool> _handOver(
     final attempts = state.failedTag == tag ? state.failures : 0;
     if (attempts >= _maxAttempts) {
       _block(layout, tag);
-      return false;
+      return _HandOver.failed;
     }
     state
       ..failedTag = tag
       ..failures = attempts + 1
       ..write();
   } on FileSystemException {
-    return false;
+    return _HandOver.failed;
   }
-  final Process process;
-  try {
-    process = await Process.start(
-      p.join(staged.path, layout.executableName),
-      [
-        appUpdateApplyFlag,
-        '$_installArg${layout.installDir.path}',
-        '$_rootArg${layout.root.path}',
-        '$_tagArg${staged.release.tag}',
-        '$_pidArg$pid',
-        ...restartArguments,
-      ],
+  final executable = p.join(staged.path, layout.executableName);
+  final arguments = [
+    appUpdateApplyFlag,
+    if (elevated) _elevatedFlag,
+    '$_installArg${layout.installDir.path}',
+    '$_rootArg${layout.root.path}',
+    '$_tagArg${staged.release.tag}',
+    '$_pidArg$pid',
+    ...restartArguments,
+  ];
+  Process? process;
+  if (elevated) {
+    final started = await startElevated(
+      executable,
+      arguments,
       workingDirectory: staged.path,
-      mode: ProcessStartMode.detached,
     );
-  } on ProcessException {
-    _block(layout, staged.release.tag);
-    return false;
+    if (started == ElevatedStart.cancelled) {
+      _uncount(layout, staged.release.tag);
+      return _HandOver.cancelled;
+    }
+    if (started == ElevatedStart.failed) {
+      _block(layout, staged.release.tag);
+      return _HandOver.failed;
+    }
+  } else {
+    try {
+      process = await Process.start(
+        executable,
+        arguments,
+        workingDirectory: staged.path,
+        mode: ProcessStartMode.detached,
+      );
+    } on ProcessException {
+      _block(layout, staged.release.tag);
+      return _HandOver.failed;
+    }
   }
   final deadline = DateTime.now().add(ackTimeout);
   while (DateTime.now().isBefore(deadline)) {
@@ -320,16 +354,30 @@ Future<bool> _handOver(
     try {
       if (ack.existsSync() &&
           ack.readAsStringSync().trim() == staged.release.tag) {
-        return true;
+        return _HandOver.started;
       }
     } on FileSystemException {
       // Being written; read again.
     }
   }
   // The new version cannot even start here: never try it again.
-  Process.killPid(process.pid);
+  if (process != null) Process.killPid(process.pid);
   _block(layout, staged.release.tag);
-  return false;
+  return _HandOver.failed;
+}
+
+/// Takes back the attempt counted for [tag] (the user declined).
+void _uncount(AppUpdateDesktopLayout layout, String tag) {
+  try {
+    final state = _read(layout);
+    if (state.failedTag == tag && state.failures > 0) {
+      state
+        ..failures -= 1
+        ..write();
+    }
+  } on FileSystemException {
+    // One attempt fewer left; harmless.
+  }
 }
 
 void _block(AppUpdateDesktopLayout layout, String tag) {
@@ -415,12 +463,27 @@ Future<int> runAppUpdateSwitch(List<String> own, List<String> rest) async {
   // Whatever happened, the installed copy (new, or the old one moved back)
   // is started again, told not to try once more during this start.
   try {
-    await Process.start(
-      layout.installedExecutable,
-      [appUpdateSkipFlag, ...rest],
-      workingDirectory: layout.installDir.path,
-      mode: ProcessStartMode.detached,
-    );
+    if (own.contains(_elevatedFlag) && Platform.isWindows) {
+      // Started through Explorer it runs with the user's normal rights, not
+      // this installer's administrator rights (as the setup program does).
+      // It cannot take arguments that way; it does not switch by itself
+      // where the user cannot write anyway.
+      await Process.start(
+        p.join(
+          Platform.environment['SystemRoot'] ?? r'C:\Windows',
+          'explorer.exe',
+        ),
+        [layout.installedExecutable],
+        mode: ProcessStartMode.detached,
+      );
+    } else {
+      await Process.start(
+        layout.installedExecutable,
+        [appUpdateSkipFlag, ...rest],
+        workingDirectory: layout.installDir.path,
+        mode: ProcessStartMode.detached,
+      );
+    }
   } on ProcessException {
     return 70;
   }
@@ -706,7 +769,9 @@ class DesktopAppUpdateBackend implements AppUpdateBackend {
 
   @override
   Future<bool> canInstall() async =>
-      layout.isBundle(layout.installDir) && _writable(layout.installDir);
+      layout.isBundle(layout.installDir) &&
+      // Windows asks for administrator rights when it has to (UAC).
+      (_writable(layout.installDir) || layout.windows);
 
   @override
   Future<AppUpdateStaged?> staged(String currentTag) async =>
@@ -794,14 +859,23 @@ class DesktopAppUpdateBackend implements AppUpdateBackend {
       return AppUpdateApplyProblem.otherWindowsOpen;
     }
     // The installer takes the lock over as soon as this process lets go.
-    if (!await _handOver(
+    final elevated =
+        layout.windows && (_testElevation || !_writable(layout.installDir));
+    switch (await _handOver(
       layout,
       usable,
       const [],
-      ackTimeout: switchAckTimeout,
+      ackTimeout: elevated ? const Duration(seconds: 60) : switchAckTimeout,
+      elevated: elevated,
     )) {
-      _lock.share();
-      return AppUpdateApplyProblem.failed;
+      case _HandOver.started:
+        break;
+      case _HandOver.cancelled:
+        _lock.share();
+        return AppUpdateApplyProblem.cancelled;
+      case _HandOver.failed:
+        _lock.share();
+        return AppUpdateApplyProblem.failed;
     }
     _lock.release();
     await _quit();
