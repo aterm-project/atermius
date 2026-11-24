@@ -127,8 +127,7 @@ class AndroidAppUpdateBackend implements AppUpdateBackend {
 
   @override
   Future<AppUpdateApplyProblem?> apply(AppUpdateStaged staged) async {
-    if (await this.staged('') == null &&
-        !await File(staged.path).exists()) {
+    if (!await File(staged.path).exists()) {
       return AppUpdateApplyProblem.stagedMissing;
     }
     final notice = _doneNotice();
