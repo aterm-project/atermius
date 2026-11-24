@@ -136,5 +136,12 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- In-app updates: the system installer's confirmation screen is
+             only started after AppUpdateInstaller has resolved and checked
+             it, which needs that installer to be visible (AOSP's is anyway,
+             not every vendor's has to be). -->
+        <intent>
+            <action android:name="android.content.pm.action.CONFIRM_INSTALL"/>
+        </intent>
     </queries>
 </manifest>

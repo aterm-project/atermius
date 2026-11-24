@@ -95,9 +95,17 @@ class AppUpdateDesktopLayout {
   File get workLockFile => File(p.join(root.path, 'download.lock'));
   File get ackFile => File(p.join(root.path, 'switch.ack'));
   Directory releaseDir(String tag) => Directory(p.join(root.path, tag));
-  Directory get backupDir =>
-      Directory(p.join(installDir.path, '.atermius-old'));
   String get installedExecutable => p.join(installDir.path, executableName);
+
+  /// Where a switch keeps the previous version's program files until the new
+  /// ones are in place: `.atermius-old-<random>` in [installDir], new for
+  /// every attempt, so a leftover that cannot be removed never stands in the
+  /// way. Builds before that used `.atermius-old`.
+  static const backupPrefix = '.atermius-old';
+
+  /// Whether [name] (an entry of [installDir]) is such a backup directory.
+  static bool isBackupName(String name) =>
+      name == backupPrefix || name.startsWith('$backupPrefix-');
 
   /// A complete unpacked copy of the app for this platform.
   bool isBundle(Directory dir) =>
@@ -538,31 +546,44 @@ bool _installedCopyIdle(AppUpdateDesktopLayout layout, int? oldPid) {
   return oldPid == null || !Directory('/proc/$oldPid').existsSync();
 }
 
+/// Moves the installed program files into a new backup directory, copies
+/// the staged ones in and drops the backup. On any failure the installed
+/// copy is put back exactly as it was: what this attempt copied in is
+/// removed, what it moved aside is moved back, and entries it had not moved
+/// yet are never touched.
 bool _replaceProgramFiles(AppUpdateDesktopLayout layout, Directory staged) {
-  final install = layout.installDir, backup = layout.backupDir;
+  final install = layout.installDir;
   // Exactly the top-level entries the new version ships; anything else in
-  // the directory is not ours to touch.
+  // the directory is not ours to touch. Sorted, so a failure always leaves
+  // the same state behind.
   final names = [
     for (final entity in staged.listSync(followLinks: false))
       p.basename(entity.path),
-  ];
-  final moved = <String>[];
+  ]..sort();
+  // A directory of its own: a leftover of an earlier attempt that cannot be
+  // removed must not stop this one.
+  final Directory backup;
   try {
-    if (backup.existsSync()) _retry(() => backup.deleteSync(recursive: true));
-    backup.createSync();
+    backup = install.createTempSync('${AppUpdateDesktopLayout.backupPrefix}-');
+  } catch (_) {
+    // Nothing was changed.
+    return false;
+  }
+  // Names whose previous version now is in [backup], with what they are.
+  final moved = <String, FileSystemEntityType>{};
+  // Names this attempt has started to copy into [install]: all of them were
+  // either moved aside before or did not exist.
+  final copied = <String>[];
+  try {
     for (final name in names) {
       final current = p.join(install.path, name);
       final type = FileSystemEntity.typeSync(current, followLinks: false);
       if (type == FileSystemEntityType.notFound) continue;
-      final target = p.join(backup.path, name);
-      _retry(
-        () => type == FileSystemEntityType.directory
-            ? Directory(current).renameSync(target)
-            : File(current).renameSync(target),
-      );
-      moved.add(name);
+      _retry(() => _rename(current, p.join(backup.path, name), type));
+      moved[name] = type;
     }
     for (final name in names) {
+      copied.add(name);
       _copy(p.join(staged.path, name), p.join(install.path, name));
     }
     if (!layout.isBundle(install)) {
@@ -570,39 +591,85 @@ bool _replaceProgramFiles(AppUpdateDesktopLayout layout, Directory staged) {
     }
   } catch (_) {
     // Put the previous version back exactly as it was.
-    for (final name in names) {
-      final partial = p.join(install.path, name);
+    for (final name in copied) {
       try {
-        final type = FileSystemEntity.typeSync(partial, followLinks: false);
-        if (type == FileSystemEntityType.directory) {
-          Directory(partial).deleteSync(recursive: true);
-        } else if (type != FileSystemEntityType.notFound) {
-          File(partial).deleteSync();
-        }
-      } on FileSystemException {
-        // The move back below reports what could not be restored.
+        _retry(() => _delete(p.join(install.path, name)));
+      } catch (_) {
+        // The move back below still tries; a file is simply replaced.
       }
     }
-    for (final name in moved) {
-      final saved = p.join(backup.path, name), current = p.join(install.path, name);
+    var restored = true;
+    for (final MapEntry(key: name, value: type) in moved.entries) {
       try {
         _retry(
-          () => FileSystemEntity.isDirectorySync(saved)
-              ? Directory(saved).renameSync(current)
-              : File(saved).renameSync(current),
+          () => _rename(
+            p.join(backup.path, name),
+            p.join(install.path, name),
+            type,
+          ),
         );
-      } on FileSystemException {
-        // Left in the backup directory.
+      } catch (_) {
+        // Left in the backup directory, which is then kept.
+        restored = false;
       }
     }
+    if (restored) _deleteQuietly(backup);
     return false;
   }
-  try {
-    backup.deleteSync(recursive: true);
-  } on FileSystemException {
-    // Removed by the app's cleanup later.
-  }
+  // The new version is complete; no earlier one is needed any more.
+  _deleteQuietly(backup);
+  _removeBackups(layout);
   return true;
+}
+
+void _rename(String from, String to, FileSystemEntityType type) {
+  switch (type) {
+    case FileSystemEntityType.directory:
+      Directory(from).renameSync(to);
+    case FileSystemEntityType.link:
+      Link(from).renameSync(to);
+    default:
+      File(from).renameSync(to);
+  }
+}
+
+/// Removes whatever is at [path], if anything.
+void _delete(String path) {
+  final type = FileSystemEntity.typeSync(path, followLinks: false);
+  switch (type) {
+    case FileSystemEntityType.notFound:
+      return;
+    case FileSystemEntityType.directory:
+      Directory(path).deleteSync(recursive: true);
+    case FileSystemEntityType.link:
+      Link(path).deleteSync();
+    default:
+      File(path).deleteSync();
+  }
+}
+
+/// Best effort; the app's cleanup tries again later.
+void _deleteQuietly(Directory dir) {
+  try {
+    dir.deleteSync(recursive: true);
+  } catch (_) {
+    // In use or not writable.
+  }
+}
+
+/// Removes backup directories of earlier switches, as far as possible.
+/// Only called once the installed copy is known to be complete.
+void _removeBackups(AppUpdateDesktopLayout layout) {
+  try {
+    for (final entity in layout.installDir.listSync(followLinks: false)) {
+      if (entity is Directory &&
+          AppUpdateDesktopLayout.isBackupName(p.basename(entity.path))) {
+        _deleteQuietly(entity);
+      }
+    }
+  } catch (_) {
+    // Not listable; nothing to clean up then.
+  }
 }
 
 void _copy(String from, String to) {
@@ -912,12 +979,22 @@ class DesktopAppUpdateBackend implements AppUpdateBackend {
             (!state.blocked.contains(tag) &&
                 isNewerRelease(tag, keep ?? currentTag)),
       );
+      // Previous versions left behind by switches; this one runs, so they
+      // are not needed.
       try {
-        if (await layout.backupDir.exists()) {
-          await layout.backupDir.delete(recursive: true);
+        await for (final entity in layout.installDir.list(followLinks: false)) {
+          if (entity is! Directory ||
+              !AppUpdateDesktopLayout.isBackupName(p.basename(entity.path))) {
+            continue;
+          }
+          try {
+            await entity.delete(recursive: true);
+          } on FileSystemException {
+            // Not writable or in use.
+          }
         }
       } on FileSystemException {
-        // Not writable or in use.
+        // Not listable.
       }
       return null;
     });

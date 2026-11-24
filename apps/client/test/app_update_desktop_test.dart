@@ -49,6 +49,57 @@ Map<String, String> _read(Directory dir) => {
       p.relative(entity.path, from: dir.path): entity.readAsStringSync(),
 };
 
+/// The backup directories a switch left in [dir].
+List<String> _backups(Directory dir) => [
+  for (final entity in dir.listSync(followLinks: false))
+    if (AppUpdateDesktopLayout.isBackupName(p.basename(entity.path)))
+      p.basename(entity.path),
+];
+
+final _root = Process.runSync('id', ['-u']).stdout.toString().trim() == '0';
+
+/// Makes the directory [path] impossible to rename, delete, or add to or
+/// remove from, the way a file held by an antivirus scanner or owned by
+/// another user is: immutable for root, read-only for anyone else.
+void _pin(String path) {
+  final result = _root
+      ? Process.runSync('chattr', ['+i', path])
+      : Process.runSync('chmod', ['555', path]);
+  if (result.exitCode != 0) throw StateError('cannot pin $path: ${result.stderr}');
+  addTearDown(() => _unpin(path));
+}
+
+void _unpin(String path) {
+  if (!FileSystemEntity.isDirectorySync(path)) return;
+  _root
+      ? Process.runSync('chattr', ['-i', path])
+      : Process.runSync('chmod', ['755', path]);
+}
+
+/// Null when [_pin] works on this file system, else why it does not.
+String? _pinningUnsupported() {
+  final dir = Directory.systemTemp.createTempSync('atermius-pin-test-');
+  final inner = Directory(p.join(dir.path, 'inner'))..createSync();
+  try {
+    final pin = _root
+        ? Process.runSync('chattr', ['+i', inner.path])
+        : Process.runSync('chmod', ['555', inner.path]);
+    if (pin.exitCode != 0) return 'cannot make directories immutable here';
+    try {
+      inner.renameSync(p.join(dir.path, 'moved'));
+      return 'a pinned directory can still be moved here';
+    } on FileSystemException {
+      return null;
+    }
+  } catch (_) {
+    return 'chattr/chmod unavailable';
+  } finally {
+    _unpin(inner.path);
+    _unpin(p.join(dir.path, 'moved'));
+    dir.deleteSync(recursive: true);
+  }
+}
+
 List<int> _tarGz(Map<String, String> files, {String prefix = 'atermius-linux-x64/'}) {
   final archive = Archive();
   for (final entry in files.entries) {
@@ -290,6 +341,12 @@ void main() {
 
   group('replacing the installed copy', () {
     late Directory staged;
+    final pinning = _pinningUnsupported();
+    final newFiles = {
+      ..._bundle('new', extra: {'lib/libadded_plugin.so': 'added'}),
+      'notes.txt': 'mine',
+      'uninstall.exe': 'installer file',
+    };
 
     setUp(() {
       _write(layout.installDir, {
@@ -302,19 +359,14 @@ void main() {
       _write(staged, _bundle('new', extra: {'lib/libadded_plugin.so': 'added'}));
     });
 
+    Future<AppUpdateSwitchOutcome> switchNow() =>
+        switchInstalledCopy(layout: layout, staged: staged, tag: _next);
+
     test('swaps the program files and leaves everything else alone', () async {
-      final outcome = await switchInstalledCopy(
-        layout: layout,
-        staged: staged,
-        tag: _next,
-      );
+      final outcome = await switchNow();
       expect(outcome, AppUpdateSwitchOutcome.done);
-      expect(_read(layout.installDir), {
-        ..._bundle('new', extra: {'lib/libadded_plugin.so': 'added'}),
-        'notes.txt': 'mine',
-        'uninstall.exe': 'installer file',
-      });
-      expect(layout.backupDir.existsSync(), isFalse);
+      expect(_read(layout.installDir), newFiles);
+      expect(_backups(layout.installDir), isEmpty);
       expect(
         File(layout.installedExecutable).statSync().mode & 0x49,
         isNot(0),
@@ -325,16 +377,82 @@ void main() {
 
     test('a failing copy puts the old version back untouched', () async {
       final before = _read(layout.installDir);
-      // A file that cannot be copied.
+      // New in this release, and copied before the failure: taken out again.
+      File(p.join(staged.path, 'a_new_file')).writeAsStringSync('new');
+      // A file that cannot be copied; lib/ comes after it and was only moved.
       Link(p.join(staged.path, 'data', 'broken')).createSync('/nonexistent/x');
-      final outcome = await switchInstalledCopy(
-        layout: layout,
-        staged: staged,
-        tag: _next,
-      );
-      expect(outcome, AppUpdateSwitchOutcome.failed);
+      expect(await switchNow(), AppUpdateSwitchOutcome.failed);
       expect(_read(layout.installDir), before);
+      expect(_backups(layout.installDir), isEmpty);
     });
+
+    test('an entry that cannot be moved aside leaves the old version whole',
+        () async {
+      // More top-level files, as a Windows build has.
+      for (final name in ['flutter_windows.dll', 'plugin_a.dll', 'zlib1.dll']) {
+        _write(layout.installDir, {name: 'old $name'});
+        _write(staged, {name: 'new $name'});
+      }
+      final before = _read(layout.installDir);
+      // Held by another program: what sorts before it was moved aside
+      // already, what sorts after it (lib/, plugin_a.dll, zlib1.dll) is
+      // never touched.
+      _pin(p.join(layout.installDir.path, 'data'));
+      expect(await switchNow(), AppUpdateSwitchOutcome.failed);
+      expect(_read(layout.installDir), before);
+      expect(layout.isBundle(layout.installDir), isTrue);
+      expect(_backups(layout.installDir), isEmpty);
+      // Once it is free, the next attempt goes through.
+      _unpin(p.join(layout.installDir.path, 'data'));
+      expect(await switchNow(), AppUpdateSwitchOutcome.done);
+      expect(_read(layout.installDir), {
+        ...newFiles,
+        for (final name in ['flutter_windows.dll', 'plugin_a.dll', 'zlib1.dll'])
+          name: 'new $name',
+      });
+    }, skip: pinning);
+
+    test('a leftover backup that cannot be removed is not in the way',
+        () async {
+      final leftover = Directory(
+        p.join(layout.installDir.path, AppUpdateDesktopLayout.backupPrefix),
+      )..createSync();
+      File(p.join(leftover.path, 'aterm_client')).writeAsStringSync('older');
+      _pin(leftover.path);
+      expect(await switchNow(), AppUpdateSwitchOutcome.done);
+      expect(_read(layout.installDir), {
+        ...newFiles,
+        '.atermius-old/aterm_client': 'older',
+      });
+      expect(_backups(layout.installDir), ['.atermius-old']);
+      // Removed once it can be.
+      _unpin(leftover.path);
+      final update = backend();
+      await update.cleanup(_next);
+      expect(_backups(layout.installDir), isEmpty);
+    }, skip: pinning);
+
+    test('a leftover backup that cannot be removed, then a failing copy',
+        () async {
+      final leftover = Directory(
+        p.join(layout.installDir.path, '.atermius-old-abc123'),
+      )..createSync();
+      File(p.join(leftover.path, 'data')).writeAsStringSync('older');
+      _pin(leftover.path);
+      final before = _read(layout.installDir);
+      Link(p.join(staged.path, 'lib', 'broken')).createSync('/nonexistent/x');
+      expect(await switchNow(), AppUpdateSwitchOutcome.failed);
+      expect(_read(layout.installDir), before);
+      expect(_backups(layout.installDir), ['.atermius-old-abc123']);
+    }, skip: pinning);
+
+    test('no room for a backup: nothing is touched', () async {
+      final before = _read(layout.installDir);
+      _pin(layout.installDir.path);
+      expect(await switchNow(), AppUpdateSwitchOutcome.failed);
+      expect(_read(layout.installDir), before);
+      expect(_backups(layout.installDir), isEmpty);
+    }, skip: pinning);
 
     test('nothing changes while the old process is still running', () async {
       final before = _read(layout.installDir);
@@ -424,7 +542,12 @@ void main() {
       await update.stage(release(_next, 'next.tar.gz', bytes), onProgress: (_) {});
       Directory(p.join(layout.root.path, 'local-20261120.1-aaaaaaaaaaaa', 'app'))
           .createSync(recursive: true);
-      layout.backupDir.createSync();
+      // Backups of earlier switches, in the old and the current naming.
+      for (final name in ['.atermius-old', '.atermius-old-x1y2z3']) {
+        File(p.join(layout.installDir.path, name, 'aterm_client'))
+          ..parent.createSync()
+          ..writeAsStringSync('older');
+      }
       // Still older than the staged release: only leftovers go.
       await update.cleanup(_current);
       expect(layout.releaseDir(_next).existsSync(), isTrue);
@@ -432,7 +555,7 @@ void main() {
         layout.releaseDir('local-20261120.1-aaaaaaaaaaaa').existsSync(),
         isFalse,
       );
-      expect(layout.backupDir.existsSync(), isFalse);
+      expect(_backups(layout.installDir), isEmpty);
       // Now running the staged release: it is not needed any more.
       await update.cleanup(_next);
       expect(layout.releaseDir(_next).existsSync(), isFalse);

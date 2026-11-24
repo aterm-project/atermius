@@ -1,20 +1,24 @@
 package com.atermius.aterm_client
 
+import android.Manifest
 import android.app.Activity
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.core.content.ContextCompat
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -40,7 +44,8 @@ class AppUpdateInstaller(private val activity: Activity, messenger: BinaryMessen
                     val confirm = if (Build.VERSION.SDK_INT >= 33)
                         intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
                     else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_INTENT)
-                    val shown = confirm != null && runCatching { activity.startActivity(confirm) }.isSuccess
+                    val prompt = confirm?.let(::installerPrompt)
+                    val shown = prompt != null && runCatching { activity.startActivity(prompt) }.isSuccess
                     if (!shown) report("failed")
                 }
                 // The process is replaced before this could matter.
@@ -74,6 +79,34 @@ class AppUpdateInstaller(private val activity: Activity, messenger: BinaryMessen
         }
     }
 
+    /**
+     * [confirm] made explicit for the system installer's confirmation screen,
+     * or null when it would start anything else. Only the system reaches the
+     * receiver, but this app starts what the status carries with its own
+     * identity (and its file provider grants URI access), so it is checked
+     * too: it has to resolve to a system app holding INSTALL_PACKAGES, which
+     * approving an install session takes, in the package it names, and it
+     * must not carry data or URI grants; the system's never does.
+     */
+    private fun installerPrompt(confirm: Intent): Intent? {
+        val grants = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+        if (confirm.flags and grants != 0 || confirm.data != null || confirm.clipData != null ||
+            confirm.selector != null) return null
+        // The system always names the installer; it never leaves the choice open.
+        val named = confirm.component?.packageName ?: confirm.`package` ?: return null
+        val manager = activity.packageManager
+        val info = runCatching {
+            @Suppress("DEPRECATION")
+            manager.queryIntentActivities(confirm, PackageManager.MATCH_DEFAULT_ONLY).firstOrNull()?.activityInfo
+        }.getOrNull() ?: return null
+        if (info.packageName != named || info.packageName == activity.packageName ||
+            info.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM == 0 ||
+            manager.checkPermission(Manifest.permission.INSTALL_PACKAGES, info.packageName) !=
+                PackageManager.PERMISSION_GRANTED) return null
+        return Intent(confirm).setComponent(ComponentName(info.packageName, info.name))
+    }
+
     private fun report(state: String) {
         forgetDone(activity)
         main.post { channel.invokeMethod("installStatus", state) }
@@ -103,13 +136,10 @@ class AppUpdateInstaller(private val activity: Activity, messenger: BinaryMessen
             return
         }
         if (!registered) {
-            val filter = IntentFilter(action)
-            if (Build.VERSION.SDK_INT >= 33) {
-                activity.registerReceiver(status, filter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                @Suppress("UnspecifiedRegisterReceiverFlag")
-                activity.registerReceiver(status, filter)
-            }
+            // Not exported on every API level (androidx guards it with a
+            // signature permission before 33): only the status the system
+            // sends through this app's own PendingIntent reaches it.
+            ContextCompat.registerReceiver(activity, status, IntentFilter(action), ContextCompat.RECEIVER_NOT_EXPORTED)
             registered = true
         }
         // Remembered across the replacement for [AppUpdatedReceiver].

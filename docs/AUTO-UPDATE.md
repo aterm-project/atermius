@@ -42,8 +42,8 @@ The package is downloaded from `github.com/<repository>/releases/download/…` o
 **Windows and Linux**
 
 1. The package is unpacked into the user's own data, never into the installed directory: `%LOCALAPPDATA%\Atermius\updates\<tag>\app` or `~/.cache/atermius/updates/<tag>/app`. Archive entries that would leave that directory, and links, are refused.
-2. To switch, the **new** version is started from that copy as its own installer. It reports that it runs, waits until nothing runs from the installed directory any more, moves the old program files into `.atermius-old`, copies itself in and starts the installed copy. Only the entries a release ships (`aterm_client[.exe]`, the libraries, `data/`) are touched; other files in the directory stay.
-3. If copying fails, the old files are moved back and the old version starts again. After two failures, or if the new version cannot even start, that release is skipped for good and the next one is tried when it appears.
+2. To switch, the **new** version is started from that copy as its own installer. It reports that it runs, waits until nothing runs from the installed directory any more, moves the old program files into a backup directory of its own (`.atermius-old-<random>`, so a leftover of an earlier attempt that cannot be removed is never in the way), copies itself in, removes the backup and starts the installed copy. Only the entries a release ships (`aterm_client[.exe]`, the libraries, `data/`) are touched; other files in the directory stay.
+3. If any step fails, only what this attempt copied in is removed and what it moved aside is moved back; entries it had not reached are left alone. The previous version is complete again and starts as before, and the attempt counts as failed. After two failures, or if the new version cannot even start, that release is skipped for good and the next one is tried when it appears.
 
 The switch happens on **Restart now**, or by itself the next time Atermius is started while no other Atermius window is open. Other open main windows run from the same files, so a restart from the banner asks to close them first.
 
@@ -53,7 +53,7 @@ When the user cannot write to the installed directory — the setup program inst
 
 **Android**
 
-The verified APK waits in the app's cache. *Install and restart* hands it to the system installer. Android shows its own confirmation where it must (always before Android 12; on newer versions until the app is its own installer, i.e. after the first in-app update). Android closes the app while it replaces it and does not let it reopen itself; a notification "Atermius was updated" leads back if notifications are allowed.
+The verified APK waits in the app's cache. *Install and restart* hands it to the system installer. Android shows its own confirmation where it must (always before Android 12; on newer versions until the app is its own installer, i.e. after the first in-app update). The app opens that confirmation only after checking that it belongs to the system installer, and only the system can report the installation's progress to it. Android closes the app while it replaces it and does not let it reopen itself; a notification "Atermius was updated" leads back if notifications are allowed.
 
 ## For people who publish releases / 发版要求
 
