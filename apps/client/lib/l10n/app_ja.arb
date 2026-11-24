@@ -3651,6 +3651,8 @@
   "localProfileUnlockedCountResumableMigration": "ローカルプロファイルのロックを解除しました · 再開可能な移行 {count} 件",
   "localProfileSubstring": "ローカルプロファイル · {substring}",
   "lock": "ロック",
+  "importLocalVaultToServer": "LocalVault をサーバーにインポート",
+  "localImportServerChanged": "サーバーの識別情報またはサインインセッションが変わりました。再接続してサインインしてからインポートしてください。",
   "migrateLocalProfiles": "ローカルプロファイルを移行",
   "migrationCompleted": "移行が完了しました",
   "migrationNeedsRecovery": "移行には復旧が必要です",

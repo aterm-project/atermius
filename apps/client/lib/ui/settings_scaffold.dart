@@ -65,6 +65,7 @@ class SettingsSection {
 class SettingsScaffold extends StatefulWidget {
   const SettingsScaffold({
     required this.sections,
+    this.sectionToOpen,
     this.title,
     this.categoriesLabel,
     this.sectionRequests,
@@ -76,6 +77,9 @@ class SettingsScaffold extends StatefulWidget {
   });
 
   final List<SettingsSection> sections;
+
+  /// Category named by an external route, when it first opens or changes.
+  final String? sectionToOpen;
 
   /// Called with the id of the category on screen, when the page first shows
   /// one and every time another is selected.
@@ -158,8 +162,18 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
   @override
   void initState() {
     super.initState();
+    _selectedId = _iosOpenId = widget.sectionToOpen;
     _takeRequestedSection(initial: true);
     _requests.addListener(_takeRequestedSection);
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsScaffold oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final id = widget.sectionToOpen;
+    if (id != null && id != oldWidget.sectionToOpen) {
+      _selectedId = _iosOpenId = id;
+    }
   }
 
   @override
@@ -174,7 +188,7 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
     _requests.value = null;
     if (!widget.sections.any((section) => section.id == id)) return;
     if (initial) {
-      _selectedId = id;
+      _selectedId = _iosOpenId = id;
     } else {
       _select(id);
     }
@@ -282,14 +296,16 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                                     .textTheme
                                     .headlineSmall,
                               ),
-                              SizedBox(height: density.space3),
-                              Text(
-                                section.description,
-                                style: TextStyle(
-                                  color: palette.muted,
-                                  height: 1.5,
+                              if (section.description.isNotEmpty) ...[
+                                SizedBox(height: density.space3),
+                                Text(
+                                  section.description,
+                                  style: TextStyle(
+                                    color: palette.muted,
+                                    height: 1.5,
+                                  ),
                                 ),
-                              ),
+                              ],
                               SizedBox(height: density.space7),
                               section.builder(context),
                             ],

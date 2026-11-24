@@ -860,17 +860,29 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
   }
 
   Future<void> _openLocalMigration(BuildContext context) async {
-    if (!await _ensureLocalProfileStorage() || !context.mounted) return;
+    final controller = _controller;
+    if (controller == null || !controller.authenticated) return;
+    final authScope = controller.authScopeToken;
+    final localReady = await _ensureLocalProfileStorage();
+    if (!context.mounted ||
+        !identical(controller, _controller) ||
+        controller.authScopeToken != authScope ||
+        !controller.authenticated ||
+        controller.workspaceLocked) {
+      return;
+    }
+    if (!localReady) {
+      if (_localError case final error?) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error)),
+        );
+      }
+      return;
+    }
     final catalog = _localCatalog;
     final service = _localService;
     final crypto = widget.crypto;
-    final controller = _controller;
-    if (catalog == null ||
-        service == null ||
-        crypto == null ||
-        controller == null) {
-      return;
-    }
+    if (catalog == null || service == null || crypto == null) return;
     await Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => LocalToSyncMigrationScreen(

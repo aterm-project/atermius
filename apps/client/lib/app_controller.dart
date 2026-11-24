@@ -19568,6 +19568,32 @@ class AppController extends ChangeNotifier {
     _setNotice(currentL10n.deviceSignedOut);
   }
 
+  /// Checks the live destination before a LocalVault import freezes any
+  /// source records. A cached sign-in alone cannot identify a rebuilt server.
+  Future<bool> migrationDestinationIsCurrent(String instanceId) async {
+    final expected = instance;
+    if (!authenticated ||
+        workspaceLocked ||
+        expected == null ||
+        expected.instanceId != instanceId) {
+      return false;
+    }
+    final scope = authScopeToken;
+    final actual = await _requireApi().fetchInstance();
+    return authenticated &&
+        !workspaceLocked &&
+        authScopeToken == scope &&
+        !actual.setupRequired &&
+        actual.instanceId == instanceId &&
+        actual.serverSpaceId == expected.serverSpaceId &&
+        crypto.verifyInstanceKeyTransitions(
+          instanceId: instanceId,
+          pinnedPublicKey: expected.signingPublicKey,
+          currentPublicKey: actual.signingPublicKey,
+          transitions: actual.signingKeyTransitions,
+        );
+  }
+
   /// Creates the signed, device-encrypted payload for a migration destination
   /// without sending it to the server. The source LocalVault journal must
   /// durably stage this exact payload before [createOrResumeMigrationVault]

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/crypto/vault_crypto.dart';
 import 'package:aterm_client/storage/client_database.dart';
@@ -58,6 +59,53 @@ void main() {
   tearDown(() async {
     controller.dispose();
     await controllerDatabase.close();
+  });
+
+  test('online import verifies the live instance before staging a migration', () async {
+    const instanceId = '11111111-1111-4111-8111-111111111111';
+    const spaceId = '22222222-2222-4222-8222-222222222222';
+    final signing = DeviceIdentity.create(sodium);
+    final replacement = DeviceIdentity.create(sodium);
+    addTearDown(signing.dispose);
+    addTearDown(replacement.dispose);
+    InstanceInfo descriptor(
+      String id,
+      String space,
+      String key,
+      String generation,
+    ) => InstanceInfo(
+      instanceId: id,
+      serverSpaceId: space,
+      generation: generation,
+      protocolVersion: 1,
+      setupRequired: false,
+      capabilities: const [],
+      signingPublicKey: key,
+    );
+    final current = descriptor(instanceId, spaceId, signing.signingPublicKey, '1');
+    final api = _MigrationInstanceApi(current);
+    controller
+      ..api = api
+      ..instance = current
+      ..stage = ClientStage.workspace
+      ..session = AuthSession(
+        accountId: 'account',
+        deviceId: signing.deviceId,
+        accessToken: 'access',
+        refreshToken: 'refresh',
+        expiresIn: 600,
+        vaults: const [],
+      );
+
+    expect(await controller.migrationDestinationIsCurrent(instanceId), isTrue);
+    api.reply = descriptor(instanceId, spaceId, signing.signingPublicKey, '2');
+    expect(await controller.migrationDestinationIsCurrent(instanceId), isTrue);
+    api.reply = descriptor(spaceId, spaceId, signing.signingPublicKey, '2');
+    expect(await controller.migrationDestinationIsCurrent(instanceId), isFalse);
+    api.reply = descriptor(instanceId, instanceId, signing.signingPublicKey, '2');
+    expect(await controller.migrationDestinationIsCurrent(instanceId), isFalse);
+    api.reply = descriptor(instanceId, spaceId, replacement.signingPublicKey, '2');
+    expect(await controller.migrationDestinationIsCurrent(instanceId), isFalse);
   });
 
   Future<void> pumpScreen(
@@ -330,6 +378,15 @@ void main() {
     );
     expect(find.byKey(const ValueKey('migration_unlock')), findsNothing);
   });
+}
+
+class _MigrationInstanceApi extends ApiClient {
+  _MigrationInstanceApi(this.reply) : super(baseUrl: 'https://migration.example.test');
+
+  InstanceInfo reply;
+
+  @override
+  Future<InstanceInfo> fetchInstance() async => reply;
 }
 
 class _StubLocalProfileCatalog implements LocalProfileCatalog {

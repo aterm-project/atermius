@@ -22242,6 +22242,18 @@ abstract class AppLocalizations {
   /// **'Lock'**
   String get lock;
 
+  /// No description provided for @importLocalVaultToServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Import LocalVault to server'**
+  String get importLocalVaultToServer;
+
+  /// No description provided for @localImportServerChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The server identity or your sign-in session changed. Reconnect and sign in before importing.'**
+  String get localImportServerChanged;
+
   /// No description provided for @migrateLocalProfiles.
   ///
   /// In en, this message translates to:

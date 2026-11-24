@@ -13335,6 +13335,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get lock => 'ロック';
 
   @override
+  String get importLocalVaultToServer => 'LocalVault をサーバーにインポート';
+
+  @override
+  String get localImportServerChanged =>
+      'サーバーの識別情報またはサインインセッションが変わりました。再接続してサインインしてからインポートしてください。';
+
+  @override
   String get migrateLocalProfiles => 'ローカルプロファイルを移行';
 
   @override

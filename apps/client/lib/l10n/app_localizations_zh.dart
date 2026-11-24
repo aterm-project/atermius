@@ -12567,6 +12567,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lock => '锁定';
 
   @override
+  String get importLocalVaultToServer => '导入本地 Vault 到服务器';
+
+  @override
+  String get localImportServerChanged => '服务器身份或登录会话已变更。请重新连接并登录后再导入。';
+
+  @override
   String get migrateLocalProfiles => '迁移本地配置';
 
   @override

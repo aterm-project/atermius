@@ -2840,7 +2840,6 @@ class _SideNavigation extends StatelessWidget {
     // No Terminal destination: the terminal page is where sessions land
     // after a connect and is reached through the tab row, not the sidebar.
     _NavItem(WorkspacePage.sftp, Icons.folder_open_outlined, _NavLabel.files),
-    _NavItem(WorkspacePage.sync, Icons.sync_rounded, _NavLabel.sync),
     _NavItem(WorkspacePage.audit, Icons.history_rounded, _NavLabel.audit),
     _NavItem(WorkspacePage.devices, Icons.devices_outlined, _NavLabel.devices),
     _NavItem(WorkspacePage.settings, Icons.settings_outlined, _NavLabel.settings),
@@ -2990,7 +2989,10 @@ class _SideNavigation extends StatelessWidget {
               ),
               children: [
                 ...items.map((item) {
-                final selected = app.page == item.page;
+                final selected =
+                    app.page == item.page ||
+                    (app.page == WorkspacePage.sync &&
+                        item.page == WorkspacePage.settings);
                 return Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: itemInset,
@@ -3058,9 +3060,6 @@ class _SideNavigation extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              if (item.page == WorkspacePage.sync &&
-                                  app.unresolvedConflictCount > 0)
-                                _CountBadge(count: app.unresolvedConflictCount),
                             ],
                           ],
                         ),
@@ -3382,7 +3381,6 @@ enum _NavLabel {
   snippets,
   workspaces,
   files,
-  sync,
   audit,
   devices,
   settings,
@@ -3417,7 +3415,6 @@ class _NavItem {
     _NavLabel.snippets => l10n.r7NavSnippets,
     _NavLabel.workspaces => l10n.workspaceLayouts,
     _NavLabel.files => l10n.files,
-    _NavLabel.sync => l10n.syncAndConflicts,
     _NavLabel.audit => l10n.auditLog2,
     _NavLabel.devices => l10n.devices,
     _NavLabel.settings => l10n.settings,
@@ -3487,6 +3484,7 @@ bool _cloudNavItemAvailable(
 /// Pages that do not need an open Vault.
 bool _pageWorksWithoutVault(WorkspacePage page) =>
     page == WorkspacePage.settings ||
+    page == WorkspacePage.sync ||
     page == WorkspacePage.devices ||
     page == WorkspacePage.admin;
 
@@ -3550,23 +3548,6 @@ Color _syncColor(BuildContext context, String status) => switch (status) {
   'revoked' || 'auth_required' || 'error' => context.palette.red,
   _ => context.palette.orange,
 };
-
-class _CountBadge extends StatelessWidget {
-  const _CountBadge({required this.count});
-  final int count;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-    decoration: BoxDecoration(
-      color: context.palette.orange.withValues(alpha: .15),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Text(
-      '$count',
-      style: TextStyle(fontSize: 10, color: context.palette.orange),
-    ),
-  );
-}
 
 class _WorkspacePage extends StatelessWidget {
   const _WorkspacePage({
@@ -3690,11 +3671,11 @@ class _WorkspacePage extends StatelessWidget {
             enableWebCommandSuggestionsForTesting,
       ),
       WorkspacePage.sftp => _SftpPage(app: app, fileTabs: fileTabs),
-      WorkspacePage.sync => _SyncPage(app: app),
       WorkspacePage.audit => _AuditPage(app: app),
       WorkspacePage.devices => _DevicesPage(app: app),
-      WorkspacePage.settings => _SettingsPage(
+      WorkspacePage.settings || WorkspacePage.sync => _SettingsPage(
         app: app,
+        sectionToOpen: _shownPage == WorkspacePage.sync ? 'sync' : null,
         onOpenLocalMigration: onOpenLocalMigration,
         webAppUpdateMonitor: webAppUpdateMonitor,
         onArchiveExportStarting: onArchiveExportStarting,
@@ -14589,9 +14570,31 @@ class _SftpPage extends StatelessWidget {
   }
 }
 
-class _SyncPage extends StatelessWidget {
-  const _SyncPage({required this.app});
+class _SyncSettingsSection extends StatelessWidget {
+  const _SyncSettingsSection({required this.app, this.onOpenLocalMigration});
+
   final AppController app;
+  final Future<void> Function(BuildContext context)? onOpenLocalMigration;
+
+  Widget _localVaultImport(
+    BuildContext context,
+    Future<void> Function(BuildContext) openMigration,
+  ) => PagePanel(
+    icon: Icons.upload_rounded,
+    title: context.l10n.localOnlyProfiles,
+    subtitle: context.l10n.moveEncryptedLocalHostsCredentialsGroups,
+    children: [
+      Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: OutlinedButton.icon(
+          key: const ValueKey('local_to_sync_migration_open'),
+          onPressed: () => openMigration(context),
+          icon: const Icon(Icons.upload_rounded),
+          label: Text(context.l10n.importLocalVaultToServer),
+        ),
+      ),
+    ],
+  );
 
   Future<void> _exportAnonymousDiagnostics(BuildContext context) async {
     try {
@@ -14953,76 +14956,80 @@ class _SyncPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final openMigration = onOpenLocalMigration;
+    if (app.activeVault == null) {
+      return openMigration == null
+          ? const SizedBox.shrink()
+          : _localVaultImport(context, openMigration);
+    }
+
     final lastSync = app.lastSuccessfulSyncAt?.toLocal();
     final notices = _notices(context);
-    return SingleChildScrollView(
-      padding: AppDensity.of(context).pagePadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _PageHeading(
-            title: context.l10n.syncHealth,
-            subtitle: context.l10n.encryptedRecordsImmutableRetriesAndRecovery,
-          ),
-          const SizedBox(height: 18),
-          RelativeTimeTicker(
-            builder: (context, now) => StatusHero(
-              icon: _syncIcon(app.syncStatus),
-              tone: _syncColor(context, app.syncStatus),
-              busy: app.syncing || app.snapshotRecoveryActive,
-              overline: context.l10n.syncStatus,
-              title: _title(context),
-              description: _summary(context),
-              facts: [
-                if (!_syncIssueIsNone(app.syncStatus))
-                  HeroFact(
-                    icon: Icons.report_gmailerrorred_outlined,
-                    label: context.l10n.issueCategory,
-                    value: _syncIssueCategoryLabel(app.syncStatus),
-                    tone: _syncColor(context, app.syncStatus),
-                  ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(title: context.l10n.syncHealth),
+        RelativeTimeTicker(
+          builder: (context, now) => StatusHero(
+            icon: _syncIcon(app.syncStatus),
+            tone: _syncColor(context, app.syncStatus),
+            busy: app.syncing || app.snapshotRecoveryActive,
+            overline: context.l10n.syncStatus,
+            title: _title(context),
+            description: _summary(context),
+            facts: [
+              if (!_syncIssueIsNone(app.syncStatus))
                 HeroFact(
-                  icon: Icons.history_rounded,
-                  label: context.l10n.lastSuccessfulSync,
-                  value: lastSync == null
-                      ? context.l10n.syncSettingsNever
-                      : _syncRelativeTime(context, lastSync, now),
-                  tooltip: lastSync == null
-                      ? null
-                      : DateFormat.yMMMd().add_jm().format(lastSync),
+                  icon: Icons.report_gmailerrorred_outlined,
+                  label: context.l10n.issueCategory,
+                  value: _syncIssueCategoryLabel(app.syncStatus),
+                  tone: _syncColor(context, app.syncStatus),
                 ),
-              ],
-              actions: _actions(context),
-            ),
+              HeroFact(
+                icon: Icons.history_rounded,
+                label: context.l10n.lastSuccessfulSync,
+                value: lastSync == null
+                    ? context.l10n.syncSettingsNever
+                    : _syncRelativeTime(context, lastSync, now),
+                tooltip: lastSync == null
+                    ? null
+                    : DateFormat.yMMMd().add_jm().format(lastSync),
+              ),
+            ],
+            actions: _actions(context),
           ),
-          for (final notice in notices) ...[const SizedBox(height: 10), notice],
+        ),
+        for (final notice in notices) ...[const SizedBox(height: 10), notice],
+        const SizedBox(height: 14),
+        _metrics(context),
+        if (openMigration != null) ...[
           const SizedBox(height: 14),
-          _metrics(context),
-          const SizedBox(height: 26),
-          LayoutBuilder(
-            builder: (context, box) {
-              if (box.maxWidth < 1000) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _conflicts(context),
-                    const SizedBox(height: 26),
-                    _details(context),
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          _localVaultImport(context, openMigration),
+        ],
+        const SizedBox(height: 26),
+        LayoutBuilder(
+          builder: (context, box) {
+            if (box.maxWidth < 1000) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(flex: 7, child: _conflicts(context)),
-                  const SizedBox(width: 20),
-                  Expanded(flex: 5, child: _details(context)),
+                  _conflicts(context),
+                  const SizedBox(height: 26),
+                  _details(context),
                 ],
               );
-            },
-          ),
-        ],
-      ),
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 7, child: _conflicts(context)),
+                const SizedBox(width: 20),
+                Expanded(flex: 5, child: _details(context)),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 }
@@ -18655,12 +18662,14 @@ class _MobilePushSettingsCard extends StatelessWidget {
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.app,
+    this.sectionToOpen,
     this.onOpenLocalMigration,
     this.webAppUpdateMonitor,
     this.onArchiveExportStarting,
     this.onArchiveExport,
   });
   final AppController app;
+  final String? sectionToOpen;
   final Future<void> Function(BuildContext context)? onOpenLocalMigration;
   final WebAppUpdateMonitor? webAppUpdateMonitor;
   final Future<void> Function()? onArchiveExportStarting;
@@ -18673,6 +18682,7 @@ class _SettingsPage extends StatelessWidget {
     // in its own page: see [_adminPanelSections].
     return SettingsScaffold(
       key: const ValueKey('cloud_settings'),
+      sectionToOpen: sectionToOpen,
       sections: [
         SettingsSection(
           id: 'workspace',
@@ -18718,6 +18728,20 @@ class _SettingsPage extends StatelessWidget {
                 : null,
           ),
         ),
+        if (app.activeVault != null || onOpenLocalMigration != null)
+          SettingsSection(
+            id: 'sync',
+            title: context.l10n.syncAndConflicts,
+            icon: Icons.sync_rounded,
+            description: app.activeVault == null
+                ? ''
+                : context.l10n.encryptedRecordsImmutableRetriesAndRecovery,
+            wide: true,
+            builder: (_) => _SyncSettingsSection(
+              app: app,
+              onOpenLocalMigration: onOpenLocalMigration,
+            ),
+          ),
         SettingsSection(
           id: 'mcp',
           title: 'AI / MCP',
@@ -18886,54 +18910,16 @@ class _SettingsPage extends StatelessWidget {
             ),
           ),
         ),
-        if (app.activeVault != null || onOpenLocalMigration != null)
+        if (app.activeVault != null)
           SettingsSection(
             id: 'data',
             title: context.l10n.dataAndMigration,
             icon: Icons.import_export,
             description: context.l10n.importAndExportEncryptedArchivesOr,
-            builder: (context) => SettingsCards(
-              children: [
-                if (app.activeVault != null)
-                  _VaultArchivePanel(
-                    app: app,
-                    onExportStarting: onArchiveExportStarting,
-                    onExported: onArchiveExport,
-                  ),
-                if (onOpenLocalMigration != null) ...[
-                  const SizedBox(height: 13),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(17),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.l10n.localOnlyProfiles,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 7),
-                          Text(
-                            context.l10n.moveEncryptedLocalHostsCredentialsGroups,
-                            style: TextStyle(
-                              color: context.palette.muted,
-                              height: 1.45,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 11),
-                          OutlinedButton.icon(
-                            key: const ValueKey('local_to_sync_migration_open'),
-                            onPressed: () => onOpenLocalMigration!(context),
-                            icon: const Icon(Icons.sync_alt_rounded),
-                            label: Text(context.l10n.reviewLocalProfileMigration),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+            builder: (_) => _VaultArchivePanel(
+              app: app,
+              onExportStarting: onArchiveExportStarting,
+              onExported: onArchiveExport,
             ),
           ),
         if (app.activeVault != null)

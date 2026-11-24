@@ -16,6 +16,7 @@ import 'package:aterm_client/ui/remote_file_workspace.dart';
 import 'package:aterm_client/ui/group_session_layout.dart';
 import 'package:aterm_client/ui/session_workspace.dart';
 import 'package:aterm_client/ui/host_system_icon.dart';
+import 'package:aterm_client/ui/settings_scaffold.dart';
 import 'package:aterm_client/ui/workspace_tab_bar.dart';
 import 'package:aterm_client/ui/workspace_controls.dart';
 import 'package:aterm_client/ui/terminal_tools_sidebar.dart';
@@ -28,6 +29,8 @@ import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
+
+import 'support/settings_navigation.dart';
 
 const _vault = '11111111-1111-4111-8111-111111111111';
 const _a = HostRecord(
@@ -108,9 +111,17 @@ void main() {
     'cloud functions stay in top tabs without duplicate page header',
     (tester) async {
       final fixture = await _fixture();
+      var migrationOpens = 0;
       try {
         await tester.binding.setSurfaceSize(const Size(1280, 900));
-        await tester.pumpWidget(_shell(fixture.app));
+        await tester.pumpWidget(
+          _shell(
+            fixture.app,
+            onOpenLocalMigration: (_) async {
+              migrationOpens++;
+            },
+          ),
+        );
         await tester.pumpAndSettle();
         expect(find.text('Hosts'), findsOneWidget); // Top Host menu only.
         expect(find.byType(ChoiceChip), findsNothing);
@@ -139,11 +150,75 @@ void main() {
         ]) {
           expect(find.byKey(ValueKey(key)), findsOneWidget);
         }
+        expect(
+          find.byKey(const ValueKey('cloud_import_local_vault')),
+          findsNothing,
+        );
+        expect(find.byKey(const ValueKey('cloud-page-sync')), findsNothing);
+        expect(find.byKey(const ValueKey('home_nav_sync')), findsNothing);
+
+        await tester.tap(find.byKey(const ValueKey('cloud-page-settings')));
+        await tester.pumpAndSettle();
+        await openSettingsCategory(tester, 'sync');
+        final import = find.byKey(const ValueKey('local_to_sync_migration_open'));
+        expect(find.text('Sync health'), findsOneWidget);
+        expect(find.text('Import LocalVault to server'), findsOneWidget);
+        await tester.ensureVisible(import);
+        await tester.tap(import);
+        await tester.pumpAndSettle();
+        expect(migrationOpens, 1);
+
+        await openSettingsCategory(tester, 'data');
+        expect(import, findsNothing);
+
+        fixture.app.showWorkspacePage(WorkspacePage.sync);
+        await tester.pumpAndSettle();
+        expect(import, findsOneWidget);
+        SettingsScaffold.requestSection('data');
+        fixture.app.showWorkspacePage(WorkspacePage.settings);
+        await tester.pumpAndSettle();
+        expect(import, findsNothing);
       } finally {
         await _cleanup(tester, fixture);
       }
     },
   );
+
+  for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+    testWidgets('Settings can import before a Vault is open on $platform', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = platform;
+      final fixture = await _fixture();
+      fixture.app.activeVault = null;
+      var migrationOpens = 0;
+      try {
+        await tester.binding.setSurfaceSize(const Size(390, 844));
+        await tester.pumpWidget(
+          _shell(
+            fixture.app,
+            onOpenLocalMigration: (_) async {
+              migrationOpens++;
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('home_nav_settings')));
+        await tester.pumpAndSettle();
+        await openSettingsCategory(tester, 'sync');
+
+        final import = find.byKey(const ValueKey('local_to_sync_migration_open'));
+        expect(import, findsOneWidget);
+        expect(find.text('Sync now'), findsNothing);
+        await tester.tap(import);
+        expect(migrationOpens, 1);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await _cleanup(tester, fixture);
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+  }
 
   testWidgets(
     'cloud file drag, split menus, duplication and Windows footer work together',
@@ -678,9 +753,17 @@ void main() {
   );
 }
 
-Widget _shell(AppController app, {FilesWindowLaunch? launch}) => MaterialApp(
+Widget _shell(
+  AppController app, {
+  FilesWindowLaunch? launch,
+  Future<void> Function(BuildContext)? onOpenLocalMigration,
+}) => MaterialApp(
   theme: buildAppTheme(),
-  home: AppShell(controller: app, filesLaunch: launch),
+  home: AppShell(
+    controller: app,
+    filesLaunch: launch,
+    onOpenLocalMigration: onOpenLocalMigration,
+  ),
 );
 
 class _Fixture {

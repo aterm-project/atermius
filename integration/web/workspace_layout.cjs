@@ -2046,22 +2046,8 @@ async function clickNestedSidebarConnectAction(page, action) {
 }
 
 async function clickConflictInbox(page) {
-  const navigation = page.getByRole('button', {
-    name: /^Sync & conflicts(?:\s+\d+)?$/,
-  });
-  const deadline = Date.now() + 15000;
-  while (Date.now() < deadline) {
-    const count = await navigation.count();
-    for (let index = 0; index < count; index += 1) {
-      const candidate = navigation.nth(index);
-      if (await candidate.isVisible().catch(() => false)) {
-        await candidate.click();
-        return;
-      }
-    }
-    await page.waitForTimeout(100);
-  }
-  throw new Error('visible Sync & conflicts navigation button not found');
+  await openWorkspaceNavigation(page, /^(Settings|设置)$/);
+  await openWorkspaceNavigation(page, /^(Sync and conflicts|同步与冲突)$/);
 }
 
 async function field(page, label) {
@@ -3969,7 +3955,7 @@ async function syncNow(page, syncLabel = 'encrypted sync', {
   stage = `locate ${syncLabel} sync control`;
   const originPath = new URL(page.url()).pathname;
   if (originPath !== '/sync') {
-    await openWorkspaceNavigation(page, 'Sync and conflicts');
+    await clickConflictInbox(page);
   }
   const control = page.getByRole('button', { name: 'Sync now', exact: true });
   const controlReady = async () =>
@@ -8867,7 +8853,7 @@ async function main() {
         if (current) commitDelta = (BigInt(current.commitSeq) - BigInt(baselineCommitSeq)).toString();
       } catch (_) {}
       try {
-        await openWorkspaceNavigation(pageA, 'Sync and conflicts');
+        await clickConflictInbox(pageA);
         await waitForText(pageA, 'Offline-first, ciphertext-only', 5000);
         syncPageOpened = true;
         unsupportedRecordVisible = await pageA.getByText(
@@ -9102,7 +9088,7 @@ async function main() {
 
     stage = 'Profile A receives opaque Workspace conflict feed';
     await syncNow(pageA, 'Profile A pulls Workspace conflict feed', { forcePull: true });
-    stage = 'Profile A opens Sync & conflicts with any unread badge';
+    stage = 'Profile A opens Sync and conflicts in Settings';
     await clickConflictInbox(pageA);
     stage = 'Profile A sees Workspace conflict inbox';
     await waitForText(pageA, '跨设备冲突收件箱');

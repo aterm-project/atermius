@@ -14225,6 +14225,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get lock => 'Заблокировать';
 
   @override
+  String get importLocalVaultToServer => 'Импортировать LocalVault на сервер';
+
+  @override
+  String get localImportServerChanged =>
+      'Идентификатор сервера или сеанс входа изменился. Подключитесь и войдите снова перед импортом.';
+
+  @override
   String get migrateLocalProfiles => 'Перенос локальных профилей';
 
   @override

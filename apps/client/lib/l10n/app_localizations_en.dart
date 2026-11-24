@@ -14202,6 +14202,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lock => 'Lock';
 
   @override
+  String get importLocalVaultToServer => 'Import LocalVault to server';
+
+  @override
+  String get localImportServerChanged =>
+      'The server identity or your sign-in session changed. Reconnect and sign in before importing.';
+
+  @override
   String get migrateLocalProfiles => 'Migrate local profiles';
 
   @override

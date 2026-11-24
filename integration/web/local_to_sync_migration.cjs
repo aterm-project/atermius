@@ -2331,8 +2331,8 @@ async function main() {
 
     setStage('open LocalVault migration from authenticated server settings');
     await click(page, 'Settings');
-    await visibleText(page, 'Review local profile migration');
-    await click(page, 'Review local profile migration');
+    await click(page, 'Sync and conflicts');
+    await click(page, 'Import LocalVault to server');
     await visibleText(page, 'Move local encrypted records to a new sync Vault');
     await fill(page, 'Local profile password', LOCAL_PASSWORD);
     await click(page, 'Unlock and validate');
@@ -2889,8 +2889,8 @@ async function main() {
     if (!migrationScreenReady) {
       await (await button(page, 'Settings')).waitFor({ state: 'visible', timeout: 60000 });
       await click(page, 'Settings');
-      await visibleText(page, 'Review local profile migration');
-      await click(page, 'Review local profile migration');
+      await click(page, 'Sync and conflicts');
+      await click(page, 'Import LocalVault to server');
       migrationScreenReady = await visibleTextEvidence(
         page, 'Move local encrypted records to a new sync Vault', 30000,
       );
@@ -3321,8 +3321,9 @@ async function main() {
     reportBoolean('second_device_automatic_target_pull_completed',
       automaticTargetChanges.statusCodes.includes(200));
     let receivedOpaqueBatch = automaticTargetChanges.completeOpaqueBatch;
-    setStage('open second-device Sync & conflicts page');
-    await click(secondPage, 'Sync & conflicts');
+    setStage('open Sync and conflicts in second-device settings');
+    await click(secondPage, 'Settings');
+    await click(secondPage, 'Sync and conflicts');
     setStage('wait for second-device sync status');
     await visibleText(secondPage, 'Sync health');
     setStage('record target pulls that started before explicit sync');

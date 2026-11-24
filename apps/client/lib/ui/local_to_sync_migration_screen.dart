@@ -347,7 +347,8 @@ class _LocalToSyncMigrationScreenState
 
   Future<void> _startMigration() async {
     final repository = _repository;
-    final instanceId = widget.controller.instance?.instanceId;
+    final controller = widget.controller;
+    final instanceId = controller.instance?.instanceId;
     if (_storageRecoveryRequired || _busy || repository == null) return;
     if (instanceId == null) {
       setState(() => _error = context.l10n.theSyncServiceIdentityIsntVerified);
@@ -358,6 +359,7 @@ class _LocalToSyncMigrationScreenState
       setState(() => _error = context.l10n.enterANameForTheNew);
       return;
     }
+    final authScope = controller.authScopeToken;
     setState(() {
       _busy = true;
       _error = null;
@@ -365,9 +367,23 @@ class _LocalToSyncMigrationScreenState
       _complete = false;
     });
     try {
-      final prepared = await _runMigrationStep(
-        () => widget.controller.prepareMigrationVaultCreation(name),
+      final current = await _runMigrationStep(
+        () => controller.migrationDestinationIsCurrent(instanceId),
       );
+      if (!mounted) return;
+      final prepared = current
+          ? await _runMigrationStep(
+              () => controller.prepareMigrationVaultCreation(name),
+            )
+          : null;
+      if (!mounted) return;
+      if (prepared == null || controller.authScopeToken != authScope) {
+        setState(() {
+          _error = context.l10n.localImportServerChanged;
+          _status = null;
+        });
+        return;
+      }
       final migrationId = _migrationUuid.v4();
       final snapshot = await _runLocalStorageOperation(
         () => repository.prepareMigrationSnapshot(

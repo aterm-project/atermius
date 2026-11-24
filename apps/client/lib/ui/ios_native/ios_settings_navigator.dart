@@ -111,7 +111,7 @@ class _IosSettingsRootPage extends StatelessWidget {
     List<SettingsSection> all,
   ) {
     const bucketOrder = <Set<String>>[
-      {'account', 'workspace', 'vaults', 'security', 'trust'},
+      {'account', 'workspace', 'vaults', 'sync', 'security', 'trust'},
       {'appearance', 'wallpaper', 'terminal', 'shortcuts', 'remote-desktop'},
       {'mcp', 'notifications', 'logs', 'session-logs', 'session_logs'},
       {
@@ -169,7 +169,7 @@ class _IosSettingsRootPage extends StatelessWidget {
       'notifications' => colors.red,
       'logs' || 'session-logs' || 'session_logs' => colors.orange,
       'data' => colors.indigo,
-      'vaults' => colors.teal,
+      'vaults' || 'sync' => colors.teal,
       'trust' => colors.green,
       'security' => colors.red,
       'lock' || 'lock-profile' || 'lock_profile' => colors.red,

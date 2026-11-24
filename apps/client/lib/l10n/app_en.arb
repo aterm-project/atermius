@@ -10426,6 +10426,8 @@
   },
   "lock": "Lock",
   "@lock": {},
+  "importLocalVaultToServer": "Import LocalVault to server",
+  "localImportServerChanged": "The server identity or your sign-in session changed. Reconnect and sign in before importing.",
   "migrateLocalProfiles": "Migrate local profiles",
   "@migrateLocalProfiles": {},
   "migrationCompleted": "Migration completed",
