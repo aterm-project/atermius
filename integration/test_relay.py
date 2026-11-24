@@ -1,7 +1,9 @@
 """Black-box SSH relay acceptance against an isolated relay-enabled instance.
 
-All relay destinations are local to the test container.  The only TCP target is
-an echo listener bound to the container's non-loopback eth0 address.
+The only TCP target ever dialed is an echo listener bound to the container's
+non-loopback eth0 address (loopback is on Relay's fixed forbidden floor).
+Tickets for other open addresses are issued to prove they need no allowlist,
+but they are never redeemed, so nothing outside the container is contacted.
 """
 
 from __future__ import annotations
@@ -200,7 +202,7 @@ def _kill_process_group(process: subprocess.Popen[bytes] | None) -> None:
 
 @pytest.fixture
 def relay_world(tmp_path: Path, request: pytest.FixtureRequest):
-    """Start a fresh server with relay enabled and one strictly local target."""
+    """Start a fresh server with relay enabled and one local echo target."""
     cargo = shutil.which("cargo")
     if not cargo:
         pytest.skip("Cargo is required to launch the isolated Relay acceptance server")
@@ -224,11 +226,9 @@ def relay_world(tmp_path: Path, request: pytest.FixtureRequest):
             "ATERMIUS_DATA_DIR": str(data_dir),
             "ATERMIUS_DATABASE_URL": database_url,
             "ATERMIUS_REGISTRATION_OPEN": "false",
+            # Relay needs only the deployment gate and the public Origin; there
+            # is no destination allowlist beyond the fixed forbidden floor.
             "ATERMIUS_RELAY_ENABLED": "true",
-            # Include the metadata /32 in the disposable server policy to
-            # verify its explicit denylist, without ever dialing it.
-            "ATERMIUS_RELAY_ALLOW_CIDRS": f"{target_address}/32,100.100.100.200/32",
-            "ATERMIUS_RELAY_ALLOW_PORTS": str(echo.port),
             "ATERMIUS_PUBLIC_ORIGIN": base_url,
             "ATERMIUS_DEVICE_TRUSTED_PROXIES": "127.0.0.1/32",
             "CARGO_TERM_COLOR": "never",
@@ -606,7 +606,7 @@ def test_relay_ticket_target_origin_binary_replay_revoke_and_disconnect(relay_wo
     assert no_auth.status == 401 and _error_code(no_auth) in {"AUTH_REQUIRED", "UNAUTHENTICATED"}
 
     # The owner device is the only authenticated device; use a valid UUID so
-    # the policy reaches the session/device binding check.
+    # the request reaches the session/device binding check.
     wrong_device = api.request(
         "POST",
         "/api/v1/relay/tickets",
@@ -619,21 +619,58 @@ def test_relay_ticket_target_origin_binary_replay_revoke_and_disconnect(relay_wo
     )
     assert wrong_device.status == 403 and _error_code(wrong_device) == "DEVICE_REVOKED"
 
-    loopback = _issue_ticket(world, host="127.0.0.1")
-    assert loopback.status == 403 and _error_code(loopback) == "TARGET_DENIED"
-    out_of_allowlist = _issue_ticket(world, host="192.0.2.17", port=22)
-    assert out_of_allowlist.status == 403 and _error_code(out_of_allowlist) == "TARGET_DENIED"
-    out_of_port_allowlist = _issue_ticket(world, port=1 if world.echo.port != 1 else 2)
-    assert out_of_port_allowlist.status == 403 and _error_code(out_of_port_allowlist) == "TARGET_DENIED"
-    cloud_metadata = _issue_ticket(world, host="100.100.100.200", port=80)
-    assert cloud_metadata.status == 403 and _error_code(cloud_metadata) == "TARGET_DENIED"
+    # There is no destination allowlist, only a fixed forbidden floor:
+    # loopback, link-local, unspecified, multicast, broadcast, cloud metadata,
+    # and IPv4-mapped forms of those. Such literals never reach a dial.
+    for forbidden_host in (
+        "127.0.0.1",
+        "127.10.20.30",
+        "::1",
+        "0.0.0.0",
+        "::",
+        "169.254.169.254",
+        "169.254.10.20",
+        "fe80::1",
+        "100.100.100.200",
+        "fd00:ec2::254",
+        "224.0.0.1",
+        "ff02::1",
+        "255.255.255.255",
+        "::ffff:127.0.0.1",
+        "::ffff:169.254.169.254",
+    ):
+        denied = _issue_ticket(world, host=forbidden_host, port=22)
+        assert denied.status == 403 and _error_code(denied) == "TARGET_DENIED", forbidden_host
+        assert denied.json()["error"]["message"] == "target address is not allowed"
+    loopback_echo_port = _issue_ticket(world, host="127.0.0.1")
+    assert loopback_echo_port.status == 403 and _error_code(loopback_echo_port) == "TARGET_DENIED"
+
+    # Every other address and port needs no configuration: private, public
+    # documentation and IPv6 targets on arbitrary ports are all issued
+    # tickets. None of these tickets is redeemed, so nothing is dialed.
+    for open_host, open_port in (
+        ("10.20.30.40", 2222),
+        ("192.168.1.5", 22),
+        ("192.0.2.17", 22),
+        ("2001:db8::10", 65535),
+        (world.echo.address, 1 if world.echo.port != 1 else 2),
+    ):
+        allowed = _issue_ticket(world, host=open_host, port=open_port)
+        assert allowed.status == 200, f"open Relay target {open_host}:{open_port} returned HTTP {allowed.status}"
+    assert world.echo.accepted == 0
     zero_port = _issue_ticket(world, port=0)
     assert zero_port.status == 400 and _error_code(zero_port) == "INVALID_TARGET"
-    loopback_dns_host = _issue_ticket(world, host="localhost", port=22)
-    assert loopback_dns_host.status == 403 and _error_code(loopback_dns_host) == "TARGET_DENIED"
-    normalized_loopback_dns_host = _issue_ticket(world, host="LOCALHOST", port=22)
-    assert normalized_loopback_dns_host.status == 403
-    assert _error_code(normalized_loopback_dns_host) == "TARGET_DENIED"
+    # The resolver is queried with the absolute name `localhost.`. Where it
+    # answers, every answer is loopback and the name is denied; resolvers that
+    # only map the relative name fail resolution instead. Neither is dialed.
+    for loopback_name in ("localhost", "LOCALHOST"):
+        loopback_dns_host = _issue_ticket(world, host=loopback_name, port=22)
+        assert (
+            loopback_dns_host.status == 403 and _error_code(loopback_dns_host) == "TARGET_DENIED"
+        ) or (
+            loopback_dns_host.status == 502
+            and _error_code(loopback_dns_host) == "TARGET_RESOLUTION_FAILED"
+        ), f"{loopback_name} returned HTTP {loopback_dns_host.status}"
     invalid_dns_host = _issue_ticket(world, host="bad..hostname", port=22)
     assert invalid_dns_host.status == 400 and _error_code(invalid_dns_host) == "INVALID_TARGET"
     unicode_dns_host = _issue_ticket(world, host="bücher.example", port=22)
@@ -643,7 +680,8 @@ def test_relay_ticket_target_origin_binary_replay_revoke_and_disconnect(relay_wo
     untrusted_dns_name = f"atermius-no-such-host-{uuid.uuid4().hex}.invalid"
     untrusted_dns_target = _issue_ticket(world, host=untrusted_dns_name, port=22)
     # Some test-container resolvers synthesize an address for .invalid names.
-    # Either resolver failure or a resolved-but-disallowed candidate is safe;
+    # Resolver failure, a synthesized forbidden-floor address, or a
+    # synthesized ordinary address (now a valid open target) are all safe;
     # deterministic resolver unit tests pin the exact 502 cases.
     assert (
         untrusted_dns_target.status == 502
@@ -651,7 +689,7 @@ def test_relay_ticket_target_origin_binary_replay_revoke_and_disconnect(relay_wo
     ) or (
         untrusted_dns_target.status == 403
         and _error_code(untrusted_dns_target) == "TARGET_DENIED"
-    )
+    ) or untrusted_dns_target.status == 200
     assert untrusted_dns_name.encode("ascii") not in untrusted_dns_target.body, (
         "DNS errors must not echo the submitted hostname"
     )

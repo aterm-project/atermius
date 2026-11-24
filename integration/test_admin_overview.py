@@ -84,15 +84,14 @@ def test_admin_overview_requires_allowlisted_active_account_and_returns_aggregat
     assert body["counts"]["devices_active"] >= 2
     assert body["counts"]["vaults_active"] >= 2
     assert all(type(value) is int and value >= 0 for value in body["counts"].values())
-    assert set(body["relay"]) == {
-        "enabled",
-        "allow_cidrs",
-        "allow_ports",
-        "max_connections_per_user",
-    }
-    assert type(body["relay"]["enabled"]) is bool
-    assert isinstance(body["relay"]["allow_cidrs"], list)
-    assert isinstance(body["relay"]["allow_ports"], list)
+    # Relay has no destination policy any more: availability is the
+    # deployment gate plus a configured public Origin.
+    assert set(body["relay"]) == {"enabled", "max_connections_per_user"}
+    expected_relay = api.admin_env.get("ATERMIUS_RELAY_ENABLED") == "true" and bool(
+        api.admin_env.get("ATERMIUS_PUBLIC_ORIGIN")
+    )
+    assert body["relay"]["enabled"] is expected_relay
+    assert type(body["relay"]["max_connections_per_user"]) is int
     assert body["relay"]["max_connections_per_user"] > 0
     assert datetime.fromisoformat(body["generated_at"].replace("Z", "+00:00"))
 
@@ -102,3 +101,28 @@ def test_admin_overview_requires_allowlisted_active_account_and_returns_aggregat
     assert "vault_name" not in serialized
     assert "access_token" not in serialized
     assert "envelope" not in serialized
+
+
+def test_retired_relay_policy_and_group_admin_routes_are_unknown(api, account):
+    """The Relay policy/group admin APIs were removed; even an admin gets a JSON 404."""
+    group_id = str(uuid.uuid4())
+    user_id = str(uuid.uuid4())
+    for method, path in (
+        ("GET", "/api/v1/admin/relay-policy"),
+        ("PUT", "/api/v1/admin/relay-policy"),
+        ("GET", f"/api/v1/admin/relay-policy/users/{user_id}"),
+        ("PUT", f"/api/v1/admin/relay-policy/users/{user_id}"),
+        ("DELETE", f"/api/v1/admin/relay-policy/users/{user_id}"),
+        ("GET", "/api/v1/admin/relay-groups"),
+        ("POST", "/api/v1/admin/relay-groups"),
+        ("GET", f"/api/v1/admin/relay-groups/{group_id}"),
+        ("PUT", f"/api/v1/admin/relay-groups/{group_id}"),
+        ("DELETE", f"/api/v1/admin/relay-groups/{group_id}"),
+        ("PUT", f"/api/v1/admin/relay-groups/{group_id}/members"),
+        ("GET", f"/api/v1/admin/relay-groups/{group_id}/relay-policy"),
+        ("PUT", f"/api/v1/admin/relay-groups/{group_id}/relay-policy"),
+        ("DELETE", f"/api/v1/admin/relay-groups/{group_id}/relay-policy"),
+    ):
+        response = api.request(method, path, token=account["access_token"])
+        assert response.status == 404, f"{method} {path} returned HTTP {response.status}"
+        assert _error_code(response) == "NOT_FOUND", f"{method} {path}"

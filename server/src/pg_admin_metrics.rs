@@ -70,12 +70,6 @@ pub(crate) async fn snapshot_tx(
     .await
     .map_err(ApiError::internal)?;
 
-    let relay = crate::pg_relay::overview_tx(tx, state).await?;
-    let relay_enabled = relay
-        .get("enabled")
-        .and_then(serde_json::Value::as_bool)
-        .ok_or_else(|| ApiError::internal("PostgreSQL Relay overview has invalid enabled field"))?;
-
     Ok(PgAdminMetricsSnapshot {
         accounts_active: counts.get("accounts_active"),
         accounts_deleting: counts.get("accounts_deleting"),
@@ -89,7 +83,7 @@ pub(crate) async fn snapshot_tx(
         object_delete_retry_wait: counts.get("object_delete_retry_wait"),
         object_delete_quarantined: counts.get("object_delete_quarantined"),
         vault_quota_bytes: counts.get("vault_quota_bytes"),
-        relay_enabled,
+        relay_enabled: crate::relay::relay_available(state),
         backup_last_success_timestamp_seconds: counts.get("backup_last_success_timestamp_seconds"),
     })
 }
@@ -244,7 +238,6 @@ mod tests {
 
     use futures_util::FutureExt;
     use hmac::{Hmac, Mac};
-    use ipnet::IpNet;
     use sha2::Sha256;
     use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
     use uuid::Uuid;
@@ -386,8 +379,6 @@ mod tests {
             guacd_address: None,
             relay_enabled: true,
             terminal_collaboration_enabled: false,
-            relay_allow_cidrs: vec!["127.0.0.1/32".parse::<IpNet>().unwrap()],
-            relay_allow_ports: vec![22],
             relay_max_connections_per_user: 4,
             public_origin: Some("https://relay.example.test".to_owned()),
             web_dir: None,
@@ -425,9 +416,6 @@ mod tests {
              CREATE TABLE instance_admin_jobs( \
                job_id TEXT PRIMARY KEY,action TEXT NOT NULL,status TEXT NOT NULL, \
                result_code TEXT,finished_at TIMESTAMPTZ); \
-             CREATE TABLE instance_relay_policy( \
-               policy_id SMALLINT PRIMARY KEY,enabled BOOLEAN NOT NULL,allow_cidrs TEXT NOT NULL, \
-               allow_ports TEXT NOT NULL,revision BIGINT NOT NULL,updated_at TIMESTAMPTZ NOT NULL); \
              INSERT INTO users(user_id,status) VALUES \
                ('user-active-1','active'),('user-active-2','active'), \
                ('user-deleting','deleting'),('user-disabled','disabled'); \
@@ -457,10 +445,7 @@ mod tests {
                ('backup-latest','backup','succeeded','completed','2026-08-05T12:34:56.987Z'), \
                ('backup-failed-later','backup','failed','backup_failed','2026-09-01T12:00:00Z'), \
                ('maintenance-later','maintenance','succeeded','completed','2026-10-01T12:00:00Z'), \
-               ('restore-later','restore','succeeded','completed','2026-10-02T12:00:00Z'); \
-             INSERT INTO instance_relay_policy( \
-               policy_id,enabled,allow_cidrs,allow_ports,revision,updated_at) \
-             VALUES(1,TRUE,'[\"127.0.0.1/32\"]','[22]',1,clock_timestamp());",
+               ('restore-later','restore','succeeded','completed','2026-10-02T12:00:00Z');",
         )
         .execute(pool)
         .await
@@ -591,7 +576,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "real PostgreSQL metrics snapshot acceptance; requires ATERMIUS_TEST_PG_URL for a disposable database"]
-    async fn postgres_metrics_snapshot_uses_fixed_shared_aggregates_and_relay_policy() {
+    async fn postgres_metrics_snapshot_uses_fixed_shared_aggregates_and_relay_availability() {
         let database = TestDatabase::create().await;
         create_snapshot_schema(&database.pool_a).await;
         let (mut state, data_dir) = sqlite_app_state().await;

@@ -43,37 +43,6 @@ BODY_CONTRACTS: dict[tuple[str, str], tuple[str, set[str]]] = {
     ("/admin/accounts/{user_id}/status", "put"): ("application/json", {"status"}),
     ("/admin/account-invitations", "post"): ("application/json", {"username"}),
     ("/admin/vaults/{vault_id}/quota", "put"): ("application/json", {"quota_bytes"}),
-    ("/admin/relay-policy", "put"): (
-        "application/json",
-        {"expected_revision", "enabled", "allow_cidrs", "allow_ports"},
-    ),
-    ("/admin/relay-groups", "post"): ("application/json", {"name"}),
-    ("/admin/relay-groups/{group_id}", "put"): (
-        "application/json",
-        {"expected_revision", "name"},
-    ),
-    ("/admin/relay-groups/{group_id}", "delete"): (
-        "application/json",
-        {"expected_revision"},
-    ),
-    ("/admin/relay-groups/{group_id}/members", "put"): (
-        "application/json",
-        {"expected_revision", "user_ids"},
-    ),
-    ("/admin/relay-groups/{group_id}/relay-policy", "put"): (
-        "application/json",
-        {
-            "expected_revision",
-            "expected_instance_policy_revision",
-            "enabled",
-            "allow_cidrs",
-            "allow_ports",
-        },
-    ),
-    ("/admin/relay-groups/{group_id}/relay-policy", "delete"): (
-        "application/json",
-        {"expected_revision"},
-    ),
     ("/vaults", "post"): ("application/json", {"vault_id", "name_envelope", "key_envelope", "membership"}),
     ("/vaults/{vault_id}/invitations", "post"): (
         "application/json",
@@ -688,201 +657,45 @@ def test_relay_ticket_contract_supports_bounded_dns_and_pinned_targets() -> None
     ):
         assert phrase in description
     assert "target_resolution_failed" in API_CONTRACT.lower()
-    assert "group-specific network rules remain unimplemented" in API_CONTRACT.lower()
 
 
-def test_admin_relay_policy_is_strict_versioned_and_deployment_bounded() -> None:
-    path_item = OPENAPI["paths"]["/admin/relay-policy"]
-    request_schema = resolve_schema(
-        path_item["put"]["requestBody"]["content"]["application/json"]["schema"]
-    )
-    assert request_schema["additionalProperties"] is False
-    assert set(request_schema["required"]) == {
-        "expected_revision",
-        "enabled",
-        "allow_cidrs",
-        "allow_ports",
-    }
-    assert set(request_schema["properties"]) == set(request_schema["required"])
-    assert request_schema["properties"]["expected_revision"]["minimum"] == 0
-    assert "409" in path_item["put"]["responses"]
-    assert "RELAY_POLICY_CONFLICT" in path_item["put"]["responses"]["409"]["description"]
-    assert "422" in path_item["put"]["responses"]
-    assert "RELAY_POLICY_UNAVAILABLE" in path_item["put"]["responses"]["422"]["description"]
-    assert "RELAY_POLICY_OUTSIDE_LIMITS" in path_item["put"]["responses"]["422"]["description"]
-    assert request_schema["properties"]["allow_cidrs"]["maxItems"] == 256
-    assert request_schema["properties"]["allow_cidrs"]["items"]["maxLength"] == 64
-    assert request_schema["properties"]["allow_ports"]["maxItems"] == 4096
-
-    for method in ("get", "put"):
-        response = path_item[method]["responses"]["200"]["content"]["application/json"]["schema"]
-        schema = resolve_schema(response)
-        assert schema["additionalProperties"] is False
-        assert set(schema["required"]) == {
-            "policy",
-            "deployment_limits",
-            "max_connections_per_user",
-            "revision",
-            "updated_at",
-        }
-        assert resolve_schema(schema["properties"]["policy"])["additionalProperties"] is False
-        limits = resolve_schema(schema["properties"]["deployment_limits"])
-        assert limits["additionalProperties"] is False
-        assert set(limits["required"]) == {"relay_available", "allow_cidrs", "allow_ports"}
-        assert "deployment" in path_item[method]["description"].lower()
-
-
-def test_admin_relay_user_policy_is_strict_cas_and_intersection_bounded() -> None:
-    path_item = OPENAPI["paths"]["/admin/relay-policy/users/{user_id}"]
-    assert path_item["parameters"] == [
-        {
-            "name": "user_id",
-            "in": "path",
-            "required": True,
-            "description": "Account UUID selected by an authenticated instance administrator; ticket requests cannot select their authorization identity.",
-            "schema": {"type": "string", "format": "uuid"},
-        }
-    ]
-    request_schema = resolve_schema(
-        path_item["put"]["requestBody"]["content"]["application/json"]["schema"]
-    )
-    assert request_schema["additionalProperties"] is False
-    assert set(request_schema["required"]) == {
-        "expected_revision",
-        "expected_instance_policy_revision",
-        "enabled",
-        "allow_cidrs",
-        "allow_ports",
-    }
-    assert set(request_schema["properties"]) == set(request_schema["required"])
-    assert request_schema["properties"]["expected_revision"]["minimum"] == 0
-    assert request_schema["properties"]["expected_instance_policy_revision"]["minimum"] == 0
-    assert request_schema["properties"]["expected_instance_policy_revision"]["format"] == "int64"
-    assert request_schema["properties"]["allow_cidrs"]["maxItems"] == 256
-    assert request_schema["properties"]["allow_ports"]["maxItems"] == 4096
-
-    for method in ("get", "put", "delete"):
-        operation = path_item[method]
-        response_schema = resolve_schema(
-            operation["responses"]["200"]["content"]["application/json"]["schema"]
-        )
-        assert response_schema["additionalProperties"] is False
-        assert set(response_schema["required"]) == {
-            "user_id",
-            "inherited",
-            "policy",
-            "effective_policy",
-            "instance_policy_revision",
-            "revision",
-            "updated_at",
-        }
-        assert "401" in operation["responses"] and "403" in operation["responses"]
-        assert "RELAY_USER_NOT_FOUND" in operation["responses"]["404"]["description"]
-
-    reset_schema = resolve_schema(
-        path_item["delete"]["requestBody"]["content"]["application/json"]["schema"]
-    )
-    assert reset_schema["additionalProperties"] is False
-    assert reset_schema["required"] == ["expected_revision"]
-    assert set(reset_schema["properties"]) == {"expected_revision"}
-    assert "follows later instance policy changes" in path_item["delete"]["description"]
-    assert "revision watermark" in path_item["delete"]["description"]
-    assert "revokes the target account's unused tickets atomically" in path_item["delete"]["description"]
-    assert "409" in path_item["delete"]["responses"]
-    assert "RELAY_USER_POLICY_CONFLICT" in path_item["delete"]["responses"]["409"]["description"]
-
-    assert "409" in path_item["put"]["responses"]
-    assert "RELAY_USER_POLICY_CONFLICT" in path_item["put"]["responses"]["409"]["description"]
-    assert "expected_instance_policy_revision" in path_item["put"]["responses"]["409"]["description"]
-    assert "422" in path_item["put"]["responses"]
-    assert "RELAY_USER_POLICY_OUTSIDE_LIMITS" in path_item["put"]["responses"]["422"]["description"]
-    effective = resolve_schema(
-        resolve_schema(path_item["get"]["responses"]["200"]["content"]["application/json"]["schema"])
-        ["properties"]["effective_policy"]
-    )
-    assert set(effective["required"]) == {"enabled", "allow_cidrs", "allow_ports"}
-
-
-def test_admin_relay_groups_have_independent_cas_and_server_authoritative_acl_contract() -> None:
+def test_relay_has_no_destination_policy_only_the_forbidden_address_floor() -> None:
     paths = OPENAPI["paths"]
-    list_path = paths["/admin/relay-groups"]
-    create_schema = resolve_schema(
-        list_path["post"]["requestBody"]["content"]["application/json"]["schema"]
-    )
-    assert create_schema["additionalProperties"] is False
-    assert create_schema["required"] == ["name"]
-    name = create_schema["properties"]["name"]
-    assert name["maxLength"] == 80 and name["x-maxUtf8Bytes"] == 320
-    assert "NFKC" in name["description"]
-    assert "case folding" in name["description"]
-    assert "client-owned encrypted Vault" in list_path["post"]["description"]
+    for retired in (
+        "/admin/relay-policy",
+        "/admin/relay-policy/users/{user_id}",
+        "/admin/relay-groups",
+        "/admin/relay-groups/{group_id}",
+        "/admin/relay-groups/{group_id}/members",
+        "/admin/relay-groups/{group_id}/relay-policy",
+    ):
+        assert retired not in paths
+    schemas = OPENAPI["components"]["schemas"]
+    assert not [name for name in schemas if name.startswith("AdminRelay")]
 
-    listing_schema = resolve_schema(
-        list_path["get"]["responses"]["200"]["content"]["application/json"]["schema"]
-    )
-    summary = resolve_schema(listing_schema["properties"]["groups"]["items"])
-    assert set(summary["required"]) == {
-        "group_id",
-        "name",
-        "revision",
-        "membership_revision",
-        "policy_revision",
-        "member_count",
-        "policy_inherited",
-        "updated_at",
-    }
+    operation = paths["/relay/tickets"]["post"]
+    description = operation["description"]
+    assert "ATERMIUS_RELAY_ENABLED=true and ATERMIUS_PUBLIC_ORIGIN" in description
+    assert "There is no administrator or deployment destination policy" in description
+    assert "retired ATERMIUS_RELAY_ALLOW_CIDRS and ATERMIUS_RELAY_ALLOW_PORTS variables are ignored" in description
+    for forbidden in ("loopback", "link-local", "multicast", "broadcast", "169.254.169.254", "100.100.100.200", "fd00:ec2::254", "IPv4-mapped"):
+        assert forbidden in description
+    assert "TARGET_DENIED" in operation["responses"]["403"]["description"]
+    assert "RELAY_DISABLED" in operation["responses"]["503"]["description"]
+    request = resolve_schema(operation["requestBody"]["content"]["application/json"]["schema"])
+    assert request["properties"]["target_port"]["minimum"] == 1
+    assert "ALLOW_PORTS" not in request["properties"]["target_port"]["description"]
 
-    group_path = paths["/admin/relay-groups/{group_id}"]
-    assert group_path["parameters"][0]["schema"]["format"] == "uuid"
-    detail = resolve_schema(
-        group_path["get"]["responses"]["200"]["content"]["application/json"]["schema"]
-    )
-    assert set(detail["required"]) == {"group", "members", "policy"}
-    members = resolve_schema(detail["properties"]["members"])
-    assert set(members["required"]) == {"revision", "items"}
-    member = resolve_schema(members["properties"]["items"]["items"])
-    assert set(member["properties"]) == {"user_id", "username"}
-    for method in ("get", "put", "delete"):
-        assert "401" in group_path[method]["responses"]
-        assert "403" in group_path[method]["responses"]
+    connect = paths["/relay/v1/connect"]["get"]["description"]
+    assert "authorization revision" not in connect
+    assert "closes the socket" in connect
 
-    membership_path = paths["/admin/relay-groups/{group_id}/members"]["put"]
-    membership_request = resolve_schema(
-        membership_path["requestBody"]["content"]["application/json"]["schema"]
+    overview = resolve_schema(
+        paths["/admin/overview"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
     )
-    assert membership_request["additionalProperties"] is False
-    assert membership_request["properties"]["user_ids"]["maxItems"] == 1000
-    assert "Existing disabled members can be retained unchanged" in membership_path["description"]
-    assert "advances per-account Relay" in membership_path["description"]
-
-    policy_path = paths["/admin/relay-groups/{group_id}/relay-policy"]
-    policy_request = resolve_schema(
-        policy_path["put"]["requestBody"]["content"]["application/json"]["schema"]
-    )
-    assert policy_request["additionalProperties"] is False
-    assert policy_request["properties"]["expected_instance_policy_revision"]["minimum"] == 0
-    assert policy_request["properties"]["allow_cidrs"]["maxItems"] == 256
-    assert policy_request["properties"]["allow_ports"]["maxItems"] == 4096
-    policy_response = resolve_schema(
-        policy_path["get"]["responses"]["200"]["content"]["application/json"]["schema"]
-    )
-    assert set(policy_response["required"]) == {
-        "inherited",
-        "revision",
-        "updated_at",
-        "instance_policy_revision",
-        "policy",
-        "effective_policy",
-    }
-    policy_description = policy_path["get"]["description"]
-    assert "enabled flags are ANDed" in policy_description
-    assert "CIDR networks and" in policy_description and "intersected" in policy_description
-
-    relay_ticket_description = paths["/relay/tickets"]["post"]["description"]
-    assert "all assigned server-managed group" in relay_ticket_description
-    relay_connect_description = paths["/relay/v1/connect"]["get"]["description"]
-    assert "authorization revision" in relay_connect_description
-    assert "close the user's current Relay sockets" in relay_connect_description
+    relay = overview["properties"]["relay"]
+    assert relay["additionalProperties"] is False
+    assert set(relay["required"]) == set(relay["properties"]) == {"enabled", "max_connections_per_user"}
 
 
 def test_relay_ticket_identity_is_session_derived_and_request_is_closed() -> None:
@@ -892,7 +705,7 @@ def test_relay_ticket_identity_is_session_derived_and_request_is_closed() -> Non
     )
     assert request_schema["additionalProperties"] is False
     assert set(request_schema["properties"]) == {"device_id", "target_host", "target_port"}
-    assert "authenticated-user" in operation["description"]
+    assert "authenticated user ID is derived from the live bearer session" in operation["description"]
     assert "caller-selected user_id" in operation["description"]
     assert "422" in operation["responses"]
 

@@ -197,6 +197,11 @@ def test_admin_metrics_requires_allowlisted_session_and_emits_fixed_series(api, 
     assert sample_values['atermius_object_delete_queue{state="pending"}'] == 2
     assert sample_values['atermius_object_delete_queue{state="retry_wait"}'] == 1
     assert sample_values['atermius_object_delete_queue{state="quarantined"}'] == 1
+    # Relay availability is only the deployment gate plus a public Origin.
+    expected_relay = api.admin_env.get("ATERMIUS_RELAY_ENABLED") == "true" and bool(
+        api.admin_env.get("ATERMIUS_PUBLIC_ORIGIN")
+    )
+    assert sample_values["atermius_ssh_relay_enabled"] == int(expected_relay)
     assert (
         sample_values["atermius_backup_last_success_timestamp_seconds"]
         == expected_backup_timestamp

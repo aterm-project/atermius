@@ -282,7 +282,6 @@ pub(crate) fn address_allowed(state: &AppState, ip: IpAddr, port: u16) -> bool {
 /// first allowed answer is used. The guacd `hostname` is always this literal.
 pub(crate) async fn resolve_target(
     state: &AppState,
-    owner_user_id: &str,
     protocol: &str,
     target_host: &str,
     target_port: u16,
@@ -324,21 +323,10 @@ pub(crate) async fn resolve_target(
     }) {
         return Err(target_denied());
     }
-    let selected = answers
+    answers
         .into_iter()
         .find(|ip| address_allowed(state, *ip, target_port))
-        .ok_or_else(target_denied)?;
-    // The owner's own Relay restrictions (user/group policy) also bound what
-    // they may expose through the gateway when Relay is configured.
-    if crate::relay::relay_available(state) {
-        let mut tx = state.db.begin().await.map_err(ApiError::internal)?;
-        let policy = crate::relay::effective_policy_for_user_tx(&mut tx, state, owner_user_id).await?;
-        tx.commit().await.map_err(ApiError::internal)?;
-        if !crate::relay::effective_target_allowed(&policy, selected, target_port) {
-            return Err(target_denied());
-        }
-    }
-    Ok(selected)
+        .ok_or_else(target_denied)
 }
 
 fn resolution_failed() -> ApiError {
@@ -562,7 +550,6 @@ pub async fn put_capsule(
     // Policy + DNS outside the writer transaction (bounded by DNS_TIMEOUT).
     resolve_target(
         &state,
-        &user.user_id,
         &header.protocol,
         &header.target_host,
         header.target_port,

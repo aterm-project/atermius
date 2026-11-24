@@ -362,6 +362,10 @@ impl PgSyncRuntimeConfig {
                 ));
             }
         }
+        // Migration 0027 also created the Relay policy and access-group
+        // tables. Relay no longer reads or writes them, but they remain part
+        // of the migrated schema, so readiness still verifies the whole
+        // migration rather than a partially applied one.
         let relay_columns_ready: bool = sqlx::query_scalar(
             "SELECT \
                (SELECT COUNT(DISTINCT column_name)=6 FROM information_schema.columns \

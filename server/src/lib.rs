@@ -144,7 +144,6 @@ mod rate_limit;
 mod recovery;
 mod password_keyring;
 mod relay;
-mod relay_groups;
 mod workspace_admin;
 mod secure_file;
 mod share_gateway;
@@ -344,8 +343,6 @@ pub struct Config {
     pub relay_enabled: bool,
     pub guacd_address: Option<String>,
     pub terminal_collaboration_enabled: bool,
-    pub relay_allow_cidrs: Vec<IpNet>,
-    pub relay_allow_ports: Vec<u16>,
     pub relay_max_connections_per_user: usize,
     pub public_origin: Option<String>,
     pub web_dir: Option<PathBuf>,
@@ -555,51 +552,24 @@ fn bounded_value(value: Option<String>, default: i64, minimum: i64, maximum: i64
         .unwrap_or(default)
 }
 
-fn parse_relay_allow_cidrs(value: Option<&str>) -> Vec<IpNet> {
-    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Vec::new();
-    };
-    let entries = value.split(',').collect::<Vec<_>>();
-    if entries.len() > relay::MAX_RELAY_POLICY_CIDRS {
-        return Vec::new();
-    }
-    let mut cidrs = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let entry = entry.trim();
-        if entry.is_empty() || entry.len() > relay::MAX_RELAY_POLICY_CIDR_LENGTH {
-            return Vec::new();
-        }
-        let Ok(network) = entry.parse::<IpNet>() else {
-            return Vec::new();
-        };
-        cidrs.push(network.trunc());
-    }
-    cidrs.sort_by_key(ToString::to_string);
-    cidrs.dedup();
-    cidrs
-}
+/// Deployment Relay allowlists retired together with the Relay policy. Relay
+/// now dials any destination outside the fixed forbidden-address floor, so
+/// these are ignored; existing deployments may still set them.
+pub const RETIRED_RELAY_ENV_VARS: [&str; 2] =
+    ["ATERMIUS_RELAY_ALLOW_CIDRS", "ATERMIUS_RELAY_ALLOW_PORTS"];
 
-fn parse_relay_allow_ports(value: Option<&str>) -> Vec<u16> {
-    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Vec::new();
-    };
-    let entries = value.split(',').collect::<Vec<_>>();
-    if entries.len() > relay::MAX_RELAY_POLICY_PORTS {
-        return Vec::new();
-    }
-    let Ok(mut ports) = entries
+/// Returns the retired Relay variables that still carry a value, so `serve`
+/// can warn once that they are ignored. Empty values (for example a Compose
+/// pass-through of an unset variable) are not reported.
+pub fn retired_relay_env_vars_in_use(
+    lookup: impl Fn(&str) -> Option<std::ffi::OsString>,
+) -> Vec<&'static str> {
+    RETIRED_RELAY_ENV_VARS
         .into_iter()
-        .map(|port| port.trim().parse::<u16>())
-        .collect::<Result<Vec<_>, _>>()
-    else {
-        return Vec::new();
-    };
-    if ports.contains(&0) {
-        return Vec::new();
-    }
-    ports.sort_unstable();
-    ports.dedup();
-    ports
+        .filter(|name| {
+            lookup(name).is_some_and(|value| !value.to_string_lossy().trim().is_empty())
+        })
+        .collect()
 }
 
 pub(crate) const MAX_BACKUP_RETENTION_COUNT: usize = 1000;
@@ -642,10 +612,6 @@ impl Config {
             .map(PathBuf::from);
         let backup_retention_count = std::env::var_os("ATERMIUS_BACKUP_RETENTION_COUNT");
         let backup_replication_env = BackupReplicationEnv::from_env();
-        let relay_allow_cidrs =
-            parse_relay_allow_cidrs(std::env::var("ATERMIUS_RELAY_ALLOW_CIDRS").ok().as_deref());
-        let relay_allow_ports =
-            parse_relay_allow_ports(std::env::var("ATERMIUS_RELAY_ALLOW_PORTS").ok().as_deref());
         let history_retention_days = std::env::var("ATERMIUS_HISTORY_RETENTION_DAYS")
             .ok()
             .and_then(|value| value.parse::<i64>().ok())
@@ -698,8 +664,6 @@ impl Config {
                 "ATERMIUS_TERMINAL_COLLABORATION_ENABLED",
             )
             .is_ok_and(|s| s == "true"),
-            relay_allow_cidrs,
-            relay_allow_ports,
             relay_max_connections_per_user: 4,
             public_origin: std::env::var("ATERMIUS_PUBLIC_ORIGIN").ok(),
             web_dir: std::env::var_os("ATERMIUS_WEB_DIR").map(PathBuf::from),
@@ -1563,36 +1527,6 @@ pub async fn router(state: AppState) -> Router {
                 "/api/v1/admin/sync-policy",
                 get(pg_sync_policy::get_admin_policy).put(pg_sync_policy::update_admin_policy),
             )
-            .route(
-                "/api/v1/admin/relay-policy",
-                get(pg_relay::get_admin_policy).put(pg_relay::update_admin_policy),
-            )
-            .route(
-                "/api/v1/admin/relay-policy/users/{user_id}",
-                get(pg_relay::get_admin_user_policy)
-                    .put(pg_relay::update_admin_user_policy)
-                    .delete(pg_relay::reset_admin_user_policy),
-            )
-            .route(
-                "/api/v1/admin/relay-groups",
-                get(pg_relay::list_groups).post(pg_relay::create_group),
-            )
-            .route(
-                "/api/v1/admin/relay-groups/{group_id}",
-                get(pg_relay::get_group)
-                    .put(pg_relay::rename_group)
-                    .delete(pg_relay::delete_group),
-            )
-            .route(
-                "/api/v1/admin/relay-groups/{group_id}/members",
-                put(pg_relay::replace_group_members),
-            )
-            .route(
-                "/api/v1/admin/relay-groups/{group_id}/relay-policy",
-                get(pg_relay::get_group_policy)
-                    .put(pg_relay::update_group_policy)
-                    .delete(pg_relay::reset_group_policy),
-            )
             .route("/api/v1/relay/tickets", post(relay::create_ticket));
     } else {
         app = cloud_routes(app);
@@ -1601,36 +1535,6 @@ pub async fn router(state: AppState) -> Router {
             .route(
                 "/api/v1/admin/sync-policy",
                 get(sync_policy::get_admin_policy).put(sync_policy::update_admin_policy),
-            )
-            .route(
-                "/api/v1/admin/relay-policy",
-                get(relay::get_admin_policy).put(relay::update_admin_policy),
-            )
-            .route(
-                "/api/v1/admin/relay-policy/users/{user_id}",
-                get(relay::get_admin_user_policy)
-                    .put(relay::update_admin_user_policy)
-                    .delete(relay::reset_admin_user_policy),
-            )
-            .route(
-                "/api/v1/admin/relay-groups",
-                get(relay_groups::list).post(relay_groups::create),
-            )
-            .route(
-                "/api/v1/admin/relay-groups/{group_id}",
-                get(relay_groups::get)
-                    .put(relay_groups::rename)
-                    .delete(relay_groups::delete),
-            )
-            .route(
-                "/api/v1/admin/relay-groups/{group_id}/members",
-                put(relay_groups::replace_members),
-            )
-            .route(
-                "/api/v1/admin/relay-groups/{group_id}/relay-policy",
-                get(relay_groups::get_policy)
-                    .put(relay_groups::update_policy)
-                    .delete(relay_groups::reset_policy),
             )
             .route("/api/v1/relay/tickets", post(relay::create_ticket));
     }
@@ -1748,7 +1652,7 @@ fn pg_sync_route_is_supported(method: &Method, path: &str) -> bool {
     if pg_web_fallback_request_is_supported(method, path) {
         return true;
     }
-    // Relay is enabled in PG only through its shared policy/ticket/session
+    // Relay is enabled in PG only through its shared ticket/session/lease
     // repository. Match the raw paths and methods exactly so adjacent routes
     // and malformed separators remain closed.
     if path == "/api/v1/relay/tickets" {
@@ -1768,7 +1672,7 @@ fn pg_sync_route_is_supported(method: &Method, path: &str) -> bool {
     if path == "/api/v1/admin/workspace-agents" {
         return method == Method::GET || method == Method::POST;
     }
-    if path == "/api/v1/admin/relay-policy" || path == "/api/v1/admin/sync-policy" {
+    if path == "/api/v1/admin/sync-policy" {
         return method == Method::GET || method == Method::PUT;
     }
     if path == "/api/v1/admin/metrics" {
@@ -1782,27 +1686,6 @@ fn pg_sync_route_is_supported(method: &Method, path: &str) -> bool {
     }
     if path == "/api/v1/admin/backup-replication/preflight" {
         return method == Method::POST;
-    }
-    if path == "/api/v1/admin/relay-groups" {
-        return method == Method::GET || method == Method::POST;
-    }
-    const RELAY_USER_POLICY_PREFIX: &str = "/api/v1/admin/relay-policy/users/";
-    if let Some(suffix) = path.strip_prefix(RELAY_USER_POLICY_PREFIX) {
-        return match (method, suffix.split('/').collect::<Vec<_>>().as_slice()) {
-            (&Method::GET | &Method::PUT | &Method::DELETE, [user_id]) => !user_id.is_empty(),
-            _ => false,
-        };
-    }
-    const RELAY_GROUP_PREFIX: &str = "/api/v1/admin/relay-groups/";
-    if let Some(suffix) = path.strip_prefix(RELAY_GROUP_PREFIX) {
-        return match (method, suffix.split('/').collect::<Vec<_>>().as_slice()) {
-            (&Method::GET | &Method::PUT | &Method::DELETE, [group_id]) => !group_id.is_empty(),
-            (&Method::PUT, [group_id, "members"]) => !group_id.is_empty(),
-            (&Method::GET | &Method::PUT | &Method::DELETE, [group_id, "relay-policy"]) => {
-                !group_id.is_empty()
-            }
-            _ => false,
-        };
     }
     // Notification tickets and WebSockets have shared PG implementations;
     // keep these exact paths explicit so adjacent API paths stay fail-closed.
@@ -2098,52 +1981,8 @@ mod pg_sync_scope_tests {
             (Method::GET, "/api/v1/notifications"),
             (Method::POST, "/api/v1/relay/tickets"),
             (Method::GET, "/relay/v1/connect"),
-            (Method::GET, "/api/v1/admin/relay-policy"),
-            (Method::PUT, "/api/v1/admin/relay-policy"),
             (Method::GET, "/api/v1/admin/sync-policy"),
             (Method::PUT, "/api/v1/admin/sync-policy"),
-            (
-                Method::GET,
-                "/api/v1/admin/relay-policy/users/123e4567-e89b-12d3-a456-426614174000",
-            ),
-            (
-                Method::PUT,
-                "/api/v1/admin/relay-policy/users/123e4567-e89b-12d3-a456-426614174000",
-            ),
-            (
-                Method::DELETE,
-                "/api/v1/admin/relay-policy/users/123e4567-e89b-12d3-a456-426614174000",
-            ),
-            (Method::GET, "/api/v1/admin/relay-groups"),
-            (Method::POST, "/api/v1/admin/relay-groups"),
-            (
-                Method::GET,
-                "/api/v1/admin/relay-groups/123e4567-e89b-12d3-a456-426614174000",
-            ),
-            (
-                Method::PUT,
-                "/api/v1/admin/relay-groups/123e4567-e89b-12d3-a456-426614174000",
-            ),
-            (
-                Method::DELETE,
-                "/api/v1/admin/relay-groups/123e4567-e89b-12d3-a456-426614174000",
-            ),
-            (
-                Method::PUT,
-                "/api/v1/admin/relay-groups/123e4567-e89b-12d3-a456-426614174000/members",
-            ),
-            (
-                Method::GET,
-                "/api/v1/admin/relay-groups/123e4567-e89b-12d3-a456-426614174000/relay-policy",
-            ),
-            (
-                Method::PUT,
-                "/api/v1/admin/relay-groups/123e4567-e89b-12d3-a456-426614174000/relay-policy",
-            ),
-            (
-                Method::DELETE,
-                "/api/v1/admin/relay-groups/123e4567-e89b-12d3-a456-426614174000/relay-policy",
-            ),
             (
                 Method::PUT,
                 "/api/v1/notifications/push-endpoints/device-id",
@@ -2245,7 +2084,36 @@ mod pg_sync_scope_tests {
             (Method::POST, "/relay/v1/connect"),
             (Method::GET, "/relay/v1/connect/"),
             (Method::GET, "/relay/v1/connect/extra"),
+            // The retired Relay policy and access-group administration.
+            (Method::GET, "/api/v1/admin/relay-policy"),
+            (Method::PUT, "/api/v1/admin/relay-policy"),
             (Method::POST, "/api/v1/admin/relay-policy"),
+            (
+                Method::GET,
+                "/api/v1/admin/relay-policy/users/123e4567-e89b-12d3-a456-426614174000",
+            ),
+            (
+                Method::PUT,
+                "/api/v1/admin/relay-policy/users/123e4567-e89b-12d3-a456-426614174000",
+            ),
+            (
+                Method::DELETE,
+                "/api/v1/admin/relay-policy/users/123e4567-e89b-12d3-a456-426614174000",
+            ),
+            (Method::GET, "/api/v1/admin/relay-groups"),
+            (Method::POST, "/api/v1/admin/relay-groups"),
+            (
+                Method::PUT,
+                "/api/v1/admin/relay-groups/123e4567-e89b-12d3-a456-426614174000",
+            ),
+            (
+                Method::PUT,
+                "/api/v1/admin/relay-groups/123e4567-e89b-12d3-a456-426614174000/members",
+            ),
+            (
+                Method::DELETE,
+                "/api/v1/admin/relay-groups/123e4567-e89b-12d3-a456-426614174000/relay-policy",
+            ),
             (Method::POST, "/api/v1/admin/sync-policy"),
             (Method::GET, "/api/v1/admin/sync-policy/"),
             (Method::POST, "/api/v1/vaults/v/records/r/revisions"),
@@ -3046,12 +2914,7 @@ async fn instance_info(
             c.push("password_device_enrollment");
             c.push("device_activity");
             c.push("workspace_agent_admin_v1");
-            if !state.pg_sync_only
-                && state.config.relay_enabled
-                && !state.config.relay_allow_cidrs.is_empty()
-                && !state.config.relay_allow_ports.is_empty()
-                && state.config.public_origin.is_some()
-            {
+            if !state.pg_sync_only && relay::relay_available(&state) {
                 c.push("relay");
             }
             if state.config.public_origin.is_some() {
@@ -3521,12 +3384,10 @@ pub(crate) async fn ensure_active_device(
 #[cfg(test)]
 mod config_tests {
     use super::{
-        DEFAULT_ACTIVE_RECOVERY_CHALLENGE_CAP, IpNet, MAX_ACTIVE_RECOVERY_CHALLENGE_CAP,
+        DEFAULT_ACTIVE_RECOVERY_CHALLENGE_CAP, MAX_ACTIVE_RECOVERY_CHALLENGE_CAP,
         MAX_BACKUP_RETENTION_COUNT, VaultLimits, acquire_maintenance_run_lock, bounded_value,
-        parse_admin_usernames, parse_backup_retention_count, parse_relay_allow_cidrs,
-        parse_relay_allow_ports,
+        parse_admin_usernames, parse_backup_retention_count, retired_relay_env_vars_in_use,
     };
-    use crate::relay;
     use std::ffi::OsStr;
 
     #[test]
@@ -3622,48 +3483,35 @@ mod config_tests {
     }
 
     #[test]
-    fn relay_cidr_ceiling_is_all_or_empty_normalized_and_bounded() {
-        assert_eq!(parse_relay_allow_cidrs(None), Vec::<IpNet>::new());
-        assert_eq!(parse_relay_allow_cidrs(Some("  ")), Vec::<IpNet>::new());
-        assert_eq!(
-            parse_relay_allow_cidrs(Some("172.19.0.1/24, 2001:DB8::/32,172.19.0.0/24")),
-            [
-                "172.19.0.0/24".parse::<IpNet>().unwrap(),
-                "2001:db8::/32".parse::<IpNet>().unwrap()
-            ]
+    fn retired_relay_allowlist_variables_are_only_reported_when_set() {
+        let env = |pairs: &'static [(&'static str, &'static str)]| {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(key, _)| *key == name)
+                    .map(|(_, value)| std::ffi::OsString::from(value))
+            }
+        };
+        assert!(retired_relay_env_vars_in_use(env(&[])).is_empty());
+        assert!(
+            retired_relay_env_vars_in_use(env(&[
+                ("ATERMIUS_RELAY_ALLOW_CIDRS", ""),
+                ("ATERMIUS_RELAY_ALLOW_PORTS", "  "),
+                ("ATERMIUS_RELAY_ENABLED", "true"),
+            ]))
+            .is_empty()
         );
-        for malformed in [
-            "10.0.0.0/8,not-a-network",
-            "10.0.0.0/8,",
-            ",10.0.0.0/8",
-            "10.0.0.0/8,,192.168.0.0/16",
-        ] {
-            assert_eq!(
-                parse_relay_allow_cidrs(Some(malformed)),
-                Vec::<IpNet>::new(),
-                "malformed ceiling {malformed:?} must fail closed as a whole"
-            );
-        }
-        let too_long = format!("{}/8", "1".repeat(65));
-        assert!(parse_relay_allow_cidrs(Some(&too_long)).is_empty());
-        let too_many = vec!["10.0.0.0/8"; relay::MAX_RELAY_POLICY_CIDRS + 1].join(",");
-        assert!(parse_relay_allow_cidrs(Some(&too_many)).is_empty());
-    }
-
-    #[test]
-    fn relay_port_allowlist_is_exact_and_invalid_values_fail_closed() {
-        assert_eq!(parse_relay_allow_ports(None), Vec::<u16>::new());
-        assert_eq!(parse_relay_allow_ports(Some("  ")), Vec::<u16>::new());
-        assert_eq!(parse_relay_allow_ports(Some("22, 2222,22")), [22, 2222]);
-        for invalid in ["22,0", "22,65536", "22,ssh", ",22", "22,"] {
-            assert_eq!(
-                parse_relay_allow_ports(Some(invalid)),
-                Vec::<u16>::new(),
-                "invalid allowlist {invalid:?} must fail closed"
-            );
-        }
-        let too_many = vec!["22"; relay::MAX_RELAY_POLICY_PORTS + 1].join(",");
-        assert!(parse_relay_allow_ports(Some(&too_many)).is_empty());
+        assert_eq!(
+            retired_relay_env_vars_in_use(env(&[("ATERMIUS_RELAY_ALLOW_CIDRS", "10.0.0.0/8")])),
+            ["ATERMIUS_RELAY_ALLOW_CIDRS"]
+        );
+        assert_eq!(
+            retired_relay_env_vars_in_use(env(&[
+                ("ATERMIUS_RELAY_ALLOW_PORTS", "22,0,not-a-port"),
+                ("ATERMIUS_RELAY_ALLOW_CIDRS", "not-a-cidr"),
+            ])),
+            ["ATERMIUS_RELAY_ALLOW_CIDRS", "ATERMIUS_RELAY_ALLOW_PORTS"]
+        );
     }
 
     #[test]

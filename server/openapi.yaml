@@ -1065,16 +1065,16 @@ paths:
         quotas of active and deleting Vaults. In the restricted PostgreSQL
         runtime, the counts come from one repeatable-read PG snapshot and the
         current session, account, device and administrator allowlist are
-        rechecked in that transaction. Relay routes are unavailable in that
-        runtime, so the overview reports Relay disabled with empty CIDR and
-        port lists; max_connections_per_user remains the configured limit.
-        SQLite mode reports the effective durable Relay selection after
-        deployment-limit intersection. This response contains no Vault names,
+        rechecked in that transaction. In both runtimes the Relay summary
+        reports whether SSH Relay is available from the deployment
+        configuration (ATERMIUS_RELAY_ENABLED=true and ATERMIUS_PUBLIC_ORIGIN)
+        and the configured per-user connection limit; there is no Relay
+        destination policy to report. This response contains no Vault names,
         usernames, record contents, SSH data, ciphertext, or client payloads.
         This endpoint is read-only; quota changes are exposed separately.
       responses:
         '200':
-          description: Aggregate instance counters and effective Relay policy
+          description: Aggregate instance counters and Relay availability
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AdminOverview'}
@@ -1256,63 +1256,6 @@ paths:
         '409': {description: Stale revision or generation, incompatible destination, occupied port or conflicting identity}
         '413': {description: Request exceeds 32 KiB}
         '503': {description: Hub unavailable or outcome unconfirmed; refresh before retrying}
-  /admin/relay-policy:
-    get:
-      summary: Read the durable administrator-selected SSH Relay policy
-      description: >-
-        Requires the caller's current active authenticated session and the
-        current instance-admin allowlist. The selected policy is durably
-        versioned; deployment limits are read-only environment-derived upper
-        bounds. A new PUT selection must use canonical CIDRs wholly contained
-        by configured deployment CIDRs and exact ports from the deployment
-        list. A previously stored selection can remain visible if the operator
-        later narrows those limits; authorization intersects it with the
-        current limits. Relay is effective only
-        while the immutable deployment gate (enabled flag, public origin, and
-        valid non-empty allowlists) is available. A previously saved enabled
-        selection remains stored while that gate is unavailable, but cannot
-        issue tickets or keep an active connection alive. Deployment limits
-        may also be tightened independently after a policy is saved; the saved
-        selection remains visible, while ticket issuance and active connections
-        use only its intersection with the current limits. The overview reports
-        effective policy. When no policy row exists, this response reports
-        revision 0 and the current deployment flag and allowlists as the
-        default without writing a row.
-      responses:
-        '200':
-          description: Persisted policy, immutable deployment limits, and revision
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayPolicy'}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-    put:
-      summary: Replace the durable administrator-selected SSH Relay policy
-      description: >-
-        Requires the caller's current active authenticated session and the
-        current instance-admin allowlist. The exact request body carries the
-        revision observed by the caller. A changed update increments revision,
-        writes an instance audit event atomically, and invalidates every unused
-        Relay ticket. An unchanged update is idempotent and creates no audit
-        event. Existing Relay sessions recheck the updated policy during their
-        authorization polling and close if disabled or outside the new target
-        allowlist. This endpoint cannot widen deployment CIDR or port limits.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminRelayPolicyRequest'}
-      responses:
-        '200':
-          description: Persisted policy, immutable deployment limits, and revision
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayPolicy'}
-        '400': {description: 'INVALID_RELAY_POLICY_REQUEST for malformed, duplicate, noncanonical, or out-of-range fields'}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '409': {description: RELAY_POLICY_CONFLICT when expected_revision is stale}
-        '422': {description: 'RELAY_POLICY_UNAVAILABLE when the deployment gate is incomplete, or RELAY_POLICY_OUTSIDE_LIMITS when a selected target exceeds its immutable ceiling'}
   /admin/sync-policy:
     get:
       summary: Read the instance sync policy
@@ -1357,308 +1300,6 @@ paths:
         '401': {description: AUTH_REQUIRED}
         '403': {description: INSTANCE_ADMIN_REQUIRED}
         '409': {description: SYNC_POLICY_CONFLICT when expected_revision is stale}
-  /admin/relay-policy/users/{user_id}:
-    parameters:
-      - name: user_id
-        in: path
-        required: true
-        description: Account UUID selected by an authenticated instance administrator; ticket requests cannot select their authorization identity.
-        schema: {type: string, format: uuid}
-    get:
-      summary: Read an account's SSH Relay policy
-      description: >-
-        Requires the caller's current active authenticated session and the
-        current instance-admin allowlist. If no account policy row exists,
-        the account inherits the current instance policy. `effective_policy`
-        is the intersection of deployment, instance, and account policy. The
-        revision is a monotonic compare-and-set generation; after a reset it
-        remains nonzero while the policy row is absent and `inherited` is true.
-      responses:
-        '200':
-          description: Account policy override, effective intersection, and CAS revisions
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayUserPolicy'}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '404': {description: RELAY_USER_NOT_FOUND}
-    put:
-      summary: Set an account's SSH Relay policy restriction
-      description: >-
-        Requires the caller's current active authenticated session and the
-        current instance-admin allowlist. A changed update must carry the
-        current account-policy revision and current instance-policy revision.
-        Both revisions are checked inside the write transaction, so a policy
-        change racing the request returns a conflict before account state,
-        audit records, or tickets are changed. A changed update can only narrow
-        the effective instance CIDR/port policy, writes an HMAC-resource instance audit event,
-        and revokes the target account's unused tickets atomically. Unchanged
-        updates are idempotent. Active sockets recheck this account policy
-        during the existing authorization polling and close when no longer
-        allowed. A ticket's authorization identity always comes from its live
-        bearer session, never from a request-supplied user ID.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminRelayUserPolicyRequest'}
-      responses:
-        '200':
-          description: Account policy override, effective intersection, and CAS revisions
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayUserPolicy'}
-        '400': {description: INVALID_RELAY_USER_POLICY_REQUEST}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '404': {description: RELAY_USER_NOT_FOUND}
-        '409': {description: RELAY_USER_POLICY_CONFLICT when expected_revision or expected_instance_policy_revision is stale}
-        '422': {description: RELAY_USER_POLICY_UNAVAILABLE or RELAY_USER_POLICY_OUTSIDE_LIMITS}
-    delete:
-      summary: Clear an account's SSH Relay policy override
-      description: >-
-        Requires the caller's current active authenticated session and the
-        current instance-admin allowlist. The request body must carry the
-        account-policy revision observed by the caller. Clearing deletes the
-        override row so the account inherits the current instance policy and
-        follows later instance policy changes. A separate revision watermark
-        increments on reset, so stale requests cannot pass through a delete
-        and recreate cycle. A changed reset writes an
-        HMAC-resource instance audit event and revokes the target account's
-        unused tickets atomically. Resetting a policy that is already inherited
-        is idempotent and creates no audit event. Active sockets continue only
-        when the inherited effective policy still allows their fixed target.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminRelayUserPolicyResetRequest'}
-      responses:
-        '200':
-          description: Inherited account policy, effective intersection, and CAS revisions
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayUserPolicy'}
-        '400': {description: INVALID_RELAY_USER_POLICY_RESET_REQUEST}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '404': {description: RELAY_USER_NOT_FOUND}
-        '409': {description: RELAY_USER_POLICY_CONFLICT when expected_revision is stale}
-  /admin/relay-groups:
-    get:
-      summary: List server-managed SSH Relay access groups
-      description: >-
-        Requires the caller's current active authenticated session and the
-        current instance-admin allowlist. These administrative groups are
-        server-owned access-control metadata, separate from encrypted,
-        client-owned Vault workspace/group records. Each group's name,
-        membership set and Relay policy have independent CAS revisions.
-      responses:
-        '200':
-          description: Bounded access-group summaries
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayGroupList'}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-    post:
-      summary: Create a server-managed SSH Relay access group
-      description: >-
-        Creates an empty group with name revision 1, membership revision 0 and
-        inherited Relay policy revision 0. Names are trimmed and normalized
-        with Unicode NFKC, contain 1 to 80 Unicode code points and no more than
-        320 UTF-8 bytes, and reject control characters. The derived unique
-        name key applies Unicode lowercase after NFKC; this is not full Unicode
-        case folding. A changed create is audited in the same transaction.
-        No client-owned encrypted Vault group is read or modified.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminRelayGroupCreateRequest'}
-      responses:
-        '201':
-          description: Created group detail
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayGroupDetail'}
-        '400': {description: INVALID_RELAY_GROUP_REQUEST}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '409': {description: RELAY_GROUP_NAME_TAKEN}
-        '503': {description: RELAY_GROUP_CAPACITY_REACHED}
-  /admin/relay-groups/{group_id}:
-    parameters:
-      - name: group_id
-        in: path
-        required: true
-        description: Server-managed Relay group UUID; this is not a client-owned Vault group ID.
-        schema: {type: string, format: uuid}
-    get:
-      summary: Read a server-managed SSH Relay access group
-      responses:
-        '200':
-          description: Group metadata, current members and inherited/effective policy
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayGroupDetail'}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '404': {description: RELAY_GROUP_NOT_FOUND}
-    put:
-      summary: Rename a server-managed SSH Relay access group
-      description: >-
-        Uses the group's independent name revision. A no-op is idempotent and
-        does not write audit metadata or alter membership/policy revisions.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminRelayGroupRenameRequest'}
-      responses:
-        '200':
-          description: Updated group detail
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayGroupDetail'}
-        '400': {description: INVALID_RELAY_GROUP_REQUEST}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '404': {description: RELAY_GROUP_NOT_FOUND}
-        '409': {description: RELAY_GROUP_CONFLICT for stale name revision; RELAY_GROUP_NAME_TAKEN for duplicate normalized name key}
-    delete:
-      summary: Delete a server-managed SSH Relay access group
-      description: >-
-        Requires a JSON body carrying current name, membership and policy
-        revisions, so a deletion from a stale detail view cannot silently
-        discard concurrent administration changes. The
-        physical delete cascades group metadata and policy rows. It advances
-        authorization revisions for every former member, removes their unused
-        Relay tickets, and closes their existing Relay sockets on the next
-        authorization poll. One audit event identifies only the HMAC-scoped
-        group resource and actor; it omits group names and member identifiers.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminRelayGroupDeleteRequest'}
-      responses:
-        '204': {description: Group deleted}
-        '400': {description: INVALID_RELAY_GROUP_REQUEST}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '404': {description: RELAY_GROUP_NOT_FOUND}
-        '409': {description: RELAY_GROUP_CONFLICT, RELAY_GROUP_MEMBERSHIP_CONFLICT or RELAY_GROUP_POLICY_CONFLICT when any supplied revision is stale}
-  /admin/relay-groups/{group_id}/members:
-    parameters:
-      - name: group_id
-        in: path
-        required: true
-        description: Server-managed Relay group UUID.
-        schema: {type: string, format: uuid}
-    put:
-      summary: Replace the members of a server-managed SSH Relay access group
-      description: >-
-        Performs a full-set compare-and-set over active account UUIDs. The
-        membership revision is independent of group-name and policy revisions.
-        Duplicate, unknown, inactive-new, malformed, or over-limit account
-        IDs are rejected. Existing disabled members can be retained unchanged
-        or removed. A changed membership set advances per-account Relay
-        authorization revisions for the union of old and new members, removes
-        their unused tickets, and closes existing Relay sockets within the
-        authorization polling interval. The audit event includes no member
-        identifiers or usernames. Membership changes never read or modify
-        client-owned encrypted Vault groups.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminRelayGroupMembersRequest'}
-      responses:
-        '200':
-          description: Updated group detail
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayGroupDetail'}
-        '400': {description: INVALID_RELAY_GROUP_MEMBERS_REQUEST}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '404': {description: RELAY_GROUP_NOT_FOUND}
-        '409': {description: RELAY_GROUP_MEMBERSHIP_CONFLICT for stale membership revision}
-  /admin/relay-groups/{group_id}/relay-policy:
-    parameters:
-      - name: group_id
-        in: path
-        required: true
-        description: Server-managed Relay group UUID.
-        schema: {type: string, format: uuid}
-    get:
-      summary: Read a group's SSH Relay policy
-      description: >-
-        A missing override means inheritance from the current instance policy.
-        A group assigned to a user narrows that user's policy; when multiple
-        groups apply, enabled flags are ANDed and allowed CIDR networks and
-        ports are intersected. The resulting policy is also intersected with
-        any per-user administrator restriction and current deployment limits.
-      responses:
-        '200':
-          description: Group policy selection and effective intersection
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayGroupPolicy'}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '404': {description: RELAY_GROUP_NOT_FOUND}
-    put:
-      summary: Set a group's SSH Relay restriction
-      description: >-
-        Both group-policy and instance-policy revisions are checked in one
-        write transaction. A successful change advances the policy watermark,
-        removes unused tickets and advances active authorization revisions for
-        all current group members. Group policy can only narrow current
-        instance effective CIDR and exact-port limits. No-op requests do not
-        increment revisions or emit audit events.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminRelayGroupPolicyRequest'}
-      responses:
-        '200':
-          description: Updated group detail
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayGroupDetail'}
-        '400': {description: INVALID_RELAY_GROUP_POLICY_REQUEST}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '404': {description: RELAY_GROUP_NOT_FOUND}
-        '409': {description: RELAY_GROUP_POLICY_CONFLICT for stale group or instance policy revision}
-        '422': {description: RELAY_GROUP_POLICY_UNAVAILABLE or RELAY_GROUP_POLICY_OUTSIDE_LIMITS}
-    delete:
-      summary: Reset a group's SSH Relay policy to inheritance
-      description: >-
-        Accepts the current group-policy revision, deletes the override row, and
-        increments its independent policy watermark. Changed resets advance
-        current members' authorization revisions, revoke their unused tickets,
-        close their existing Relay sockets on the next poll, and write one
-        privacy-scoped audit event. Reset while already inherited is idempotent.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: {$ref: '#/components/schemas/AdminRelayGroupPolicyResetRequest'}
-      responses:
-        '200':
-          description: Inherited group policy detail
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AdminRelayGroupDetail'}
-        '400': {description: INVALID_RELAY_GROUP_POLICY_REQUEST}
-        '401': {description: AUTH_REQUIRED}
-        '403': {description: INSTANCE_ADMIN_REQUIRED}
-        '404': {description: RELAY_GROUP_NOT_FOUND}
-        '409': {description: RELAY_GROUP_POLICY_CONFLICT for stale group policy revision}
   /admin/backup-status:
     get:
       summary: Read the latest server-recorded backup attempt status
@@ -2574,7 +2215,7 @@ paths:
   /vaults:
     get:
       summary: List accessible vaults and device key envelopes
-      description: Includes active and deleting vaults for current active members. Each item includes role, status, required_record_schema, requested_at, purge_after, can_cancel, and can_write. In the SQLite runtime each item also has admin_visible (true when a credential escrow key exists and an active member account is admin_visible; clients show an administrator-visible badge). In the SQLite runtime, while organizations are enabled, each item also has `organization`: `{org_id, name}` of the cloud organization the Vault is attached to, or null when it is attached to none; the field is absent when organizations are disabled and in the PostgreSQL runtime. During deletion grace the encrypted vault is read-only and remains available for export. `required_record_schema` is raised atomically to 2 when a schema-2 record or conflict commits and never decreases.
+      description: Includes active and deleting vaults for current active members. Each item includes role, status, required_record_schema, requested_at, purge_after, can_cancel, and can_write. In the SQLite runtime each item also has admin_visible (true when a credential escrow key exists and an active member account is admin_visible; clients show an administrator-visible badge). In the SQLite runtime, while organizations are enabled, each item also has `organization`, the `{org_id, name}` of the cloud organization the Vault is attached to, or null when it is attached to none; the field is absent when organizations are disabled and in the PostgreSQL runtime. During deletion grace the encrypted vault is read-only and remains available for export. `required_record_schema` is raised atomically to 2 when a schema-2 record or conflict commits and never decreases.
       responses: {'200': {description: Vault lifecycle state, required_record_schema, and key envelopes}}
     post:
       summary: Create a client-keyed vault
@@ -3619,7 +3260,7 @@ paths:
     post:
       summary: Create a short-lived SSH Relay ticket
       description: >-
-        Requires the current bearer session and matching active device. Relay must be explicitly enabled with ATERMIUS_RELAY_ENABLED=true, non-empty ATERMIUS_RELAY_ALLOW_CIDRS and ATERMIUS_RELAY_ALLOW_PORTS allowlists, and ATERMIUS_PUBLIC_ORIGIN. The port list is a comma-separated set of exact destination ports from 1 through 65535; malformed lists fail closed and leave Relay disabled. target_host may be an IP literal or a DNS hostname using ASCII IDNA A-label syntax (maximum 253 normalized bytes; one terminal root dot may make the request value 254 bytes; DNS labels are 1..63 ASCII characters). A single terminal dot is normalized away and ASCII letters are lowercased. The service resolves A and AAAA candidates once, with a two-second timeout and a maximum of 32 addresses. At most 32 DNS resolutions run concurrently; saturated resolver capacity returns 503 RELAY_BUSY without queueing. It inspects every answer and selects the first address allowed by the effective deployment, instance, authenticated-user, and all assigned server-managed group CIDR/port intersection plus special-address deny rules. The selected IP, not the hostname, is encrypted into the one-use ticket and is the only address used for dialing, so later DNS changes cannot retarget an issued ticket. Invalid hostname syntax or port zero returns 400 INVALID_TARGET; no DNS answers, resolver errors/timeouts, or answer-limit overflow return 502 TARGET_RESOLUTION_FAILED without echoing the hostname; if no resolved candidate is allowed, the response is 403 TARGET_DENIED. target_port must exactly match the effective port policy. The authenticated user ID is derived from the live bearer session; unknown request properties such as a caller-selected user_id are rejected. Loopback, unspecified, link-local, multicast, broadcast, and known cloud metadata addresses including Alibaba Cloud 100.100.100.200 remain blocked even inside an allowlisted CIDR. Ticket lifetime is at most 30 seconds and cannot exceed the exact session access expiry. Tickets are one-use, stored by hash, bound to user/device/session, and issuance writes a privacy-safe relay.ticket_issued audit event in the same transaction. The server allows 20 issues per user per minute and 100000 recent ticket rows globally.
+        Requires the current bearer session and matching active device. Relay must be explicitly enabled with ATERMIUS_RELAY_ENABLED=true and ATERMIUS_PUBLIC_ORIGIN; otherwise the response is 503 RELAY_DISABLED. There is no administrator or deployment destination policy: the server dials any target_port from 1 through 65535 on any address except loopback, unspecified, link-local, multicast, broadcast, and known cloud metadata addresses (169.254.169.254, Alibaba Cloud 100.100.100.200, fd00:ec2::254), including the IPv4-mapped IPv6 forms of those addresses. The retired ATERMIUS_RELAY_ALLOW_CIDRS and ATERMIUS_RELAY_ALLOW_PORTS variables are ignored. target_host may be an IP literal or a DNS hostname using ASCII IDNA A-label syntax (maximum 253 normalized bytes; one terminal root dot may make the request value 254 bytes; DNS labels are 1..63 ASCII characters). A single terminal dot is normalized away and ASCII letters are lowercased. The service resolves A and AAAA candidates once, with a two-second timeout and a maximum of 32 addresses. At most 32 DNS resolutions run concurrently; saturated resolver capacity returns 503 RELAY_BUSY without queueing. It selects the first answer that is not one of the forbidden addresses above. The selected IP, not the hostname, is encrypted into the one-use ticket and is the only address used for dialing, so later DNS changes cannot retarget an issued ticket. Invalid hostname syntax or port zero returns 400 INVALID_TARGET; no DNS answers, resolver errors/timeouts, or answer-limit overflow return 502 TARGET_RESOLUTION_FAILED without echoing the hostname; a forbidden IP literal, or a name whose every resolved candidate is forbidden, returns 403 TARGET_DENIED. The authenticated user ID is derived from the live bearer session; unknown request properties such as a caller-selected user_id are rejected. Ticket lifetime is at most 30 seconds and cannot exceed the exact session access expiry. Tickets are one-use, stored by hash, bound to user/device/session, and issuance writes a privacy-safe relay.ticket_issued audit event in the same transaction. The server allows 20 issues per user per minute and 100000 recent ticket rows globally.
       requestBody:
         required: true
         content:
@@ -3645,7 +3286,7 @@ paths:
       summary: Open an SSH Relay WebSocket
       security: []
       description: >-
-        This route is outside the /api/v1 prefix. Upgrade requires exactly one Origin header equal to ATERMIUS_PUBLIC_ORIGIN. Within 10 seconds, the first text or binary frame must be the raw canonical base64url-no-pad ticket (32 decoded bytes), not JSON. The destination is bound into the ticket and cleared as soon as it is atomically consumed. A DNS hostname is resolved once during ticket issuance; all bounded A/AAAA answers are checked and only an allowed resolved IP is pinned into the ticket. The WebSocket dial uses that pinned IP without another DNS lookup, preventing post-issuance DNS changes from retargeting the connection. Session/device/account state is rechecked before dialing and every two seconds during forwarding, including while socket writes are backpressured. Each pending TCP/WebSocket write is bounded to 30 seconds, each session query to five seconds, and TCP half-close to two seconds. The server forwards opaque bytes only, limits a connection to one hour and 1 GiB total, and audits a successful TCP connection as relay.connected without target or SSH content. Membership or policy changes for any assigned server-managed access group advance the user's authorization revision, revoke unused tickets, and close the user's current Relay sockets on the next authorization poll even if the updated policy still permits the same destination.
+        This route is outside the /api/v1 prefix. Upgrade requires exactly one Origin header equal to ATERMIUS_PUBLIC_ORIGIN. Within 10 seconds, the first text or binary frame must be the raw canonical base64url-no-pad ticket (32 decoded bytes), not JSON. The destination is bound into the ticket and cleared as soon as it is atomically consumed. A DNS hostname is resolved once during ticket issuance; the first bounded A/AAAA answer outside the forbidden addresses is pinned into the ticket. The WebSocket dial uses that pinned IP without another DNS lookup, preventing post-issuance DNS changes from retargeting the connection. Session/device/account state is rechecked before dialing and every two seconds during forwarding, including while socket writes are backpressured; revoking the session or device, or disabling the account, closes the socket. Each pending TCP/WebSocket write is bounded to 30 seconds, each session query to five seconds, and TCP half-close to two seconds. The server forwards opaque bytes only, limits a connection to one hour and 1 GiB total, and audits a successful TCP connection as relay.connected without target or SSH content.
       x-websocket-first-frame: raw-base64url-ticket
       x-websocket-origin: exactly-one-configured-public-origin
       responses:
@@ -4426,11 +4067,10 @@ components:
             vault_quota_bytes: {type: integer, format: int64, minimum: 0, description: Sum of configured quotas for active and deleting Vaults.}
         relay:
           type: object
-          required: [enabled, allow_cidrs, allow_ports, max_connections_per_user]
+          additionalProperties: false
+          required: [enabled, max_connections_per_user]
           properties:
-            enabled: {type: boolean, description: Whether SSH Relay is available under the current runtime and effective policy; false in restricted PostgreSQL mode.}
-            allow_cidrs: {type: array, items: {type: string}, description: Current effective Relay destination CIDR allowlist; empty in restricted PostgreSQL mode.}
-            allow_ports: {type: array, items: {type: integer, minimum: 1, maximum: 65535}, description: Current effective exact destination-port allowlist; empty in restricted PostgreSQL mode.}
+            enabled: {type: boolean, description: Whether SSH Relay is available from the deployment configuration (ATERMIUS_RELAY_ENABLED=true and ATERMIUS_PUBLIC_ORIGIN).}
             max_connections_per_user: {type: integer, minimum: 1, description: Current per-user Relay connection limit.}
         database_encryption:
           type: string
@@ -4485,157 +4125,6 @@ components:
         accepted: {type: integer, format: int64, minimum: 0, description: Provider adapter returned success; device receipt and sync are not confirmed.}
         invalid_token: {type: integer, format: int64, minimum: 0, description: Provider adapter classified the endpoint token as invalid.}
         retryable_failure: {type: integer, format: int64, minimum: 0, description: Provider adapter reported a retryable failure or timed out.}
-    AdminRelayGroupCreateRequest:
-      type: object
-      additionalProperties: false
-      required: [name]
-      properties:
-        name: {type: string, minLength: 1, maxLength: 80, x-maxUtf8Bytes: 320, description: Trimmed and normalized with Unicode NFKC; control characters are rejected. The server derives its unique name key by applying Unicode lowercase to NFKC text and normalizing the result with NFKC; this is not full Unicode case folding.}
-    AdminRelayGroupRenameRequest:
-      type: object
-      additionalProperties: false
-      required: [expected_revision, name]
-      properties:
-        expected_revision: {type: integer, format: int64, minimum: 0}
-        name: {type: string, minLength: 1, maxLength: 80, x-maxUtf8Bytes: 320}
-    AdminRelayGroupDeleteRequest:
-      type: object
-      additionalProperties: false
-      required: [expected_revision, expected_membership_revision, expected_policy_revision]
-      properties:
-        expected_revision: {type: integer, format: int64, minimum: 0}
-        expected_membership_revision: {type: integer, format: int64, minimum: 0}
-        expected_policy_revision: {type: integer, format: int64, minimum: 0}
-    AdminRelayGroupMembersRequest:
-      type: object
-      additionalProperties: false
-      required: [expected_revision, user_ids]
-      properties:
-        expected_revision: {type: integer, format: int64, minimum: 0}
-        user_ids:
-          type: array
-          maxItems: 1000
-          uniqueItems: true
-          items: {type: string, format: uuid}
-    AdminRelayGroupPolicyRequest:
-      type: object
-      additionalProperties: false
-      required: [expected_revision, expected_instance_policy_revision, enabled, allow_cidrs, allow_ports]
-      properties:
-        expected_revision: {type: integer, format: int64, minimum: 0}
-        expected_instance_policy_revision: {type: integer, format: int64, minimum: 0}
-        enabled: {type: boolean}
-        allow_cidrs:
-          type: array
-          maxItems: 256
-          uniqueItems: true
-          items: {type: string, maxLength: 64, description: Canonical CIDR network address contained by the current effective instance policy.}
-        allow_ports:
-          type: array
-          maxItems: 4096
-          uniqueItems: true
-          items: {type: integer, minimum: 1, maximum: 65535, description: Exact port contained by the current effective instance policy.}
-    AdminRelayGroupPolicyResetRequest:
-      type: object
-      additionalProperties: false
-      required: [expected_revision]
-      properties:
-        expected_revision: {type: integer, format: int64, minimum: 0}
-    AdminRelayGroupList:
-      type: object
-      additionalProperties: false
-      required: [groups]
-      properties:
-        groups:
-          type: array
-          maxItems: 1000
-          items: {$ref: '#/components/schemas/AdminRelayGroupSummary'}
-    AdminRelayGroupSummary:
-      type: object
-      additionalProperties: false
-      required: [group_id, name, revision, membership_revision, policy_revision, member_count, policy_inherited, updated_at]
-      properties:
-        group_id: {type: string, format: uuid}
-        name: {type: string, minLength: 1, maxLength: 80, x-maxUtf8Bytes: 320}
-        revision: {type: integer, format: int64, minimum: 1}
-        membership_revision: {type: integer, format: int64, minimum: 0}
-        policy_revision: {type: integer, format: int64, minimum: 0}
-        member_count: {type: integer, minimum: 0, maximum: 1000}
-        policy_inherited: {type: boolean}
-        updated_at: {type: string, format: date-time}
-    AdminRelayGroupDetail:
-      type: object
-      additionalProperties: false
-      required: [group, members, policy]
-      properties:
-        group: {$ref: '#/components/schemas/AdminRelayGroup'}
-        members: {$ref: '#/components/schemas/AdminRelayGroupMembers'}
-        policy: {$ref: '#/components/schemas/AdminRelayGroupPolicy'}
-    AdminRelayGroup:
-      type: object
-      additionalProperties: false
-      required: [group_id, name, revision, created_at, updated_at]
-      properties:
-        group_id: {type: string, format: uuid}
-        name: {type: string, minLength: 1, maxLength: 80, x-maxUtf8Bytes: 320}
-        revision: {type: integer, format: int64, minimum: 1}
-        created_at: {type: string, format: date-time}
-        updated_at: {type: string, format: date-time}
-    AdminRelayGroupMembers:
-      type: object
-      additionalProperties: false
-      required: [revision, items]
-      properties:
-        revision: {type: integer, format: int64, minimum: 0}
-        items:
-          type: array
-          maxItems: 1000
-          items: {$ref: '#/components/schemas/AdminRelayGroupMember'}
-    AdminRelayGroupMember:
-      type: object
-      additionalProperties: false
-      required: [user_id, username]
-      properties:
-        user_id: {type: string, format: uuid}
-        username: {type: string, minLength: 1, maxLength: 320, x-maxUtf8Bytes: 320}
-    AdminRelayGroupPolicy:
-      type: object
-      additionalProperties: false
-      required: [inherited, revision, updated_at, instance_policy_revision, policy, effective_policy]
-      properties:
-        inherited: {type: boolean, description: True when the group has no override and follows the current instance policy.}
-        revision: {type: integer, format: int64, minimum: 0, description: Monotonic CAS watermark including reset while the override row is absent.}
-        updated_at: {type: [string, 'null'], format: date-time}
-        instance_policy_revision: {type: integer, format: int64, minimum: 0}
-        policy: {$ref: '#/components/schemas/AdminRelayPolicySelection'}
-        effective_policy: {$ref: '#/components/schemas/AdminRelayEffectivePolicy'}
-    AdminRelayPolicyRequest:
-      type: object
-      additionalProperties: false
-      required: [expected_revision, enabled, allow_cidrs, allow_ports]
-      properties:
-        expected_revision: {type: integer, format: int64, minimum: 0}
-        enabled: {type: boolean}
-        allow_cidrs:
-          type: array
-          maxItems: 256
-          uniqueItems: true
-          items: {type: string, maxLength: 64, description: Canonical CIDR network address wholly contained by a deployment CIDR.}
-        allow_ports:
-          type: array
-          maxItems: 4096
-          uniqueItems: true
-          items: {type: integer, minimum: 1, maximum: 65535}
-    AdminRelayPolicy:
-      type: object
-      additionalProperties: false
-      required: [policy, deployment_limits, max_connections_per_user, revision, updated_at]
-      properties:
-        policy: {$ref: '#/components/schemas/AdminRelayPolicySelection'}
-        deployment_limits: {$ref: '#/components/schemas/AdminRelayDeploymentLimits'}
-        max_connections_per_user: {type: integer, minimum: 1, description: Per-user active Relay connection ceiling; read-only deployment/server setting.}
-        revision: {type: integer, format: int64, minimum: 0}
-        updated_at: {type: [string, 'null'], format: date-time}
     AdminSyncPolicyRequest:
       type: object
       additionalProperties: false
@@ -4679,66 +4168,6 @@ components:
               created_at: {type: string, format: date-time}
               restore_until: {type: [string, 'null'], format: date-time}
               envelope: {type: object, description: Exact signed opaque record envelope.}
-    AdminRelayUserPolicyRequest:
-      type: object
-      additionalProperties: false
-      required: [expected_revision, expected_instance_policy_revision, enabled, allow_cidrs, allow_ports]
-      properties:
-        expected_revision: {type: integer, format: int64, minimum: 0}
-        expected_instance_policy_revision: {type: integer, format: int64, minimum: 0, description: Instance policy revision observed with the account policy; checked atomically with expected_revision.}
-        enabled: {type: boolean}
-        allow_cidrs:
-          type: array
-          maxItems: 256
-          uniqueItems: true
-          items: {type: string, maxLength: 64, description: Canonical CIDR network address contained by the current effective instance policy.}
-        allow_ports:
-          type: array
-          maxItems: 4096
-          uniqueItems: true
-          items: {type: integer, minimum: 1, maximum: 65535, description: Exact port contained by the current effective instance policy.}
-    AdminRelayUserPolicyResetRequest:
-      type: object
-      additionalProperties: false
-      required: [expected_revision]
-      properties:
-        expected_revision: {type: integer, format: int64, minimum: 0}
-    AdminRelayUserPolicy:
-      type: object
-      additionalProperties: false
-      required: [user_id, inherited, policy, effective_policy, instance_policy_revision, revision, updated_at]
-      properties:
-        user_id: {type: string, format: uuid}
-        inherited: {type: boolean, description: True when no user policy row exists and policy is inherited from the instance.}
-        policy: {$ref: '#/components/schemas/AdminRelayPolicySelection'}
-        effective_policy: {$ref: '#/components/schemas/AdminRelayEffectivePolicy'}
-        instance_policy_revision: {type: integer, format: int64, minimum: 0}
-        revision: {type: integer, format: int64, minimum: 0, description: Monotonic CAS generation, including reset mutations while no override row exists.}
-        updated_at: {type: [string, 'null'], format: date-time, description: Last user override or reset mutation; null before the first override.}
-    AdminRelayEffectivePolicy:
-      type: object
-      additionalProperties: false
-      required: [enabled, allow_cidrs, allow_ports]
-      properties:
-        enabled: {type: boolean, description: Effective after deployment, instance, authenticated-user and all assigned group policy intersections.}
-        allow_cidrs: {type: array, maxItems: 256, uniqueItems: true, items: {type: string, maxLength: 64}}
-        allow_ports: {type: array, maxItems: 4096, uniqueItems: true, items: {type: integer, minimum: 1, maximum: 65535}}
-    AdminRelayPolicySelection:
-      type: object
-      additionalProperties: false
-      required: [enabled, allow_cidrs, allow_ports]
-      properties:
-        enabled: {type: boolean, description: Durable administrator selection; effective only when deployment_limits.relay_available is true.}
-        allow_cidrs: {type: array, maxItems: 256, uniqueItems: true, items: {type: string, maxLength: 64, description: Canonical saved CIDR selection; effective authorization intersects it with current deployment limits.}}
-        allow_ports: {type: array, maxItems: 4096, uniqueItems: true, items: {type: integer, minimum: 1, maximum: 65535, description: Saved exact-port selection; effective authorization intersects it with current deployment limits.}}
-    AdminRelayDeploymentLimits:
-      type: object
-      additionalProperties: false
-      required: [relay_available, allow_cidrs, allow_ports]
-      properties:
-        relay_available: {type: boolean, description: True only when deployment Relay flag, public origin and valid non-empty deployment CIDR and port lists are all configured.}
-        allow_cidrs: {type: array, maxItems: 256, uniqueItems: true, items: {type: string, maxLength: 64}, description: Immutable deployment CIDR ceiling.}
-        allow_ports: {type: array, maxItems: 4096, uniqueItems: true, items: {type: integer, minimum: 1, maximum: 65535}, description: Immutable exact destination-port ceiling.}
     AdminBackupStatus:
       type: object
       additionalProperties: false
@@ -5237,7 +4666,7 @@ components:
       properties:
         device_id: {type: string, format: uuid}
         target_host: {type: string, minLength: 1, maxLength: 254, description: IP literal or normalized DNS hostname using ASCII IDNA A-labels (maximum 253 normalized bytes; one trailing dot may make the request value 254 bytes); hostname answers are checked against the effective Relay CIDR/port policy and the selected IP is pinned into the one-use ticket}
-        target_port: {type: integer, minimum: 1, maximum: 65535, description: Must exactly match one port in ATERMIUS_RELAY_ALLOW_PORTS}
+        target_port: {type: integer, minimum: 1, maximum: 65535, description: Destination TCP port; any port from 1 through 65535 is allowed.}
     RelayTicket:
       type: object
       required: [ticket, expires_at, connect_path]

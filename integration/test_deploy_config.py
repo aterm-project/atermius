@@ -51,7 +51,6 @@ def test_compose_default_security_and_auth_limit_configuration() -> None:
     expected = {
         "ATERMIUS_REGISTRATION_OPEN": "false",
         "ATERMIUS_RELAY_ENABLED": "false",
-        "ATERMIUS_RELAY_ALLOW_PORTS": "",
         "ATERMIUS_HISTORY_RETENTION_DAYS": "90",
         "ATERMIUS_VAULT_DELETION_GRACE_SECONDS": "604800",
         "ATERMIUS_AUDIT_RETENTION_DAYS": "365",
@@ -72,6 +71,9 @@ def test_compose_default_security_and_auth_limit_configuration() -> None:
         "ATERMIUS_AUTH_REGISTER_IP_LIMIT": "60",
     }
     assert {key: config.get(key) for key in expected} == expected
+    # Relay has no CIDR/port allowlists; the retired variables are not passed through.
+    assert "ATERMIUS_RELAY_ALLOW_CIDRS" not in config
+    assert "ATERMIUS_RELAY_ALLOW_PORTS" not in config
     assert "ATERMIUS_BACKUP_ARCHIVE_DIR" not in config
     assert "ATERMIUS_BACKUP_KEY_FILE" not in config
     assert "ATERMIUS_MFA_ENCRYPTION_KEY_FILE" not in config

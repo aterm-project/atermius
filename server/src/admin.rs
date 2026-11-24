@@ -295,7 +295,7 @@ fn prometheus_metrics_response(values: AdminMetricsValues) -> Response {
     # HELP atermius_vault_quota_bytes Configured quota bytes for active and deleting Vaults.\n\
     # TYPE atermius_vault_quota_bytes gauge\n\
     atermius_vault_quota_bytes {}\n\
-    # HELP atermius_ssh_relay_enabled Whether SSH Relay is currently enabled by effective policy.\n\
+    # HELP atermius_ssh_relay_enabled Whether SSH Relay is enabled by the deployment configuration.\n\
     # TYPE atermius_ssh_relay_enabled gauge\n\
     atermius_ssh_relay_enabled {}\n",
         values.accounts_active,
@@ -485,7 +485,6 @@ pub async fn overview(
     .await
     .map_err(ApiError::internal)?;
 
-    let relay = crate::relay::effective_policy_tx(&mut tx, &state).await?;
     let response = json!({
         "instance": {
             "instance_id": state.instance.instance_id.clone(),
@@ -505,12 +504,7 @@ pub async fn overview(
             "reserved_upload_bytes": counts.get::<i64, _>("reserved_upload_bytes"),
             "vault_quota_bytes": counts.get::<i64, _>("vault_quota_bytes"),
         },
-        "relay": {
-            "enabled": relay.enabled,
-            "allow_cidrs": relay.allow_cidrs.iter().map(ToString::to_string).collect::<Vec<_>>(),
-            "allow_ports": relay.allow_ports,
-            "max_connections_per_user": state.config.relay_max_connections_per_user,
-        },
+        "relay": crate::relay::admin_overview_json(&state),
         "database_encryption": state.database_encryption.as_str(),
         "generated_at": now,
     });
@@ -751,7 +745,6 @@ pub async fn metrics(
     .fetch_one(&mut *tx)
     .await
     .map_err(ApiError::internal)?;
-    let relay = crate::relay::effective_policy_tx(&mut tx, &state).await?;
     tx.commit().await.map_err(ApiError::internal)?;
 
     let value = |name: &str| counts.get::<i64, _>(name);
@@ -770,7 +763,7 @@ pub async fn metrics(
         object_delete_retry_wait: value("object_delete_retry_wait"),
         object_delete_quarantined: value("object_delete_quarantined"),
         vault_quota_bytes: value("vault_quota_bytes"),
-        relay_enabled: relay.enabled,
+        relay_enabled: crate::relay::relay_available(&state),
         backup_last_success_timestamp_seconds: backup_last_success,
     }))
 }
@@ -3922,8 +3915,6 @@ mod job_tests {
             guacd_address: None,
             relay_enabled: false,
             terminal_collaboration_enabled: false,
-            relay_allow_cidrs: Vec::new(),
-            relay_allow_ports: Vec::new(),
             relay_max_connections_per_user: 4,
             public_origin: None,
             web_dir: None,

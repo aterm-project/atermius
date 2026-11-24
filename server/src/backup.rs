@@ -86,7 +86,13 @@ struct RuntimePolicySummary {
     relay_enabled: bool,
     #[serde(default)]
     terminal_collaboration_enabled: bool,
+    /// Retired deployment Relay allowlists. Archives made while Relay had a
+    /// policy carry them; they are accepted and ignored by the drift check.
+    /// New archives write an empty list so older servers can still parse the
+    /// summary, which required this field.
+    #[serde(default)]
     relay_allow_cidrs: Vec<String>,
+    /// Retired with `relay_allow_cidrs`; never written by new archives.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     relay_allow_ports: Vec<u16>,
     relay_max_connections_per_user: usize,
@@ -7150,13 +7156,6 @@ fn build_postgres_manifest(
 
 fn runtime_policy_summary(config: &Config) -> RuntimePolicySummary {
     let rates: &AuthRateLimits = &config.auth_rate_limits;
-    let mut relay_allow_cidrs = config
-        .relay_allow_cidrs
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>();
-    relay_allow_cidrs.sort();
-    relay_allow_cidrs.dedup();
     let mut admin_usernames = config.admin_usernames.clone();
     admin_usernames.sort();
     admin_usernames.dedup();
@@ -7165,8 +7164,8 @@ fn runtime_policy_summary(config: &Config) -> RuntimePolicySummary {
         registration_open: config.registration_open,
         relay_enabled: config.relay_enabled,
         terminal_collaboration_enabled: config.terminal_collaboration_enabled,
-        relay_allow_cidrs,
-        relay_allow_ports: config.relay_allow_ports.clone(),
+        relay_allow_cidrs: Vec::new(),
+        relay_allow_ports: Vec::new(),
         relay_max_connections_per_user: config.relay_max_connections_per_user,
         public_origin: config.public_origin.clone(),
         web_dir: config
@@ -7235,8 +7234,7 @@ fn runtime_policy_drift_fields(
     compare_policy_field!(registration_open);
     compare_policy_field!(relay_enabled);
     compare_policy_field!(terminal_collaboration_enabled);
-    compare_policy_field!(relay_allow_cidrs);
-    compare_policy_field!(relay_allow_ports);
+    // relay_allow_cidrs/relay_allow_ports are retired and never drift.
     compare_policy_field!(relay_max_connections_per_user);
     compare_policy_field!(public_origin);
     compare_policy_field!(web_dir);
@@ -9375,8 +9373,6 @@ mod tests {
             guacd_address: None,
             relay_enabled: false,
             terminal_collaboration_enabled: false,
-            relay_allow_cidrs: Vec::new(),
-            relay_allow_ports: Vec::new(),
             relay_max_connections_per_user: 4,
             public_origin: None,
             web_dir: None,
@@ -9417,7 +9413,6 @@ mod tests {
     #[test]
     fn backup_runtime_policy_records_config_and_accepts_legacy_summaries() {
         let mut config = test_config(PathBuf::new());
-        config.relay_allow_ports = vec![22, 2200];
         config.admin_usernames = vec!["Admin@example.test".to_owned()];
         config.public_origin = Some("https://sync.example.test".to_owned());
         config.web_dir = Some(PathBuf::from("/srv/atermius/web"));
@@ -9428,7 +9423,10 @@ mod tests {
             value["auth_rate_limits"]["max_active_recovery_challenges"],
             crate::DEFAULT_ACTIVE_RECOVERY_CHALLENGE_CAP
         );
-        assert_eq!(value["relay_allow_ports"], serde_json::json!([22, 2200]));
+        // The retired Relay allowlists stay parseable by older servers: an
+        // empty CIDR list is still written, the optional port list is not.
+        assert_eq!(value["relay_allow_cidrs"], serde_json::json!([]));
+        assert!(value.get("relay_allow_ports").is_none());
         assert_eq!(
             value["admin_usernames"],
             serde_json::json!(["Admin@example.test"])
@@ -9436,10 +9434,7 @@ mod tests {
         assert_eq!(value["public_origin"], "https://sync.example.test");
         assert_eq!(value["web_dir"], "/srv/atermius/web");
 
-        config.relay_allow_ports.clear();
-        let legacy_compatible = serde_json::to_value(runtime_policy_summary(&config)).unwrap();
-        assert!(legacy_compatible.get("relay_allow_ports").is_none());
-        let mut legacy_compatible = legacy_compatible;
+        let mut legacy_compatible = serde_json::to_value(runtime_policy_summary(&config)).unwrap();
         let legacy_object = legacy_compatible.as_object_mut().unwrap();
         legacy_object.remove("policy_version");
         legacy_object.remove("public_origin");
@@ -9466,15 +9461,11 @@ mod tests {
         let mut archived_config = test_config(PathBuf::new());
         archived_config.admin_usernames = vec!["secret-admin@example.test".to_owned()];
         archived_config.public_origin = Some("https://private-origin.example.test".to_owned());
-        archived_config.relay_allow_cidrs = vec!["10.0.0.0/8".parse().unwrap()];
-        archived_config.relay_allow_ports = vec![22];
         let archived = runtime_policy_summary(&archived_config);
 
         let mut target_config = archived_config.clone();
         target_config.registration_open = true;
         target_config.relay_enabled = true;
-        target_config.relay_allow_cidrs = vec!["192.168.0.0/16".parse().unwrap()];
-        target_config.relay_allow_ports = vec![2200];
         target_config.relay_max_connections_per_user = 8;
         target_config.public_origin = Some("https://target-origin.example.test".to_owned());
         target_config.web_dir = Some(PathBuf::from("/srv/target-web"));
@@ -9496,8 +9487,6 @@ mod tests {
         for expected in [
             "registration_open",
             "relay_enabled",
-            "relay_allow_cidrs",
-            "relay_allow_ports",
             "relay_max_connections_per_user",
             "public_origin",
             "web_dir",
@@ -9524,6 +9513,37 @@ mod tests {
         assert!(!error.contains("private-origin.example.test"));
         assert!(!error.contains("target-admin@example.test"));
         assert!(!error.contains("target-origin.example.test"));
+    }
+
+    #[test]
+    fn archives_with_retired_relay_allowlists_restore_without_relay_drift() {
+        // A summary written while Relay still had deployment allowlists.
+        let config = test_config(PathBuf::new());
+        let mut archived = serde_json::to_value(runtime_policy_summary(&config)).unwrap();
+        archived["relay_allow_cidrs"] = serde_json::json!(["10.0.0.0/8", "192.168.0.0/16"]);
+        archived["relay_allow_ports"] = serde_json::json!([22, 2200]);
+        let archived: RuntimePolicySummary = serde_json::from_value(archived).unwrap();
+        assert_eq!(archived.relay_allow_cidrs, ["10.0.0.0/8", "192.168.0.0/16"]);
+        assert_eq!(archived.relay_allow_ports, [22, 2200]);
+        assert!(
+            runtime_policy_drift_fields(&archived, &config)
+                .unwrap()
+                .is_empty()
+        );
+
+        // Summaries that predate the optional port list, or that omit the
+        // CIDR list entirely, parse the same way.
+        let mut minimal = serde_json::to_value(runtime_policy_summary(&config)).unwrap();
+        let object = minimal.as_object_mut().unwrap();
+        object.remove("relay_allow_cidrs");
+        object.remove("relay_allow_ports");
+        let minimal: RuntimePolicySummary = serde_json::from_value(minimal).unwrap();
+        assert!(minimal.relay_allow_cidrs.is_empty());
+        assert!(
+            runtime_policy_drift_fields(&minimal, &config)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

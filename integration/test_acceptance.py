@@ -1841,6 +1841,45 @@ def _new_account_registration(
     }
 
 
+def _register_with_token(
+    api: ApiClient,
+    *,
+    username: str,
+    key_dir: Path,
+    label: str,
+    invitation: str | None = None,
+    bootstrap: str | None = None,
+) -> dict:
+    """Register a disposable account with a bootstrap or instance invitation token."""
+    account_id = str(uuid.uuid4())
+    device_id = str(uuid.uuid4())
+    key_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    signer = SigningKey(key_dir, f"account-{label}-{account_id[:8]}")
+    encryption_key = b64url(os.urandom(32))
+    registration = _new_account_registration(
+        account_id,
+        username,
+        device_id,
+        encryption_key,
+        signer,
+    )
+    if invitation:
+        registration["instance_invitation_token"] = invitation
+    if bootstrap:
+        registration["bootstrap_token"] = bootstrap
+    response = api.request("POST", "/api/v1/auth/register", json_body=registration)
+    assert response.status in (200, 201), f"disposable account registration failed: HTTP {response.status}"
+    result = response.json()
+    assert isinstance(result, dict) and isinstance(result.get("access_token"), str)
+    return {
+        "account_id": account_id,
+        "device_id": device_id,
+        "access_token": result["access_token"],
+        "refresh_token": result["refresh_token"],
+        "username": username,
+    }
+
+
 def _membership_member(account_id: str, role: str, encryption_public_key: str) -> dict:
     return {
         "user_id": account_id,

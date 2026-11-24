@@ -320,8 +320,6 @@ def test_compose_caddy_internal_tls_https_and_relay_health_boundaries(tmp_path: 
                 f"ATERMIUS_CADDY_HTTPS_HOST_PORT={https_port}",
                 f"ATERMIUS_PUBLIC_ORIGIN={origin}",
                 "ATERMIUS_RELAY_ENABLED=true",
-                f"ATERMIUS_RELAY_ALLOW_CIDRS={subnet}",
-                f"ATERMIUS_RELAY_ALLOW_PORTS={RELAY_PORT}",
                 "ATERMIUS_REGISTRATION_OPEN=false",
                 "",
             )

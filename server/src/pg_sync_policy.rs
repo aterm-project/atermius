@@ -29,7 +29,7 @@ use crate::{
 type PgTx<'a> = Transaction<'a, Postgres>;
 
 // Transaction-scoped advisory lock serializing sync policy updates. The
-// namespace is distinct from the Relay policy locks.
+// namespace is distinct from the Relay ticket-capacity lock.
 const LOCK_NAMESPACE: i32 = 0x5359_4e43;
 const LOCK_SYNC_POLICY: i32 = 1;
 
@@ -1264,8 +1264,6 @@ mod tests {
             guacd_address: None,
             relay_enabled: false,
             terminal_collaboration_enabled: false,
-            relay_allow_cidrs: Vec::new(),
-            relay_allow_ports: Vec::new(),
             relay_max_connections_per_user: 4,
             public_origin: None,
             web_dir: None,

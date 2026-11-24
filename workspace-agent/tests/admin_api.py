@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "integration"))
 from conftest import ApiClient  # noqa: E402
-from test_admin_relay_policy import _register  # noqa: E402
+from test_acceptance import _register_with_token  # noqa: E402
 
 API = "/api/v1/admin/workspace-agents"
 
@@ -245,7 +245,7 @@ def execute(args, root):
                     p.wait(timeout=10)
             admin_token = (root / "admin.token").read_text()
         else:
-            admin_token = _register(
+            admin_token = _register_with_token(
                 api,
                 username=username,
                 key_dir=root / "keys",
@@ -346,7 +346,7 @@ def execute(args, root):
         invitation = re.findall(
             r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9_-])", invite
         )[-1]
-        member = _register(
+        member = _register_with_token(
             api,
             username=membername,
             key_dir=root / "keys",

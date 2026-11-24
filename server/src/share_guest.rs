@@ -620,7 +620,7 @@ pub async fn create_connection(
     // Read phase: authorize and learn the pinned target without holding the
     // SQLite writer during DNS resolution.
     let mut tx = state.db.begin().await.map_err(ApiError::internal)?;
-    let (session, link) = current_guest_tx(&mut tx, &headers, &req.slug, now).await?;
+    let (session, _) = current_guest_tx(&mut tx, &headers, &req.slug, now).await?;
     state
         .cloud
         .rate
@@ -632,7 +632,6 @@ pub async fn create_connection(
     tx.commit().await.map_err(ApiError::internal)?;
     crate::share_gateway::resolve_target(
         &state,
-        &link.owner_user_id,
         &auth.target.capsule.protocol,
         &auth.target.capsule.target_host,
         auth.target.capsule.target_port,
@@ -1156,7 +1155,6 @@ async fn setup_connection(
     // Resolve again at connect time and pin the checked address.
     let ip = crate::share_gateway::resolve_target(
         state,
-        &consumed.link.owner_user_id,
         &capsule.protocol,
         &capsule.target_host,
         capsule.target_port,

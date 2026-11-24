@@ -33,8 +33,6 @@ def check(binary, root, workspace_port):
         ATERMIUS_DATA_DIR=str(db),
         ATERMIUS_DATABASE_URL=f"sqlite://{db}/atermius.db?mode=rwc",
         ATERMIUS_RELAY_ENABLED="true",
-        ATERMIUS_RELAY_ALLOW_CIDRS="192.0.2.11/32",
-        ATERMIUS_RELAY_ALLOW_PORTS=str(workspace_port),
         ATERMIUS_PUBLIC_ORIGIN=origin,
     )
     boot = subprocess.check_output(

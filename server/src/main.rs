@@ -340,6 +340,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if command == "serve" {
         let bind = std::env::var("ATERMIUS_BIND").unwrap_or_else(|_| "0.0.0.0:8080".into());
         let address = SocketAddr::from_str(&bind)?;
+        let retired_relay_env =
+            atermius_server::retired_relay_env_vars_in_use(|name| std::env::var_os(name));
+        if !retired_relay_env.is_empty() {
+            tracing::warn!(
+                variables = %retired_relay_env.join(","),
+                "Relay allowlist variables are no longer used and are ignored; Relay reaches any \
+                 port on any address except loopback, link-local, unspecified, multicast, \
+                 broadcast and cloud metadata addresses"
+            );
+        }
         tracing::info!(%address,"starting Atermius server");
         serve_from_config(&database_url, config, address).await?;
         return Ok(());

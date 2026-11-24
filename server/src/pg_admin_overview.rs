@@ -32,7 +32,6 @@ pub(crate) async fn overview(state: &AppState, user: &AuthUser) -> Result<Json<V
         .fetch_one(&mut *tx)
         .await
         .map_err(ApiError::internal)?;
-    let relay = crate::pg_relay::overview_tx(&mut tx, state).await?;
     let counts = sqlx::query(
         "SELECT \
          (SELECT COUNT(*) FROM users) AS accounts_total, \
@@ -72,7 +71,7 @@ pub(crate) async fn overview(state: &AppState, user: &AuthUser) -> Result<Json<V
             "reserved_upload_bytes": counts.get::<i64, _>("reserved_upload_bytes"),
             "vault_quota_bytes": counts.get::<i64, _>("vault_quota_bytes"),
         },
-        "relay": relay,
+        "relay": crate::relay::admin_overview_json(state),
         // Node-local SQLite store only; PostgreSQL relies on storage-level
         // encryption (see docs/runbooks/database-encryption.md).
         "database_encryption": state.database_encryption.as_str(),

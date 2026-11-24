@@ -59,8 +59,6 @@ fn test_config(data_dir: std::path::PathBuf) -> Config {
         guacd_address: Some("127.0.0.1:9".to_owned()),
         relay_enabled: false,
         terminal_collaboration_enabled: false,
-        relay_allow_cidrs: Vec::new(),
-        relay_allow_ports: Vec::new(),
         relay_max_connections_per_user: 1,
         public_origin: Some(ORIGIN.to_owned()),
         web_dir: None,

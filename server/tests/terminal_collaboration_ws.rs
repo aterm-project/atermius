@@ -70,8 +70,6 @@ impl TestServer {
             guacd_address: None,
             relay_enabled: false,
             terminal_collaboration_enabled: true,
-            relay_allow_cidrs: Vec::new(),
-            relay_allow_ports: Vec::new(),
             relay_max_connections_per_user: 4,
             public_origin: Some(PUBLIC_ORIGIN.to_owned()),
             web_dir: None,
