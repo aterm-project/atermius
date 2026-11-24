@@ -17407,5 +17407,15 @@
   "usbSerialDetached": "The USB serial adapter was disconnected.",
   "@usbSerialDetached": {
     "description": "Android serial Console through USB-to-serial adapters (USB host / OTG)."
+  },
+  "legacySshCompatibility": "Legacy SSH compatibility",
+  "legacySshCompatibilityHelp": "Allows older encryption and signing algorithms required by some Cisco IOS devices.",
+  "sshAlgorithmNegotiationFailed": "No common SSH algorithms with {endpoint}. Check the device’s SSH settings and the host’s Legacy SSH compatibility option.",
+  "@sshAlgorithmNegotiationFailed": {
+    "placeholders": {
+      "endpoint": {
+        "type": "String"
+      }
+    }
   }
 }

@@ -94,6 +94,21 @@ class SSHRsaSignature implements SSHSignature {
 
   SSHRsaSignature(this.type, this.signature);
 
+  factory SSHRsaSignature.sign(
+    Uint8List data,
+    asymmetric.RSAPrivateKey key, {
+    required bool useSha1,
+  }) {
+    final signer = useSha1
+        ? RSASigner(SHA1Digest(), '06052b0e03021a')
+        : RSASigner(SHA256Digest(), '0609608648016503040201');
+    signer.init(true, PrivateKeyParameter<asymmetric.RSAPrivateKey>(key));
+    return SSHRsaSignature(
+      useSha1 ? SSHRsaSignatureType.sha1 : SSHRsaSignatureType.sha256,
+      signer.generateSignature(data).bytes,
+    );
+  }
+
   factory SSHRsaSignature.decode(Uint8List data) {
     final reader = SSHMessageReader(data);
     final type = reader.readUtf8();

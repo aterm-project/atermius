@@ -1903,6 +1903,7 @@ class AppController extends ChangeNotifier {
   LockedSyncReceiver? _lockedSyncReceiver;
   bool snapshotRecoveryActive = false;
   Future<void>? _snapshotRecoveryFuture;
+  (int, String)? _automaticSnapshotBlockedScope;
   Future<void>? _membershipRefreshFuture;
   Completer<void>? _activeSyncCompletion;
   SyncRepository? _activeSyncRepository;
@@ -8458,7 +8459,7 @@ class AppController extends ChangeNotifier {
           );
         }
         final manifest = HostAttachmentService.withAttachmentsOf(
-          latest: latest.manifest,
+          latest: rebased.manifest,
           version: edited.manifest,
         );
         rebased = rebased.copyWith(
@@ -8707,6 +8708,13 @@ class AppController extends ChangeNotifier {
       baseRevisionId: latest.baseRevisionId,
       online: latest.online,
       manifest: latest.manifest,
+    ).copyWithLegacySsh(
+      choose(
+        currentL10n.legacySshCompatibility,
+        original.legacySshEnabled,
+        edited.legacySshEnabled,
+        latest.legacySshEnabled,
+      ),
     );
   }
 
@@ -9137,18 +9145,13 @@ class AppController extends ChangeNotifier {
     hosts.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     _rebuildJumpHostRouteIssues();
     _rebuildHostGroupReferenceIssues();
-    _setNotice(currentL10n.theHostWasSavedEncryptedLocally);
     _automaticSync.scheduleEdit();
+    notifyListeners();
     try {
-      await refreshSyncStatus();
+      await refreshSyncStatus(keepStatus: syncing || snapshotRecoveryActive);
     } catch (_) {
       // The encrypted record and outbox entry are already durable. A derived
       // status refresh must not hide the saved Host or suppress its sync.
-      _setNotice(currentL10n.theHostWasSavedEncryptedAnd);
-    }
-    if (activeVault?.id == targetVaultId &&
-        identical(_repository, repository)) {
-      notifyListeners();
     }
   }
 
@@ -11206,7 +11209,7 @@ class AppController extends ChangeNotifier {
     );
     if (attachments == RecordRestoreOutcome.restored) {
       final manifest = HostAttachmentService.withAttachmentsOf(
-        latest: current.manifest,
+        latest: restored.manifest,
         version: edited.manifest,
       );
       restored = restored.copyWith(
@@ -11909,6 +11912,11 @@ class AppController extends ChangeNotifier {
     final repository = _repository;
     if (repository == null) return;
     final runSelectionGeneration = _vaultSelectionGeneration;
+    if (automatic &&
+        _automaticSnapshotBlockedScope ==
+            (runSelectionGeneration, repository.serverGeneration)) {
+      return;
+    }
     final runSelectionRequestGeneration = _vaultSelectionRequestGeneration;
     final syncCompletion = Completer<void>();
     bool syncIsCurrent() =>
@@ -11941,8 +11949,23 @@ class AppController extends ChangeNotifier {
     try {
       final result = await repository.synchronize();
       if (!syncIsCurrent()) return;
-      syncStatus = result.status;
       _syncPassCompletions++;
+      if (result.status == 'resnapshot_required' &&
+          syncSelectionRequestIsCurrent() &&
+          authenticated &&
+          !databaseRecoveryRequired &&
+          !workspaceLocked &&
+          !_membershipRefreshActive &&
+          _membershipRefreshFuture == null &&
+          !_vaultMembershipChangeActive &&
+          (!automatic || automaticSyncActive)) {
+        await _startSnapshotRecovery(duringSync: true);
+        return;
+      }
+      syncStatus = result.status;
+      if (result.status != 'resnapshot_required') {
+        _automaticSnapshotBlockedScope = null;
+      }
       pendingCount = result.pendingCount;
       receivedCount = result.receivedCount;
       conflictCount = result.conflictCount;
@@ -17575,14 +17598,17 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> recoverFromSnapshot() {
+  Future<void> recoverFromSnapshot() =>
+      _startSnapshotRecovery(duringSync: false);
+
+  Future<void> _startSnapshotRecovery({required bool duringSync}) {
     final existing = _snapshotRecoveryFuture;
     if (existing != null) return existing;
     final membershipRefresh = _membershipRefreshFuture;
     if (membershipRefresh != null) {
       return membershipRefresh.then((_) => recoverFromSnapshot());
     }
-    final recovery = _recoverFromSnapshot();
+    final recovery = _recoverFromSnapshot(duringSync: duringSync);
     _snapshotRecoveryFuture = recovery;
     return recovery.whenComplete(() {
       if (identical(_snapshotRecoveryFuture, recovery)) {
@@ -17758,14 +17784,41 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> _recoverFromSnapshot() async {
+  void _adoptRecoveredGeneration(String generation) {
+    final current = instance;
+    if (current == null || current.generation == generation) return;
+    instance = InstanceInfo(
+      instanceId: current.instanceId,
+      serverSpaceId: current.serverSpaceId,
+      generation: generation,
+      protocolVersion: current.protocolVersion,
+      setupRequired: current.setupRequired,
+      capabilities: current.capabilities,
+      restoreRetentionDays: current.restoreRetentionDays,
+      limits: current.limits,
+      signingPublicKey: current.signingPublicKey,
+      signingKeyTransitions: current.signingKeyTransitions,
+      credentialVisibilityDefault: current.credentialVisibilityDefault,
+    );
+  }
+
+  Future<void> _recoverFromSnapshot({required bool duringSync}) async {
     final repository = _repository;
     if (repository == null) {
       errorMessage = currentL10n.unlockTheVaultFirst2;
       notifyListeners();
       return;
     }
-    _automaticSync.stop();
+    final selectionGeneration = _vaultSelectionGeneration;
+    final authGeneration = _authContextGeneration;
+    bool scopeIsCurrent() =>
+        !_controllerDisposed &&
+        identical(_repository, repository) &&
+        selectionGeneration == _vaultSelectionGeneration &&
+        authGeneration == _authContextGeneration;
+    // A sync pass already owns the gate. Restarting its coordinator here
+    // would queue another pass immediately, including after a failed rebuild.
+    if (!duringSync) _automaticSync.stop();
     snapshotRecoveryActive = true;
     _knownHostDecisionGeneration++;
     syncStatus = 'snapshot_recovering';
@@ -17773,51 +17826,64 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       final result = await repository.recoverFromSnapshot();
+      if (!scopeIsCurrent()) return;
       final recoveredGeneration = result.serverGeneration;
-      final currentInstance = instance;
-      if (recoveredGeneration != null && currentInstance != null) {
-        instance = InstanceInfo(
-          instanceId: currentInstance.instanceId,
-          serverSpaceId: currentInstance.serverSpaceId,
-          generation: recoveredGeneration,
-          protocolVersion: currentInstance.protocolVersion,
-          setupRequired: currentInstance.setupRequired,
-          capabilities: currentInstance.capabilities,
-          signingPublicKey: currentInstance.signingPublicKey,
-          signingKeyTransitions: currentInstance.signingKeyTransitions,
-          // credential-visibility
-          credentialVisibilityDefault:
-              currentInstance.credentialVisibilityDefault,
-        );
+      if (recoveredGeneration != null) {
+        _adoptRecoveredGeneration(recoveredGeneration);
       }
+      _automaticSnapshotBlockedScope = null;
       syncStatus = result.status;
       pendingCount = result.pendingCount;
       receivedCount = result.receivedCount;
       conflictCount = result.conflictCount;
       await reloadRecords();
+      if (!scopeIsCurrent()) return;
       await refreshSyncStatus(keepStatus: true);
-      _setNotice(
-        result.status == 'idle'
-            ? currentL10n.snapshotRestoreCompleteReceivedcountRecordsVerified(
-                result.receivedCount,
-              )
-            : currentL10n.theSnapshotWasRestoredSafelySome,
-      );
+      if (!duringSync && scopeIsCurrent()) {
+        _setNotice(
+          result.status == 'idle'
+              ? currentL10n.snapshotRestoreCompleteReceivedcountRecordsVerified(
+                  result.receivedCount,
+                )
+              : currentL10n.theSnapshotWasRestoredSafelySome,
+        );
+      }
     } catch (error) {
+      if (!scopeIsCurrent()) return;
+      if (repository.lastRecoveryCommitted) {
+        // A later push or catch-up error does not undo the installed
+        // checkpoint. A rebuilt repository must use its verified generation.
+        _adoptRecoveredGeneration(repository.serverGeneration);
+      }
+      final retryable =
+          error is TimeoutException ||
+          error is ApiTransportException ||
+          error is SyncReadTransportUnavailableException ||
+          (error is ApiException && error.isRetryable);
       if (error is SnapshotRedactionResurrectionException) {
         syncStatus = 'redaction_restore_conflict';
-        _automaticSync.stop();
       } else if (error is SnapshotBootstrapLimitException) {
         syncStatus = 'snapshot_too_large';
-        _automaticSync.stop();
       } else {
-        syncStatus = error is ApiException
-            ? (error.isRetryable ? 'retry_wait' : error.code.toLowerCase())
-            : repository.lastRecoveryCommitted
-            ? 'retry_wait'
-            : 'resnapshot_required';
+        syncStatus = switch (error) {
+          ApiException(statusCode: 401) => 'auth_required',
+          ApiException(code: 'DEVICE_REVOKED' || 'VAULT_ACCESS_REVOKED') =>
+            'revoked',
+          ApiException(code: 'VAULT_DELETION_PENDING') => 'deletion_pending',
+          _ when retryable || repository.lastRecoveryCommitted => 'retry_wait',
+          _ => 'resnapshot_required',
+        };
       }
-      errorMessage = friendlyError(error);
+      if (syncStatus == 'resnapshot_required' ||
+          syncStatus == 'redaction_restore_conflict') {
+        // Leave deliberate retries available without repeatedly downloading
+        // a snapshot that this Vault could not verify or activate.
+        _automaticSnapshotBlockedScope = (
+          selectionGeneration,
+          repository.serverGeneration,
+        );
+      }
+      errorMessage = duringSync ? null : friendlyError(error);
       try {
         await refreshSyncStatus(keepStatus: true);
       } catch (_) {
@@ -17825,13 +17891,15 @@ class AppController extends ChangeNotifier {
       }
     } finally {
       snapshotRecoveryActive = false;
-      if (syncStatus == 'snapshot_too_large' ||
-          syncStatus == 'redaction_restore_conflict') {
-        _automaticSync.stop();
-      } else {
-        _automaticSync.start();
+      if (scopeIsCurrent()) {
+        if (syncStatus == 'snapshot_too_large' ||
+            syncStatus == 'redaction_restore_conflict') {
+          _automaticSync.stop();
+        } else if (!duringSync) {
+          _automaticSync.start();
+        }
+        notifyListeners();
       }
-      notifyListeners();
     }
   }
 

@@ -475,6 +475,25 @@ class HostRecord {
   AnsibleInventoryImportMetadata? get ansibleInventoryImport =>
       readAnsibleInventoryMetadata(manifest);
 
+  static const _legacySshKey = 'ssh_legacy_algorithms';
+
+  bool get legacySshEnabled =>
+      protocol == HostProtocol.ssh && manifest?[_legacySshKey] == true;
+
+  HostRecord copyWithLegacySsh(bool enabled) {
+    final allow = enabled && protocol == HostProtocol.ssh;
+    if (allow ? legacySshEnabled : manifest?.containsKey(_legacySshKey) != true) {
+      return this;
+    }
+    final settings = {...?manifest};
+    if (allow) {
+      settings[_legacySshKey] = true;
+    } else {
+      settings.remove(_legacySshKey);
+    }
+    return copyWith(manifest: settings, clearManifest: settings.isEmpty);
+  }
+
   String get _operatingSystemEndpoint =>
       jsonEncode([protocol.name, address, port, username, jumpHostId]);
 

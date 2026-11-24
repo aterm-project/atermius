@@ -32841,6 +32841,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The USB serial adapter was disconnected.'**
   String get usbSerialDetached;
+
+  /// No description provided for @legacySshCompatibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy SSH compatibility'**
+  String get legacySshCompatibility;
+
+  /// No description provided for @legacySshCompatibilityHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Allows older encryption and signing algorithms required by some Cisco IOS devices.'**
+  String get legacySshCompatibilityHelp;
+
+  /// No description provided for @sshAlgorithmNegotiationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'No common SSH algorithms with {endpoint}. Check the device’s SSH settings and the host’s Legacy SSH compatibility option.'**
+  String sshAlgorithmNegotiationFailed(String endpoint);
 }
 
 class _AppLocalizationsDelegate

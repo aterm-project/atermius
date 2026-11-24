@@ -20835,4 +20835,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get usbSerialDetached => 'The USB serial adapter was disconnected.';
+
+  @override
+  String get legacySshCompatibility => 'Legacy SSH compatibility';
+
+  @override
+  String get legacySshCompatibilityHelp =>
+      'Allows older encryption and signing algorithms required by some Cisco IOS devices.';
+
+  @override
+  String sshAlgorithmNegotiationFailed(String endpoint) {
+    return 'No common SSH algorithms with $endpoint. Check the device’s SSH settings and the host’s Legacy SSH compatibility option.';
+  }
 }

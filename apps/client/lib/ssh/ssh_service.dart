@@ -16,6 +16,31 @@ import 'ssh_keepalive_policy.dart';
 import 'ssh_transport.dart';
 import '../l10n/l10n.dart';
 
+const _defaultSshAlgorithms = SSHAlgorithms();
+final _legacySshAlgorithms = SSHAlgorithms(
+  kex: [
+    ..._defaultSshAlgorithms.kex,
+    SSHKexType.dh14Sha1,
+    SSHKexType.dhGexSha1,
+    SSHKexType.dh1Sha1,
+  ],
+  hostkey: [..._defaultSshAlgorithms.hostkey, SSHHostkeyType.rsaSha1],
+  cipher: [
+    ..._defaultSshAlgorithms.cipher,
+    SSHCipherType.aes256cbc,
+    SSHCipherType.aes192cbc,
+    SSHCipherType.aes128cbc,
+    SSHCipherType.tripleDesCbc,
+  ],
+  mac: [..._defaultSshAlgorithms.mac, SSHMacType.hmacSha1_96],
+);
+
+class SshAlgorithmMismatch implements Exception {
+  const SshAlgorithmMismatch(this.endpoint);
+
+  final String endpoint;
+}
+
 enum SshHostKeyFailure { rejected, changed }
 
 class SshHostKeyVerificationException implements Exception {
@@ -268,6 +293,9 @@ void terminateSshExecSession(SSHSession session) {
 }
 
 String? sshConnectionFriendlyError(Object error) {
+  if (error is SshAlgorithmMismatch) {
+    return currentL10n.sshAlgorithmNegotiationFailed(error.endpoint);
+  }
   bool isKeyboardInteractiveCancellation(Object? candidate) =>
       switch (candidate) {
         SshKeyboardInteractiveCancelled() => true,
@@ -1293,7 +1321,14 @@ class SshService {
         isJumpHop: isJumpHop,
       );
       attempt.register(client.close);
-      await _authenticate(client, attempt);
+      try {
+        await _authenticate(client, attempt);
+      } on SSHAuthAbortError catch (error) {
+        if (error.reason is SSHAlgorithmNegotiationError) {
+          throw SshAlgorithmMismatch(host.endpoint);
+        }
+        rethrow;
+      }
       return client;
     }
 
@@ -1374,7 +1409,10 @@ class SshService {
   }) {
     final username =
         credential.username.isEmpty ? host.username : credential.username;
-    final identities = _parseIdentities(credential);
+    final identities = _parseIdentities(
+      credential,
+      legacySsh: host.legacySshEnabled,
+    );
     final passwordRequest =
         credential.kind == AuthKind.password ? () => credential.secret : null;
     final userInfoRequest = onUserInfoRequest == null
@@ -1403,6 +1441,9 @@ class SshService {
     return SSHClient(
       socket,
       username: username,
+      algorithms: host.legacySshEnabled
+          ? _legacySshAlgorithms
+          : _defaultSshAlgorithms,
       identities: identities,
       onPasswordRequest: passwordRequest,
       onUserInfoRequest: userInfoRequest,
@@ -1459,7 +1500,10 @@ class SshService {
   }
 }
 
-List<SSHIdentity> _parseIdentities(CredentialRecord credential) {
+List<SSHIdentity> _parseIdentities(
+  CredentialRecord credential, {
+  required bool legacySsh,
+}) {
   if (credential.kind != AuthKind.privateKey || credential.privateKey == null) {
     return <SSHIdentity>[];
   }
@@ -1484,7 +1528,29 @@ List<SSHIdentity> _parseIdentities(CredentialRecord credential) {
     // A stored OpenSSH user certificate is offered first; it must certify one
     // of these keys, otherwise authentication fails closed instead of
     // silently falling back and reporting a certificate login.
-    return sshIdentitiesFor(pairs, certificateText: credential.certificate);
+    final identities = sshIdentitiesFor(
+      pairs,
+      certificateText: credential.certificate,
+    );
+    if (legacySsh) {
+      for (final pair in pairs) {
+        final sign = switch (pair) {
+          RsaPrivateKey() => pair.sign,
+          OpenSSHRsaKeyPair() => pair.sign,
+          _ => null,
+        };
+        if (sign == null) continue;
+        identities.add(
+          SSHIdentity.custom(
+            type: SSHHostkeyType.rsaSha1.name,
+            publicKey: pair.toPublicKey(),
+            signer: (data) => sign(data, useSha1: true),
+            comment: pair.comment,
+          ),
+        );
+      }
+    }
+    return identities;
   } on OpenSshCertificateException {
     throw const SshCredentialException();
   }

@@ -5516,5 +5516,8 @@
   "usbSerialPermissionBusy": "另一个 USB 访问请求尚未处理，请先回应它。",
   "usbSerialPortBusy": "此串口已在另一个标签页中打开。",
   "usbSerialOpenFailed": "无法打开 USB 串口适配器。请拔下后重新插入再试。",
-  "usbSerialDetached": "USB 串口适配器已断开连接。"
+  "usbSerialDetached": "USB 串口适配器已断开连接。",
+  "legacySshCompatibility": "旧版 SSH 兼容",
+  "legacySshCompatibilityHelp": "允许部分旧款 Cisco IOS 设备所需的加密和签名算法。",
+  "sshAlgorithmNegotiationFailed": "与 {endpoint} 未能协商出共同的 SSH 算法。请检查设备的 SSH 设置及主机的「旧版 SSH 兼容」选项。"
 }

@@ -1404,7 +1404,8 @@ class SSHTransport {
       case SSHHostkeyType.rsaSha512:
         final publicKey = SSHRsaPublicKey.decode(keyBytes);
         final signature = SSHRsaSignature.decode(signatureBytes);
-        return publicKey.verify(exchangeHash, signature);
+        return signature.type == _hostkeyType!.name &&
+            publicKey.verify(exchangeHash, signature);
       case SSHHostkeyType.ecdsa256:
       case SSHHostkeyType.ecdsa384:
       case SSHHostkeyType.ecdsa521:
@@ -1749,22 +1750,22 @@ class SSHTransport {
     );
 
     if (_kexType == null) {
-      throw StateError('No matching key exchange algorithm');
+      throw SSHAlgorithmNegotiationError('No matching key exchange algorithm');
     }
     if (_hostkeyType == null) {
-      throw StateError('No matching host key algorithm');
+      throw SSHAlgorithmNegotiationError('No matching host key algorithm');
     }
     if (_clientCipherType == null) {
-      throw StateError('No matching client cipher algorithm');
+      throw SSHAlgorithmNegotiationError('No matching client cipher algorithm');
     }
     if (_serverCipherType == null) {
-      throw StateError('No matching server cipher algorithm');
+      throw SSHAlgorithmNegotiationError('No matching server cipher algorithm');
     }
     if (_clientMacType == null && !_clientCipherType!.isAead) {
-      throw StateError('No matching client MAC algorithm');
+      throw SSHAlgorithmNegotiationError('No matching client MAC algorithm');
     }
     if (_serverMacType == null && !_serverCipherType!.isAead) {
-      throw StateError('No matching server MAC algorithm');
+      throw SSHAlgorithmNegotiationError('No matching server MAC algorithm');
     }
 
     printDebug?.call('SSHTransport._kexType: $_kexType');

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/crypto/vault_crypto.dart';
+import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/l10n/app_localizations.dart';
 import 'package:aterm_client/storage/client_database.dart';
 import 'package:aterm_client/storage/secure_store.dart';
@@ -68,6 +69,90 @@ void main() {
   });
 
   group('AppController automatic sync gate', () {
+    test('saving a Host silently queues background synchronization', () async {
+      final f = await _Fixture.create(sodium);
+      try {
+        const host = HostRecord(
+          id: '55555555-5555-4555-8555-555555555555',
+          name: 'Router',
+          address: 'router.example.test',
+          username: 'operator',
+        );
+        await f.app.saveHost(host);
+        expect(f.app.hosts.single.id, host.id);
+        expect(await f.database.countPending(_vaultId), 1);
+        expect(f.app.noticeMessage, isNull);
+        await Future<void>.delayed(const Duration(milliseconds: 850));
+        expect(f.automaticCalls, 1);
+      } finally {
+        await f.dispose();
+      }
+    });
+
+    test('expired cursor rebuilds without publishing a recovery error', () async {
+      final f = await _Fixture.create(sodium, realAutomaticSync: true);
+      try {
+        f.repository.needsSnapshot = true;
+        final visibleStates = <String>[];
+        f.app.addListener(() => visibleStates.add(f.app.syncStatus));
+        await f.app.onForegroundResumed();
+        expect(f.repository.snapshotAttempts, 1);
+        expect(f.app.syncStatus, 'idle');
+        expect(visibleStates, contains('snapshot_recovering'));
+        expect(visibleStates, isNot(contains('resnapshot_required')));
+        expect(f.app.noticeMessage, isNull);
+        expect(f.app.errorMessage, isNull);
+      } finally {
+        await f.dispose();
+      }
+    });
+
+    test('a failed verification waits for a deliberate snapshot retry', () async {
+      final f = await _Fixture.create(sodium, realAutomaticSync: true);
+      try {
+        f.repository.needsSnapshot = true;
+        f.repository.snapshotFailure = const FormatException('invalid snapshot');
+        await f.app.onForegroundResumed();
+        expect(f.repository.snapshotAttempts, 1);
+        expect(f.app.syncStatus, 'resnapshot_required');
+        expect(f.app.errorMessage, isNull);
+
+        await f.app.onForegroundResumed();
+        expect(f.repository.snapshotAttempts, 1);
+        expect(f.repository.passes, 1);
+        f.repository.snapshotFailure = null;
+        expect((await f.app.syncNow()).outcome, SyncNowOutcome.completed);
+        expect(f.repository.snapshotAttempts, 2);
+        expect(f.app.syncStatus, 'idle');
+      } finally {
+        await f.dispose();
+      }
+    });
+
+    test('a transient snapshot outage retries without discarding the outbox', () async {
+      final f = await _Fixture.create(sodium, realAutomaticSync: true);
+      try {
+        await f.app.saveWorkspaceDefaultSection('snippets');
+        f.repository.needsSnapshot = true;
+        f.repository.snapshotFailure = const ApiException(
+          statusCode: 503,
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'snapshot temporarily unavailable',
+        );
+        await f.app.onForegroundResumed();
+        expect(f.app.syncStatus, 'retry_wait');
+        expect(f.repository.snapshotAttempts, 1);
+        expect(await f.database.countPending(_vaultId), 1);
+
+        f.repository.snapshotFailure = null;
+        await f.app.onForegroundResumed();
+        expect(f.repository.snapshotAttempts, 2);
+        expect(f.app.syncStatus, 'idle');
+      } finally {
+        await f.dispose();
+      }
+    });
+
     test(
       'persisted off: no background callback, outbox intact, Sync now works',
       () async {
@@ -545,6 +630,9 @@ class _CountingRepository extends SyncRepository {
   });
 
   int passes = 0;
+  int snapshotAttempts = 0;
+  bool needsSnapshot = false;
+  Object? snapshotFailure;
   Future<void>? gate;
   // First pass is rejected as stale so the controller refreshes signed
   // membership and then retries with a new pass.
@@ -568,7 +656,22 @@ class _CountingRepository extends SyncRepository {
       pendingCount: await database.countPending(vaultId),
       receivedCount: 0,
       conflictCount: 0,
+      status: needsSnapshot ? 'resnapshot_required' : 'idle',
+    );
+  }
+
+  @override
+  Future<SyncResult> recoverFromSnapshot() async {
+    snapshotAttempts++;
+    final failure = snapshotFailure;
+    if (failure != null) throw failure;
+    needsSnapshot = false;
+    return SyncResult(
+      pendingCount: await database.countPending(vaultId),
+      receivedCount: 0,
+      conflictCount: 0,
       status: 'idle',
+      serverGeneration: serverGeneration,
     );
   }
 }

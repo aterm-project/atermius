@@ -61,6 +61,28 @@ void main() {
     isFavorite: true,
   );
 
+  testWidgets('legacy SSH is opt-in and preserves other host settings', (
+    tester,
+  ) async {
+    final saved = await editWith(
+      tester,
+      referencing.copyWith(manifest: {'custom': 'keep'}),
+      credential: shared,
+      interact: () async {
+        final option = find.byKey(const ValueKey('host_editor_legacy_ssh'));
+        expect(tester.widget<SwitchListTile>(option).value, isFalse);
+        await tester.ensureVisible(option);
+        await tester.tap(option);
+        await tester.pumpAndSettle();
+      },
+    );
+    final loaded = HostRecord.fromJson(saved!.toJson());
+    expect(loaded.legacySshEnabled, isTrue);
+    expect(loaded.manifest?['custom'], 'keep');
+    expect(loaded.copyWithLegacySsh(false).manifest, {'custom': 'keep'});
+    expect(loaded.copyWith(protocol: HostProtocol.telnet).legacySshEnabled, isFalse);
+  });
+
   testWidgets('editing unrelated fields keeps the Keychain reference', (
     tester,
   ) async {

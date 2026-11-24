@@ -11,6 +11,7 @@ class SSHCipherType extends SSHAlgorithm {
     aes128cbc,
     aes192cbc,
     aes256cbc,
+    tripleDesCbc,
     aes128ctr,
     aes192ctr,
     aes256ctr,
@@ -77,6 +78,14 @@ class SSHCipherType extends SSHAlgorithm {
     name: 'aes256-cbc',
     keySize: 32,
     cipherFactory: _aesCbcFactory,
+  );
+
+  static const tripleDesCbc = SSHCipherType._(
+    name: '3des-cbc',
+    keySize: 24,
+    ivSize: 8,
+    blockSize: 8,
+    cipherFactory: _tripleDesCbcFactory,
   );
 
   static SSHCipherType? fromName(String name) {
@@ -153,3 +162,5 @@ BlockCipher _aesCtrFactory() {
 BlockCipher _aesCbcFactory() {
   return CBCBlockCipher(AESEngine());
 }
+
+BlockCipher _tripleDesCbcFactory() => CBCBlockCipher(DESedeEngine());

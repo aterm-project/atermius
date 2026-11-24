@@ -299,6 +299,27 @@ void main() {
     return [for (var i = 0; i < lines.length; i++) lines[i].toString()].join();
   }
 
+  testWidgets('local SSH accepts keyboard-interactive prompts after trust', (
+    tester,
+  ) async {
+    ssh.challenge = SSHUserInfoRequest('Router login', '', [
+      SSHUserInfoPrompt('Password:', false),
+    ]);
+    await openProfile(tester);
+    await tester.tap(find.byKey(ValueKey('local_host_$alphaId')));
+    await approveHostKey(tester, 'alpha.example.test');
+    final prompt = find.byKey(const ValueKey('ssh-user-info-response-0'));
+    await pumpFor(tester, () => prompt.hitTestable().evaluate().isNotEmpty);
+    expect(tester.widget<TextField>(prompt).obscureText, isTrue);
+    expect(ssh.authenticated, 0);
+    await tester.enterText(prompt, 'test-response');
+    await tester.tap(find.byKey(const ValueKey('ssh-user-info-submit')));
+    await pumpFor(tester, () => find.byKey(_terminalView).evaluate().isNotEmpty);
+    expect(ssh.responses, ['test-response']);
+    expect(ssh.authenticated, 1);
+    await closeFlow(tester);
+  });
+
   testWidgets('a host card opens a selected tab that shows the loading; the '
       'home page shows none and opens a second host meanwhile', (tester) async {
     await openProfile(tester);
@@ -764,6 +785,8 @@ void main() {
 /// authenticates.
 class _Ssh {
   bool hold = false;
+  SSHUserInfoRequest? challenge;
+  List<String>? responses;
 
   /// Addresses of every socket request, in order.
   final requests = <String>[];
@@ -802,6 +825,8 @@ class _Ssh {
               Uint8List.fromList(utf8.encode(_fingerprint)),
             );
             if (!approved) throw SSHAuthFailError('untrusted key');
+            final request = challenge;
+            if (request != null) responses = await onUserInfoRequest!(request);
             authenticated++;
             sessions.add(session);
           });

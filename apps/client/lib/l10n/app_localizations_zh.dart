@@ -18685,4 +18685,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get usbSerialDetached => 'USB 串口适配器已断开连接。';
+
+  @override
+  String get legacySshCompatibility => '旧版 SSH 兼容';
+
+  @override
+  String get legacySshCompatibilityHelp => '允许部分旧款 Cisco IOS 设备所需的加密和签名算法。';
+
+  @override
+  String sshAlgorithmNegotiationFailed(String endpoint) {
+    return '与 $endpoint 未能协商出共同的 SSH 算法。请检查设备的 SSH 设置及主机的「旧版 SSH 兼容」选项。';
+  }
 }

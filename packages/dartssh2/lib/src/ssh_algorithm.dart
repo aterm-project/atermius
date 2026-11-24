@@ -77,6 +77,7 @@ class SSHAlgorithms {
       SSHCipherType.aes128gcm,
       SSHCipherType.chacha20poly1305,
       SSHCipherType.aes256ctr,
+      SSHCipherType.aes192ctr,
       SSHCipherType.aes128ctr,
     ],
     this.mac = const [

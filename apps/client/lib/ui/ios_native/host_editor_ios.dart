@@ -19,6 +19,7 @@ extension _HostEditorPanelIos on _HostEditorPanelState {
         _kind != _initialKindValue ||
         _groupId != _initialGroupId ||
         _jumpHostId != _initialJumpHostId ||
+        _legacySshEnabled != _initialLegacySshEnabled ||
         _rdpSettings != _initialRdpSettings ||
         _vncSettings != _initialVncSettings;
   }
@@ -348,6 +349,19 @@ extension _HostEditorPanelIos on _HostEditorPanelState {
             if (_iosAdvancedExpanded) ...[
               if (_protocol != HostProtocol.telnet)
                 _jumpHostField(eligibleJumpHosts),
+              if (_protocol == HostProtocol.ssh)
+                IosSwitchRow(
+                  switchKey: ValueKey('${prefix}_legacy_ssh'),
+                  label: l10n.legacySshCompatibility,
+                  subtitle: l10n.legacySshCompatibilityHelp,
+                  value: _legacySshEnabled,
+                  onChanged: canEdit
+                      ? (value) => _iosSetState(() {
+                          _legacySshEnabled = value;
+                          _lastKnownIosDirty = _hasIosUnsavedChanges();
+                        })
+                      : null,
+                ),
               IosTextFieldRow(
                 fieldKey: ValueKey('${prefix}_tags'),
                 label: l10n.tags,

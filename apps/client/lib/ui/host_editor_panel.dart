@@ -150,6 +150,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
   late HostProtocol _protocol;
   late String? _groupId;
   late String? _jumpHostId;
+  late bool _legacySshEnabled;
   String? _formError;
   bool _editingPrivateKey = false;
 
@@ -177,6 +178,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
   late final AuthKind _initialKindValue;
   late final String? _initialGroupId;
   late final String? _initialJumpHostId;
+  late final bool _initialLegacySshEnabled;
   late final RdpSettings _initialRdpSettings;
   late final VncSettings _initialVncSettings;
   bool _iosAdvancedExpanded = false;
@@ -232,6 +234,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
     if (_username.text.isEmpty) _username.text = credential?.username ?? '';
     _groupId = item?.groupId;
     _jumpHostId = item?.jumpHostId;
+    _legacySshEnabled = item?.legacySshEnabled ?? false;
 
     _initialName = _name.text;
     _initialAddress = _address.text;
@@ -246,10 +249,12 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
     _initialKindValue = _kind;
     _initialGroupId = _groupId;
     _initialJumpHostId = _jumpHostId;
+    _initialLegacySshEnabled = _legacySshEnabled;
     _initialRdpSettings = _rdpSettings;
     _initialVncSettings = _vncSettings;
     _iosAdvancedExpanded =
         _jumpHostId != null ||
+        _legacySshEnabled ||
         _tags.text.trim().isNotEmpty ||
         _protocol == HostProtocol.rdp ||
         _protocol == HostProtocol.vnc;
@@ -613,6 +618,21 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
                         fieldGap,
                         if (_protocol != HostProtocol.telnet)
                           _jumpHostField(eligibleJumpHosts),
+                        if (_protocol == HostProtocol.ssh)
+                          SwitchListTile.adaptive(
+                            key: ValueKey('${widget.keyPrefix}_legacy_ssh'),
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(context.l10n.legacySshCompatibility),
+                            subtitle: Text(
+                              context.l10n.legacySshCompatibilityHelp,
+                            ),
+                            value: _legacySshEnabled,
+                            onChanged: canEdit
+                                ? (value) => setState(
+                                    () => _legacySshEnabled = value,
+                                  )
+                                : null,
+                          ),
                         if (_groupId != null || widget.groups.isNotEmpty) ...[
                           fieldGap,
                           DropdownButtonFormField<String?>(
@@ -962,7 +982,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
                         : RdpSettings.defaults)
                     .applyTo(widget.existing?.manifest),
               ),
-    );
+    ).copyWithLegacySsh(_legacySshEnabled);
     final issue =
         (_protocol == HostProtocol.rdp ? _rdpSettings.validate() : null) ??
         (_protocol == HostProtocol.vnc ? _vncSettings.validate() : null) ??

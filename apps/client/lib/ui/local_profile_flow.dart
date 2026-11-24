@@ -85,6 +85,7 @@ import 'connect_progress_view.dart';
 import 'temporary_jump_host_picker.dart';
 import '../platform/application_windows.dart';
 import 'paste_safety_dialog.dart';
+import 'ssh_user_info_dialog.dart';
 import 'terminal_link_dialog.dart';
 import 'session_workspace.dart';
 import 'ssh_forwarding_page.dart';
@@ -2471,6 +2472,11 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
     // Completed when the host key this attempt had reviewed is stored; the
     // next review in the queue waits for it.
     Completer<void>? approvalStored;
+    final interactiveFinished = Completer<void>();
+    final interactiveCancelled = Future.any<void>([
+      cancellation.whenCancelled,
+      interactiveFinished.future,
+    ]);
     // Sanitized lifecycle row: categories only, never credential material.
     SessionLogRecorder? log = _sessionLogs?.begin(
       host: host,
@@ -2494,6 +2500,21 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
         credential: credential,
         cancellation: cancellation,
         temporaryJumpHostId: session.temporaryJumpHostId,
+        onUserInfoRequest: (challengeHost, request) async {
+          if (!attemptCurrent()) throw const SshKeyboardInteractiveCancelled();
+          advance(ConnectStage.awaitingUser);
+          final responses = await showSshUserInfo(
+            context,
+            challengeHost,
+            request,
+            interactiveCancelled,
+          );
+          if (!attemptCurrent() || responses == null) {
+            throw const SshKeyboardInteractiveCancelled();
+          }
+          advance(ConnectStage.authenticating);
+          return responses;
+        },
         askApproval: (request) async {
           if (!attemptCurrent()) return false;
           advance(ConnectStage.awaitingUser);
@@ -2547,6 +2568,11 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
               : currentL10n.theSshHostKeyWasntApproved,
         );
       }
+    } on SshAlgorithmMismatch catch (error) {
+      log?.markFailed(error);
+      if (attemptCurrent()) {
+        report(currentL10n.sshAlgorithmNegotiationFailed(error.endpoint));
+      }
     } on UnsupportedError catch (error) {
       log?.markFailed(error);
       if (attemptCurrent()) {
@@ -2558,6 +2584,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
       log?.markFailed(error);
       if (attemptCurrent()) report(currentL10n.couldntConnectToTheLocalSsh);
     } finally {
+      interactiveFinished.complete();
       if (approvalStored?.isCompleted == false) approvalStored!.complete();
       // Abandoned (scope changed / cancelled) before a tab took ownership.
       log?.markClosed(SessionLogEndReason.user);

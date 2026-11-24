@@ -224,6 +224,7 @@ SessionLogFailure classifySessionFailure(Object error) {
   if (error is UnsupportedError) return SessionLogFailure.unsupported;
   if (error is SSHSocketError ||
       error is SSHHandshakeError ||
+      error is SshAlgorithmMismatch ||
       error is SshRelayTransportException) {
     return SessionLogFailure.network;
   }

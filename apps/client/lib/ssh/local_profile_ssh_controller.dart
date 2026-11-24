@@ -122,6 +122,7 @@ final class LocalProfileSshController {
     required LocalKnownHostApprovalPrompt askApproval,
     void Function()? onApprovalStored,
     SshConnectCancellation? cancellation,
+    SshKeyboardInteractiveHandler? onUserInfoRequest,
     String? temporaryJumpHostId,
   }) => _withVerifiedRoute(
     host: host,
@@ -136,6 +137,7 @@ final class LocalProfileSshController {
       knownHostDecisionScope: repository.knownHostDecisionScope,
       verifyHostKey: (algorithm, fingerprint) =>
           verify(host, algorithm, fingerprint),
+      onUserInfoRequest: onUserInfoRequest,
       cancellation: cancellation,
     ),
   );

@@ -32,6 +32,11 @@ class SSHHandshakeError with SSHMessageError implements SSHError {
   SSHHandshakeError(this.message);
 }
 
+/// The SSH peers have no common algorithm in a required category.
+class SSHAlgorithmNegotiationError extends SSHHandshakeError {
+  SSHAlgorithmNegotiationError(super.message);
+}
+
 /// Errors that happen when the library fails to authenticate.
 abstract class SSHAuthError with SSHMessageError implements SSHError {}
 

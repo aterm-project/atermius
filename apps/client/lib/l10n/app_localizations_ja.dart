@@ -19640,4 +19640,16 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get usbSerialDetached => 'USB シリアルアダプターが取り外されました。';
+
+  @override
+  String get legacySshCompatibility => '旧バージョンの SSH 互換性';
+
+  @override
+  String get legacySshCompatibilityHelp =>
+      '一部の古い Cisco IOS 機器が必要とする暗号化・署名アルゴリズムを許可します。';
+
+  @override
+  String sshAlgorithmNegotiationFailed(String endpoint) {
+    return '$endpoint と共通の SSH アルゴリズムを選択できませんでした。機器の SSH 設定とホストの旧バージョン互換性オプションを確認してください。';
+  }
 }

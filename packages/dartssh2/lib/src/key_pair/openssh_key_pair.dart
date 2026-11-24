@@ -419,18 +419,8 @@ class OpenSSHRsaKeyPair with OpenSSHKeyPair {
   }
 
   @override
-  SSHRsaSignature sign(Uint8List data) {
-    final signer = RSASigner(SHA256Digest(), '0609608648016503040201');
-
-    signer.init(
-      true,
-      PrivateKeyParameter<RSAPrivateKey>(
-        RSAPrivateKey(n, d, p, q),
-      ),
-    );
-
-    return SSHRsaSignature(type, signer.generateSignature(data).bytes);
-  }
+  SSHRsaSignature sign(Uint8List data, {bool useSha1 = false}) =>
+      SSHRsaSignature.sign(data, RSAPrivateKey(n, d, p, q), useSha1: useSha1);
 
   @override
   void writeTo(SSHMessageWriter writer) {

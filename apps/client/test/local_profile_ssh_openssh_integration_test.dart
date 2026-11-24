@@ -25,10 +25,188 @@ import 'package:uuid/uuid.dart';
 
 const _enableLocalVaultJumpAcceptance =
     'ATERMIUS_RUN_LOCALVAULT_JUMP_SSHD_TEST';
+const _enableLegacySshAcceptance = 'ATERMIUS_RUN_LEGACY_SSHD_TEST';
 const _targetMarker = '__LOCALVAULT_JUMP_TARGET_OK__';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'legacy SSH requires host opt-in and still verifies the RSA host key',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'atermius-legacy-ssh-',
+      );
+      Process? sshd;
+      try {
+        final sshdPath = _findExecutable('sshd');
+        final keygen = _findExecutable('ssh-keygen');
+        final username = await _currentSshUser();
+        final hostKey = '${root.path}/host';
+        final openSshKey = '${root.path}/user-openssh';
+        final pemKey = '${root.path}/user-pem';
+        final authorizedKeys = File('${root.path}/authorized_keys');
+        await _run(keygen, [
+          '-q',
+          '-t',
+          'rsa',
+          '-b',
+          '2048',
+          '-N',
+          '',
+          '-f',
+          hostKey,
+        ]);
+        await _run(keygen, [
+          '-q',
+          '-t',
+          'rsa',
+          '-b',
+          '2048',
+          '-N',
+          '',
+          '-f',
+          openSshKey,
+        ]);
+        await _run(keygen, [
+          '-q',
+          '-t',
+          'rsa',
+          '-b',
+          '2048',
+          '-m',
+          'PEM',
+          '-N',
+          '',
+          '-f',
+          pemKey,
+        ]);
+        await authorizedKeys.writeAsString(
+          '${await File('$openSshKey.pub').readAsString()}'
+          '${await File('$pemKey.pub').readAsString()}',
+        );
+        final port = await _allocateLoopbackPort();
+        final config = File('${root.path}/sshd.conf');
+        final log = '${root.path}/sshd.log';
+        await config.writeAsString('''
+AddressFamily inet
+ListenAddress 127.0.0.1
+Port $port
+HostKey $hostKey
+HostKeyAlgorithms ssh-rsa
+KexAlgorithms diffie-hellman-group1-sha1
+Ciphers 3des-cbc
+MACs hmac-sha1-96
+PubkeyAcceptedAlgorithms ssh-rsa
+AuthorizedKeysFile ${authorizedKeys.path}
+AuthenticationMethods publickey
+AllowUsers $username
+PermitRootLogin prohibit-password
+StrictModes no
+UsePAM no
+PrintMotd no
+LogLevel DEBUG3
+''');
+        await _run(sshdPath, ['-t', '-f', config.path]);
+        sshd = await Process.start(sshdPath, [
+          '-D',
+          '-f',
+          config.path,
+          '-E',
+          log,
+        ]);
+        unawaited(sshd.stdout.drain<void>());
+        unawaited(sshd.stderr.drain<void>());
+        await _waitForSshd(
+          _TemporarySshd(process: sshd, port: port, logPath: log),
+        );
+        final host = HostRecord(
+          id: 'legacy-ssh-test',
+          name: 'Legacy SSH test',
+          address: '127.0.0.1',
+          port: port,
+          username: username,
+        );
+        final service = SshService(api: null, deviceId: 'legacy-ssh-test');
+        final hostFingerprint = (await _run(keygen, [
+          '-lf',
+          '$hostKey.pub',
+          '-E',
+          'sha256',
+        ])).stdout.trim().split(RegExp(r'\s+'))[1];
+        for (final path in [openSshKey, pemKey]) {
+          final credential = CredentialRecord(
+            id: 'legacy-user',
+            name: 'Legacy user',
+            username: username,
+            kind: AuthKind.privateKey,
+            privateKey: await File(path).readAsString(),
+          );
+          var verified = false;
+          Future<bool> verify(String algorithm, String fingerprint) async {
+            verified = true;
+            expect(algorithm, 'ssh-rsa');
+            expect(fingerprint, hostFingerprint);
+            return true;
+          }
+
+          await expectLater(
+            service.connect(
+              host: host,
+              credential: credential,
+              verifyHostKey: verify,
+            ),
+            throwsA(isA<SshAlgorithmMismatch>()),
+          );
+          expect(verified, isFalse);
+          final compatibleHost = host.copyWithLegacySsh(true);
+          await expectLater(
+            service.connect(
+              host: compatibleHost,
+              credential: credential,
+              verifyHostKey: (_, _) async => false,
+            ),
+            throwsA(
+              isA<SSHAuthAbortError>().having(
+                (e) => e.reason,
+                'reason',
+                isA<SSHHostkeyError>(),
+              ),
+            ),
+          );
+          final connection = await service.connect(
+            host: compatibleHost,
+            credential: credential,
+            verifyHostKey: verify,
+          );
+          try {
+            expect(verified, isTrue);
+            final output = await connection.client.run('printf legacy-ssh-ok');
+            expect(utf8.decode(output), 'legacy-ssh-ok');
+          } finally {
+            await connection.close();
+          }
+        }
+      } catch (error, stack) {
+        final log = File('${root.path}/sshd.log');
+        if (!await log.exists()) rethrow;
+        final reason = error is SSHAuthAbortError ? error.reason : null;
+        Error.throwWithStackTrace(
+          StateError('$error ${reason ?? ''}\n${await log.readAsString()}'),
+          stack,
+        );
+      } finally {
+        if (sshd != null) await _stopProcess(sshd);
+        await root.delete(recursive: true);
+      }
+    },
+    skip:
+        Platform.isLinux &&
+            Platform.environment[_enableLegacySshAcceptance] == '1'
+        ? null
+        : 'Set $_enableLegacySshAcceptance=1 on Linux with OpenSSH installed.',
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 
   final enabled =
       Platform.isLinux &&

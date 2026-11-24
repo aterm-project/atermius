@@ -18,6 +18,12 @@ class SSHMacType extends SSHAlgorithm {
     macFactory: _hmacSha1Factory,
   );
 
+  static const hmacSha1_96 = SSHMacType._(
+    name: 'hmac-sha1-96',
+    keySize: 20,
+    macFactory: _hmacSha1_96Factory,
+  );
+
   static const hmacSha256 = SSHMacType._(
     name: 'hmac-sha2-256',
     keySize: 32,
@@ -90,6 +96,8 @@ Mac _hmacMd5Factory() {
 Mac _hmacSha1Factory() {
   return HMac(SHA1Digest(), 64);
 }
+
+Mac _hmacSha1_96Factory() => TruncatedHMac(SHA1Digest(), 64, 12);
 
 Mac _hmacSha256Factory() {
   return HMac(SHA256Digest(), 64);

@@ -20935,4 +20935,16 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get usbSerialDetached =>
       'USB-адаптер последовательного порта отключён.';
+
+  @override
+  String get legacySshCompatibility => 'Совместимость со старым SSH';
+
+  @override
+  String get legacySshCompatibilityHelp =>
+      'Разрешает устаревшие алгоритмы шифрования и подписи, необходимые некоторым устройствам Cisco IOS.';
+
+  @override
+  String sshAlgorithmNegotiationFailed(String endpoint) {
+    return 'Не удалось согласовать общие алгоритмы SSH с $endpoint. Проверьте настройки SSH устройства и параметр совместимости в настройках хоста.';
+  }
 }
