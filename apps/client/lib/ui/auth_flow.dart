@@ -66,6 +66,8 @@ class _AuthFlowState extends State<AuthFlow> {
   final _recoveryDeviceName = TextEditingController();
   MfaLoginChallenge? _loginChallenge;
   bool _useMfaRecoveryCode = false;
+  bool _identityWarningOpen = false;
+  Object? _shownIdentityReview;
 
   /// Origin (scheme, host and port) for which the development-only insecure
   /// option was confirmed. The option counts as on only while the address
@@ -101,11 +103,19 @@ class _AuthFlowState extends State<AuthFlow> {
     _insecureOrigin = app.insecureServerOrigin;
     _allowInsecure = _insecureAppliesToAddress();
     _server.addListener(_onServerAddressChanged);
+    app.addListener(_scheduleServerIdentityWarning);
+    _scheduleServerIdentityWarning();
   }
 
   @override
   void didUpdateWidget(covariant AuthFlow oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != app) {
+      oldWidget.controller.removeListener(_scheduleServerIdentityWarning);
+      app.addListener(_scheduleServerIdentityWarning);
+      _shownIdentityReview = null;
+      _scheduleServerIdentityWarning();
+    }
     if (_server.text.isEmpty && app.serverUrl != null) {
       _insecureOrigin = app.insecureServerOrigin;
       _server.text = app.serverUrl!;
@@ -159,6 +169,7 @@ class _AuthFlowState extends State<AuthFlow> {
 
   @override
   void dispose() {
+    app.removeListener(_scheduleServerIdentityWarning);
     _server.removeListener(_onServerAddressChanged);
     _server.dispose();
     _username.dispose();
@@ -405,7 +416,7 @@ class _AuthFlowState extends State<AuthFlow> {
         if (stage == ClientStage.server) _serverForm(),
         if (stage == ClientStage.login) _loginForm(),
         if (stage == ClientStage.register) _registerForm(),
-        if (app.errorMessage != null) ...[
+        if (app.errorMessage != null && _pendingIdentityReview == null) ...[
           const SizedBox(height: 16),
           _MessageBox(text: app.errorMessage!, error: true),
         ],
@@ -545,14 +556,6 @@ class _AuthFlowState extends State<AuthFlow> {
         icon: const Icon(Icons.refresh_rounded),
         label: Text(context.l10n.hostedServerRetry),
       ),
-      if (app.pendingInstanceIdentityRecovery case final recovery?) ...[
-        const SizedBox(height: 16),
-        _InstanceIdentityRollbackRecovery(app: app, recovery: recovery),
-      ],
-      if (app.pendingInstanceReplacement case final replacement?) ...[
-        const SizedBox(height: 16),
-        _InstanceReplacementNotice(app: app, replacement: replacement),
-      ],
     ],
   );
 
@@ -600,14 +603,6 @@ class _AuthFlowState extends State<AuthFlow> {
           height: 1.5,
         ),
       ),
-      if (app.pendingInstanceIdentityRecovery case final recovery?) ...[
-        const SizedBox(height: 16),
-        _InstanceIdentityRollbackRecovery(app: app, recovery: recovery),
-      ],
-      if (app.pendingInstanceReplacement case final replacement?) ...[
-        const SizedBox(height: 16),
-        _InstanceReplacementNotice(app: app, replacement: replacement),
-      ],
     ],
   );
 
@@ -966,10 +961,141 @@ class _AuthFlowState extends State<AuthFlow> {
         await app.configureServer(_server.text);
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && _pendingIdentityReview == null) {
         _showError(app.errorMessage ?? context.l10n.couldntConnectToTheServer);
       }
     }
+  }
+
+  Object? get _pendingIdentityReview =>
+      app.pendingInstanceReplacement ?? app.pendingInstanceIdentityRecovery;
+
+  void _scheduleServerIdentityWarning() {
+    final review = _pendingIdentityReview;
+    if (review == null) {
+      _shownIdentityReview = null;
+      return;
+    }
+    if (_identityWarningOpen ||
+        app.busy ||
+        identical(_shownIdentityReview, review)) {
+      return;
+    }
+
+    _identityWarningOpen = true;
+    final controller = app;
+    bool reviewingSameCandidate() =>
+        mounted &&
+        identical(app, controller) &&
+        identical(_pendingIdentityReview, review);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!reviewingSameCandidate() || controller.busy) return;
+        _shownIdentityReview = review;
+        final proceed = await _showServerIdentityWarning(review);
+        if (!reviewingSameCandidate()) return;
+        if (proceed != true) {
+          await controller.cancelPendingInstanceIdentityRecovery();
+        } else if (review is PendingInstanceReplacement) {
+          await controller.confirmPendingInstanceReplacement();
+        } else if (review is PendingInstanceIdentityRecovery) {
+          await controller.confirmPendingInstanceIdentityRecovery(
+            candidateFingerprint: review.candidateFingerprint,
+          );
+        }
+      } catch (error) {
+        if (mounted && identical(app, controller)) {
+          _showError(controller.friendlyError(error));
+        }
+      } finally {
+        _identityWarningOpen = false;
+        if (mounted) _scheduleServerIdentityWarning();
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  Future<bool?> _showServerIdentityWarning(Object review) {
+    final (baseUrl, candidate, previous, insecureOrigin) = switch (review) {
+      PendingInstanceReplacement pending => (
+        pending.baseUrl,
+        pending.candidateFingerprint,
+        null,
+        pending.insecureServerOrigin,
+      ),
+      PendingInstanceIdentityRecovery pending => (
+        pending.baseUrl,
+        pending.candidateFingerprint,
+        pending.pinnedFingerprint,
+        pending.insecureServerOrigin,
+      ),
+      _ => throw StateError('Unknown server identity review'),
+    };
+
+    return showAppDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final l10n = dialogContext.l10n;
+        const fingerprintStyle = TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 12,
+        );
+        final replaced = review is PendingInstanceReplacement;
+        return AlertDialog(
+          key: const ValueKey('server_identity_warning'),
+          scrollable: true,
+          title: Text(l10n.serverIdentityChangedPrompt),
+          content: SizedBox(
+            width: appDialogWidth(dialogContext, 480),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SelectableText(baseUrl),
+                const SizedBox(height: 8),
+                Text(
+                  replaced
+                      ? l10n.serverReinstalledBody
+                      : l10n.theServerReturnedADifferentSigning,
+                ),
+                if (insecureOrigin != null) ...[
+                  const SizedBox(height: 10),
+                  InsecureServerIndicator(
+                    key: const ValueKey('insecure_server_recovery_indicator'),
+                    origin: insecureOrigin,
+                  ),
+                ],
+                if (previous != null) ...[
+                  const SizedBox(height: 12),
+                  Text(l10n.previouslyTrustedFingerprintSha256),
+                  SelectableText(previous, style: fingerprintStyle),
+                ],
+                const SizedBox(height: 12),
+                Text(l10n.fingerprintReturnedByThisServerSha),
+                SelectableText(candidate, style: fingerprintStyle),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              autofocus: true,
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.cancel2),
+            ),
+            FilledButton(
+              key: ValueKey(
+                replaced
+                    ? 'confirm_instance_replacement'
+                    : 'confirm_instance_identity_recovery',
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.continueLabel),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _login() async {
@@ -1418,234 +1544,6 @@ class _AuthFlowState extends State<AuthFlow> {
 
   void _showError(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-  }
-}
-
-class _InstanceReplacementNotice extends StatelessWidget {
-  const _InstanceReplacementNotice({
-    required this.app,
-    required this.replacement,
-  });
-
-  final AppController app;
-  final PendingInstanceReplacement replacement;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    color: context.palette.warningContainer,
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            context.l10n.serverReinstalledTitle,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 7),
-          Text(
-            context.l10n.serverReinstalledBody,
-            style: const TextStyle(fontSize: 12, height: 1.45),
-          ),
-          const SizedBox(height: 9),
-          Text(
-            context.l10n.fingerprintReturnedByThisServerSha,
-            style: TextStyle(color: context.palette.muted, fontSize: 11),
-          ),
-          SelectableText(
-            replacement.candidateFingerprint,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-          ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            key: const ValueKey('confirm_instance_replacement'),
-            onPressed: app.busy
-                ? null
-                : () async {
-                    try {
-                      await app.confirmPendingInstanceReplacement();
-                    } catch (_) {
-                      // The controller already published the reason.
-                    }
-                  },
-            icon: const Icon(Icons.restart_alt_rounded),
-            label: Text(context.l10n.serverReinstalledConfirm),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _InstanceIdentityRollbackRecovery extends StatefulWidget {
-  const _InstanceIdentityRollbackRecovery({
-    required this.app,
-    required this.recovery,
-  });
-
-  final AppController app;
-  final PendingInstanceIdentityRecovery recovery;
-
-  @override
-  State<_InstanceIdentityRollbackRecovery> createState() =>
-      _InstanceIdentityRollbackRecoveryState();
-}
-
-class _InstanceIdentityRollbackRecoveryState
-    extends State<_InstanceIdentityRollbackRecovery> {
-  final _fingerprint = TextEditingController();
-
-  @override
-  void didUpdateWidget(covariant _InstanceIdentityRollbackRecovery oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.recovery.candidateFingerprint !=
-        widget.recovery.candidateFingerprint) {
-      _fingerprint.clear();
-    }
-  }
-
-  @override
-  void dispose() {
-    _fingerprint.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final recovery = widget.recovery;
-    final canConfirm =
-        !widget.app.busy && _fingerprint.text == recovery.candidateFingerprint;
-    return Card(
-      color: context.palette.warningContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              context.l10n.restoredServerIdentityNeedsConfirmation,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              context.l10n.theServerReturnedADifferentSigning,
-              style: const TextStyle(fontSize: 12, height: 1.45),
-            ),
-            const SizedBox(height: 12),
-            if (recovery.insecureServerOrigin case final insecureOrigin?) ...[
-              InsecureServerIndicator(
-                key: const ValueKey('insecure_server_recovery_indicator'),
-                origin: insecureOrigin,
-              ),
-              const SizedBox(height: 10),
-            ],
-            _identityDetail(context.l10n.serverUrl, recovery.baseUrl),
-            _identityDetail(
-              context.l10n.instanceId,
-              recovery.candidate.instanceId,
-            ),
-            _identityDetail(
-              'Server-space ID',
-              recovery.candidate.serverSpaceId,
-            ),
-            const SizedBox(height: 9),
-            Text(
-              context.l10n.previouslyTrustedFingerprintSha256,
-              style: TextStyle(color: context.palette.muted, fontSize: 11),
-            ),
-            SelectableText(
-              recovery.pinnedFingerprint,
-              semanticsLabel: context.l10n
-                  .previouslyTrustedFingerprintSha256Pinnedfingerprint(
-                    recovery.pinnedFingerprint,
-                  ),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              context.l10n.fingerprintReturnedByThisServerSha,
-              style: TextStyle(color: context.palette.muted, fontSize: 11),
-            ),
-            SelectableText(
-              recovery.candidateFingerprint,
-              semanticsLabel: context.l10n.fingerprintReturnedByThisServerSha2(
-                recovery.candidateFingerprint,
-              ),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _fingerprint,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: InputDecoration(
-                labelText: context.l10n.typeTheCandidateFingerprintExactly,
-                hintText: 'SHA256:…',
-                border: const OutlineInputBorder(),
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              alignment: WrapAlignment.end,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton(
-                  onPressed: widget.app.busy
-                      ? null
-                      : widget.app.cancelPendingInstanceIdentityRecovery,
-                  child: Text(context.l10n.cancel2),
-                ),
-                FilledButton.icon(
-                  key: const ValueKey('confirm_instance_identity_recovery'),
-                  onPressed: canConfirm ? _confirm : null,
-                  icon: const Icon(Icons.verified_user_outlined),
-                  label: Text(context.l10n.confirmFingerprintAndContinue),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _identityDetail(String label, String value) => Padding(
-    padding: const EdgeInsets.only(top: 3),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 105,
-          child: Text(
-            label,
-            style: TextStyle(color: context.palette.muted, fontSize: 11),
-          ),
-        ),
-        Expanded(
-          child: SelectableText(
-            value,
-            semanticsLabel: '$label: $value',
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Future<void> _confirm() async {
-    try {
-      await widget.app.confirmPendingInstanceIdentityRecovery(
-        candidateFingerprint: _fingerprint.text,
-      );
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(widget.app.friendlyError(error))),
-        );
-      }
-    }
   }
 }
 

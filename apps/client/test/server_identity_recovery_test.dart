@@ -327,36 +327,73 @@ void main() {
       },
     );
 
-    test('a typed server address still refuses a replaced instance', () async {
-      final previous = DeviceIdentity.create(sodium);
-      final replacement = DeviceIdentity.create(sodium);
-      addTearDown(previous.dispose);
-      addTearDown(replacement.dispose);
-      await secureStore.saveServerIdentityPin(
-        _serverUrl,
-        _pin(previous.signingPublicKey),
-      );
-      instanceResponses.add(
-        _instance(
-          replacement.signingPublicKey,
-          instanceId: replacedInstanceId,
-          serverSpaceId: replacedSpaceId,
-        ),
-      );
+    testWidgets(
+      'a typed server can continue after an instance replacement warning',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(390, 650));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final previous = DeviceIdentity.create(sodium);
+        final replacement = DeviceIdentity.create(sodium);
+        addTearDown(previous.dispose);
+        addTearDown(replacement.dispose);
+        await secureStore.saveServerIdentityPin(
+          _serverUrl,
+          _pin(previous.signingPublicKey),
+        );
+        instanceResponses.add(
+          _instance(
+            replacement.signingPublicKey,
+            instanceId: replacedInstanceId,
+            serverSpaceId: replacedSpaceId,
+          ),
+        );
 
-      await expectLater(
-        app.configureServer(_serverUrl),
-        throwsA(isA<InstanceReplacedException>()),
-      );
+        await expectLater(
+          app.configureServer(_serverUrl),
+          throwsA(isA<InstanceReplacedException>()),
+        );
 
-      expect(app.pendingInstanceReplacement, isNull);
-      expect(app.api, isNull);
-      expect(clients.single.closed, isTrue);
-      expect(
-        (await secureStore.readServerIdentityPin(_serverUrl))?.instanceId,
-        _instanceId,
-      );
-    });
+        expect(app.pendingInstanceReplacement, isNotNull);
+        expect(app.api, isNull);
+        expect(
+          (await secureStore.readServerIdentityPin(_serverUrl))?.instanceId,
+          _instanceId,
+        );
+        expect(requests, ['instance']);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildAppTheme(),
+            home: AnimatedBuilder(
+              animation: app,
+              builder: (context, _) => AuthFlow(controller: app),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Server identity changed'), findsOneWidget);
+        instanceResponses.add(
+          _instance(
+            replacement.signingPublicKey,
+            instanceId: replacedInstanceId,
+            serverSpaceId: replacedSpaceId,
+          ),
+        );
+        await tester.tap(
+          find.byKey(const ValueKey('confirm_instance_replacement')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(app.stage, ClientStage.login);
+        expect(app.pendingInstanceReplacement, isNull);
+        expect(requests, ['instance', 'instance']);
+        expect(
+          (await secureStore.readServerIdentityPin(_serverUrl))?.instanceId,
+          replacedInstanceId,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
   });
 
   group('sign-in with a device left by another account', () {
@@ -604,7 +641,7 @@ void main() {
   });
 
   test(
-    'different instance or server-space IDs never offer key repinning',
+    'instance or server-space replacement stays separate from key recovery',
     () async {
       final previous = DeviceIdentity.create(sodium);
       final candidate = DeviceIdentity.create(sodium);
@@ -624,7 +661,8 @@ void main() {
       await expectLater(app.configureServer(_serverUrl), throwsFormatException);
 
       expect(app.pendingInstanceIdentityRecovery, isNull);
-      expect(clients.single.closed, isTrue);
+      expect(app.pendingInstanceReplacement, isNotNull);
+      expect(clients.single.closed, isFalse);
       expect(
         (await secureStore.readServerIdentityPin(_serverUrl))?.signingPublicKey,
         previous.signingPublicKey,
@@ -647,13 +685,18 @@ void main() {
       );
 
       expect(app.pendingInstanceIdentityRecovery, isNull);
-      expect(clients.last.closed, isTrue);
+      expect(app.pendingInstanceReplacement?.baseUrl, differentSpaceUrl);
+      expect(clients.first.closed, isTrue);
+      expect(clients.last.closed, isFalse);
       expect(
         (await secureStore.readServerIdentityPin(
           differentSpaceUrl,
         ))?.signingPublicKey,
         previous.signingPublicKey,
       );
+      await app.cancelPendingInstanceIdentityRecovery();
+      expect(app.pendingInstanceReplacement, isNull);
+      expect(clients.last.closed, isTrue);
       expect(requests, ['instance', 'instance']);
     },
   );
@@ -727,10 +770,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       final firstReview = app.pendingInstanceIdentityRecovery!;
-      expect(
-        find.text('Restored server identity needs confirmation'),
-        findsOneWidget,
-      );
+      expect(find.text('Server identity changed'), findsOneWidget);
       expect(
         find.text('Previously trusted fingerprint · SHA-256'),
         findsOneWidget,
@@ -747,7 +787,7 @@ void main() {
               find.byKey(const ValueKey('confirm_instance_identity_recovery')),
             )
             .onPressed,
-        isNull,
+        isNotNull,
       );
 
       await tester.ensureVisible(find.text('Cancel').last);
@@ -765,35 +805,9 @@ void main() {
       await tester.tap(find.text('Connect securely'));
       await tester.pumpAndSettle();
       instanceResponses.add(_instance(restored.signingPublicKey));
-      final secondReview = app.pendingInstanceIdentityRecovery!;
-      final fingerprintField = _textFieldWithLabel(
-        'Type the candidate fingerprint exactly',
-      );
-      await tester.enterText(
-        fingerprintField,
-        ' ${secondReview.candidateFingerprint} ',
-      );
-      await tester.pump();
       expect(
-        tester
-            .widget<FilledButton>(
-              find.byKey(const ValueKey('confirm_instance_identity_recovery')),
-            )
-            .onPressed,
-        isNull,
-      );
-      await tester.enterText(
-        fingerprintField,
-        secondReview.candidateFingerprint,
-      );
-      await tester.pump();
-      expect(
-        tester
-            .widget<FilledButton>(
-              find.byKey(const ValueKey('confirm_instance_identity_recovery')),
-            )
-            .onPressed,
-        isNotNull,
+        _textFieldWithLabel('Type the candidate fingerprint exactly'),
+        findsNothing,
       );
       await tester.ensureVisible(
         find.byKey(const ValueKey('confirm_instance_identity_recovery')),
@@ -806,10 +820,7 @@ void main() {
 
       expect(app.stage, ClientStage.login);
       expect(find.text('Email or username'), findsOneWidget);
-      expect(
-        find.text('Restored server identity needs confirmation'),
-        findsNothing,
-      );
+      expect(find.text('Server identity changed'), findsNothing);
       expect(
         (await secureStore.readServerIdentityPin(_serverUrl))?.signingPublicKey,
         restored.signingPublicKey,

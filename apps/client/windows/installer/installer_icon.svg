@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Atermius Setup">
+  <rect width="64" height="64" rx="18" fill="#315bcc"/>
+  <g fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="11" y="13" width="37" height="29" rx="4"/>
+    <path d="m18 22 5.5 5.5-5.5 5.5m12 0h8"/>
+  </g>
+  <circle cx="46" cy="46" r="14" fill="#edf4ff" stroke="#315bcc" stroke-width="3"/>
+  <path d="M46 37v10m-4.5-4.5L46 47l4.5-4.5M39.5 49v4h13v-4" fill="none" stroke="#23439b" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

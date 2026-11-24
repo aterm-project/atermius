@@ -624,12 +624,14 @@ class PendingInstanceReplacement {
     required this.pinnedIdentity,
     required this.candidate,
     required this.candidateFingerprint,
+    this.insecureServerOrigin,
   });
 
   final String baseUrl;
   final ServerIdentityPin pinnedIdentity;
   final InstanceInfo candidate;
   final String candidateFingerprint;
+  final String? insecureServerOrigin;
 }
 
 class InstanceReplacedException extends FormatException {
@@ -4083,23 +4085,18 @@ class AppController extends ChangeNotifier {
           candidateInfo,
         );
       } on InstanceReplacedException catch (replaced) {
-        // The hosted browser client is served by this very server, so the
-        // pin cannot protect it from that server; offer to start over with
-        // the new instance. Other clients keep refusing.
-        if (serverHostedClient &&
-            serverOriginOf(candidate.baseUrl) == serverHostedOrigin) {
-          final fingerprint = await publicKeyFingerprint(
-            candidateInfo.signingPublicKey,
-          );
-          _pendingInstanceReplacementApi = candidate;
-          pendingInstanceReplacement = PendingInstanceReplacement(
-            baseUrl: candidate.baseUrl,
-            pinnedIdentity: replaced.pin,
-            candidate: candidateInfo,
-            candidateFingerprint: fingerprint,
-          );
-          candidate = null;
-        }
+        final fingerprint = await publicKeyFingerprint(
+          candidateInfo.signingPublicKey,
+        );
+        _pendingInstanceReplacementApi = candidate;
+        pendingInstanceReplacement = PendingInstanceReplacement(
+          baseUrl: candidate.baseUrl,
+          pinnedIdentity: replaced.pin,
+          candidate: candidateInfo,
+          candidateFingerprint: fingerprint,
+          insecureServerOrigin: candidate.insecureServer?.origin,
+        );
+        candidate = null;
         rethrow;
       }
       if (previousPin != null) {
@@ -4354,7 +4351,7 @@ class AppController extends ChangeNotifier {
     pendingInstanceReplacement = null;
   }
 
-  /// Accepts the new instance now answering at a hosted address: forgets the
+  /// Accepts the new instance now answering at a saved address: forgets the
   /// sign-in state this device kept for the previous instance, pins the new
   /// identity and continues to sign-in or first-run setup.
   Future<void> confirmPendingInstanceReplacement() async {
@@ -4430,8 +4427,11 @@ class AppController extends ChangeNotifier {
     if (_confirmingInstanceIdentityRecovery) {
       throw StateError(currentL10n.serverIdentityConfirmationIsInProgress2);
     }
+    final hadPending =
+        pendingInstanceIdentityRecovery != null ||
+        pendingInstanceReplacement != null;
     _discardPendingInstanceIdentityRecovery();
-    if (errorMessage == _instanceIdentityRecoveryMessage) errorMessage = null;
+    if (hadPending) errorMessage = null;
     notifyListeners();
   }
 

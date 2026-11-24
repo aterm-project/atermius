@@ -18497,11 +18497,14 @@ class AppLocalizationsJa extends AppLocalizations {
       'サインインできませんでした。メールアドレスまたはユーザー名とマスターパスワードを確認してください。';
 
   @override
+  String get serverIdentityChangedPrompt => 'サーバーの識別情報が変更されました';
+
+  @override
   String get serverReinstalledTitle => 'このサーバーは再インストールされました';
 
   @override
   String get serverReinstalledBody =>
-      'このアドレスのサーバーは新しいインスタンスになったため、このブラウザーに保存された以前のサインイン情報は使用できません。続行すると、保存されたサインイン情報を削除して新しいサーバーに接続します。ホストと認証情報はサインイン後にサーバーから読み込まれます。';
+      'このアドレスは別のサーバーインスタンスを返しています。続行すると、このデバイスに保存された以前のサインイン情報が削除され、新しいインスタンスに接続します。';
 
   @override
   String get serverReinstalledConfirm => '新しいサーバーで続行';

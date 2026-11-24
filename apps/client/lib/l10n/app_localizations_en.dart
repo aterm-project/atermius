@@ -19631,11 +19631,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sign-in failed. Check the email or username and the master password.';
 
   @override
+  String get serverIdentityChangedPrompt => 'Server identity changed';
+
+  @override
   String get serverReinstalledTitle => 'This server was reinstalled';
 
   @override
   String get serverReinstalledBody =>
-      'The server at this address is a new instance, so the sign-in saved in this browser for the previous one no longer works. Continue to forget that saved sign-in and use the new server. Hosts and credentials are loaded from the server after you sign in.';
+      'This address now returns a different server instance. Continue to remove the previous sign-in saved on this device and connect to the new instance.';
 
   @override
   String get serverReinstalledConfirm => 'Continue with the new server';
