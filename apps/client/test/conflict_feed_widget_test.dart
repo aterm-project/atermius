@@ -654,6 +654,114 @@ void main() {
       tester.view.resetDevicePixelRatio();
     }
   });
+  // Settings keeps each page's scroll offset under a PageStorageKey; the
+  // widgets inside must not share that slot (an expansion tile's bool, the
+  // cards' text offsets).
+  testWidgets('the sync page keeps working after scrolling, leaving and '
+      'coming back', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    final sodium = await SodiumSumoInit.init();
+    final database = ClientDatabase.forTesting(NativeDatabase.memory());
+    final app =
+        AppController(
+            sodium: sodium,
+            database: database,
+            secureStore: ClientSecureStore(),
+          )
+          ..stage = ClientStage.workspace
+          ..page = WorkspacePage.sync
+          ..activeVault = const VaultDescriptor(
+            id: _vaultId,
+            role: 'owner',
+            activeKeyEpoch: '2',
+            membershipVersion: '3',
+          )
+          ..feedConflictItems = [
+            _item(resolved: true, resolutionState: 'resolved'),
+          ];
+    try {
+      await tester.pumpWidget(
+        MaterialApp(theme: buildAppTheme(), home: AppShell(controller: app)),
+      );
+      await tester.pump();
+      await tester.ensureVisible(find.text('Processed branches · 1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Processed branches · 1'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      app.showWorkspacePage(WorkspacePage.hosts);
+      await tester.pumpAndSettle();
+      app.showWorkspacePage(WorkspacePage.sync);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('Processed branches · 1'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Processed branches · 1'), findsOneWidget);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      app.dispose();
+      await database.close();
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    }
+  });
+  // Sync and conflicts is a Settings section: the sidebar's Settings item
+  // shows how many conflicts wait and opens that section.
+  testWidgets('unresolved conflicts show on the Settings item', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1000);
+    tester.view.devicePixelRatio = 1;
+    final sodium = await SodiumSumoInit.init();
+    final database = ClientDatabase.forTesting(NativeDatabase.memory());
+    final app =
+        AppController(
+            sodium: sodium,
+            database: database,
+            secureStore: ClientSecureStore(),
+          )
+          ..stage = ClientStage.workspace
+          ..page = WorkspacePage.hosts
+          ..activeVault = const VaultDescriptor(
+            id: _vaultId,
+            role: 'owner',
+            activeKeyEpoch: '2',
+            membershipVersion: '3',
+          )
+          ..feedConflictItems = [_item()];
+    try {
+      await tester.pumpWidget(
+        MaterialApp(theme: buildAppTheme(), home: AppShell(controller: app)),
+      );
+      await tester.pump();
+      final badge = find.byKey(const ValueKey('home_nav_conflicts'));
+      expect(badge, findsOneWidget);
+      expect(
+        find.descendant(of: badge, matching: find.text('1')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('home_nav_settings')));
+      await tester.pumpAndSettle();
+      expect(app.page, WorkspacePage.sync);
+      expect(find.text('Open conflicts'), findsWidgets);
+
+      app.feedConflictItems = [
+        _item(resolved: true, resolutionState: 'resolved'),
+      ];
+      app.showWorkspacePage(WorkspacePage.hosts);
+      await tester.pumpAndSettle();
+      expect(badge, findsNothing);
+      await tester.tap(find.byKey(const ValueKey('home_nav_settings')));
+      await tester.pumpAndSettle();
+      expect(app.page, WorkspacePage.settings);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      app.dispose();
+      await database.close();
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    }
+  });
 }
 
 class _FailingConflictAppController extends AppController {

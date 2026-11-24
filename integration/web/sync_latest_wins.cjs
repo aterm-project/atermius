@@ -583,17 +583,23 @@ async function readHostHistory(page, name, shotName) {
 // The Sync page's "Open conflicts" tile and conflict cards.
 async function syncPageEvidence(page, shotName) {
   await parkPointer(page);
-  const navigation = page.getByRole('button', { name: /^Sync and conflicts(?:\s+\d+)?$/ });
-  await waitUntil(async () => {
-    const count = await navigation.count();
-    for (let index = 0; index < count; index += 1) {
-      if (await navigation.nth(index).isVisible()) {
-        await navigation.nth(index).click();
-        return true;
+  // Sync and conflicts is a Settings section; the sidebar Settings item
+  // carries the unresolved conflict count ("Settings 2").
+  const clickVisibleButton = async (name, what) => {
+    const buttons = page.getByRole('button', { name });
+    await waitUntil(async () => {
+      const count = await buttons.count();
+      for (let index = 0; index < count; index += 1) {
+        if (await buttons.nth(index).isVisible()) {
+          await buttons.nth(index).click();
+          return true;
+        }
       }
-    }
-    return false;
-  }, 15000, 'the Sync and conflicts navigation item');
+      return false;
+    }, 15000, what);
+  };
+  await clickVisibleButton(/^Settings(?:\s+\d+)?$/, 'the Settings navigation item');
+  await clickVisibleButton(/^Sync and conflicts$/, 'the Sync and conflicts settings section');
   let lines = [];
   await waitUntil(async () => {
     lines = await semanticLines(page);

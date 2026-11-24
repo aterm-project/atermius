@@ -26689,7 +26689,7 @@ abstract class AppLocalizations {
   /// Account settings UI text.
   ///
   /// In en, this message translates to:
-  /// **'The local profile will be locked and its open sessions closed. Local hosts stay on this device and are not uploaded. After signing in you can review moving them in Data and migration.'**
+  /// **'The local profile will be locked and its open sessions closed. Local hosts stay on this device and are not uploaded. After signing in you can move them to the server in Settings › Sync and conflicts › Import LocalVault to server.'**
   String get accountSettingsSignInBody;
 
   /// App-owned UI text.

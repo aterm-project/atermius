@@ -279,7 +279,13 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                       padding: narrow
                           ? const EdgeInsets.all(12)
                           : density.pagePadding,
-                      child: Align(
+                      // The key above keeps this page's scroll offset. Every
+                      // widget inside would otherwise store its own state
+                      // (an expansion tile's bool, a text field's offset)
+                      // under that same key and read the others' values.
+                      child: PageStorage(
+                        bucket: _sectionContentStorage,
+                        child: Align(
                         alignment: Alignment.topLeft,
                         child: ConstrainedBox(
                           constraints: BoxConstraints(
@@ -311,6 +317,7 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                             ],
                           ),
                         ),
+                      ),
                       ),
                     ),
             ),
@@ -665,4 +672,17 @@ class SettingsCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Storage for what is inside a settings page: it keeps nothing. The pages
+/// are rebuilt from the app's state, and their widgets would otherwise share
+/// the page's scroll-offset slot (see `SettingsScaffold`).
+final _sectionContentStorage = _NoPageStorage();
+
+class _NoPageStorage extends PageStorageBucket {
+  @override
+  void writeState(BuildContext context, dynamic data, {Object? identifier}) {}
+
+  @override
+  dynamic readState(BuildContext context, {Object? identifier}) => null;
 }

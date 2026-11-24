@@ -15940,7 +15940,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get accountSettingsSignInBody =>
-      'ローカルプロファイルはロックされ、開いているセッションは閉じられます。ローカルのホストはこのデバイスに残り、アップロードされません。サインイン後、「データと移行」で移行を確認できます。';
+      'ローカルプロファイルはロックされ、開いているセッションは閉じられます。ローカルのホストはこのデバイスに残り、アップロードされません。サインイン後、「設定 › 同期と競合 › LocalVault をサーバーにインポート」でサーバーへ移行できます。';
 
   @override
   String get themeSettingTitle => 'テーマ';

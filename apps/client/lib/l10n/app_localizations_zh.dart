@@ -15092,7 +15092,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get accountSettingsSignInBody =>
-      '本地配置文件将被锁定，其已打开的会话将被关闭。本地主机仍保留在此设备上，不会被上传。登录后，你可以在“数据与迁移”中查看是否迁移它们。';
+      '本地配置文件将被锁定，其已打开的会话将被关闭。本地主机仍保留在此设备上，不会被上传。登录后，可以在“设置 › 同步与冲突 › 导入本地 Vault 到服务器”中把它们迁移到服务器。';
 
   @override
   String get themeSettingTitle => '主题';

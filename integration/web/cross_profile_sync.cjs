@@ -2766,24 +2766,36 @@ async function groupRowEvidence(page, groupName, parentName) {
 }
 
 async function clickSyncConflictsNavigation(page) {
-  // The sidebar item is now labelled "Sync and conflicts".
+  // Sync and conflicts is a Settings section. The sidebar Settings item
+  // carries the unresolved conflict count ("Settings 2") and then opens that
+  // section itself; the section entry is clicked either way.
   const exactLabel = page.getByRole('button', {
     name: 'Sync and conflicts',
     exact: true,
   });
   const badgeTolerant = page.getByRole('button', {
-    name: /^Sync and conflicts(?:\s+\d+)?$/,
+    name: /^Settings(?:\s+\d+)?$/,
   });
   await parkPointer(page);
   const deadline = Date.now() + 15000;
-  while (Date.now() < deadline) {
-    const count = await badgeTolerant.count();
+  const clickFirstVisible = async (locator) => {
+    const count = await locator.count();
     for (let index = 0; index < count; index += 1) {
-      const candidate = badgeTolerant.nth(index);
+      const candidate = locator.nth(index);
       if (await candidate.isVisible()) {
         await candidate.click();
-        return;
+        return true;
       }
+    }
+    return false;
+  };
+  while (Date.now() < deadline) {
+    if (await clickFirstVisible(badgeTolerant)) {
+      while (Date.now() < deadline) {
+        if (await clickFirstVisible(exactLabel)) return;
+        await page.waitForTimeout(100);
+      }
+      break;
     }
     await page.waitForTimeout(100);
   }

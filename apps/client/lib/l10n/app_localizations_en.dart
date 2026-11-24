@@ -16955,7 +16955,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountSettingsSignInBody =>
-      'The local profile will be locked and its open sessions closed. Local hosts stay on this device and are not uploaded. After signing in you can review moving them in Data and migration.';
+      'The local profile will be locked and its open sessions closed. Local hosts stay on this device and are not uploaded. After signing in you can move them to the server in Settings › Sync and conflicts › Import LocalVault to server.';
 
   @override
   String get themeSettingTitle => 'Theme';

@@ -177,8 +177,16 @@ Future<void> _refreshVaultReadinessFromUi(AppController app) async {
 }
 
 /// Sessions that restarting the app would cut off.
+/// Sessions a restart would end: every open tab that is connected or
+/// connecting, whatever its protocol (SSH, Telnet, RDP/VNC, shell, serial).
 int _openSessionCount(AppController app) => app.terminalTabs
-    .where((tab) => tab.connection != null || tab.state == 'connecting')
+    .where(
+      (tab) =>
+          !tab.closed &&
+          (tab.connection != null ||
+              tab.state == 'connected' ||
+              tab.state == 'connecting'),
+    )
     .length;
 
 class AppShell extends StatefulWidget {
@@ -3009,6 +3017,11 @@ class _SideNavigation extends StatelessWidget {
                     app.page == item.page ||
                     (app.page == WorkspacePage.sync &&
                         item.page == WorkspacePage.settings);
+                // Sync and conflicts lives in Settings: unresolved conflicts
+                // show on its item, which then opens that section.
+                final conflicts = item.page == WorkspacePage.settings
+                    ? app.unresolvedConflictCount
+                    : 0;
                 return Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: itemInset,
@@ -3019,12 +3032,18 @@ class _SideNavigation extends StatelessWidget {
                     // tooltip repeating it made every item read "Hosts
                     // Hosts" and, once shown, covered the item below so a
                     // click there went nowhere. An empty message shows none.
-                    message: wide ? '' : item.label(context.l10n),
+                    message: wide
+                        ? ''
+                        : conflicts > 0
+                        ? '${item.label(context.l10n)} · ${context.l10n.syncAndConflicts} $conflicts'
+                        : item.label(context.l10n),
                     excludeFromSemantics: wide,
                     child: InkWell(
                       key: ValueKey('home_nav_${item.page.name}'),
                       borderRadius: BorderRadius.circular(11),
-                      onTap: () => app.showWorkspacePage(item.page),
+                      onTap: () => app.showWorkspacePage(
+                        conflicts > 0 ? WorkspacePage.sync : item.page,
+                      ),
                       child: AnimatedContainer(
                         duration: AppMotion.duration(
                           context,
@@ -3051,12 +3070,17 @@ class _SideNavigation extends StatelessWidget {
                               ? MainAxisAlignment.start
                               : MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              item.icon,
-                              size: 19,
-                              color: selected
-                                  ? context.palette.lime
-                                  : context.palette.muted,
+                            Badge(
+                              isLabelVisible: conflicts > 0 && !wide,
+                              smallSize: 7,
+                              backgroundColor: context.palette.orange,
+                              child: Icon(
+                                item.icon,
+                                size: 19,
+                                color: selected
+                                    ? context.palette.lime
+                                    : context.palette.muted,
+                              ),
                             ),
                             if (wide) ...[
                               const SizedBox(width: 12),
@@ -3076,6 +3100,11 @@ class _SideNavigation extends StatelessWidget {
                                   ),
                                 ),
                               ),
+                              if (conflicts > 0)
+                                _CountBadge(
+                                  key: const ValueKey('home_nav_conflicts'),
+                                  count: conflicts,
+                                ),
                             ],
                           ],
                         ),
@@ -3415,6 +3444,24 @@ String terminalStateLabel(AppLocalizations l10n, String state) =>
       'failed' => l10n.terminalStateFailed,
       _ => state,
     };
+
+/// Number of unresolved sync conflicts beside the Settings item.
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count, super.key});
+  final int count;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+    decoration: BoxDecoration(
+      color: context.palette.orange.withValues(alpha: .15),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      '$count',
+      style: TextStyle(fontSize: 10, color: context.palette.orange),
+    ),
+  );
+}
 
 class _NavItem {
   const _NavItem(this.page, this.icon, this.labelId);
