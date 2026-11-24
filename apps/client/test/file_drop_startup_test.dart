@@ -73,9 +73,11 @@ void main() {
     final hook = body.indexOf('initializeFileDrop();');
     expect(binding, greaterThan(0));
     expect(hook, greaterThan(binding));
-    // Before any launch detection, root selection or await.
+    // Before any launch detection, root selection or await after the binding
+    // exists (an update hand-over may await before it; no drop can arrive
+    // then).
     for (final later in ['detectLiveTerminalWindow', 'runApp(', 'await ']) {
-      expect(hook, lessThan(body.indexOf(later)), reason: later);
+      expect(hook, lessThan(body.indexOf(later, binding)), reason: later);
     }
   });
 }
