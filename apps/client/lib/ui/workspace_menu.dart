@@ -258,9 +258,23 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         trigger = CallbackShortcuts(bindings: keys, child: trigger);
         trigger = Semantics(button: true, expanded: open, child: trigger);
         final tooltip = widget.tooltip;
-        return tooltip == null
-            ? trigger
-            : Tooltip(message: tooltip, child: trigger);
+        if (tooltip != null) {
+          trigger = Tooltip(message: tooltip, child: trigger);
+        }
+        // The menu is not a route: without this, Android's Back (and the
+        // browser's) would leave the page or the app under the open menu.
+        return PopScope(
+          canPop: !open,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop || !_controller.isOpen) return;
+            if (_path.isNotEmpty) {
+              _back();
+            } else {
+              _controller.close();
+            }
+          },
+          child: trigger,
+        );
       },
     );
   }

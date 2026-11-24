@@ -35,7 +35,7 @@ void main() {
       const WorkspaceAction.divider(),
       leaf('new_group', enabled: false),
     ]),
-    WorkspaceAction.submenu('menu_empty', 'Empty', Icons.block, const [
+    const WorkspaceAction.submenu('menu_empty', 'Empty', Icons.block, [
       WorkspaceAction.divider(),
     ]),
     WorkspaceAction.submenu('menu_single', 'Single', Icons.looks_one, [
@@ -180,6 +180,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('menu_new')), findsOneWidget);
     expect(find.byKey(const ValueKey('workspace_menu_back')), findsNothing);
+  });
+
+  testWidgets('system Back closes the menu, a level at a time on phones', (
+    tester,
+  ) async {
+    await pumpBar(tester, 390);
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    await tester.tap(find.byKey(workspaceMenuTrigger));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('menu_new')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('workspace_menu_back')), findsOneWidget);
+
+    // First Back leaves the submenu, the second closes the menu; neither
+    // pops the page or leaves the app.
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('workspace_menu_back')), findsNothing);
+    expect(find.byKey(const ValueKey('menu_new')), findsOneWidget);
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('menu_new')), findsNothing);
+    expect(find.byKey(workspaceMenuTrigger), findsOneWidget);
+    expect(navigator.canPop(), isFalse);
   });
 
   testWidgets('closing the menu gives focus back to what had it', (
