@@ -562,11 +562,16 @@ void main() {
         expect(row.groupPath, ['Produção', 'Homologação'], reason: '$language');
         expect(row.label, 'Serviço', reason: '$language');
       }
-      // German "Größe" and French "Été".
-      expect(
-        decodeWindowsText([0x47, 0x72, 0xF6, 0xDF, 0x65], languageCode: 'en').text,
-        'Größe',
-      );
+      // German "Größe" and French "Été". Under a Japanese UI "Größe" is not
+      // valid Shift_JIS, so the words decide rather than a GBK guess.
+      for (final language in ['en', 'ja']) {
+        final grosse = decodeWindowsText(
+          [0x47, 0x72, 0xF6, 0xDF, 0x65],
+          languageCode: language,
+        );
+        expect(grosse.text, 'Größe', reason: language);
+        expect(grosse.codePage, LegacyCodePage.windows1252, reason: language);
+      }
       expect(
         decodeWindowsText([0xC9, 0x74, 0xE9], languageCode: 'en').text,
         'Été',

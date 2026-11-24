@@ -6,7 +6,8 @@
 /// the bytes are valid UTF-8. Otherwise the code page that matches the app
 /// language is preferred (Chinese Windows writes GBK, Japanese Windows
 /// Shift_JIS, Russian Windows Windows-1251, Western Windows Windows-1252).
-/// Under any other app language the text decides: accented Latin words read
+/// Under any other app language, and when a Chinese or Japanese file is not
+/// valid in its own code page, the text decides: accented Latin words read
 /// as Windows-1252, Cyrillic words as Windows-1251, and a double-byte code
 /// page is accepted only when the text clearly looks like Chinese or
 /// Japanese. Korean (949) and Traditional Chinese (950) files are not
@@ -56,9 +57,10 @@ LegacyCodePage preferredLegacyCodePage(String? languageCode) =>
     final text = decodeLegacyCodePage(body, preferred);
     if (text != null) return (text: text, codePage: preferred);
   }
-  if (preferred == LegacyCodePage.windows1252) {
+  if (preferred != LegacyCodePage.windows1251) {
     // Accented Latin letters pair up like GB2312 characters too ("ção" is
-    // E7 E3 6F): words decide before any double-byte guess.
+    // E7 E3 6F): words decide before any double-byte guess. This also covers
+    // a Western file opened under a Japanese UI ("Größe" is not Shift_JIS).
     if (_wordsIn(body, cp1252High, _isLatinLetter, maxRun: 3)) {
       return (
         text: decodeLegacyCodePage(body, LegacyCodePage.windows1252)!,
@@ -164,7 +166,9 @@ String? _decodeDouble(List<int> bytes, {required bool gbk}) {
     if (row < 0 || index + 1 >= bytes.length) return null;
     final trail = bytes[index + 1];
     if (trail < legacyTrailFirst) return null;
-    final unit = table.codeUnitAt(row * legacyTrailCount + trail - legacyTrailFirst);
+    final unit = table.codeUnitAt(
+      row * legacyTrailCount + trail - legacyTrailFirst,
+    );
     if (unit == _hole) return null;
     units.add(unit);
     index += 2;
@@ -203,7 +207,8 @@ bool _wordsIn(
       // The word may start with ASCII letters only in mixed text; judge the
       // non-ASCII run, which holds all of a Cyrillic word.
       final run = [
-        for (var at = start; at < index; at++) high.codeUnitAt(bytes[at] - 0x80),
+        for (var at = start; at < index; at++)
+          high.codeUnitAt(bytes[at] - 0x80),
       ];
       final rest = run.skip(1);
       final restLower = rest.every((unit) => _lower(unit) == unit);
@@ -222,14 +227,20 @@ bool _wordsIn(
 /// Ž ž Ÿ.
 bool _isLatinLetter(int unit) =>
     (unit >= 0xC0 && unit <= 0xFF && unit != 0xD7 && unit != 0xF7) ||
-    const {0x0160, 0x0161, 0x0152, 0x0153, 0x017D, 0x017E, 0x0178}
-        .contains(unit);
+    const {
+      0x0160,
+      0x0161,
+      0x0152,
+      0x0153,
+      0x017D,
+      0x017E,
+      0x0178,
+    }.contains(unit);
 
 /// Cyrillic letters (А–я, Ё ё and the Ukrainian, Belarusian and South Slavic
 /// letters Windows-1251 carries).
-bool _isCyrillicLetter(int unit) => unit >= 0x0400 && unit <= 0x045F ||
-    unit == 0x0490 ||
-    unit == 0x0491;
+bool _isCyrillicLetter(int unit) =>
+    unit >= 0x0400 && unit <= 0x045F || unit == 0x0490 || unit == 0x0491;
 
 int _lower(int unit) {
   if (unit >= 0x0410 && unit <= 0x042F) return unit + 0x20;
