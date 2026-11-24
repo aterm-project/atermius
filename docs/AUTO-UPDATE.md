@@ -12,7 +12,7 @@ Release builds for **Windows, Linux and Android** look for newer releases by the
 | New release found, downloading | nothing (it happens in the background) | "Downloading Atermius … 42%" |
 | Installed in the background | **New version ready** · *What's new* · **Restart now** | the same, with a restart button |
 | Automatic updates off, or metered connection (Android) | "Atermius … is available" · **Download** | the same |
-| This copy cannot replace itself (directory not writable) | "Atermius … is available" · **Open download page** | the same |
+| Linux copy in a directory the user cannot write to | "Atermius … is available" · **Open download page** | the same |
 | First start after an update | "Updated to Atermius …" (dismissible) | — |
 
 - **Restart now** asks first when sessions are open, because they are disconnected.
@@ -45,7 +45,9 @@ The package is downloaded from `github.com/<repository>/releases/download/…` o
 
 The switch happens on **Restart now**, or by itself the next time Atermius is started while no other Atermius window is open. Other open main windows run from the same files, so a restart from the banner asks to close them first.
 
-The installed directory must be writable by the user. A copy under `C:\Program Files` used from an account without administrator rights is only told that a new version exists.
+When the user cannot write to the installed directory — the setup program installs to `C:\Program Files\Atermius` — downloading and unpacking still happen in the background, but the switch waits for **Restart now**: Windows then shows its administrator (UAC) prompt, the new version replaces the files with those rights and Atermius is started again through Explorer with the user's normal rights. Declining the prompt changes nothing; the banner stays. On Linux such a copy is only told that a new version exists.
+
+安装在 `C:\Program Files` 这类普通权限写不进的目录时，下载和解包照样在后台完成；点「立即重启」后 Windows 弹出管理员授权（UAC），新版本以管理员权限替换文件，再经资源管理器以普通权限重新打开 Atermius。拒绝授权则什么都不变，横幅保留。Linux 上这种情况只提示有新版本。
 
 **Android**
 
