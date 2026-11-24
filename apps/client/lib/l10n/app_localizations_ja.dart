@@ -19794,4 +19794,27 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get appUpdateDoneNoticeBody => 'タップしてもう一度開きます。';
+
+  @override
+  String get workspaceMenuNew => '新規作成';
+
+  @override
+  String workspaceMenuNewHost(String protocol) {
+    return '$protocol ホスト';
+  }
+
+  @override
+  String get workspaceMenuGroup => 'グループ';
+
+  @override
+  String get workspaceMenuLocalTerminal => 'ローカルターミナル';
+
+  @override
+  String get workspaceMenuGoTo => '移動';
+
+  @override
+  String get workspaceMenuImportExport => 'インポートとエクスポート';
+
+  @override
+  String get workspaceMenuCurrentSession => '現在のセッション';
 }

@@ -27,6 +27,7 @@ import 'package:xterm/xterm.dart';
 
 import 'support/l10n_fixture.dart';
 import 'support/settings_navigation.dart';
+import 'support/workspace_menu_driver.dart';
 
 const _password = 'correct horse battery staple';
 
@@ -147,8 +148,7 @@ void main() {
   }
 
   Future<void> tapWorkspaceAction(WidgetTester tester, String id) async {
-    await tester.tap(find.byKey(const ValueKey('workspace_host_menu')));
-    await tester.pumpAndSettle();
+    await revealWorkspaceMenuItem(tester, id);
     await tester.ensureVisible(find.byKey(ValueKey(id)));
     await tester.tap(find.byKey(ValueKey(id)));
     await tester.pumpAndSettle();

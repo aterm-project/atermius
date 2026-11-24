@@ -21095,4 +21095,27 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get appUpdateDoneNoticeBody => 'Нажмите, чтобы открыть снова.';
+
+  @override
+  String get workspaceMenuNew => 'Создать';
+
+  @override
+  String workspaceMenuNewHost(String protocol) {
+    return 'Хост $protocol';
+  }
+
+  @override
+  String get workspaceMenuGroup => 'Группа';
+
+  @override
+  String get workspaceMenuLocalTerminal => 'Локальный терминал';
+
+  @override
+  String get workspaceMenuGoTo => 'Перейти';
+
+  @override
+  String get workspaceMenuImportExport => 'Импорт и экспорт';
+
+  @override
+  String get workspaceMenuCurrentSession => 'Текущий сеанс';
 }

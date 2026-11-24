@@ -3935,6 +3935,13 @@ async function openWorkspaceNavigation(page, label) {
         await menuItem.first().click({ timeout: 2000 }).then(() => true, () => false)) {
       return;
     }
+    // Pages other than Settings sit in the menu's "Go to" submenu.
+    const goTo = page.getByRole('menuitem', { name: 'Go to', exact: true });
+    if (await goTo.first().isVisible().catch(() => false)) {
+      await goTo.first().click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(250);
+      continue;
+    }
     const hostMenu = page.getByRole('button', {
       name: 'Host menu · click to open', exact: true,
     });

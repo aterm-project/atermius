@@ -196,3 +196,28 @@ class _LocalShellOptionsDialogState extends State<_LocalShellOptionsDialog> {
     );
   }
 }
+
+/// The workspace menu's "Local terminal" submenu: [localShellWorkspaceActions]
+/// with the options entry set apart from the shells it starts.
+WorkspaceAction localShellWorkspaceMenu(
+  BuildContext context, {
+  required String idPrefix,
+  required FutureOr<void> Function(LocalShellLaunch launch) onLaunch,
+  bool enabled = true,
+}) => WorkspaceAction.submenu(
+  'workspace_menu_local_terminal',
+  context.l10n.workspaceMenuLocalTerminal,
+  Icons.terminal_rounded,
+  [
+    for (final action in localShellWorkspaceActions(
+      context,
+      idPrefix: idPrefix,
+      onLaunch: onLaunch,
+      enabled: enabled,
+    )) ...[
+      if (action.id == '${idPrefix}_shell_options')
+        const WorkspaceAction.divider(),
+      action,
+    ],
+  ],
+);

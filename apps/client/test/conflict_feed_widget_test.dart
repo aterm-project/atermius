@@ -8,8 +8,10 @@ import 'package:aterm_client/ui/app_shell.dart';
 import 'package:aterm_client/ui/app_theme.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
+import 'support/workspace_menu_driver.dart';
 
 const _vaultId = '11111111-1111-4111-8111-111111111111';
 const _conflictId = '22222222-2222-4222-8222-222222222222';
@@ -745,12 +747,24 @@ void main() {
       expect(app.page, WorkspacePage.sync);
       expect(find.text('Open conflicts'), findsWidgets);
 
+      // The workspace menu leads there too while conflicts wait.
+      app.showWorkspacePage(WorkspacePage.hosts);
+      await tester.pumpAndSettle();
+      await tapWorkspaceMenuItem(tester, 'cloud-sync-conflicts');
+      expect(app.page, WorkspacePage.sync);
+
       app.feedConflictItems = [
         _item(resolved: true, resolutionState: 'resolved'),
       ];
       app.showWorkspacePage(WorkspacePage.hosts);
       await tester.pumpAndSettle();
       expect(badge, findsNothing);
+      await tester.tap(find.byKey(const ValueKey('workspace_host_menu')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('cloud-sync-now')), findsOneWidget);
+      expect(find.byKey(const ValueKey('cloud-sync-conflicts')), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('home_nav_settings')));
       await tester.pumpAndSettle();
       expect(app.page, WorkspacePage.settings);

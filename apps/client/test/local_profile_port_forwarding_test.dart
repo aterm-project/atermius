@@ -23,6 +23,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
 import 'package:uuid/uuid.dart';
+import 'support/workspace_menu_driver.dart';
 
 const _password = 'correct horse battery staple';
 const _fingerprint = 'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
@@ -208,8 +209,7 @@ void main() {
   }
 
   Future<void> terminalAction(WidgetTester tester, String id) async {
-    await tester.tap(find.byKey(const ValueKey('workspace_host_menu')));
-    await tester.pumpAndSettle();
+    await revealWorkspaceMenuItem(tester, id);
     await tester.ensureVisible(find.byKey(ValueKey(id)));
     await tester.tap(find.byKey(ValueKey(id)));
     await tester.pumpAndSettle();
@@ -358,8 +358,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // The overflow label reflects the running count.
-      await tester.tap(find.byKey(const ValueKey('workspace_host_menu')));
-      await tester.pumpAndSettle();
+      await revealWorkspaceMenuItem(tester, 'local_ssh_port_forwarding');
       expect(find.text('SSH port forwarding (1)'), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();

@@ -31,6 +31,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
 
 import 'support/settings_navigation.dart';
+import 'support/workspace_menu_driver.dart';
 
 const _vault = '11111111-1111-4111-8111-111111111111';
 const _a = HostRecord(
@@ -135,8 +136,6 @@ void main() {
           find.ancestor(of: menu, matching: find.byType(WorkspaceTabBar)),
           findsOneWidget,
         );
-        await tester.tap(menu);
-        await tester.pumpAndSettle();
         for (final key in [
           'cloud_new_ssh',
           'cloud_add_group',
@@ -148,6 +147,7 @@ void main() {
           'cloud-vault-$_vault',
           'cloud-lock',
         ]) {
+          await revealWorkspaceMenuItem(tester, key);
           expect(find.byKey(ValueKey(key)), findsOneWidget);
         }
         expect(

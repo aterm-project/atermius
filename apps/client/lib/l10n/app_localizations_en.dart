@@ -20992,4 +20992,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appUpdateDoneNoticeBody => 'Tap to open it again.';
+
+  @override
+  String get workspaceMenuNew => 'New';
+
+  @override
+  String workspaceMenuNewHost(String protocol) {
+    return '$protocol host';
+  }
+
+  @override
+  String get workspaceMenuGroup => 'Group';
+
+  @override
+  String get workspaceMenuLocalTerminal => 'Local terminal';
+
+  @override
+  String get workspaceMenuGoTo => 'Go to';
+
+  @override
+  String get workspaceMenuImportExport => 'Import and export';
+
+  @override
+  String get workspaceMenuCurrentSession => 'Current session';
 }

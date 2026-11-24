@@ -19,6 +19,7 @@ import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
+import 'support/workspace_menu_driver.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -428,10 +429,11 @@ void main() {
 }
 
 Future<void> _tapWorkspaceAction(WidgetTester tester, String id) async {
-  await tester.tap(find.byKey(const ValueKey('workspace_host_menu')));
-  await tester.pumpAndSettle();
+  await revealWorkspaceMenuItem(tester, id);
   await tester.ensureVisible(find.byKey(ValueKey(id)));
   await tester.tap(find.byKey(ValueKey(id)));
+  // The menu runs the action in the frame after it starts to close.
+  await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
 }
 

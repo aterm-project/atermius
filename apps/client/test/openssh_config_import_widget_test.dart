@@ -15,6 +15,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
+import 'support/workspace_menu_driver.dart';
 
 const _vaultId = '11111111-1111-4111-8111-111111111111';
 const _existingId = '22222222-2222-4222-8222-222222222222';
@@ -104,12 +105,11 @@ void main() {
       await tester.pumpAndSettle();
 
       // The import action lives in the top Host menu (no secondary toolbar).
-      await tester.tap(find.byKey(const ValueKey('workspace_host_menu')));
-      await tester.pumpAndSettle();
-      final item = tester.widget<PopupMenuItem<String>>(
+      await revealWorkspaceMenuItem(tester, 'host_import_openssh_config');
+      final item = tester.widget<MenuItemButton>(
         find.byKey(const ValueKey('host_import_openssh_config')),
       );
-      expect(item.enabled, isTrue);
+      expect(item.onPressed, isNotNull);
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('host_import_openssh_config')),

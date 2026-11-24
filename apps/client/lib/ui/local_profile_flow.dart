@@ -5154,10 +5154,170 @@ _showMessage(
     final activeSession = _sessions
         .where((session) => session.id == _selectedTabId)
         .firstOrNull;
+    // Sections: the selected session, create and open, go somewhere, the
+    // profile itself. Related actions sit in submenus so the top level stays
+    // short.
     final List<WorkspaceAction> homeActions = _storageRecoveryRequired
         ? const []
         : [
+            if (activeSession != null && activeSession.connection != null) ...[
+              WorkspaceAction.submenu(
+                'workspace_menu_current_session',
+                context.l10n.workspaceMenuCurrentSession,
+                Icons.terminal_rounded,
+                [
+                  WorkspaceAction(
+                    'local_ssh_open_sftp',
+                    context.l10n.sftpFileManager,
+                    Icons.folder_open_outlined,
+                    () => _openSessionFiles(activeSession),
+                  ),
+                  WorkspaceAction(
+                    'local_ssh_open_scp',
+                    context.l10n.scpFileManager,
+                    Icons.folder_copy_outlined,
+                    () => _openSessionFiles(
+                      activeSession,
+                      protocol: SshTransferProtocol.scp,
+                    ),
+                  ),
+                  WorkspaceAction(
+                    'local_ssh_port_forwarding',
+                    sshPortForwardingMenuLabel(
+                      context.l10n.sshPortForwarding2,
+                      activeSession.connection!.portForwards,
+                    ),
+                    Icons.hub_outlined,
+                    () => _openPortForwarding(
+                      activeSession.host,
+                      session: activeSession,
+                    ),
+                    enabled: !_busy,
+                  ),
+                  WorkspaceAction(
+                    'local_ssh_live_tools',
+                    sshLiveToolsMenuLabel(context),
+                    Icons.monitor_heart_outlined,
+                    () => unawaited(
+                      showSshLiveToolsSheet(
+                        context,
+                        host: activeSession.host,
+                        connection: activeSession.connection!,
+                      ),
+                    ),
+                    enabled: !_busy,
+                  ),
+                  WorkspaceAction(
+                    'local_ssh_search',
+                    context.l10n.searchTerminal,
+                    Icons.search,
+                    () => activeSession.viewKey.currentState?._openSearch(),
+                  ),
+                  const WorkspaceAction.divider(),
+                  WorkspaceAction(
+                    'local_ssh_properties',
+                    context.l10n.connectionProperties,
+                    Icons.info_outline,
+                    () => _terminalProperties(activeSession.id),
+                  ),
+                  WorkspaceAction(
+                    'local_ssh_disconnect',
+                    context.l10n.disconnect,
+                    Icons.link_off,
+                    () => _disconnectTerminalSession(activeSession.id),
+                    enabled:
+                        activeSession.connected.value ||
+                        activeSession.recovery?.automaticEnabled == true,
+                  ),
+                ],
+              ),
+              const WorkspaceAction.divider(),
+            ],
             if (active != null) ...[
+              WorkspaceAction.submenu(
+                'workspace_menu_new',
+                context.l10n.workspaceMenuNew,
+                Icons.add_rounded,
+                [
+                  for (final protocol in HostProtocol.values)
+                    WorkspaceAction(
+                      protocol == HostProtocol.ssh
+                          ? 'local_host_add'
+                          : 'local_new_${protocol.name}',
+                      context.l10n.workspaceMenuNewHost(protocol.label),
+                      hostProtocolIcon(protocol),
+                      () => _addHost(protocol),
+                      enabled: !_busy,
+                    ),
+                  const WorkspaceAction.divider(),
+                  WorkspaceAction(
+                    'local_host_add_group',
+                    context.l10n.workspaceMenuGroup,
+                    Icons.create_new_folder_outlined,
+                    _addGroup,
+                    enabled: !_busy,
+                  ),
+                ],
+              ),
+              localShellWorkspaceMenu(
+                context,
+                idPrefix: 'local',
+                onLaunch: (launch) => _openConsole(shell: launch),
+                enabled: !_busy,
+              ),
+            ],
+            if (supportsNewWindow)
+              WorkspaceAction(
+                'local_new_window',
+                context.l10n.newWindow,
+                Icons.open_in_new,
+                _newWindow,
+              ),
+            if (active != null) ...[
+              const WorkspaceAction.divider(),
+              WorkspaceAction.submenu(
+                'workspace_menu_go_to',
+                context.l10n.workspaceMenuGoTo,
+                Icons.explore_outlined,
+                [
+                  WorkspaceAction(
+                    'local_profile_hosts_toggle',
+                    context.l10n.hosts,
+                    Icons.dns_outlined,
+                    () => setState(() {
+                      _selectedTabId = 'hosts';
+                      _workspace = _LocalWorkspace.hosts;
+                    }),
+                    enabled: !_busy,
+                  ),
+                  WorkspaceAction(
+                    'local_profile_groups_toggle',
+                    context.l10n.groups,
+                    Icons.folder_outlined,
+                    () => setState(() {
+                      _selectedTabId = 'hosts';
+                      _workspace = _LocalWorkspace.groups;
+                    }),
+                    enabled: !_busy,
+                  ),
+                  WorkspaceAction(
+                    'local_profile_snippets_toggle',
+                    context.l10n.snippet,
+                    Icons.code,
+                    () => setState(() {
+                      _selectedTabId = 'hosts';
+                      _workspace = _LocalWorkspace.snippets;
+                    }),
+                    enabled: !_busy,
+                  ),
+                ],
+              ),
+              WorkspaceAction(
+                'local_host_layout',
+                _hostGrid ? context.l10n.listView : context.l10n.gridView,
+                _hostGrid ? Icons.view_list_outlined : Icons.grid_view,
+                () => setState(() => _hostGrid = !_hostGrid),
+              ),
               WorkspaceAction(
                 'local_save_window_combination',
                 context.l10n.saveWindowSet,
@@ -5170,37 +5330,37 @@ _showMessage(
                         _files.entries.isNotEmpty ||
                         TrackedFilesWindows.instance.hasWindows(_windowOwner)),
               ),
-              WorkspaceAction(
-                'local_profile_hosts_toggle',
-                context.l10n.hosts,
-                Icons.dns_outlined,
-                () => setState(() {
-                  _selectedTabId = 'hosts';
-                  _workspace = _LocalWorkspace.hosts;
-                }),
-                enabled: !_busy,
-              ),
-              WorkspaceAction(
-                'local_profile_groups_toggle',
-                context.l10n.groups,
-                Icons.folder_outlined,
-                () => setState(() {
-                  _selectedTabId = 'hosts';
-                  _workspace = _LocalWorkspace.groups;
-                }),
-                enabled: !_busy,
-              ),
-              WorkspaceAction(
-                'local_profile_snippets_toggle',
-                context.l10n.snippet,
-                Icons.code,
-                () => setState(() {
-                  _selectedTabId = 'hosts';
-                  _workspace = _LocalWorkspace.snippets;
-                }),
-                enabled: !_busy,
+              WorkspaceAction.submenu(
+                'workspace_menu_import_export',
+                context.l10n.workspaceMenuImportExport,
+                Icons.import_export_rounded,
+                [
+                  WorkspaceAction(
+                    'local_profile_archive_export',
+                    context.l10n.exportLocalEncryptedArchive,
+                    Icons.download_outlined,
+                    _exportLocalArchive,
+                    enabled: !_busy,
+                  ),
+                  WorkspaceAction(
+                    'local_profile_archive_import',
+                    context.l10n.importLocalEncryptedArchive,
+                    Icons.upload_file_outlined,
+                    _importLocalArchive,
+                    enabled: !_busy,
+                  ),
+                ],
               ),
             ],
+            const WorkspaceAction.divider(),
+            if (active != null)
+              WorkspaceAction(
+                'local_known_hosts_manage',
+                context.l10n.manageSshHostKeyTrust,
+                Icons.verified_user_outlined,
+                _manageLocalKnownHosts,
+                enabled: !_busy,
+              ),
             WorkspaceAction(
               'local_profile_preferences_toggle',
               context.l10n.settings,
@@ -5214,28 +5374,7 @@ _showMessage(
               },
               enabled: !_busy,
             ),
-            if (supportsNewWindow)
-              WorkspaceAction(
-                'local_new_window',
-                context.l10n.newWindow,
-                Icons.open_in_new,
-                _newWindow,
-              ),
-            if (active != null) ...[
-              WorkspaceAction(
-                'local_profile_archive_export',
-                context.l10n.exportLocalEncryptedArchive,
-                Icons.download_outlined,
-                _exportLocalArchive,
-                enabled: !_busy,
-              ),
-              WorkspaceAction(
-                'local_profile_archive_import',
-                context.l10n.importLocalEncryptedArchive,
-                Icons.upload_file_outlined,
-                _importLocalArchive,
-                enabled: !_busy,
-              ),
+            if (active != null)
               WorkspaceAction(
                 'local_profile_lock',
                 context.l10n.lockProfile,
@@ -5243,108 +5382,6 @@ _showMessage(
                 _lockProfile,
                 enabled: !_busy,
               ),
-            ],
-
-            if (active != null) ...[
-              WorkspaceAction(
-                'local_host_add_group',
-                context.l10n.newGroup,
-                Icons.create_new_folder_outlined,
-                _addGroup,
-                enabled: !_busy,
-              ),
-              WorkspaceAction(
-                'local_host_layout',
-                _hostGrid ? context.l10n.listView : context.l10n.gridView,
-                _hostGrid ? Icons.view_list_outlined : Icons.grid_view,
-                () => setState(() => _hostGrid = !_hostGrid),
-              ),
-              WorkspaceAction(
-                'local_known_hosts_manage',
-                context.l10n.manageSshHostKeyTrust,
-                Icons.verified_user_outlined,
-                _manageLocalKnownHosts,
-                enabled: !_busy,
-              ),
-              for (final protocol in HostProtocol.values)
-                WorkspaceAction(
-                  protocol == HostProtocol.ssh
-                      ? 'local_host_add'
-                      : 'local_new_${protocol.name}',
-                  context.l10n.newTouppercaseHost(protocol.name.toUpperCase()),
-                  hostProtocolIcon(protocol),
-                  () => _addHost(protocol),
-                  enabled: !_busy,
-                ),
-              ...localShellWorkspaceActions(
-                context,
-                idPrefix: 'local',
-                onLaunch: (launch) => _openConsole(shell: launch),
-                enabled: !_busy,
-              ),
-            ],
-            if (activeSession != null && activeSession.connection != null) ...[
-              WorkspaceAction(
-                'local_ssh_open_sftp',
-                context.l10n.sftpFileManager,
-                Icons.folder_open_outlined,
-                () => _openSessionFiles(activeSession),
-              ),
-              WorkspaceAction(
-                'local_ssh_open_scp',
-                context.l10n.scpFileManager,
-                Icons.folder_copy_outlined,
-                () => _openSessionFiles(
-                  activeSession,
-                  protocol: SshTransferProtocol.scp,
-                ),
-              ),
-              WorkspaceAction(
-                'local_ssh_port_forwarding',
-                sshPortForwardingMenuLabel(
-                  context.l10n.sshPortForwarding2,
-                  activeSession.connection!.portForwards,
-                ),
-                Icons.hub_outlined,
-                () => _openPortForwarding(
-                  activeSession.host,
-                  session: activeSession,
-                ),
-                enabled: !_busy,
-              ),
-              WorkspaceAction(
-                'local_ssh_live_tools',
-                sshLiveToolsMenuLabel(context),
-                Icons.monitor_heart_outlined,
-                () => unawaited(
-                  showSshLiveToolsSheet(
-                    context,
-                    host: activeSession.host,
-                    connection: activeSession.connection!,
-                  ),
-                ),
-                enabled: !_busy,
-              ),
-              WorkspaceAction(
-                'local_ssh_search',
-                context.l10n.searchTerminal,
-                Icons.search,
-                () => activeSession.viewKey.currentState?._openSearch(),
-              ),
-              WorkspaceAction(
-                'local_ssh_properties',
-                context.l10n.connectionProperties,
-                Icons.info_outline,
-                () => _terminalProperties(activeSession.id),
-              ),
-              WorkspaceAction(
-                'local_ssh_disconnect',
-                context.l10n.disconnect,
-                Icons.link_off,
-                () => _disconnectTerminalSession(activeSession.id),
-                enabled: activeSession.connected.value || activeSession.recovery?.automaticEnabled == true,
-              ),
-            ],
           ];
     final Widget homeSurface = SafeArea(
       top: !iosPhone,

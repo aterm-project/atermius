@@ -435,7 +435,7 @@ extension _LocalProfileFlowIos on _LocalProfileFlowState {
     final media = MediaQuery.of(context);
     final keyboardBottom = media.viewInsets.bottom;
     final hasKeybar = _hasSharedTerminalKeybar(activeSession);
-    final sshActions = homeActions
+    final sshActions = flattenWorkspaceActions(homeActions)
         .where((action) => action.id.startsWith('local_ssh_'))
         .toList(growable: false);
 

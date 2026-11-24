@@ -5555,5 +5555,12 @@
   "appUpdateStatusCheckFailed": "无法检查更新，稍后会自动重试。",
   "appUpdateStatusDownloadFailed": "下载未完成，下次检查时会继续。",
   "appUpdateDoneNoticeTitle": "Atermius 已更新",
-  "appUpdateDoneNoticeBody": "点按即可重新打开。"
+  "appUpdateDoneNoticeBody": "点按即可重新打开。",
+  "workspaceMenuNew": "新建",
+  "workspaceMenuNewHost": "{protocol} 主机",
+  "workspaceMenuGroup": "分组",
+  "workspaceMenuLocalTerminal": "本地终端",
+  "workspaceMenuGoTo": "前往",
+  "workspaceMenuImportExport": "导入与导出",
+  "workspaceMenuCurrentSession": "当前会话"
 }

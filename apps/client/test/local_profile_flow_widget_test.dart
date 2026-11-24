@@ -24,6 +24,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
 import 'support/l10n_fixture.dart';
 import 'package:aterm_client/l10n/l10n.dart';
+import 'support/workspace_menu_driver.dart';
 
 void main() {
   useAppLocaleFixture('zh');
@@ -506,9 +507,7 @@ void main() {
           ]),
         ),
       );
-      await tester.tap(find.byTooltip(currentL10n.hostMenuClickToOpen));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(currentL10n.host).last);
+      await _tapWorkspaceAction(tester, 'local_profile_hosts_toggle');
       await pumpUntilIdle(tester);
       await pumpUntilVisible(tester, find.text('Saved mixed layout · 1'));
       expect(find.textContaining('主机不存在'), findsNothing);
@@ -2379,8 +2378,7 @@ Future<void> _editHostCard(WidgetTester tester, String name) async {
 }
 
 Future<void> _tapWorkspaceAction(WidgetTester tester, String id) async {
-  await tester.tap(find.byKey(const ValueKey('workspace_host_menu')));
-  await tester.pumpAndSettle();
+  await revealWorkspaceMenuItem(tester, id);
   await tester.ensureVisible(find.byKey(ValueKey(id)));
   await tester.tap(find.byKey(ValueKey(id)));
   await tester.pumpAndSettle();

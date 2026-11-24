@@ -33075,6 +33075,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tap to open it again.'**
   String get appUpdateDoneNoticeBody;
+
+  /// Workspace (☰) menu: submenu that creates hosts and groups.
+  ///
+  /// In en, this message translates to:
+  /// **'New'**
+  String get workspaceMenuNew;
+
+  /// Workspace menu, New submenu: new host of one protocol (SSH, RDP, VNC, Telnet).
+  ///
+  /// In en, this message translates to:
+  /// **'{protocol} host'**
+  String workspaceMenuNewHost(String protocol);
+
+  /// Workspace menu, New submenu: new host group.
+  ///
+  /// In en, this message translates to:
+  /// **'Group'**
+  String get workspaceMenuGroup;
+
+  /// Workspace menu: submenu of shells on this computer.
+  ///
+  /// In en, this message translates to:
+  /// **'Local terminal'**
+  String get workspaceMenuLocalTerminal;
+
+  /// Workspace menu: submenu of workspace pages (Hosts, Groups, Snippets…).
+  ///
+  /// In en, this message translates to:
+  /// **'Go to'**
+  String get workspaceMenuGoTo;
+
+  /// Workspace menu: submenu of import and export actions.
+  ///
+  /// In en, this message translates to:
+  /// **'Import and export'**
+  String get workspaceMenuImportExport;
+
+  /// Workspace menu: submenu of actions on the selected terminal session.
+  ///
+  /// In en, this message translates to:
+  /// **'Current session'**
+  String get workspaceMenuCurrentSession;
 }
 
 class _AppLocalizationsDelegate

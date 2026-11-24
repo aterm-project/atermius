@@ -5555,5 +5555,12 @@
   "appUpdateStatusCheckFailed": "Не удалось проверить обновления. Atermius повторит попытку позже.",
   "appUpdateStatusDownloadFailed": "Загрузка не завершилась. Она продолжится при следующей проверке.",
   "appUpdateDoneNoticeTitle": "Atermius обновлён",
-  "appUpdateDoneNoticeBody": "Нажмите, чтобы открыть снова."
+  "appUpdateDoneNoticeBody": "Нажмите, чтобы открыть снова.",
+  "workspaceMenuNew": "Создать",
+  "workspaceMenuNewHost": "Хост {protocol}",
+  "workspaceMenuGroup": "Группа",
+  "workspaceMenuLocalTerminal": "Локальный терминал",
+  "workspaceMenuGoTo": "Перейти",
+  "workspaceMenuImportExport": "Импорт и экспорт",
+  "workspaceMenuCurrentSession": "Текущий сеанс"
 }

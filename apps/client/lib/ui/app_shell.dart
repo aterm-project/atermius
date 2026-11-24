@@ -2117,107 +2117,40 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                         app.activeTerminalTab!.desktop == null
                     ? () => _terminalPageKey.currentState?.toggleTools()
                     : null,
+                // Sections: create and open, go somewhere, account. Related
+                // actions sit in submenus so the top level stays short.
                 homeMenuActions: [
-                  WorkspaceAction(
-                    'cloud_add_group',
-                    context.l10n.addGroup,
-                    Icons.create_new_folder_outlined,
-                    () => showAppDialog<void>(
-                      context: context,
-                      builder: (_) => _ServerGroupEditorDialog(app: app),
-                    ),
-                    enabled: app.activeVault?.canWrite == true,
-                  ),
-                  WorkspaceAction(
-                    'host_import_openssh_config',
-                    context.l10n.importSshConfig,
-                    Icons.file_open_outlined,
-                    () => _importOpenSshConfig(context, app),
-                    enabled: app.activeVault?.canWrite == true,
-                  ),
-                  if (hasLocalTermiusInstallation())
-                    WorkspaceAction(
-                      'host_termius_one_click',
-                      context.l10n.termiusLocalOneClickAction,
-                      Icons.bolt_rounded,
-                      () => _runCloudOneClickTermiusImport(context, app),
-                      enabled: app.activeVault?.canWrite == true,
-                    ),
-                  WorkspaceAction(
-                    'host_termius_transfer',
-                    context.l10n.r7ImportMenuAction,
-                    Icons.swap_horiz_outlined,
-                    () async {
-                      final outcome = await showTermiusTransferDialog(
-                        context,
-                        target: CloudTermiusTransferTarget(app),
-                        certificates: const KeychainTermiusCertificateBridge(),
-                      );
-                      if (!context.mounted || outcome == null) return;
-                      _snack(
-                        context,
-                        outcome.exported
-                            ? currentL10n.r7ImportExported
-                            : currentL10n.r7ImportDone(
-                                outcome.importedHosts,
-                                outcome.createdGroups,
-                              ),
-                      );
-                    },
-                    enabled: app.activeVault != null,
-                  ),
-                  WorkspaceAction(
-                    'host_import_ansible_inventory',
-                    context.l10n.importAnsibleInventory,
-                    Icons.inventory_2_outlined,
-                    () => _importAnsibleInventory(context, app),
-                    enabled: app.activeVault?.canWrite == true,
-                  ),
-                  WorkspaceAction(
-                    'recycle_bin_open',
-                    context.l10n.recycleBin,
-                    Icons.delete_outline,
-                    () => showAppDialog<void>(
-                      context: context,
-                      builder: (_) => _RecycleBinDialog(app: app),
-                    ),
-                    enabled: app.activeVault != null,
-                  ),
-                  WorkspaceAction(
-                    'cloud_save_window_combination',
-                    context.l10n.saveWindowSet,
-                    Icons.dashboard_customize_outlined,
-                    _saveWindowCombination,
-                    enabled:
-                        app.activeVault?.canWrite == true &&
-                        (app.terminalTabs.any((t) => !t.closed) ||
-                            TrackedFilesWindows.instance.hasWindows(app)) &&
-                        !_openingCombination,
-                  ),
-                  ..._cloudFunctionsActions(app, (page) {
-                    setState(() => _selectedFileId = null);
-                    app.showWorkspacePage(page);
-                  }, forwarding: _forwardingPageBuilder != null),
-                  if (app.isInstanceAdmin)
-                    WorkspaceAction(
-                      'cloud_admin_console',
-                      context.l10n.adminSiteOpen,
-                      Icons.admin_panel_settings_outlined,
-                      () => app.showWorkspacePage(WorkspacePage.admin),
-                    ),
-                  for (final protocol in HostProtocol.values)
-                    WorkspaceAction(
-                      'cloud_new_${protocol.name}',
-                      context.l10n.newTouppercaseHost(protocol.name.toUpperCase()),
-                      hostProtocolIcon(protocol),
-                      () => _showCloudHostEditor(
-                        context,
-                        app,
-                        initialProtocol: protocol,
+                  WorkspaceAction.submenu(
+                    'workspace_menu_new',
+                    context.l10n.workspaceMenuNew,
+                    Icons.add_rounded,
+                    [
+                      for (final protocol in HostProtocol.values)
+                        WorkspaceAction(
+                          'cloud_new_${protocol.name}',
+                          context.l10n.workspaceMenuNewHost(protocol.label),
+                          hostProtocolIcon(protocol),
+                          () => _showCloudHostEditor(
+                            context,
+                            app,
+                            initialProtocol: protocol,
+                          ),
+                          enabled: app.activeVault?.canWrite == true,
+                        ),
+                      const WorkspaceAction.divider(),
+                      WorkspaceAction(
+                        'cloud_add_group',
+                        context.l10n.workspaceMenuGroup,
+                        Icons.create_new_folder_outlined,
+                        () => showAppDialog<void>(
+                          context: context,
+                          builder: (_) => _ServerGroupEditorDialog(app: app),
+                        ),
+                        enabled: app.activeVault?.canWrite == true,
                       ),
-                      enabled: app.activeVault?.canWrite == true,
-                    ),
-                  ...localShellWorkspaceActions(
+                    ],
+                  ),
+                  localShellWorkspaceMenu(
                     context,
                     idPrefix: 'cloud',
                     onLaunch: (launch) async {
@@ -2235,13 +2168,6 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                       }
                     },
                   ),
-                  if (supportsNewWindow)
-                    WorkspaceAction(
-                      'cloud_new_window',
-                      context.l10n.newWindow,
-                      Icons.open_in_new,
-                      openNewWindow,
-                    ),
                   // Without a session there is no pane handle menu to join
                   // a shared terminal from.
                   if (_terminalCollaborationEnabled(app))
@@ -2252,6 +2178,97 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                       () => _joinTerminalShare(context, app),
                       enabled: app.activeVault?.status == 'active',
                     ),
+                  if (supportsNewWindow)
+                    WorkspaceAction(
+                      'cloud_new_window',
+                      context.l10n.newWindow,
+                      Icons.open_in_new,
+                      openNewWindow,
+                    ),
+                  const WorkspaceAction.divider(),
+                  _cloudGoToMenu(app, (page) {
+                    setState(() => _selectedFileId = null);
+                    app.showWorkspacePage(page);
+                  }, forwarding: _forwardingPageBuilder != null),
+                  WorkspaceAction(
+                    'cloud_save_window_combination',
+                    context.l10n.saveWindowSet,
+                    Icons.dashboard_customize_outlined,
+                    _saveWindowCombination,
+                    enabled:
+                        app.activeVault?.canWrite == true &&
+                        (app.terminalTabs.any((t) => !t.closed) ||
+                            TrackedFilesWindows.instance.hasWindows(app)) &&
+                        !_openingCombination,
+                  ),
+                  WorkspaceAction(
+                    'recycle_bin_open',
+                    context.l10n.recycleBin,
+                    Icons.delete_outline,
+                    () => showAppDialog<void>(
+                      context: context,
+                      builder: (_) => _RecycleBinDialog(app: app),
+                    ),
+                    enabled: app.activeVault != null,
+                  ),
+                  WorkspaceAction.submenu(
+                    'workspace_menu_import_export',
+                    context.l10n.workspaceMenuImportExport,
+                    Icons.import_export_rounded,
+                    [
+                      WorkspaceAction(
+                        'host_import_openssh_config',
+                        context.l10n.importSshConfig,
+                        Icons.file_open_outlined,
+                        () => _importOpenSshConfig(context, app),
+                        enabled: app.activeVault?.canWrite == true,
+                      ),
+                      if (hasLocalTermiusInstallation())
+                        WorkspaceAction(
+                          'host_termius_one_click',
+                          context.l10n.termiusLocalOneClickAction,
+                          Icons.bolt_rounded,
+                          () => _runCloudOneClickTermiusImport(context, app),
+                          enabled: app.activeVault?.canWrite == true,
+                        ),
+                      WorkspaceAction(
+                        'host_termius_transfer',
+                        context.l10n.r7ImportMenuAction,
+                        Icons.swap_horiz_outlined,
+                        () async {
+                          final outcome = await showTermiusTransferDialog(
+                            context,
+                            target: CloudTermiusTransferTarget(app),
+                            certificates:
+                                const KeychainTermiusCertificateBridge(),
+                          );
+                          if (!context.mounted || outcome == null) return;
+                          _snack(
+                            context,
+                            outcome.exported
+                                ? currentL10n.r7ImportExported
+                                : currentL10n.r7ImportDone(
+                                    outcome.importedHosts,
+                                    outcome.createdGroups,
+                                  ),
+                          );
+                        },
+                        enabled: app.activeVault != null,
+                      ),
+                      WorkspaceAction(
+                        'host_import_ansible_inventory',
+                        context.l10n.importAnsibleInventory,
+                        Icons.inventory_2_outlined,
+                        () => _importAnsibleInventory(context, app),
+                        enabled: app.activeVault?.canWrite == true,
+                      ),
+                    ],
+                  ),
+                  const WorkspaceAction.divider(),
+                  ..._cloudAccountActions(app, (page) {
+                    setState(() => _selectedFileId = null);
+                    app.showWorkspacePage(page);
+                  }, forwarding: _forwardingPageBuilder != null),
                 ],
                 tabs: [
                   WorkspaceTab(id: 'hosts', title: context.l10n.home, isHome: true),
@@ -3551,43 +3568,107 @@ bool _pageWorksWithoutVault(WorkspacePage page) =>
     page == WorkspacePage.devices ||
     page == WorkspacePage.admin;
 
-List<WorkspaceAction> _cloudFunctionsActions(
+/// The workspace menu's "Go to" submenu: every page the account may open
+/// except Settings, which has a place of its own in the menu's last section.
+WorkspaceAction _cloudGoToMenu(
   AppController app,
   ValueChanged<WorkspacePage> onNavigate, {
   bool forwarding = false,
-}) => [
-  for (final item in _SideNavigation._items.where(
-    (item) => _cloudNavItemAvailable(app, item, forwarding: forwarding),
-  ))
-    WorkspaceAction(
-      'cloud-page-${item.page.name}',
-      item.label(currentL10n),
-      item.icon,
-      () => onNavigate(item.page),
-      enabled: app.activeVault != null || _pageWorksWithoutVault(item.page),
+}) => WorkspaceAction.submenu(
+  'workspace_menu_go_to',
+  currentL10n.workspaceMenuGoTo,
+  Icons.explore_outlined,
+  [
+    for (final item in _SideNavigation._items.where(
+      (item) =>
+          item.page != WorkspacePage.settings &&
+          _cloudNavItemAvailable(app, item, forwarding: forwarding),
+    ))
+      _cloudPageAction(app, item, onNavigate),
+  ],
+);
+
+WorkspaceAction _cloudPageAction(
+  AppController app,
+  _NavItem item,
+  ValueChanged<WorkspacePage> onNavigate,
+) => WorkspaceAction(
+  'cloud-page-${item.page.name}',
+  item.label(currentL10n),
+  item.icon,
+  () => onNavigate(item.page),
+  enabled: app.activeVault != null || _pageWorksWithoutVault(item.page),
+);
+
+/// The workspace menu's last section: which Vault is open (a submenu once
+/// there is a choice), sync, Settings, the admin console and lock.
+List<WorkspaceAction> _cloudAccountActions(
+  AppController app,
+  ValueChanged<WorkspacePage> onNavigate, {
+  bool forwarding = false,
+}) {
+  WorkspaceAction vaultAction(String vaultId) => WorkspaceAction(
+    'cloud-vault-$vaultId',
+    // credential-visibility: mark admin-visible Vaults in the switcher.
+    credentialVisibilityVaultMenuLabel(
+      currentL10n,
+      app.vaults.firstWhere((vault) => vault.id == vaultId),
+      currentL10n.vaultVaultname(teamVaultDisplayName(app, vaultId)),
     ),
-  if (app.activeVault != null)
-    WorkspaceAction(
-      'cloud-sync-now',
-      _topBarSyncLabel(app.syncStatus, app.pendingCount),
-      _syncIcon(app.syncStatus),
-      () => _runSyncFromUi(app),
-      enabled: !app.syncing,
+    teamVaultIcon(app, vaultId),
+    () => app.selectVault(vaultId),
+    checked: app.activeVault?.id == vaultId,
+  );
+  final active = app.activeVault;
+  final settings = _SideNavigation._items
+      .where(
+        (item) =>
+            item.page == WorkspacePage.settings &&
+            _cloudNavItemAvailable(app, item, forwarding: forwarding),
+      )
+      .firstOrNull;
+  return [
+    WorkspaceAction.submenu(
+      'workspace_menu_vaults',
+      active == null
+          ? currentL10n.vaults
+          : currentL10n.vaultVaultname(teamVaultDisplayName(app, active.id)),
+      active == null ? Icons.lock_outline : teamVaultIcon(app, active.id),
+      [for (final vault in app.vaults) vaultAction(vault.id)],
     ),
-  for (final vault in app.vaults)
-    WorkspaceAction(
-      'cloud-vault-${vault.id}',
-      // credential-visibility: mark admin-visible Vaults in the switcher.
-      credentialVisibilityVaultMenuLabel(
-        currentL10n,
-        vault,
-        currentL10n.vaultVaultname(teamVaultDisplayName(app, vault.id)),
+    if (active != null)
+      WorkspaceAction(
+        'cloud-sync-now',
+        _topBarSyncLabel(app.syncStatus, app.pendingCount),
+        _syncIcon(app.syncStatus),
+        () => _runSyncFromUi(app),
+        enabled: !app.syncing,
       ),
-      teamVaultIcon(app, vault.id),
-      () => app.selectVault(vault.id),
+    // Sync and conflicts lives in Settings; while conflicts wait, the menu
+    // leads there directly, as the sidebar's Settings item does.
+    if (app.unresolvedConflictCount > 0)
+      WorkspaceAction(
+        'cloud-sync-conflicts',
+        '${currentL10n.syncAndConflicts} · ${app.unresolvedConflictCount}',
+        Icons.warning_amber_rounded,
+        () => onNavigate(WorkspacePage.sync),
+      ),
+    if (settings != null) _cloudPageAction(app, settings, onNavigate),
+    if (app.isInstanceAdmin)
+      WorkspaceAction(
+        'cloud_admin_console',
+        currentL10n.adminSiteOpen,
+        Icons.admin_panel_settings_outlined,
+        () => onNavigate(WorkspacePage.admin),
+      ),
+    WorkspaceAction(
+      'cloud-lock',
+      currentL10n.lockWorkspace,
+      Icons.lock_outline,
+      app.lock,
     ),
-  WorkspaceAction('cloud-lock', currentL10n.lockWorkspace, Icons.lock_outline, app.lock),
-];
+  ];
+}
 
 IconData _syncIcon(String status) => switch (status) {
   'idle' => Icons.cloud_done_outlined,

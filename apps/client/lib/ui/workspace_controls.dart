@@ -40,7 +40,37 @@ class WorkspaceAction {
     this.run, {
     this.enabled = true,
     this.destructive = false,
-  });
+    this.checked = false,
+  }) : children = const [],
+       _kind = _WorkspaceActionKind.action;
+
+  /// A submenu entry. Only the workspace menu ([WorkspaceMenu]) opens it;
+  /// flat menus never receive one.
+  const WorkspaceAction.submenu(
+    this.id,
+    this.label,
+    this.icon,
+    this.children, {
+    this.enabled = true,
+  }) : run = _noAction,
+       destructive = false,
+       checked = false,
+       _kind = _WorkspaceActionKind.submenu;
+
+  /// A line between two sections of the workspace menu.
+  const WorkspaceAction.divider()
+    : id = _dividerId,
+      label = '',
+      icon = Icons.horizontal_rule,
+      run = _noAction,
+      enabled = false,
+      destructive = false,
+      checked = false,
+      children = const [],
+      _kind = _WorkspaceActionKind.divider;
+
+  static const _dividerId = '-';
+  static void _noAction() {}
 
   final String id;
   final String label;
@@ -48,7 +78,29 @@ class WorkspaceAction {
   final FutureOr<void> Function() run;
   final bool enabled;
   final bool destructive;
+
+  /// Marks the current choice in a set of alternatives (the open Vault).
+  final bool checked;
+
+  /// Entries of a submenu; empty for an ordinary action.
+  final List<WorkspaceAction> children;
+  final _WorkspaceActionKind _kind;
+
+  bool get isDivider => _kind == _WorkspaceActionKind.divider;
+  bool get isSubmenu => _kind == _WorkspaceActionKind.submenu;
 }
+
+enum _WorkspaceActionKind { action, submenu, divider }
+
+/// Every runnable entry of [actions], submenus opened, dividers dropped.
+List<WorkspaceAction> flattenWorkspaceActions(List<WorkspaceAction> actions) =>
+    [
+      for (final action in actions)
+        if (action.isSubmenu)
+          ...flattenWorkspaceActions(action.children)
+        else if (!action.isDivider)
+          action,
+    ];
 
 class WorkspaceOverflowMenu extends StatelessWidget {
   const WorkspaceOverflowMenu({

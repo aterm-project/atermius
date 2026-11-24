@@ -13,6 +13,7 @@ import 'remote_file_workspace.dart' show FileTabDropTarget;
 import '../ssh/file_workspace_controller.dart' show FileWorkspaceController;
 import 'window_caption.dart';
 import 'workspace_controls.dart';
+import 'workspace_menu.dart';
 import 'fullscreen_menu.dart';
 import 'fullscreen_tabs_peek.dart';
 import 'host_system_icon.dart';
@@ -1520,9 +1521,9 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
 }
 
 /// The workspace menu: an icon-only button of its own at the start of the
-/// bar, in front of the Home tab. It only opens the menu; selecting Home is
-/// the Home tab's job.
-class _WorkspaceMenuButton extends StatefulWidget {
+/// bar, in front of the Home tab. It only opens the menu ([WorkspaceMenu],
+/// sections and submenus); selecting Home is the Home tab's job.
+class _WorkspaceMenuButton extends StatelessWidget {
   const _WorkspaceMenuButton({required this.actions, required this.metrics});
   final List<WorkspaceAction> actions;
   final WindowBarMetrics metrics;
@@ -1534,44 +1535,39 @@ class _WorkspaceMenuButton extends StatefulWidget {
   static double slotWidth(WindowBarMetrics metrics) => _width(metrics) + 10;
 
   @override
-  State<_WorkspaceMenuButton> createState() => _WorkspaceMenuButtonState();
-}
-
-class _WorkspaceMenuButtonState extends State<_WorkspaceMenuButton> {
-  bool _hovered = false;
-  @override
   Widget build(BuildContext context) {
-    final metrics = widget.metrics;
     final palette = context.palette;
     final colors = Theme.of(context).colorScheme;
     final radius = BorderRadius.circular(8);
     return Padding(
       padding: EdgeInsets.fromLTRB(8, metrics.tabInset, 2, metrics.tabInset),
-      // The bar is not a Material; the menu's ink needs one of its own.
+      // The bar is not a Material; the trigger's ink needs one of its own.
       child: Material(
         type: MaterialType.transparency,
-        child: WorkspaceOverflowMenu(
-          key: const ValueKey('workspace_host_menu'),
+        child: WorkspaceMenu(
+          triggerKey: const ValueKey('workspace_host_menu'),
           tooltip: context.l10n.hostMenuClickToOpen,
-          actions: widget.actions,
+          actions: actions,
           borderRadius: radius,
-          child: MouseRegion(
-            onEnter: (_) => setState(() => _hovered = true),
-            onExit: (_) => setState(() => _hovered = false),
-            child: AnimatedContainer(
-              duration: AppMotion.duration(context, MotionDurations.quick),
-              curve: MotionCurves.move,
-              width: _WorkspaceMenuButton._width(metrics),
-              height: metrics.tabHeight,
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                color: colors.onSurface.withValues(alpha: _hovered ? .12 : .05),
-              ),
-              child: Icon(
-                Icons.menu_rounded,
-                size: metrics.iconSize,
-                color: _hovered ? palette.text : palette.muted,
-              ),
+          builder: (context, open, hovered) => AnimatedContainer(
+            duration: AppMotion.duration(context, MotionDurations.quick),
+            curve: MotionCurves.move,
+            width: _width(metrics),
+            height: metrics.tabHeight,
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              color: open
+                  ? palette.accent.withValues(alpha: palette.isDark ? .24 : .16)
+                  : colors.onSurface.withValues(alpha: hovered ? .12 : .05),
+            ),
+            child: Icon(
+              open ? Icons.menu_open_rounded : Icons.menu_rounded,
+              size: metrics.iconSize,
+              color: open
+                  ? palette.accentText
+                  : hovered
+                  ? palette.text
+                  : palette.muted,
             ),
           ),
         ),

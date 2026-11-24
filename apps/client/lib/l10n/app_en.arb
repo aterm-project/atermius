@@ -17616,5 +17616,19 @@
   "appUpdateDoneNoticeBody": "Tap to open it again.",
   "@appUpdateDoneNoticeBody": {
     "description": "Automatic app updates from published releases (Windows, Linux, Android)."
-  }
+  },
+  "workspaceMenuNew": "New",
+  "@workspaceMenuNew": {"description": "Workspace (☰) menu: submenu that creates hosts and groups."},
+  "workspaceMenuNewHost": "{protocol} host",
+  "@workspaceMenuNewHost": {"description": "Workspace menu, New submenu: new host of one protocol (SSH, RDP, VNC, Telnet).", "placeholders": {"protocol": {"type": "String", "example": "SSH"}}},
+  "workspaceMenuGroup": "Group",
+  "@workspaceMenuGroup": {"description": "Workspace menu, New submenu: new host group."},
+  "workspaceMenuLocalTerminal": "Local terminal",
+  "@workspaceMenuLocalTerminal": {"description": "Workspace menu: submenu of shells on this computer."},
+  "workspaceMenuGoTo": "Go to",
+  "@workspaceMenuGoTo": {"description": "Workspace menu: submenu of workspace pages (Hosts, Groups, Snippets…)."},
+  "workspaceMenuImportExport": "Import and export",
+  "@workspaceMenuImportExport": {"description": "Workspace menu: submenu of import and export actions."},
+  "workspaceMenuCurrentSession": "Current session",
+  "@workspaceMenuCurrentSession": {"description": "Workspace menu: submenu of actions on the selected terminal session."}
 }

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:aterm_client/ui/workspace_controls.dart';
 import 'package:aterm_client/console/local_console.dart';
 import 'package:aterm_client/crypto/vault_crypto.dart';
 import 'package:aterm_client/platform/native_coordination.dart';
@@ -123,9 +124,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       final bars = find.byType(WorkspaceTabBar).evaluate();
       if (bars.isNotEmpty &&
-          (bars.single.widget as WorkspaceTabBar).homeMenuActions.any(
-            (a) => a.id == 'local_new_console',
-          )) {
+          flattenWorkspaceActions(
+            (bars.single.widget as WorkspaceTabBar).homeMenuActions,
+          ).any((a) => a.id == 'local_new_console')) {
         await settle(tester);
         return;
       }
@@ -163,7 +164,7 @@ void main() {
       await unlock(tester);
       WorkspaceTabBar bar() =>
           tester.widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar));
-      final actions = bar().homeMenuActions;
+      final actions = flattenWorkspaceActions(bar().homeMenuActions);
       expect(actions.any((a) => a.id == 'local_shell_options'), isTrue);
       consoles.nextCwd = '/home/u/project';
       await tester.runAsync(
@@ -173,7 +174,10 @@ void main() {
       await settle(tester);
       expect(consoles.opened.single.shell, LocalShellLaunch.systemDefault);
       final shellId = bar().selectedId;
-      expect(bar().tabs.firstWhere((t) => t.id == shellId).title, 'Local Console');
+      expect(
+        bar().tabs.firstWhere((t) => t.id == shellId).title,
+        'Local Console',
+      );
 
       bar().onSplit!(shellId, Axis.horizontal);
       await settle(tester);
@@ -226,7 +230,9 @@ void main() {
     await unlock(tester);
     WorkspaceTabBar bar() =>
         tester.widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar));
-    await tester.tap(find.byKey(const ValueKey('workspace_host_search_button')));
+    await tester.tap(
+      find.byKey(const ValueKey('workspace_host_search_button')),
+    );
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey('local_host_search')),
@@ -243,11 +249,10 @@ void main() {
     await settle(tester);
     expect(consoles.opened, hasLength(3));
     for (final console in consoles.opened) {
-      expect((console.serialPort, console.baudRate, console.shell), (
-        'COM3',
-        9600,
-        null,
-      ));
+      expect(
+        (console.serialPort, console.baudRate, console.shell),
+        ('COM3', 9600, null),
+      );
     }
     await tester.pumpWidget(const SizedBox.shrink());
     await settle(tester);
@@ -261,9 +266,10 @@ void main() {
       await unlock(tester);
       final bar = tester.widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar));
       await tester.runAsync(
-        () async => bar.homeMenuActions
-            .firstWhere((a) => a.id == 'local_new_console')
-            .run(),
+        () async =>
+            flattenWorkspaceActions(bar.homeMenuActions)
+                .firstWhere((a) => a.id == 'local_new_console')
+                .run(),
       );
       await settle(tester);
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:aterm_client/ui/workspace_controls.dart';
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/console/local_console.dart';
@@ -121,9 +122,8 @@ void main() {
         await tester.pumpAndSettle();
         WorkspaceTabBar bar() =>
             tester.widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar));
-        final menu = bar().homeMenuActions.firstWhere(
-          (a) => a.id == 'cloud_new_console',
-        );
+        final menu = flattenWorkspaceActions(bar().homeMenuActions)
+            .firstWhere((a) => a.id == 'cloud_new_console');
         await tester.runAsync(() async => menu.run());
         await tester.pumpAndSettle();
         expect(
@@ -133,7 +133,8 @@ void main() {
         final shellId = fixture.app.activeTerminalTabId!;
         expect(shellId, isNot(sshId));
         expect(
-          bar().homeMenuActions.any((a) => a.id == 'cloud_shell_options'),
+          flattenWorkspaceActions(bar().homeMenuActions)
+              .any((a) => a.id == 'cloud_shell_options'),
           isTrue,
         );
 

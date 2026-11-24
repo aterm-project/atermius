@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
+import 'support/workspace_menu_driver.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -1155,14 +1156,14 @@ void main() {
       );
       expect(find.byType(ChoiceChip), findsNothing);
       expect(find.text('Add host'), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('workspace_host_menu')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('cloud_new_ssh')), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('host_import_openssh_config')),
-        findsOneWidget,
-      );
-      expect(find.byKey(const ValueKey('cloud_add_group')), findsOneWidget);
+      for (final id in [
+        'cloud_new_ssh',
+        'host_import_openssh_config',
+        'cloud_add_group',
+      ]) {
+        await revealWorkspaceMenuItem(tester, id);
+        expect(find.byKey(ValueKey(id)), findsOneWidget);
+      }
       expect(tester.takeException(), isNull);
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());

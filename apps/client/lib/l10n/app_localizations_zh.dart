@@ -18830,4 +18830,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appUpdateDoneNoticeBody => '点按即可重新打开。';
+
+  @override
+  String get workspaceMenuNew => '新建';
+
+  @override
+  String workspaceMenuNewHost(String protocol) {
+    return '$protocol 主机';
+  }
+
+  @override
+  String get workspaceMenuGroup => '分组';
+
+  @override
+  String get workspaceMenuLocalTerminal => '本地终端';
+
+  @override
+  String get workspaceMenuGoTo => '前往';
+
+  @override
+  String get workspaceMenuImportExport => '导入与导出';
+
+  @override
+  String get workspaceMenuCurrentSession => '当前会话';
 }

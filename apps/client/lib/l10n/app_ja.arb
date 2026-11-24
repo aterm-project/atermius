@@ -5555,5 +5555,12 @@
   "appUpdateStatusCheckFailed": "更新を確認できませんでした。あとで自動的に再試行します。",
   "appUpdateStatusDownloadFailed": "ダウンロードが完了しませんでした。次回の確認時に続きから再開します。",
   "appUpdateDoneNoticeTitle": "Atermius を更新しました",
-  "appUpdateDoneNoticeBody": "タップしてもう一度開きます。"
+  "appUpdateDoneNoticeBody": "タップしてもう一度開きます。",
+  "workspaceMenuNew": "新規作成",
+  "workspaceMenuNewHost": "{protocol} ホスト",
+  "workspaceMenuGroup": "グループ",
+  "workspaceMenuLocalTerminal": "ローカルターミナル",
+  "workspaceMenuGoTo": "移動",
+  "workspaceMenuImportExport": "インポートとエクスポート",
+  "workspaceMenuCurrentSession": "現在のセッション"
 }

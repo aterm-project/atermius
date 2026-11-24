@@ -42,6 +42,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
 import 'package:uuid/uuid.dart';
 import 'package:xterm/xterm.dart';
+import 'support/workspace_menu_driver.dart';
 
 const _password = 'correct horse battery staple';
 const _fingerprint = 'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
@@ -194,8 +195,7 @@ void main() {
   }
 
   Future<void> terminalAction(WidgetTester tester, String id) async {
-    await tester.tap(find.byKey(const ValueKey('workspace_host_menu')));
-    await tester.pumpAndSettle();
+    await revealWorkspaceMenuItem(tester, id);
     await tester.ensureVisible(find.byKey(ValueKey(id)));
     await tester.tap(find.byKey(ValueKey(id)));
     await tester.pump();
@@ -914,14 +914,13 @@ void main() {
     expect(find.byKey(const ValueKey('local_host_add')), findsNothing);
     expect(find.byKey(const ValueKey('local_host_add_group')), findsNothing);
     expect(find.byTooltip('主机列表菜单'), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('workspace_host_menu')));
-    await tester.pumpAndSettle();
     for (final action in [
       'local_host_add',
       'local_host_add_group',
       'local_host_layout',
       'local_known_hosts_manage',
     ]) {
+      await revealWorkspaceMenuItem(tester, action);
       expect(find.byKey(ValueKey(action)), findsOneWidget);
     }
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
