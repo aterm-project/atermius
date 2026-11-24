@@ -16156,7 +16156,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get r7ForwardShowAllHosts => 'Показать хосты без правил';
 
   @override
-  String get r7ImportMenuAction => 'Импорт / экспорт Termius';
+  String get r7ImportMenuAction => 'Импорт / экспорт (Termius, MobaXterm)';
 
   @override
   String get r7ImportIssueCertificateNotStored =>
@@ -16185,7 +16185,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get r7ImportExportSave => 'Сохранить файл';
 
   @override
-  String get r7ImportConfirmTitle => 'Импортировать из Termius?';
+  String get r7ImportConfirmTitle => 'Импортировать эти хосты?';
 
   @override
   String get r7ImportIssueSshJumpCycle =>
@@ -16370,7 +16370,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get r7ImportDispositionExcluded => 'Исключено вами';
 
   @override
-  String get r7ImportTransferTitle => 'Импорт и экспорт Termius';
+  String get r7ImportTransferTitle => 'Импорт и экспорт (Termius, MobaXterm)';
 
   @override
   String get r7ImportIssueMissingAddress => 'Hostname/IP не заполнен.';
@@ -16620,7 +16620,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get r7ImportIntro =>
-      'Импорт хостов из CSV-шаблона Termius или конфигурации OpenSSH (включая вывод termius export-ssh-config). Ничего не сохраняется, пока вы не просмотрите предпросмотр и не подтвердите импорт.';
+      'Импорт хостов из CSV-шаблона Termius, конфигурации OpenSSH (включая вывод termius export-ssh-config) или сеансов MobaXterm. Ничего не сохраняется, пока вы не просмотрите предпросмотр и не подтвердите импорт.';
 
   @override
   String get r7ImportExportIncludeDesktops =>
@@ -20919,4 +20919,47 @@ class AppLocalizationsRu extends AppLocalizations {
   String sshAlgorithmNegotiationFailed(String endpoint) {
     return 'Не удалось согласовать общие алгоритмы SSH с $endpoint. Проверьте настройки SSH устройства и параметр совместимости в настройках хоста.';
   }
+
+  @override
+  String get mobaXtermImportChoose =>
+      'Выбрать сеансы MobaXterm (.mxtsessions / .ini)';
+
+  @override
+  String get mobaXtermImportHelp =>
+      'MobaXterm: щёлкните правой кнопкой «User sessions» и экспортируйте сеансы в файл .mxtsessions или выберите MobaXterm.ini. Импортируются сеансы SSH, SFTP, Telnet, RDP и VNC; папки становятся группами, а шлюзы SSH — промежуточными хостами. Сохранённые пароли и файлы закрытых ключей не импортируются.';
+
+  @override
+  String get mobaXtermIssueNoSessions =>
+      'Сеансы MobaXterm не найдены. Выберите экспорт .mxtsessions или MobaXterm.ini.';
+
+  @override
+  String get mobaXtermIssueInvalidSession =>
+      'Не удалось прочитать эту запись сеанса MobaXterm.';
+
+  @override
+  String mobaXtermIssueUnsupportedSession(String name) {
+    return 'Сеансы MobaXterm типа $name не импортируются (поддерживаются SSH, SFTP, Telnet, RDP и VNC).';
+  }
+
+  @override
+  String get mobaXtermIssueSftpAsSsh =>
+      'Сеанс SFTP импортирован как хост SSH; файлы открываются из этого хоста.';
+
+  @override
+  String mobaXtermIssueKeyFileNotRead(String name) {
+    return 'Используется файл ключа «$name». Файлы ключей при импорте не читаются; добавьте ключ к хосту после импорта.';
+  }
+
+  @override
+  String mobaXtermIssueCredentialUsername(String name) {
+    return 'Используются сохранённые в MobaXterm учётные данные «$name»; имени пользователя и пароля в файле нет.';
+  }
+
+  @override
+  String get mobaXtermIssueGatewayAdded =>
+      'Добавлен как промежуточный хост для шлюза SSH, заданного в MobaXterm.';
+
+  @override
+  String get mobaXtermIssuePasswordsNotImported =>
+      'Пароли, сохранённые в MobaXterm, зашифрованы его мастер-паролем и не импортируются; введите их при подключении.';
 }

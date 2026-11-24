@@ -72,7 +72,7 @@ abstract final class TermiusCsvColumn {
   static const known = [...template, sshKey];
 }
 
-enum TermiusSourceFormat { csv, openSsh }
+enum TermiusSourceFormat { csv, openSsh, mobaXterm }
 
 enum TermiusIssueSeverity { warning, blocking }
 
@@ -138,6 +138,15 @@ enum TermiusIssueCode {
   bundleInvalid,
   bundleConfigMissing,
   bundleConfigAmbiguous,
+  // MobaXterm specific.
+  mobaNoSessions,
+  mobaInvalidSession,
+  mobaUnsupportedSession,
+  mobaSftpAsSsh,
+  mobaKeyFileNotRead,
+  mobaCredentialUsername,
+  mobaGatewayAdded,
+  mobaPasswordsNotImported,
   // Export specific.
   exportSkippedProtocol,
   exportGroupSlash,

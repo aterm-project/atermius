@@ -14310,7 +14310,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get r7ForwardShowAllHosts => '显示无规则的主机';
 
   @override
-  String get r7ImportMenuAction => 'Termius 导入 / 导出';
+  String get r7ImportMenuAction => '导入 / 导出（Termius、MobaXterm）';
 
   @override
   String get r7ImportIssueCertificateNotStored => '发现了证书，但当前版本无法保存证书；仅导入私钥。';
@@ -14337,7 +14337,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get r7ImportExportSave => '保存文件';
 
   @override
-  String get r7ImportConfirmTitle => '从 Termius 导入？';
+  String get r7ImportConfirmTitle => '导入这些主机？';
 
   @override
   String get r7ImportIssueSshJumpCycle => 'ProxyJump 链存在循环或过长。';
@@ -14509,7 +14509,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get r7ImportDispositionExcluded => '已被你排除';
 
   @override
-  String get r7ImportTransferTitle => 'Termius 导入与导出';
+  String get r7ImportTransferTitle => '导入与导出（Termius、MobaXterm）';
 
   @override
   String get r7ImportIssueMissingAddress => 'Hostname/IP 为空。';
@@ -14743,7 +14743,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get r7ImportIntro =>
-      '从 Termius CSV 模板或 OpenSSH 配置（包括 termius export-ssh-config 的输出）导入主机。在你检查预览并确认之前不会保存任何内容。';
+      '从 Termius CSV 模板、OpenSSH 配置（包括 termius export-ssh-config 的输出）或 MobaXterm 会话导入主机。在你检查预览并确认之前不会保存任何内容。';
 
   @override
   String get r7ImportExportIncludeDesktops =>
@@ -18670,4 +18670,43 @@ class AppLocalizationsZh extends AppLocalizations {
   String sshAlgorithmNegotiationFailed(String endpoint) {
     return '与 $endpoint 未能协商出共同的 SSH 算法。请检查设备的 SSH 设置及主机的「旧版 SSH 兼容」选项。';
   }
+
+  @override
+  String get mobaXtermImportChoose => '选择 MobaXterm 会话（.mxtsessions / .ini）';
+
+  @override
+  String get mobaXtermImportHelp =>
+      'MobaXterm：在“User sessions”上右键，把会话导出为 .mxtsessions 文件，或直接选择 MobaXterm.ini。会导入 SSH、SFTP、Telnet、RDP 和 VNC 会话；文件夹变为分组，SSH 网关变为跳板主机。不会导入已保存的密码和私钥文件。';
+
+  @override
+  String get mobaXtermIssueNoSessions =>
+      '未找到 MobaXterm 会话。请选择 .mxtsessions 导出文件或 MobaXterm.ini。';
+
+  @override
+  String get mobaXtermIssueInvalidSession => '无法读取这条 MobaXterm 会话。';
+
+  @override
+  String mobaXtermIssueUnsupportedSession(String name) {
+    return '无法导入 MobaXterm 的 $name 会话（支持 SSH、SFTP、Telnet、RDP 和 VNC）。';
+  }
+
+  @override
+  String get mobaXtermIssueSftpAsSsh => 'SFTP 会话已作为 SSH 主机导入，可在该主机上打开文件。';
+
+  @override
+  String mobaXtermIssueKeyFileNotRead(String name) {
+    return '使用密钥文件“$name”。导入时不会读取密钥文件，请在导入后为主机添加密钥。';
+  }
+
+  @override
+  String mobaXtermIssueCredentialUsername(String name) {
+    return '使用 MobaXterm 中保存的凭据“$name”，文件里没有它的用户名和密码。';
+  }
+
+  @override
+  String get mobaXtermIssueGatewayAdded => '根据 MobaXterm 中设置的 SSH 网关添加为跳板主机。';
+
+  @override
+  String get mobaXtermIssuePasswordsNotImported =>
+      'MobaXterm 保存的密码用其主密码加密，不会导入；连接时输入即可。';
 }

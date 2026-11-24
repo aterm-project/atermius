@@ -12100,7 +12100,7 @@
   "@r7ImportExportSecretConfirmTitle": {
     "description": "Termius import/export (R7)."
   },
-  "r7ImportMenuAction": "Termius import / export",
+  "r7ImportMenuAction": "Import / export (Termius, MobaXterm)",
   "@r7ImportRowPrivateKey": {
     "description": "Termius import/export (R7)."
   },
@@ -12171,7 +12171,7 @@
     "description": "Termius import/export (R7)."
   },
   "r7ImportExportSave": "Save file",
-  "r7ImportConfirmTitle": "Import from Termius?",
+  "r7ImportConfirmTitle": "Import these hosts?",
   "r7ImportIssueSshJumpCycle": "The ProxyJump chain loops or is too long.",
   "@r7ImportMoreIssuesHidden": {
     "placeholders": {
@@ -12453,7 +12453,7 @@
   "r7ImportIssueDuplicateTags": "{count} duplicate tags were merged.",
   "r7ImportIssueSshBlocked": "The OpenSSH config can’t be imported as written.",
   "r7ImportDispositionExcluded": "Excluded by you",
-  "r7ImportTransferTitle": "Termius import & export",
+  "r7ImportTransferTitle": "Import & export (Termius, MobaXterm)",
   "r7ImportIssueMissingAddress": "Hostname/IP is empty.",
   "r7ImportChooseBundle": "Choose OpenSSH bundle (.zip)",
   "r7ImportRowPrivateKey": "Private key included (stored encrypted, never shown)",
@@ -12782,7 +12782,7 @@
     "description": "Termius import/export (R7)."
   },
   "r7ImportRowTags": "Tags: {tags}",
-  "r7ImportIntro": "Import hosts from the Termius CSV template or from an OpenSSH config (including termius export-ssh-config output). Nothing is saved until you review the preview and confirm.",
+  "r7ImportIntro": "Import hosts from the Termius CSV template, an OpenSSH config (including termius export-ssh-config output) or MobaXterm sessions. Nothing is saved until you review the preview and confirm.",
   "@r7ImportIssueHeaderOrderNotTermius": {
     "description": "Termius import/export (R7)."
   },
@@ -17397,5 +17397,60 @@
         "type": "String"
       }
     }
+  },
+  "mobaXtermImportChoose": "Choose MobaXterm sessions (.mxtsessions / .ini)",
+  "@mobaXtermImportChoose": {
+    "description": "MobaXterm import: button that opens a .mxtsessions export or MobaXterm.ini."
+  },
+  "mobaXtermImportHelp": "MobaXterm: right-click “User sessions” and export the sessions to a .mxtsessions file, or choose MobaXterm.ini. SSH, SFTP, Telnet, RDP and VNC sessions are imported; folders become groups and SSH gateways become jump hosts. Saved passwords and private key files are not imported.",
+  "@mobaXtermImportHelp": {
+    "description": "MobaXterm import: how to get the file and what is imported. “User sessions” is the MobaXterm UI label and stays in English."
+  },
+  "mobaXtermIssueNoSessions": "No MobaXterm sessions were found. Choose a .mxtsessions export or MobaXterm.ini.",
+  "@mobaXtermIssueNoSessions": {
+    "description": "MobaXterm import: the picked file has no sessions."
+  },
+  "mobaXtermIssueInvalidSession": "This MobaXterm session entry couldn’t be read.",
+  "@mobaXtermIssueInvalidSession": {
+    "description": "MobaXterm import: one session line could not be parsed."
+  },
+  "mobaXtermIssueUnsupportedSession": "MobaXterm {name} sessions can’t be imported (SSH, SFTP, Telnet, RDP and VNC can).",
+  "@mobaXtermIssueUnsupportedSession": {
+    "description": "MobaXterm import: {name} is a MobaXterm session type such as Serial, Shell or WSL.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mobaXtermIssueSftpAsSsh": "SFTP session imported as an SSH host; open its files from the host.",
+  "@mobaXtermIssueSftpAsSsh": {
+    "description": "MobaXterm import: an SFTP session becomes an SSH host."
+  },
+  "mobaXtermIssueKeyFileNotRead": "Uses the key file “{name}”. Key files aren’t read during import; add the key to the host afterwards.",
+  "@mobaXtermIssueKeyFileNotRead": {
+    "description": "MobaXterm import: {name} is the file name of the private key the session uses.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mobaXtermIssueCredentialUsername": "Uses the saved MobaXterm credential “{name}”; its username and password aren’t in the file.",
+  "@mobaXtermIssueCredentialUsername": {
+    "description": "MobaXterm import: {name} is the name of a saved MobaXterm credential.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mobaXtermIssueGatewayAdded": "Added as the jump host for an SSH gateway set in MobaXterm.",
+  "@mobaXtermIssueGatewayAdded": {
+    "description": "MobaXterm import: this host was created from an SSH gateway setting."
+  },
+  "mobaXtermIssuePasswordsNotImported": "Passwords saved in MobaXterm are encrypted with its master password and aren’t imported; enter them when you connect.",
+  "@mobaXtermIssuePasswordsNotImported": {
+    "description": "MobaXterm import: MobaXterm.ini contains encrypted saved passwords."
   }
 }

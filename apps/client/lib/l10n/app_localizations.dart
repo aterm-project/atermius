@@ -25414,7 +25414,7 @@ abstract class AppLocalizations {
   /// Termius import/export (R7).
   ///
   /// In en, this message translates to:
-  /// **'Termius import / export'**
+  /// **'Import / export (Termius, MobaXterm)'**
   String get r7ImportMenuAction;
 
   /// Termius import/export (R7).
@@ -25456,7 +25456,7 @@ abstract class AppLocalizations {
   /// Termius import/export (R7).
   ///
   /// In en, this message translates to:
-  /// **'Import from Termius?'**
+  /// **'Import these hosts?'**
   String get r7ImportConfirmTitle;
 
   /// Termius import/export (R7).
@@ -25725,7 +25725,7 @@ abstract class AppLocalizations {
   /// Termius import/export (R7).
   ///
   /// In en, this message translates to:
-  /// **'Termius import & export'**
+  /// **'Import & export (Termius, MobaXterm)'**
   String get r7ImportTransferTitle;
 
   /// Termius import/export (R7).
@@ -26085,7 +26085,7 @@ abstract class AppLocalizations {
   /// Termius import/export (R7).
   ///
   /// In en, this message translates to:
-  /// **'Import hosts from the Termius CSV template or from an OpenSSH config (including termius export-ssh-config output). Nothing is saved until you review the preview and confirm.'**
+  /// **'Import hosts from the Termius CSV template, an OpenSSH config (including termius export-ssh-config output) or MobaXterm sessions. Nothing is saved until you review the preview and confirm.'**
   String get r7ImportIntro;
 
   /// Termius import/export (R7).
@@ -32811,6 +32811,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No common SSH algorithms with {endpoint}. Check the device’s SSH settings and the host’s Legacy SSH compatibility option.'**
   String sshAlgorithmNegotiationFailed(String endpoint);
+
+  /// MobaXterm import: button that opens a .mxtsessions export or MobaXterm.ini.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose MobaXterm sessions (.mxtsessions / .ini)'**
+  String get mobaXtermImportChoose;
+
+  /// MobaXterm import: how to get the file and what is imported. “User sessions” is the MobaXterm UI label and stays in English.
+  ///
+  /// In en, this message translates to:
+  /// **'MobaXterm: right-click “User sessions” and export the sessions to a .mxtsessions file, or choose MobaXterm.ini. SSH, SFTP, Telnet, RDP and VNC sessions are imported; folders become groups and SSH gateways become jump hosts. Saved passwords and private key files are not imported.'**
+  String get mobaXtermImportHelp;
+
+  /// MobaXterm import: the picked file has no sessions.
+  ///
+  /// In en, this message translates to:
+  /// **'No MobaXterm sessions were found. Choose a .mxtsessions export or MobaXterm.ini.'**
+  String get mobaXtermIssueNoSessions;
+
+  /// MobaXterm import: one session line could not be parsed.
+  ///
+  /// In en, this message translates to:
+  /// **'This MobaXterm session entry couldn’t be read.'**
+  String get mobaXtermIssueInvalidSession;
+
+  /// MobaXterm import: {name} is a MobaXterm session type such as Serial, Shell or WSL.
+  ///
+  /// In en, this message translates to:
+  /// **'MobaXterm {name} sessions can’t be imported (SSH, SFTP, Telnet, RDP and VNC can).'**
+  String mobaXtermIssueUnsupportedSession(String name);
+
+  /// MobaXterm import: an SFTP session becomes an SSH host.
+  ///
+  /// In en, this message translates to:
+  /// **'SFTP session imported as an SSH host; open its files from the host.'**
+  String get mobaXtermIssueSftpAsSsh;
+
+  /// MobaXterm import: {name} is the file name of the private key the session uses.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses the key file “{name}”. Key files aren’t read during import; add the key to the host afterwards.'**
+  String mobaXtermIssueKeyFileNotRead(String name);
+
+  /// MobaXterm import: {name} is the name of a saved MobaXterm credential.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses the saved MobaXterm credential “{name}”; its username and password aren’t in the file.'**
+  String mobaXtermIssueCredentialUsername(String name);
+
+  /// MobaXterm import: this host was created from an SSH gateway setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Added as the jump host for an SSH gateway set in MobaXterm.'**
+  String get mobaXtermIssueGatewayAdded;
+
+  /// MobaXterm import: MobaXterm.ini contains encrypted saved passwords.
+  ///
+  /// In en, this message translates to:
+  /// **'Passwords saved in MobaXterm are encrypted with its master password and aren’t imported; enter them when you connect.'**
+  String get mobaXtermIssuePasswordsNotImported;
 }
 
 class _AppLocalizationsDelegate

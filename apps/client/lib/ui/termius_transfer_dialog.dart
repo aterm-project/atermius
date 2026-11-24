@@ -7,6 +7,7 @@ import 'package:flutter/cupertino.dart'
         CupertinoSlidingSegmentedControl;
 import 'package:flutter/material.dart';
 
+import '../import/mobaxterm_sessions.dart';
 import '../import/openssh_config_import.dart';
 import '../import/termius_csv.dart';
 import '../import/termius_export_file.dart';
@@ -36,7 +37,7 @@ class TermiusTransferOutcome {
   final bool exported;
 }
 
-enum TermiusImportSource { csv, openSshConfig, openSshBundle, json }
+enum TermiusImportSource { csv, openSshConfig, openSshBundle, json, mobaXterm }
 
 /// Returns picked file bytes and display name, or null when cancelled.
 typedef TermiusBytesPicker =
@@ -507,6 +508,7 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
       TermiusImportSource.openSshConfig => maxOpenSshConfigBytes,
       TermiusImportSource.openSshBundle => maxTermiusBundleBytes,
       TermiusImportSource.json => maxTermiusJsonBytes,
+      TermiusImportSource.mobaXterm => maxMobaXtermFileBytes,
     };
     return pickBoundedImportFile(
       maxBytes: limit,
@@ -639,6 +641,7 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
     });
     Uint8List? bytes;
     final fence = TermiusTargetFence(target);
+    final languageCode = Localizations.localeOf(context).languageCode;
     try {
       final picked = await load();
       if (!mounted || picked == null) return;
@@ -646,8 +649,12 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
       // cleanup never modifies plugin storage or prevents resetting _busy.
       bytes = Uint8List.fromList(picked.bytes);
       final document = switch (source) {
-        TermiusImportSource.csv => _parseCsvOrJsonBytes(bytes),
+        TermiusImportSource.csv => _parseCsvOrJsonBytes(bytes, languageCode),
         TermiusImportSource.json => TermiusJsonImporter.parseBytes(bytes),
+        TermiusImportSource.mobaXterm => MobaXtermImporter.parseBytes(
+          bytes,
+          languageCode: languageCode,
+        ),
         TermiusImportSource.openSshConfig =>
           TermiusOpenSshImporter.parseBytes(bytes),
         TermiusImportSource.openSshBundle =>
@@ -671,7 +678,14 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
     }
   }
 
-  TermiusImportDocument _parseCsvOrJsonBytes(Uint8List bytes) {
+  TermiusImportDocument _parseCsvOrJsonBytes(
+    Uint8List bytes,
+    String languageCode,
+  ) {
+    // A MobaXterm file picked with the CSV button still imports.
+    if (looksLikeMobaXtermSessions(bytes)) {
+      return MobaXtermImporter.parseBytes(bytes, languageCode: languageCode);
+    }
     if (looksLikeTermiusJsonBytes(bytes)) {
       final jsonDoc = TermiusJsonImporter.parseBytes(bytes);
       if (!jsonDoc.blocksWholeFile && jsonDoc.rows.isNotEmpty) {
@@ -1070,6 +1084,8 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
       Text(l10n.r7ImportTemplateColumns, style: theme.textTheme.bodySmall),
       const SizedBox(height: 6),
       Text(l10n.r7ImportNativeUnsupported, style: theme.textTheme.bodySmall),
+      const SizedBox(height: 6),
+      Text(l10n.mobaXtermImportHelp, style: theme.textTheme.bodySmall),
       const SizedBox(height: 12),
       Wrap(
         spacing: 8,
@@ -1104,6 +1120,14 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
                 : () => _chooseFile(TermiusImportSource.openSshBundle),
             icon: const Icon(Icons.folder_zip_outlined),
             label: Text(l10n.r7ImportChooseBundle),
+          ),
+          OutlinedButton.icon(
+            key: const ValueKey('termius_import_pick_mobaxterm'),
+            onPressed: _busy
+                ? null
+                : () => _chooseFile(TermiusImportSource.mobaXterm),
+            icon: const Icon(Icons.dns_outlined),
+            label: Text(l10n.mobaXtermImportChoose),
           ),
           if (widget.pickBytesForTesting == null && hasLocalDefaultSshConfig())
             OutlinedButton.icon(
@@ -1611,7 +1635,9 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
         ),
       IosListSection(
         header: l10n.r7ImportIntro,
-        footer: '${l10n.r7ImportTemplateColumns}\n${l10n.r7ImportNativeUnsupported}',
+        footer:
+            '${l10n.r7ImportTemplateColumns}\n${l10n.r7ImportNativeUnsupported}\n'
+            '${l10n.mobaXtermImportHelp}',
         separatorIndent: IosListSection.indentForIcon(),
         children: [
           IosListRow(
@@ -1661,6 +1687,16 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
             onTap: _busy
                 ? null
                 : () => _chooseFile(TermiusImportSource.openSshBundle),
+          ),
+          IosListRow(
+            key: const ValueKey('termius_import_pick_mobaxterm'),
+            leading: IosIconTile(icon: Icons.dns_rounded, color: c.purple),
+            title: Text(l10n.mobaXtermImportChoose),
+            accessory: IosRowAccessory.chevron,
+            enabled: !_busy,
+            onTap: _busy
+                ? null
+                : () => _chooseFile(TermiusImportSource.mobaXterm),
           ),
           if (widget.pickBytesForTesting == null && hasLocalDefaultSshConfig())
             IosListRow(
@@ -2276,6 +2312,19 @@ String describeTermiusIssue(AppLocalizations l10n, TermiusIssue issue) {
     TermiusIssueCode.bundleConfigMissing => l10n.r7ImportIssueBundleConfigMissing,
     TermiusIssueCode.bundleConfigAmbiguous =>
       l10n.r7ImportIssueBundleConfigAmbiguous,
+    TermiusIssueCode.mobaNoSessions => l10n.mobaXtermIssueNoSessions,
+    TermiusIssueCode.mobaInvalidSession => l10n.mobaXtermIssueInvalidSession,
+    TermiusIssueCode.mobaUnsupportedSession =>
+      l10n.mobaXtermIssueUnsupportedSession(name),
+    TermiusIssueCode.mobaSftpAsSsh => l10n.mobaXtermIssueSftpAsSsh,
+    TermiusIssueCode.mobaKeyFileNotRead => l10n.mobaXtermIssueKeyFileNotRead(
+      name,
+    ),
+    TermiusIssueCode.mobaCredentialUsername =>
+      l10n.mobaXtermIssueCredentialUsername(name),
+    TermiusIssueCode.mobaGatewayAdded => l10n.mobaXtermIssueGatewayAdded,
+    TermiusIssueCode.mobaPasswordsNotImported =>
+      l10n.mobaXtermIssuePasswordsNotImported,
     TermiusIssueCode.exportCertificatesNotRepresented =>
       l10n.r7ImportIssueExportCertificatesNotRepresented(count),
     TermiusIssueCode.exportPassphraseNotExported =>

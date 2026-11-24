@@ -15144,7 +15144,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get r7ForwardShowAllHosts => 'ルールのないホストも表示';
 
   @override
-  String get r7ImportMenuAction => 'Termius インポート / エクスポート';
+  String get r7ImportMenuAction => 'インポート / エクスポート（Termius、MobaXterm）';
 
   @override
   String get r7ImportIssueCertificateNotStored =>
@@ -15173,7 +15173,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get r7ImportExportSave => 'ファイルを保存';
 
   @override
-  String get r7ImportConfirmTitle => 'Termius からインポートしますか？';
+  String get r7ImportConfirmTitle => 'これらのホストをインポートしますか？';
 
   @override
   String get r7ImportIssueSshJumpCycle => 'ProxyJump のチェーンがループしているか、長すぎます。';
@@ -15348,7 +15348,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get r7ImportDispositionExcluded => '除外済み';
 
   @override
-  String get r7ImportTransferTitle => 'Termius のインポートとエクスポート';
+  String get r7ImportTransferTitle => 'インポートとエクスポート（Termius、MobaXterm）';
 
   @override
   String get r7ImportIssueMissingAddress => 'Hostname/IP が空です。';
@@ -15586,7 +15586,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get r7ImportIntro =>
-      'Termius の CSV テンプレート、または OpenSSH 設定（termius export-ssh-config の出力を含む）からホストをインポートします。プレビューを確認して確定するまで何も保存されません。';
+      'Termius の CSV テンプレート、OpenSSH 設定（termius export-ssh-config の出力を含む）、または MobaXterm のセッションからホストをインポートします。プレビューを確認して確定するまで何も保存されません。';
 
   @override
   String get r7ImportExportIncludeDesktops =>
@@ -19626,4 +19626,46 @@ class AppLocalizationsJa extends AppLocalizations {
   String sshAlgorithmNegotiationFailed(String endpoint) {
     return '$endpoint と共通の SSH アルゴリズムを選択できませんでした。機器の SSH 設定とホストの旧バージョン互換性オプションを確認してください。';
   }
+
+  @override
+  String get mobaXtermImportChoose => 'MobaXterm セッションを選択（.mxtsessions / .ini）';
+
+  @override
+  String get mobaXtermImportHelp =>
+      'MobaXterm：「User sessions」を右クリックしてセッションを .mxtsessions ファイルにエクスポートするか、MobaXterm.ini を選択してください。SSH、SFTP、Telnet、RDP、VNC のセッションをインポートします。フォルダーはグループに、SSH ゲートウェイはジャンプホストになります。保存されたパスワードと秘密鍵ファイルはインポートしません。';
+
+  @override
+  String get mobaXtermIssueNoSessions =>
+      'MobaXterm のセッションが見つかりません。.mxtsessions のエクスポートか MobaXterm.ini を選択してください。';
+
+  @override
+  String get mobaXtermIssueInvalidSession =>
+      'この MobaXterm セッションの項目を読み込めませんでした。';
+
+  @override
+  String mobaXtermIssueUnsupportedSession(String name) {
+    return 'MobaXterm の $name セッションはインポートできません（SSH、SFTP、Telnet、RDP、VNC は可能）。';
+  }
+
+  @override
+  String get mobaXtermIssueSftpAsSsh =>
+      'SFTP セッションを SSH ホストとしてインポートしました。ファイルはそのホストから開けます。';
+
+  @override
+  String mobaXtermIssueKeyFileNotRead(String name) {
+    return '鍵ファイル「$name」を使用しています。インポート時に鍵ファイルは読み込まないため、インポート後にホストへ鍵を追加してください。';
+  }
+
+  @override
+  String mobaXtermIssueCredentialUsername(String name) {
+    return 'MobaXterm に保存された認証情報「$name」を使用しています。そのユーザー名とパスワードはファイルに含まれていません。';
+  }
+
+  @override
+  String get mobaXtermIssueGatewayAdded =>
+      'MobaXterm で設定された SSH ゲートウェイのジャンプホストとして追加しました。';
+
+  @override
+  String get mobaXtermIssuePasswordsNotImported =>
+      'MobaXterm に保存されたパスワードはマスターパスワードで暗号化されているため、インポートしません。接続時に入力してください。';
 }
