@@ -9,6 +9,7 @@ import 'app_update_backend.dart';
 import 'app_update_channel.dart';
 import 'app_update_download.dart';
 import 'app_update_state.dart';
+import 'release_marker.dart';
 import 'release_tag.dart';
 
 /// Text of the notification Android shows once the new version is
@@ -117,6 +118,14 @@ class AndroidAppUpdateBackend implements AppUpdateBackend {
       sha256Hex: release.sha256,
       onProgress: (received) => onProgress(received / release.size),
     );
+    // Never install a build that could not update itself again.
+    if (!await apkCarriesTag(package.path, release.tag)) {
+      await package.parent.delete(recursive: true);
+      (await _state())
+        ..blocked.add(release.tag)
+        ..write();
+      throw AppUpdateDeadEndRelease(release.tag);
+    }
     final staged = AppUpdateStaged(release: release, path: package.path);
     (await _state())
       ..staged = staged

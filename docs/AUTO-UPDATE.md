@@ -33,6 +33,8 @@ A release is an update when all of this holds:
 
 If the newest release lacks the package for a platform, the newest one that has it is used.
 
+After the download the app also checks that the new build carries its own release tag in its compiled program. A build made without `ATERMIUS_RELEASE_TAG` (or from code without the updater) could never update again, so it is skipped for good instead of being installed; the device stays on its current version and takes the next proper release.
+
 The package is downloaded from `github.com/<repository>/releases/download/…` only, to a `.part` file that is continued after an interruption, and accepted only with exactly the announced size and SHA-256 digest. Android additionally refuses a package that is not this app, is not newer, or is not signed with the same key (the last check is the system's).
 
 ## How the installed copy is replaced / 如何替换已安装的版本
@@ -55,7 +57,7 @@ The verified APK waits in the app's cache. *Install and restart* hands it to the
 
 ## For people who publish releases / 发版要求
 
-- Build with `--dart-define=ATERMIUS_RELEASE_TAG=<release tag>`. The recipes in `.github/daily-build/recipe` do this for Windows, Linux and Android. A build without the tag (any development build) never looks for updates.
+- Build with `--dart-define=ATERMIUS_RELEASE_TAG=<release tag>`. The recipes in `.github/daily-build/recipe` do this for Windows, Linux and Android. A build without the tag (any development build) never looks for updates, and installed copies skip a published release built without it.
 - Keep the tag form `<prefix>-<yyyymmdd>.<n>-<commit>` and the package names above; publish `SHA256SUMS` with every release.
 - Only mark a release as a normal (non-pre-release) release when installed copies should move to it.
 - Android: `versionCode` must increase and the signing key must stay the same, or the system refuses the update.

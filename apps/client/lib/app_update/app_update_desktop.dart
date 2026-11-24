@@ -11,6 +11,7 @@ import 'app_update_channel.dart';
 import 'app_update_download.dart';
 import 'app_update_state.dart';
 import 'app_update_windows_elevation.dart';
+import 'release_marker.dart';
 import 'release_tag.dart';
 
 // How a desktop copy of Atermius replaces itself
@@ -836,6 +837,18 @@ class DesktopAppUpdateBackend implements AppUpdateBackend {
         await unpacking.delete(recursive: true);
         await package.delete();
         throw const FormatException('package is not an Atermius bundle');
+      }
+      // Never switch to a build that could not update itself again.
+      final program = layout.windows
+          ? p.join(unpacking.path, 'data', 'app.so')
+          : p.join(unpacking.path, 'lib', 'libapp.so');
+      if (!await programCarriesTag(program, release.tag)) {
+        await unpacking.delete(recursive: true);
+        await package.delete();
+        _read(layout)
+          ..blocked.add(release.tag)
+          ..write();
+        throw AppUpdateDeadEndRelease(release.tag);
       }
       await unpacking.rename(app.path);
       await package.delete();

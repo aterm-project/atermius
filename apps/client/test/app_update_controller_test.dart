@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:aterm_client/app_update/app_update_backend.dart';
 import 'package:aterm_client/app_update/app_update_channel.dart';
 import 'package:aterm_client/app_update/app_update_controller.dart';
+import 'package:aterm_client/app_update/release_marker.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _current = 'local-20261124.2-178e1a78f57b';
@@ -213,6 +214,17 @@ void main() {
     expect(update.downloadFailed, isFalse);
     expect(update.ready!.tag, _next);
     expect(backend.stagedTags, [_next, _next]);
+  });
+
+  test('a release that could not update itself is dropped quietly', () async {
+    channel.release = _release(_next);
+    backend.stageError = const AppUpdateDeadEndRelease(_next);
+    final update = controller();
+    await update.start();
+    await update.checkNow();
+    expect(update.found, isNull);
+    expect(update.ready, isNull);
+    expect(update.downloadFailed, isFalse);
   });
 
   test('with automatic updates off the release is only announced', () async {

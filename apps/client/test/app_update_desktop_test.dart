@@ -10,6 +10,7 @@ import 'package:aterm_client/app_update/app_update_channel.dart';
 import 'package:aterm_client/app_update/app_update_desktop.dart';
 import 'package:aterm_client/app_update/app_update_download.dart';
 import 'package:aterm_client/app_update/app_update_state.dart';
+import 'package:aterm_client/app_update/release_marker.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -23,7 +24,8 @@ const _next = 'local-20261124.3-0123456789ab';
 Map<String, String> _bundle(String marker, {Map<String, String> extra = const {}}) =>
     {
       'aterm_client': '#!/bin/sh\necho $marker\n',
-      'lib/libapp.so': 'app $marker',
+      // A real build carries its release tag in its compiled program.
+      'lib/libapp.so': 'app $marker built as $_next',
       'lib/libflutter_linux_gtk.so': 'engine $marker',
       'data/icudtl.dat': 'icu $marker',
       'data/flutter_assets/AssetManifest.bin': 'assets $marker',
@@ -354,7 +356,7 @@ void main() {
         AppUpdateSwitchOutcome.failed,
       );
       expect(_read(layout.installDir)['notes.txt'], 'mine');
-      expect(_read(layout.installDir)['lib/libapp.so'], 'app old');
+      expect(_read(layout.installDir)['lib/libapp.so'], _bundle('old')['lib/libapp.so']);
     });
   });
 
@@ -400,6 +402,19 @@ void main() {
         throwsFormatException,
       );
       expect(await update.staged(_current), isNull);
+    });
+
+    test('a build without its own release tag is never installed', () async {
+      final bytes = _tarGz({..._bundle('new'), 'lib/libapp.so': 'no tag here'});
+      served['/next.tar.gz'] = bytes;
+      final update = backend();
+      await expectLater(
+        update.stage(release(_next, 'next.tar.gz', bytes), onProgress: (_) {}),
+        throwsA(isA<AppUpdateDeadEndRelease>()),
+      );
+      expect(await update.staged(_current), isNull);
+      expect(await update.blockedTags(), {_next});
+      expect(layout.releaseDir(_next).listSync(), isEmpty);
     });
 
     test('cleanup drops what the running release no longer needs', () async {

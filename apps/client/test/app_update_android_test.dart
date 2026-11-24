@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:aterm_client/app_update/app_update_android.dart';
 import 'package:aterm_client/app_update/app_update_backend.dart';
 import 'package:aterm_client/app_update/app_update_channel.dart';
+import 'package:aterm_client/app_update/release_marker.dart';
+import 'package:archive/archive.dart';
+import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +15,24 @@ import 'package:path/path.dart' as p;
 
 const _current = 'local-20261124.2-178e1a78f57b';
 const _next = 'local-20261124.3-0123456789ab';
+
+/// A minimal APK: the compiled program of each ABI carries [tag].
+List<int> _apk(String tag) => ZipEncoder().encodeBytes(
+  Archive()
+    ..add(ArchiveFile.bytes('AndroidManifest.xml', List<int>.filled(300, 1)))
+    ..add(
+      ArchiveFile.bytes(
+        'lib/x86_64/libapp.so',
+        [...List<int>.generate(40000, (i) => i % 199), ...utf8.encode(tag)],
+      ),
+    )
+    ..add(
+      ArchiveFile.bytes(
+        'lib/arm64-v8a/libapp.so',
+        [...utf8.encode(tag), ...List<int>.generate(30000, (i) => i % 97)],
+      ),
+    ),
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -45,7 +66,7 @@ void main() {
 
   setUp(() async {
     cache = await Directory.systemTemp.createTemp('atermius-android-update-');
-    apk = List<int>.generate(50000, (i) => i % 199);
+    apk = _apk(_next);
     calls.clear();
     downloads = 0;
     native = null;
@@ -145,6 +166,18 @@ void main() {
     expect(await update.apply(staged!), AppUpdateApplyProblem.stagedMissing);
     expect(await update.blockedTags(), {_next});
     expect(await update.staged(_current), isNull);
+  });
+
+  test('a build without its own release tag is never installed', () async {
+    apk = _apk('local-20261124.1-000000000000');
+    final update = backend();
+    await expectLater(
+      update.stage(release(), onProgress: (_) {}),
+      throwsA(isA<AppUpdateDeadEndRelease>()),
+    );
+    expect(await update.staged(_current), isNull);
+    expect(await update.blockedTags(), {_next});
+    expect(Directory(p.join(cache.path, 'app-updates', _next)).existsSync(), isFalse);
   });
 
   test('metered and support checks come from the platform', () async {

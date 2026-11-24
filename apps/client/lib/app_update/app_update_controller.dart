@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'app_update_backend.dart';
 import 'app_update_channel.dart';
+import 'release_marker.dart';
 import 'release_tag.dart';
 
 /// Remembers whether updates are installed without asking.
@@ -268,6 +269,9 @@ class AppUpdateController extends ChangeNotifier {
         _found = null;
       }
       // Null: another window is downloading it; the poll picks it up.
+    } on AppUpdateDeadEndRelease {
+      // Skipped for good by the backend; nothing to offer or report.
+      if (_found?.tag == release.tag) _found = null;
     } catch (_) {
       _downloadFailed = true;
     }
