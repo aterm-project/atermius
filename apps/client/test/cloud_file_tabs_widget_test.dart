@@ -9,7 +9,9 @@ import 'package:aterm_client/ssh/port_forward_runtime.dart';
 import 'package:aterm_client/ssh/scp_transfer_types.dart';
 import 'package:aterm_client/ssh/ssh_service.dart';
 import 'package:aterm_client/storage/client_database.dart';
+import 'package:aterm_client/storage/database_quarantine.dart';
 import 'package:aterm_client/storage/secure_store.dart';
+import 'package:aterm_client/sync/local_vault_import.dart';
 import 'package:aterm_client/ui/app_shell.dart';
 import 'package:aterm_client/ui/app_theme.dart';
 import 'package:aterm_client/ui/remote_file_workspace.dart';
@@ -112,17 +114,10 @@ void main() {
     'cloud functions stay in top tabs without duplicate page header',
     (tester) async {
       final fixture = await _fixture();
-      var migrationOpens = 0;
+      final localImport = _RecordingLocalImport(fixture.app);
       try {
         await tester.binding.setSurfaceSize(const Size(1280, 900));
-        await tester.pumpWidget(
-          _shell(
-            fixture.app,
-            onOpenLocalMigration: (_) async {
-              migrationOpens++;
-            },
-          ),
-        );
+        await tester.pumpWidget(_shell(fixture.app, localImport: localImport));
         await tester.pumpAndSettle();
         expect(find.text('Hosts'), findsOneWidget); // Top Host menu only.
         expect(find.byType(ChoiceChip), findsNothing);
@@ -162,11 +157,13 @@ void main() {
         await openSettingsCategory(tester, 'sync');
         final import = find.byKey(const ValueKey('local_to_sync_migration_open'));
         expect(find.text('Sync health'), findsOneWidget);
-        expect(find.text('Import LocalVault to server'), findsOneWidget);
+        expect(find.text('Import to server'), findsOneWidget);
         await tester.ensureVisible(import);
         await tester.tap(import);
         await tester.pumpAndSettle();
-        expect(migrationOpens, 1);
+        expect(localImport.imports, 1);
+        // The import runs in the background: no page was pushed.
+        expect(find.text('Sync health'), findsOneWidget);
 
         await openSettingsCategory(tester, 'data');
         expect(import, findsNothing);
@@ -180,6 +177,7 @@ void main() {
         expect(import, findsNothing);
       } finally {
         await _cleanup(tester, fixture);
+        localImport.dispose();
       }
     },
   );
@@ -191,17 +189,10 @@ void main() {
       debugDefaultTargetPlatformOverride = platform;
       final fixture = await _fixture();
       fixture.app.activeVault = null;
-      var migrationOpens = 0;
+      final localImport = _RecordingLocalImport(fixture.app);
       try {
         await tester.binding.setSurfaceSize(const Size(390, 844));
-        await tester.pumpWidget(
-          _shell(
-            fixture.app,
-            onOpenLocalMigration: (_) async {
-              migrationOpens++;
-            },
-          ),
-        );
+        await tester.pumpWidget(_shell(fixture.app, localImport: localImport));
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const ValueKey('home_nav_settings')));
         await tester.pumpAndSettle();
@@ -211,10 +202,11 @@ void main() {
         expect(import, findsOneWidget);
         expect(find.text('Sync now'), findsNothing);
         await tester.tap(import);
-        expect(migrationOpens, 1);
+        expect(localImport.imports, 1);
         expect(tester.takeException(), isNull);
       } finally {
         await _cleanup(tester, fixture);
+        localImport.dispose();
         debugDefaultTargetPlatformOverride = null;
       }
     });
@@ -756,15 +748,59 @@ void main() {
 Widget _shell(
   AppController app, {
   FilesWindowLaunch? launch,
-  Future<void> Function(BuildContext)? onOpenLocalMigration,
+  LocalVaultImport? localImport,
 }) => MaterialApp(
   theme: buildAppTheme(),
   home: AppShell(
     controller: app,
     filesLaunch: launch,
-    onOpenLocalMigration: onOpenLocalMigration,
+    localImport: localImport,
   ),
 );
+
+/// One local profile whose key is stored; records import requests.
+class _RecordingLocalImport extends LocalVaultImport {
+  _RecordingLocalImport(AppController app)
+    : super(
+        destination: AppControllerImportDestination(app),
+        crypto: app.crypto,
+        openStorage: () async => null,
+        quarantine: DatabaseQuarantineRegistry(),
+        autoResume: false,
+      );
+
+  int imports = 0;
+  static final _profile = LocalImportProfile(
+    profileId: '0a000000-0000-4000-8000-00000000000a',
+    createdAt: DateTime.utc(2026, 11, 1),
+    keyStored: true,
+    journals: const [],
+  );
+
+  @override
+  Future<void> refresh() async {}
+
+  @override
+  bool get loaded => true;
+
+  @override
+  List<LocalImportProfile> get profiles => [_profile];
+
+  @override
+  String? get selectedProfileId => _profile.profileId;
+
+  @override
+  LocalImportProfile? get selectedProfile => _profile;
+
+  @override
+  Future<LocalImportAccess> importProfile(
+    String profileId, {
+    String? password,
+  }) async {
+    imports++;
+    return LocalImportAccess.started;
+  }
+}
 
 class _Fixture {
   _Fixture(this.app, this.database, this.connections, this.calls);

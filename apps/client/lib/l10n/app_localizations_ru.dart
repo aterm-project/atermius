@@ -13685,16 +13685,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get defaultCredential => 'Учётные данные по умолчанию';
 
   @override
-  String get allLocalRecordsArePreflightedBefore =>
-      'Перед созданием нового сейфа все локальные записи проходят предварительную проверку. Неподдерживаемые настройки, метки удаления, отсутствующие ссылки или ссылки на объекты вложений останавливают миграцию до любой записи на сервер.';
-
-  @override
-  String get cancelEmptyPreparation => 'Отменить пустую подготовку';
-
-  @override
-  String get continueMigration => 'Продолжить миграцию';
-
-  @override
   String get importedLocalProfiles => 'Импортированные локальные профили';
 
   @override
@@ -13702,23 +13692,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get localProfilePassword => 'Пароль локального профиля';
-
-  @override
-  String localProfileUnlockedCountResumableMigration(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other:
-          'Локальный профиль разблокирован · $count миграции могут быть продолжены',
-      many:
-          'Локальный профиль разблокирован · $count миграций могут быть продолжены',
-      few:
-          'Локальный профиль разблокирован · $count миграции могут быть продолжены',
-      one:
-          'Локальный профиль разблокирован · $count миграция может быть продолжена',
-    );
-    return '$_temp0';
-  }
 
   @override
   String localProfileSubstring(String substring) {
@@ -13735,91 +13708,16 @@ class AppLocalizationsRu extends AppLocalizations {
   String get changeLocalProfilePassword => 'Изменить пароль локального профиля';
 
   @override
-  String get importLocalVaultToServer => 'Импортировать LocalVault на сервер';
-
-  @override
   String get localImportServerChanged =>
       'Идентификатор сервера или сеанс входа изменился. Подключитесь и войдите снова перед импортом.';
-
-  @override
-  String get migrateLocalProfiles => 'Перенос локальных профилей';
-
-  @override
-  String get migrationCompleted => 'Миграция завершена';
-
-  @override
-  String get migrationNeedsRecovery => 'Миграция требует восстановления';
-
-  @override
-  String get migrationStoppedLocalSourceKept =>
-      'Миграция остановлена · локальный источник сохранён';
-
-  @override
-  String get moveLocalEncryptedRecordsToA =>
-      'Перенести локальные зашифрованные записи в новый синхронизируемый сейф';
-
-  @override
-  String get newSyncVaultName => 'Имя нового синхронизируемого сейфа';
-
-  @override
-  String get noLocalOnlyProfileExistsIn =>
-      'В этом браузере ещё нет локального профиля. Создайте его в рабочем пространстве локального профиля, добавьте нужные записи и вернитесь сюда.';
-
-  @override
-  String get preflightAndMigrate => 'Проверить и перенести';
-
-  @override
-  String get startANewMigration => 'Начать новую миграцию';
-
-  @override
-  String get stopAndKeepBoth => 'Остановить и сохранить оба';
-
-  @override
-  String get stopAndKeepLocalData => 'Остановить и сохранить локальные данные';
-
-  @override
-  String get stopMigrationAndKeepLocalData =>
-      'Остановить миграцию и сохранить локальные данные?';
-
-  @override
-  String get theClientDecryptsAndValidatesEvery =>
-      'Клиент расшифровывает и проверяет каждую исходную запись, затем шифрует её заново для одобренного серверного устройства. Сервер получает только подписанный шифротекст. Существующие локальные записи не меняются, а запись в локальный профиль заморожена, пока назначение не подтвердит все записи.';
 
   @override
   String get theLocalSourceWillBecomeWritable =>
       'Локальный источник снова станет доступен для записи, его записи не изменятся. Сейф назначения, зафиксированные записи и операции в очереди не удаляются и не отзываются; в назначении может остаться частичная копия.';
 
   @override
-  String get unlockALocalOnlyProfile => 'Разблокировать локальный профиль';
-
-  @override
-  String get unlockAndValidate => 'Разблокировать и проверить';
-
-  @override
-  String stagedcountTotalcountEncryptedRecordsStaged(
-    int stagedCount,
-    int totalCount,
-  ) {
-    return 'Подготовлено зашифрованных записей: $stagedCount из $totalCount';
-  }
-
-  @override
-  String stageditemcountItemcountEncryptedRecordsStagedTarget(
-    int stagedItemCount,
-    int itemCount,
-    String substring,
-  ) {
-    return 'Подготовлено зашифрованных записей: $stagedItemCount из $itemCount · цель $substring…';
-  }
-
-  @override
   String get theSyncServiceIdentityIsntVerified =>
       'Идентичность службы синхронизации ещё не проверена. Войдите снова и повторите попытку.';
-
-  @override
-  String countCount2EncryptedRecordsSafelyStaged(int count, int count2) {
-    return 'Безопасно подготовлено зашифрованных записей: $count из $count2.';
-  }
 
   @override
   String get destinationDataIsAlreadyStagedThis =>
@@ -13830,59 +13728,12 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось остановить миграцию. Исходные данные и подготовленный шифротекст сохранены; повторите попытку или продолжите миграцию.';
 
   @override
-  String get thisMigrationCantBeResumedSafely =>
-      'Эту миграцию нельзя безопасно возобновить. Исходные данные и подготовленный шифротекст не изменены; проверьте состояние устройства и сервера.';
-
-  @override
   String get couldntUnlockOrVerifyThisLocal =>
       'Не удалось разблокировать или проверить локальный профиль. Проверьте пароль и локальное хранилище и повторите попытку.';
 
   @override
-  String get couldntReadTheLocalProfileList =>
-      'Не удалось прочитать список локальных профилей. Закройте страницу и повторите попытку.';
-
-  @override
   String get theStagedDestinationCiphertextHasAn =>
       'Недопустимый формат подготовленного шифротекста назначения.';
-
-  @override
-  String get noVaultCreationRequestWasSent =>
-      'Запрос на создание сейфа не отправлялся; журнал подготовки безопасно отменён.';
-
-  @override
-  String get localDataWasFullyPreflightedAnd =>
-      'Локальные данные полностью проверены и заморожены; подготовка нового синхронизируемого сейфа…';
-
-  @override
-  String get localSourceSnapshotVerifiedResumingThe =>
-      'Снимок локального источника проверен; возобновление того же назначения синхронизации…';
-
-  @override
-  String get theLocalProfileIsLocked => 'Локальный профиль заблокирован.';
-
-  @override
-  String get encryptingAndStagingRecordsWithThe =>
-      'Шифрование и подготовка записей ключом сейфа назначения…';
-
-  @override
-  String get syncingEncryptedRecordsToTheNew =>
-      'Синхронизация зашифрованных записей в новый сейф…';
-
-  @override
-  String get confirmingTheSameDestinationVaultAnd =>
-      'Подтверждение того же сейфа назначения и проверка ранее подготовленных записей…';
-
-  @override
-  String get reVerifyingTheLocalSourceSnapshot =>
-      'Повторная проверка снимка локального источника и подготовленных зашифрованных данных…';
-
-  @override
-  String get preflightingAllLocalRecordsWritesTo =>
-      'Предварительная проверка всех локальных записей; запись в исходный профиль временно запрещена…';
-
-  @override
-  String get verifyingTheLocalProfileAndChecking =>
-      'Проверка локального профиля и журнала восстановления…';
 
   @override
   String get thisMigrationCantBeCancelledSafely =>
@@ -13893,10 +13744,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Настройки синхронизации сейфа назначения конфликтуют; миграция ещё не полностью проверена.';
 
   @override
-  String get recordsAreSavedEncryptedInThe =>
-      'Записи сохранены в зашифрованном виде в очереди синхронизации, но не все подтверждения сервера получены. Исходный профиль остаётся заморожен; нажмите «Продолжить миграцию», чтобы безопасно повторить.';
-
-  @override
   String get migrationPreparationHasntSavedTheVault =>
       'Подготовка миграции ещё не сохранила данные для создания сейфа.';
 
@@ -13905,24 +13752,12 @@ class AppLocalizationsRu extends AppLocalizations {
       'Подготовка шифротекста миграции не завершена.';
 
   @override
-  String get migrationStoppedTheLocalSourceData =>
-      'Миграция остановлена. Локальные исходные данные целы и снова доступны для записи; данные, зафиксированные или ожидающие синхронизации в сейфе назначения, сохраняются.';
-
-  @override
-  String get migrationCompleteTheServerConfirmedEvery =>
-      'Миграция завершена. Сервер подтвердил все записи; локальный профиль по-прежнему хранит исходные данные.';
-
-  @override
   String get theMigrationJournalDoesntMatchThe =>
       'Журнал миграции не соответствует проверенному снимку локального источника.';
 
   @override
   String get theMigrationJournalContainsDuplicateOr =>
       'Журнал миграции содержит повторяющиеся или лишние записи.';
-
-  @override
-  String get migrationIncompleteTheSourceDataIs =>
-      'Миграция не завершена. Исходные данные не изменены; если журнал восстановления создан, продолжите то же назначение ниже.';
 
   @override
   String get theMigrationDestinationBelongsToA =>
@@ -16498,7 +16333,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get accountSettingsSignInBody =>
-      'Локальный профиль будет заблокирован, а его открытые сеансы закрыты. Локальные хосты остаются на этом устройстве и не выгружаются. После входа их можно перенести на сервер в разделе «Настройки › Синхронизация и конфликты › Импортировать LocalVault на сервер».';
+      'Локальный профиль будет заблокирован, а его открытые сеансы закрыты. Локальные хосты остаются на этом устройстве и не выгружаются. После входа их можно импортировать на сервер в разделе «Настройки › Синхронизация и конфликты › Локальные профили».';
 
   @override
   String get themeSettingTitle => 'Тема';
@@ -20619,4 +20454,126 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get workspaceMenuCurrentSession => 'Текущий сеанс';
+
+  @override
+  String get localImportButton => 'Импортировать на сервер';
+
+  @override
+  String get localImportNoProfiles =>
+      'На этом устройстве нет локальных профилей.';
+
+  @override
+  String get localImportProfilesUnreadable =>
+      'Не удалось прочитать локальные профили на этом устройстве.';
+
+  @override
+  String get localImportPreparing => 'Подготовка импорта…';
+
+  @override
+  String localImportEncrypting(int done, int total) {
+    return 'Шифрование $done / $total…';
+  }
+
+  @override
+  String localImportUploading(int done, int total) {
+    return 'Импорт $done / $total…';
+  }
+
+  @override
+  String get localImportVerifying => 'Проверка импортированных записей…';
+
+  @override
+  String get localImportRunningNote =>
+      'Импорт продолжается в фоне. Пока он не завершится, изменения этого локального профиля приостановлены.';
+
+  @override
+  String get localImportWaitingForServer =>
+      'Ожидание подтверждения оставшихся записей сервером; повтор выполняется автоматически.';
+
+  @override
+  String localImportCompleted(int count, String vault) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Импортировано $count записи в «$vault»',
+      many: 'Импортировано $count записей в «$vault»',
+      few: 'Импортированы $count записи в «$vault»',
+      one: 'Импортирована $count запись в «$vault»',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String localImportFailed(String reason) {
+    return 'Импорт остановлен: $reason';
+  }
+
+  @override
+  String get localImportPausedSignedOut =>
+      'Импорт приостановлен: рабочее пространство вышло из учётной записи или заблокировано. Он продолжится автоматически после повторного входа.';
+
+  @override
+  String get localImportPausedOtherServer =>
+      'Импорт приостановлен: подключён другой сервер. Он продолжится автоматически, когда вы снова войдёте на исходный сервер.';
+
+  @override
+  String get localImportPausedVaultSwitched =>
+      'Импорт приостановлен: открыто другое хранилище (Vault). Нажмите «Продолжить импорт», чтобы завершить его.';
+
+  @override
+  String get localImportOtherUnfinished =>
+      'У этого локального профиля есть незавершённый импорт на другой сервер. Прервите его, прежде чем импортировать сюда.';
+
+  @override
+  String get localImportNoLongerInterrupted =>
+      'Этот импорт больше не прерван: тем временем он был завершён или прерван.';
+
+  @override
+  String get localImportServerTimeout => 'Сервер не ответил вовремя.';
+
+  @override
+  String get localImportAbandoned =>
+      'Импорт прерван. Локальный профиль снова можно изменять; записи, уже попавшие в хранилище на сервере, остаются там.';
+
+  @override
+  String get localImportPreparationCancelled =>
+      'Импорт отменён до отправки данных. Локальный профиль снова можно изменять.';
+
+  @override
+  String localImportInterrupted(int staged, int total) {
+    return 'Импорт был прерван после подготовки $staged из $total записей. Пока он не будет продолжен или прерван, изменения этого локального профиля приостановлены.';
+  }
+
+  @override
+  String get localImportInterruptedOtherServer =>
+      'Импорт на другой сервер был прерван. Пока он не будет прерван окончательно, изменения этого локального профиля приостановлены.';
+
+  @override
+  String get localImportInterruptedEmpty =>
+      'Импорт был прерван до отправки данных. Пока он не будет продолжен или отменён, изменения этого локального профиля приостановлены.';
+
+  @override
+  String get localImportResume => 'Продолжить импорт';
+
+  @override
+  String get localImportAbandon => 'Прервать импорт';
+
+  @override
+  String get localImportAbandonTitle => 'Прервать этот импорт?';
+
+  @override
+  String get localImportAbandonConfirm => 'Прервать';
+
+  @override
+  String get localImportCancelPreparation => 'Отменить импорт';
+
+  @override
+  String get localImportPasswordTitle => 'Разблокировать локальный профиль';
+
+  @override
+  String get localImportPasswordBody =>
+      'Ключ этого локального профиля не хранится на устройстве. Введите его пароль, чтобы продолжить.';
+
+  @override
+  String get localImportUnlock => 'Разблокировать';
 }

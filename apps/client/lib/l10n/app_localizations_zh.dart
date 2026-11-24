@@ -12090,16 +12090,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get defaultCredential => '默认凭据';
 
   @override
-  String get allLocalRecordsArePreflightedBefore =>
-      '创建新保险库前会预检所有本地记录。不受支持的偏好、删除标记、缺失的引用或附件对象引用会在任何服务器写入前停止迁移。';
-
-  @override
-  String get cancelEmptyPreparation => '取消空的准备';
-
-  @override
-  String get continueMigration => '继续迁移';
-
-  @override
   String get importedLocalProfiles => '导入的本地配置';
 
   @override
@@ -12107,11 +12097,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get localProfilePassword => '本地配置密码';
-
-  @override
-  String localProfileUnlockedCountResumableMigration(int count) {
-    return '本地配置已解锁 · $count 个可继续的迁移';
-  }
 
   @override
   String localProfileSubstring(String substring) {
@@ -12128,86 +12113,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get changeLocalProfilePassword => '修改本地配置密码';
 
   @override
-  String get importLocalVaultToServer => '导入本地 Vault 到服务器';
-
-  @override
   String get localImportServerChanged => '服务器身份或登录会话已变更。请重新连接并登录后再导入。';
-
-  @override
-  String get migrateLocalProfiles => '迁移本地配置';
-
-  @override
-  String get migrationCompleted => '迁移已完成';
-
-  @override
-  String get migrationNeedsRecovery => '迁移需要恢复';
-
-  @override
-  String get migrationStoppedLocalSourceKept => '迁移已停止 · 本地源已保留';
-
-  @override
-  String get moveLocalEncryptedRecordsToA => '将本地加密记录迁移到新的同步保险库';
-
-  @override
-  String get newSyncVaultName => '新同步保险库名称';
-
-  @override
-  String get noLocalOnlyProfileExistsIn =>
-      '此浏览器中还没有仅本地配置。请先在“本地配置”工作区中创建一个并添加需要的记录，然后返回此处。';
-
-  @override
-  String get preflightAndMigrate => '预检并迁移';
-
-  @override
-  String get startANewMigration => '开始新的迁移';
-
-  @override
-  String get stopAndKeepBoth => '停止并保留两者';
-
-  @override
-  String get stopAndKeepLocalData => '停止并保留本地数据';
-
-  @override
-  String get stopMigrationAndKeepLocalData => '停止迁移并保留本地数据？';
-
-  @override
-  String get theClientDecryptsAndValidatesEvery =>
-      '客户端会解密并验证每条源记录，然后为已批准的服务器设备重新加密。服务器只会收到已签名的密文。现有本地记录保持不变；在目标确认每条记录之前，本地配置会被冻结写入。';
 
   @override
   String get theLocalSourceWillBecomeWritable =>
       '本地源将恢复可写，其记录保持不变。目标保险库、已提交的记录和排队的操作不会被删除或撤回；目标中可能包含部分副本。';
 
   @override
-  String get unlockALocalOnlyProfile => '解锁仅本地配置';
-
-  @override
-  String get unlockAndValidate => '解锁并验证';
-
-  @override
-  String stagedcountTotalcountEncryptedRecordsStaged(
-    int stagedCount,
-    int totalCount,
-  ) {
-    return '已暂存 $stagedCount / $totalCount 条加密记录';
-  }
-
-  @override
-  String stageditemcountItemcountEncryptedRecordsStagedTarget(
-    int stagedItemCount,
-    int itemCount,
-    String substring,
-  ) {
-    return '已暂存 $stagedItemCount / $itemCount 条加密记录 · 目标 $substring…';
-  }
-
-  @override
   String get theSyncServiceIdentityIsntVerified => '同步服务身份尚未验证，请重新登录后重试。';
-
-  @override
-  String countCount2EncryptedRecordsSafelyStaged(int count, int count2) {
-    return '已安全暂存 $count / $count2 条加密记录。';
-  }
 
   @override
   String get destinationDataIsAlreadyStagedThis => '已有目标数据暂存，不能取消该迁移。';
@@ -12217,48 +12130,10 @@ class AppLocalizationsZh extends AppLocalizations {
       '无法停止迁移。源数据与已暂存密文仍保留，请重试或继续迁移。';
 
   @override
-  String get thisMigrationCantBeResumedSafely =>
-      '无法安全恢复此迁移。源数据和已暂存密文保持不变，请检查当前设备与服务端状态。';
-
-  @override
   String get couldntUnlockOrVerifyThisLocal => '无法解锁或验证此本地配置。请检查密码和本地存储后重试。';
 
   @override
-  String get couldntReadTheLocalProfileList => '无法读取本地配置列表。请关闭此页面后重试。';
-
-  @override
   String get theStagedDestinationCiphertextHasAn => '暂存的目标密文格式无效。';
-
-  @override
-  String get noVaultCreationRequestWasSent => '未发送任何 Vault 创建请求，准备日志已安全取消。';
-
-  @override
-  String get localDataWasFullyPreflightedAnd => '本地数据已完整预检并冻结，正在准备新的同步 Vault…';
-
-  @override
-  String get localSourceSnapshotVerifiedResumingThe => '本地源快照已验证，正在恢复同一个同步目标…';
-
-  @override
-  String get theLocalProfileIsLocked => '本地配置已锁定。';
-
-  @override
-  String get encryptingAndStagingRecordsWithThe => '正在使用目标 Vault 密钥加密并暂存记录…';
-
-  @override
-  String get syncingEncryptedRecordsToTheNew => '正在将加密记录同步到新 Vault…';
-
-  @override
-  String get confirmingTheSameDestinationVaultAnd =>
-      '正在确认同一目标 Vault，并核对先前暂存的记录…';
-
-  @override
-  String get reVerifyingTheLocalSourceSnapshot => '正在重新验证本地源快照和已暂存的加密数据…';
-
-  @override
-  String get preflightingAllLocalRecordsWritesTo => '正在预检全部本地记录；源配置暂时禁止写入…';
-
-  @override
-  String get verifyingTheLocalProfileAndChecking => '正在验证本地配置并检查恢复日志…';
 
   @override
   String get thisMigrationCantBeCancelledSafely =>
@@ -12269,32 +12144,16 @@ class AppLocalizationsZh extends AppLocalizations {
       '目标 Vault 的同步偏好存在冲突，迁移尚未完整验证。';
 
   @override
-  String get recordsAreSavedEncryptedInThe =>
-      '记录已加密保存在同步队列中，服务端确认尚未全部到达。源配置保持冻结；点击“继续迁移”可安全重试。';
-
-  @override
   String get migrationPreparationHasntSavedTheVault => '迁移准备尚未保存 Vault 创建数据。';
 
   @override
   String get migrationCiphertextStagingIsIncomplete => '迁移密文暂存不完整。';
 
   @override
-  String get migrationStoppedTheLocalSourceData =>
-      '迁移已停止。本地源数据保持完整并恢复可写；目标 Vault 中已提交或待同步的数据仍会保留。';
-
-  @override
-  String get migrationCompleteTheServerConfirmedEvery =>
-      '迁移已完成。所有记录均由服务端确认；本地配置仍保留原始数据。';
-
-  @override
   String get theMigrationJournalDoesntMatchThe => '迁移日志与当前已验证的本地源快照不匹配。';
 
   @override
   String get theMigrationJournalContainsDuplicateOr => '迁移日志包含重复或额外的记录。';
-
-  @override
-  String get migrationIncompleteTheSourceDataIs =>
-      '迁移未完成。源数据保持不变；如已建立恢复日志，请从下方继续同一目标。';
 
   @override
   String get theMigrationDestinationBelongsToA => '迁移目标属于另一个服务端实例。';
@@ -14647,7 +14506,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get accountSettingsSignInBody =>
-      '本地配置文件将被锁定，其已打开的会话将被关闭。本地主机仍保留在此设备上，不会被上传。登录后，可以在“设置 › 同步与冲突 › 导入本地 Vault 到服务器”中把它们迁移到服务器。';
+      '本地配置文件将被锁定，其已打开的会话将被关闭。本地主机仍保留在此设备上，不会被上传。登录后，可以在“设置 › 同步与冲突 › 仅本地配置”中把它们导入到服务器。';
 
   @override
   String get themeSettingTitle => '主题';
@@ -18404,4 +18263,109 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get workspaceMenuCurrentSession => '当前会话';
+
+  @override
+  String get localImportButton => '导入到服务器';
+
+  @override
+  String get localImportNoProfiles => '此设备上没有仅本地配置。';
+
+  @override
+  String get localImportProfilesUnreadable => '无法读取此设备上的本地配置。';
+
+  @override
+  String get localImportPreparing => '正在准备导入…';
+
+  @override
+  String localImportEncrypting(int done, int total) {
+    return '正在加密 $done / $total…';
+  }
+
+  @override
+  String localImportUploading(int done, int total) {
+    return '正在导入 $done / $total…';
+  }
+
+  @override
+  String get localImportVerifying => '正在核对已导入的记录…';
+
+  @override
+  String get localImportRunningNote => '导入会在后台继续进行。完成之前，此本地配置暂停编辑。';
+
+  @override
+  String get localImportWaitingForServer => '正在等待服务器确认剩余记录，会自动重试。';
+
+  @override
+  String localImportCompleted(int count, String vault) {
+    return '已将 $count 条记录导入 $vault';
+  }
+
+  @override
+  String localImportFailed(String reason) {
+    return '导入已停止：$reason';
+  }
+
+  @override
+  String get localImportPausedSignedOut => '由于工作区已退出登录或被锁定，导入已暂停。重新登录后会自动继续。';
+
+  @override
+  String get localImportPausedOtherServer =>
+      '由于已连接到另一台服务器，导入已暂停。重新登录原服务器后会自动继续。';
+
+  @override
+  String get localImportPausedVaultSwitched =>
+      '由于打开了其他 Vault，导入已暂停。点击“继续导入”即可完成。';
+
+  @override
+  String get localImportOtherUnfinished =>
+      '此本地配置有一个未完成的导入，目标是另一台服务器。请先放弃它，再导入到这里。';
+
+  @override
+  String get localImportNoLongerInterrupted => '此导入已不再处于中断状态，期间已被完成或放弃。';
+
+  @override
+  String get localImportServerTimeout => '服务器未及时响应。';
+
+  @override
+  String get localImportAbandoned => '已放弃导入。本地配置恢复可编辑；已在服务器 Vault 中的记录会保留。';
+
+  @override
+  String get localImportPreparationCancelled => '导入在发送任何内容之前已取消。本地配置恢复可编辑。';
+
+  @override
+  String localImportInterrupted(int staged, int total) {
+    return '一次导入在准备了 $staged / $total 条记录后中断。在继续或放弃之前，此本地配置暂停编辑。';
+  }
+
+  @override
+  String get localImportInterruptedOtherServer =>
+      '一次导入到另一台服务器的操作已中断。放弃之前，此本地配置暂停编辑。';
+
+  @override
+  String get localImportInterruptedEmpty =>
+      '一次导入在发送任何内容前中断。在继续或取消之前，此本地配置暂停编辑。';
+
+  @override
+  String get localImportResume => '继续导入';
+
+  @override
+  String get localImportAbandon => '放弃导入';
+
+  @override
+  String get localImportAbandonTitle => '放弃此次导入？';
+
+  @override
+  String get localImportAbandonConfirm => '放弃';
+
+  @override
+  String get localImportCancelPreparation => '取消导入';
+
+  @override
+  String get localImportPasswordTitle => '解锁本地配置';
+
+  @override
+  String get localImportPasswordBody => '此设备未保存该本地配置的密钥。请输入其密码以继续。';
+
+  @override
+  String get localImportUnlock => '解锁';
 }

@@ -13678,16 +13678,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get defaultCredential => 'Default credential';
 
   @override
-  String get allLocalRecordsArePreflightedBefore =>
-      'All local records are preflighted before the new Vault is created. Unsupported preferences, tombstones, missing references, or attachment object references stop the migration before any server write.';
-
-  @override
-  String get cancelEmptyPreparation => 'Cancel empty preparation';
-
-  @override
-  String get continueMigration => 'Continue migration';
-
-  @override
   String get importedLocalProfiles => 'Imported local profiles';
 
   @override
@@ -13695,17 +13685,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get localProfilePassword => 'Local profile password';
-
-  @override
-  String localProfileUnlockedCountResumableMigration(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count resumable migrations',
-      one: '1 resumable migration',
-    );
-    return 'Local profile unlocked · $_temp0';
-  }
 
   @override
   String localProfileSubstring(String substring) {
@@ -13722,91 +13701,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changeLocalProfilePassword => 'Change local profile password';
 
   @override
-  String get importLocalVaultToServer => 'Import LocalVault to server';
-
-  @override
   String get localImportServerChanged =>
       'The server identity or your sign-in session changed. Reconnect and sign in before importing.';
-
-  @override
-  String get migrateLocalProfiles => 'Migrate local profiles';
-
-  @override
-  String get migrationCompleted => 'Migration completed';
-
-  @override
-  String get migrationNeedsRecovery => 'Migration needs recovery';
-
-  @override
-  String get migrationStoppedLocalSourceKept =>
-      'Migration stopped · local source kept';
-
-  @override
-  String get moveLocalEncryptedRecordsToA =>
-      'Move local encrypted records to a new sync Vault';
-
-  @override
-  String get newSyncVaultName => 'New sync Vault name';
-
-  @override
-  String get noLocalOnlyProfileExistsIn =>
-      'No local-only profile exists in this browser yet. Create one from the Local profile workspace, add the records you want, then return here.';
-
-  @override
-  String get preflightAndMigrate => 'Preflight and migrate';
-
-  @override
-  String get startANewMigration => 'Start a new migration';
-
-  @override
-  String get stopAndKeepBoth => 'Stop and keep both';
-
-  @override
-  String get stopAndKeepLocalData => 'Stop and keep local data';
-
-  @override
-  String get stopMigrationAndKeepLocalData =>
-      'Stop migration and keep local data?';
-
-  @override
-  String get theClientDecryptsAndValidatesEvery =>
-      'The client decrypts and validates every source record, then encrypts it again for the approved server device. The server receives only signed ciphertext. Existing local records remain unchanged, and the local profile is write-frozen until the destination confirms every record.';
 
   @override
   String get theLocalSourceWillBecomeWritable =>
       'The local source will become writable again and its records will remain unchanged. The destination Vault, committed records, and queued operations will not be deleted or withdrawn; the destination may contain a partial copy.';
 
   @override
-  String get unlockALocalOnlyProfile => 'Unlock a local-only profile';
-
-  @override
-  String get unlockAndValidate => 'Unlock and validate';
-
-  @override
-  String stagedcountTotalcountEncryptedRecordsStaged(
-    int stagedCount,
-    int totalCount,
-  ) {
-    return '$stagedCount / $totalCount encrypted records staged';
-  }
-
-  @override
-  String stageditemcountItemcountEncryptedRecordsStagedTarget(
-    int stagedItemCount,
-    int itemCount,
-    String substring,
-  ) {
-    return '$stagedItemCount / $itemCount encrypted records staged · target $substring…';
-  }
-
-  @override
   String get theSyncServiceIdentityIsntVerified =>
       'The sync service identity isn\'t verified yet. Sign in again and retry.';
-
-  @override
-  String countCount2EncryptedRecordsSafelyStaged(int count, int count2) {
-    return '$count / $count2 encrypted records safely staged.';
-  }
 
   @override
   String get destinationDataIsAlreadyStagedThis =>
@@ -13817,59 +13721,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t stop the migration. The source data and staged ciphertext are kept; try again or continue the migration.';
 
   @override
-  String get thisMigrationCantBeResumedSafely =>
-      'This migration can\'t be resumed safely. The source data and staged ciphertext are unchanged; check the current device and server state.';
-
-  @override
   String get couldntUnlockOrVerifyThisLocal =>
       'Couldn\'t unlock or verify this local profile. Check the password and local storage, then try again.';
 
   @override
-  String get couldntReadTheLocalProfileList =>
-      'Couldn\'t read the local profile list. Close this page and try again.';
-
-  @override
   String get theStagedDestinationCiphertextHasAn =>
       'The staged destination ciphertext has an invalid format.';
-
-  @override
-  String get noVaultCreationRequestWasSent =>
-      'No Vault creation request was sent; the preparation journal was safely cancelled.';
-
-  @override
-  String get localDataWasFullyPreflightedAnd =>
-      'Local data was fully preflighted and frozen; preparing the new sync Vault…';
-
-  @override
-  String get localSourceSnapshotVerifiedResumingThe =>
-      'Local source snapshot verified; resuming the same sync destination…';
-
-  @override
-  String get theLocalProfileIsLocked => 'The local profile is locked.';
-
-  @override
-  String get encryptingAndStagingRecordsWithThe =>
-      'Encrypting and staging records with the destination Vault key…';
-
-  @override
-  String get syncingEncryptedRecordsToTheNew =>
-      'Syncing encrypted records to the new Vault…';
-
-  @override
-  String get confirmingTheSameDestinationVaultAnd =>
-      'Confirming the same destination Vault and checking previously staged records…';
-
-  @override
-  String get reVerifyingTheLocalSourceSnapshot =>
-      'Re-verifying the local source snapshot and staged encrypted data…';
-
-  @override
-  String get preflightingAllLocalRecordsWritesTo =>
-      'Preflighting all local records; writes to the source profile are temporarily blocked…';
-
-  @override
-  String get verifyingTheLocalProfileAndChecking =>
-      'Verifying the local profile and checking the recovery journal…';
 
   @override
   String get thisMigrationCantBeCancelledSafely =>
@@ -13880,10 +13737,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The destination Vault\'s sync preferences conflict; the migration isn\'t fully verified yet.';
 
   @override
-  String get recordsAreSavedEncryptedInThe =>
-      'Records are saved encrypted in the sync queue, but not all server confirmations have arrived. The source profile stays frozen; click \"Continue migration\" to retry safely.';
-
-  @override
   String get migrationPreparationHasntSavedTheVault =>
       'Migration preparation hasn\'t saved the Vault creation data yet.';
 
@@ -13892,24 +13745,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Migration ciphertext staging is incomplete.';
 
   @override
-  String get migrationStoppedTheLocalSourceData =>
-      'Migration stopped. The local source data is intact and writable again; data committed or pending sync in the destination Vault is kept.';
-
-  @override
-  String get migrationCompleteTheServerConfirmedEvery =>
-      'Migration complete. The server confirmed every record; the local profile still keeps the original data.';
-
-  @override
   String get theMigrationJournalDoesntMatchThe =>
       'The migration journal doesn\'t match the currently verified local source snapshot.';
 
   @override
   String get theMigrationJournalContainsDuplicateOr =>
       'The migration journal contains duplicate or extra records.';
-
-  @override
-  String get migrationIncompleteTheSourceDataIs =>
-      'Migration incomplete. The source data is unchanged; if a recovery journal was created, continue the same destination below.';
 
   @override
   String get theMigrationDestinationBelongsToA =>
@@ -16469,7 +16310,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountSettingsSignInBody =>
-      'The local profile will be locked and its open sessions closed. Local hosts stay on this device and are not uploaded. After signing in you can move them to the server in Settings › Sync and conflicts › Import LocalVault to server.';
+      'The local profile will be locked and its open sessions closed. Local hosts stay on this device and are not uploaded. After signing in you can import them into the server in Settings › Sync and conflicts › Local-only profiles.';
 
   @override
   String get themeSettingTitle => 'Theme';
@@ -20526,4 +20367,124 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workspaceMenuCurrentSession => 'Current session';
+
+  @override
+  String get localImportButton => 'Import to server';
+
+  @override
+  String get localImportNoProfiles =>
+      'There is no local-only profile on this device.';
+
+  @override
+  String get localImportProfilesUnreadable =>
+      'Couldn\'t read the local profiles on this device.';
+
+  @override
+  String get localImportPreparing => 'Preparing the import…';
+
+  @override
+  String localImportEncrypting(int done, int total) {
+    return 'Encrypting $done / $total…';
+  }
+
+  @override
+  String localImportUploading(int done, int total) {
+    return 'Importing $done / $total…';
+  }
+
+  @override
+  String get localImportVerifying => 'Verifying the imported records…';
+
+  @override
+  String get localImportRunningNote =>
+      'The import continues in the background. Edits to this local profile are paused until it finishes.';
+
+  @override
+  String get localImportWaitingForServer =>
+      'Waiting for the server to confirm the remaining records; retrying automatically.';
+
+  @override
+  String localImportCompleted(int count, String vault) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Imported $count records into $vault',
+      one: 'Imported 1 record into $vault',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String localImportFailed(String reason) {
+    return 'Import stopped: $reason';
+  }
+
+  @override
+  String get localImportPausedSignedOut =>
+      'Import paused because the workspace was signed out or locked. It continues automatically after you sign in again.';
+
+  @override
+  String get localImportPausedOtherServer =>
+      'Import paused because another server is connected. It continues automatically when you sign in to the original server again.';
+
+  @override
+  String get localImportPausedVaultSwitched =>
+      'Import paused because another Vault was opened. Choose Resume import to finish it.';
+
+  @override
+  String get localImportOtherUnfinished =>
+      'This local profile has an unfinished import into another server. Abandon it before importing here.';
+
+  @override
+  String get localImportNoLongerInterrupted =>
+      'This import is no longer interrupted; it was finished or abandoned meanwhile.';
+
+  @override
+  String get localImportServerTimeout => 'The server didn\'t answer in time.';
+
+  @override
+  String get localImportAbandoned =>
+      'Import abandoned. The local profile can be edited again; records already in the server Vault stay there.';
+
+  @override
+  String get localImportPreparationCancelled =>
+      'Import cancelled before anything was sent. The local profile can be edited again.';
+
+  @override
+  String localImportInterrupted(int staged, int total) {
+    return 'An import was interrupted after preparing $staged of $total records. Edits to this local profile stay paused until it is resumed or abandoned.';
+  }
+
+  @override
+  String get localImportInterruptedOtherServer =>
+      'An import into another server was interrupted. Edits to this local profile stay paused until it is abandoned.';
+
+  @override
+  String get localImportInterruptedEmpty =>
+      'An import was interrupted before anything was sent. Edits to this local profile stay paused until it is resumed or cancelled.';
+
+  @override
+  String get localImportResume => 'Resume import';
+
+  @override
+  String get localImportAbandon => 'Abandon import';
+
+  @override
+  String get localImportAbandonTitle => 'Abandon this import?';
+
+  @override
+  String get localImportAbandonConfirm => 'Abandon';
+
+  @override
+  String get localImportCancelPreparation => 'Cancel import';
+
+  @override
+  String get localImportPasswordTitle => 'Unlock local profile';
+
+  @override
+  String get localImportPasswordBody =>
+      'This device doesn\'t keep the key of this local profile. Enter its password to continue.';
+
+  @override
+  String get localImportUnlock => 'Unlock';
 }

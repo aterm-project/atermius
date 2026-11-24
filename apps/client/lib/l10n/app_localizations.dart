@@ -21427,24 +21427,6 @@ abstract class AppLocalizations {
   /// **'Default credential'**
   String get defaultCredential;
 
-  /// No description provided for @allLocalRecordsArePreflightedBefore.
-  ///
-  /// In en, this message translates to:
-  /// **'All local records are preflighted before the new Vault is created. Unsupported preferences, tombstones, missing references, or attachment object references stop the migration before any server write.'**
-  String get allLocalRecordsArePreflightedBefore;
-
-  /// No description provided for @cancelEmptyPreparation.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel empty preparation'**
-  String get cancelEmptyPreparation;
-
-  /// No description provided for @continueMigration.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue migration'**
-  String get continueMigration;
-
   /// No description provided for @importedLocalProfiles.
   ///
   /// In en, this message translates to:
@@ -21462,12 +21444,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Local profile password'**
   String get localProfilePassword;
-
-  /// No description provided for @localProfileUnlockedCountResumableMigration.
-  ///
-  /// In en, this message translates to:
-  /// **'Local profile unlocked · {count, plural, =1{1 resumable migration} other{{count} resumable migrations}}'**
-  String localProfileUnlockedCountResumableMigration(int count);
 
   /// No description provided for @localProfileSubstring.
   ///
@@ -21493,95 +21469,11 @@ abstract class AppLocalizations {
   /// **'Change local profile password'**
   String get changeLocalProfilePassword;
 
-  /// No description provided for @importLocalVaultToServer.
-  ///
-  /// In en, this message translates to:
-  /// **'Import LocalVault to server'**
-  String get importLocalVaultToServer;
-
   /// No description provided for @localImportServerChanged.
   ///
   /// In en, this message translates to:
   /// **'The server identity or your sign-in session changed. Reconnect and sign in before importing.'**
   String get localImportServerChanged;
-
-  /// No description provided for @migrateLocalProfiles.
-  ///
-  /// In en, this message translates to:
-  /// **'Migrate local profiles'**
-  String get migrateLocalProfiles;
-
-  /// No description provided for @migrationCompleted.
-  ///
-  /// In en, this message translates to:
-  /// **'Migration completed'**
-  String get migrationCompleted;
-
-  /// No description provided for @migrationNeedsRecovery.
-  ///
-  /// In en, this message translates to:
-  /// **'Migration needs recovery'**
-  String get migrationNeedsRecovery;
-
-  /// No description provided for @migrationStoppedLocalSourceKept.
-  ///
-  /// In en, this message translates to:
-  /// **'Migration stopped · local source kept'**
-  String get migrationStoppedLocalSourceKept;
-
-  /// No description provided for @moveLocalEncryptedRecordsToA.
-  ///
-  /// In en, this message translates to:
-  /// **'Move local encrypted records to a new sync Vault'**
-  String get moveLocalEncryptedRecordsToA;
-
-  /// No description provided for @newSyncVaultName.
-  ///
-  /// In en, this message translates to:
-  /// **'New sync Vault name'**
-  String get newSyncVaultName;
-
-  /// No description provided for @noLocalOnlyProfileExistsIn.
-  ///
-  /// In en, this message translates to:
-  /// **'No local-only profile exists in this browser yet. Create one from the Local profile workspace, add the records you want, then return here.'**
-  String get noLocalOnlyProfileExistsIn;
-
-  /// No description provided for @preflightAndMigrate.
-  ///
-  /// In en, this message translates to:
-  /// **'Preflight and migrate'**
-  String get preflightAndMigrate;
-
-  /// No description provided for @startANewMigration.
-  ///
-  /// In en, this message translates to:
-  /// **'Start a new migration'**
-  String get startANewMigration;
-
-  /// No description provided for @stopAndKeepBoth.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop and keep both'**
-  String get stopAndKeepBoth;
-
-  /// No description provided for @stopAndKeepLocalData.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop and keep local data'**
-  String get stopAndKeepLocalData;
-
-  /// No description provided for @stopMigrationAndKeepLocalData.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop migration and keep local data?'**
-  String get stopMigrationAndKeepLocalData;
-
-  /// No description provided for @theClientDecryptsAndValidatesEvery.
-  ///
-  /// In en, this message translates to:
-  /// **'The client decrypts and validates every source record, then encrypts it again for the approved server device. The server receives only signed ciphertext. Existing local records remain unchanged, and the local profile is write-frozen until the destination confirms every record.'**
-  String get theClientDecryptsAndValidatesEvery;
 
   /// No description provided for @theLocalSourceWillBecomeWritable.
   ///
@@ -21589,48 +21481,11 @@ abstract class AppLocalizations {
   /// **'The local source will become writable again and its records will remain unchanged. The destination Vault, committed records, and queued operations will not be deleted or withdrawn; the destination may contain a partial copy.'**
   String get theLocalSourceWillBecomeWritable;
 
-  /// No description provided for @unlockALocalOnlyProfile.
-  ///
-  /// In en, this message translates to:
-  /// **'Unlock a local-only profile'**
-  String get unlockALocalOnlyProfile;
-
-  /// No description provided for @unlockAndValidate.
-  ///
-  /// In en, this message translates to:
-  /// **'Unlock and validate'**
-  String get unlockAndValidate;
-
-  /// No description provided for @stagedcountTotalcountEncryptedRecordsStaged.
-  ///
-  /// In en, this message translates to:
-  /// **'{stagedCount} / {totalCount} encrypted records staged'**
-  String stagedcountTotalcountEncryptedRecordsStaged(
-    int stagedCount,
-    int totalCount,
-  );
-
-  /// No description provided for @stageditemcountItemcountEncryptedRecordsStagedTarget.
-  ///
-  /// In en, this message translates to:
-  /// **'{stagedItemCount} / {itemCount} encrypted records staged · target {substring}…'**
-  String stageditemcountItemcountEncryptedRecordsStagedTarget(
-    int stagedItemCount,
-    int itemCount,
-    String substring,
-  );
-
   /// No description provided for @theSyncServiceIdentityIsntVerified.
   ///
   /// In en, this message translates to:
   /// **'The sync service identity isn\'t verified yet. Sign in again and retry.'**
   String get theSyncServiceIdentityIsntVerified;
-
-  /// No description provided for @countCount2EncryptedRecordsSafelyStaged.
-  ///
-  /// In en, this message translates to:
-  /// **'{count} / {count2} encrypted records safely staged.'**
-  String countCount2EncryptedRecordsSafelyStaged(int count, int count2);
 
   /// No description provided for @destinationDataIsAlreadyStagedThis.
   ///
@@ -21644,89 +21499,17 @@ abstract class AppLocalizations {
   /// **'Couldn\'t stop the migration. The source data and staged ciphertext are kept; try again or continue the migration.'**
   String get couldntStopTheMigrationTheSource;
 
-  /// No description provided for @thisMigrationCantBeResumedSafely.
-  ///
-  /// In en, this message translates to:
-  /// **'This migration can\'t be resumed safely. The source data and staged ciphertext are unchanged; check the current device and server state.'**
-  String get thisMigrationCantBeResumedSafely;
-
   /// No description provided for @couldntUnlockOrVerifyThisLocal.
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t unlock or verify this local profile. Check the password and local storage, then try again.'**
   String get couldntUnlockOrVerifyThisLocal;
 
-  /// No description provided for @couldntReadTheLocalProfileList.
-  ///
-  /// In en, this message translates to:
-  /// **'Couldn\'t read the local profile list. Close this page and try again.'**
-  String get couldntReadTheLocalProfileList;
-
   /// No description provided for @theStagedDestinationCiphertextHasAn.
   ///
   /// In en, this message translates to:
   /// **'The staged destination ciphertext has an invalid format.'**
   String get theStagedDestinationCiphertextHasAn;
-
-  /// No description provided for @noVaultCreationRequestWasSent.
-  ///
-  /// In en, this message translates to:
-  /// **'No Vault creation request was sent; the preparation journal was safely cancelled.'**
-  String get noVaultCreationRequestWasSent;
-
-  /// No description provided for @localDataWasFullyPreflightedAnd.
-  ///
-  /// In en, this message translates to:
-  /// **'Local data was fully preflighted and frozen; preparing the new sync Vault…'**
-  String get localDataWasFullyPreflightedAnd;
-
-  /// No description provided for @localSourceSnapshotVerifiedResumingThe.
-  ///
-  /// In en, this message translates to:
-  /// **'Local source snapshot verified; resuming the same sync destination…'**
-  String get localSourceSnapshotVerifiedResumingThe;
-
-  /// No description provided for @theLocalProfileIsLocked.
-  ///
-  /// In en, this message translates to:
-  /// **'The local profile is locked.'**
-  String get theLocalProfileIsLocked;
-
-  /// No description provided for @encryptingAndStagingRecordsWithThe.
-  ///
-  /// In en, this message translates to:
-  /// **'Encrypting and staging records with the destination Vault key…'**
-  String get encryptingAndStagingRecordsWithThe;
-
-  /// No description provided for @syncingEncryptedRecordsToTheNew.
-  ///
-  /// In en, this message translates to:
-  /// **'Syncing encrypted records to the new Vault…'**
-  String get syncingEncryptedRecordsToTheNew;
-
-  /// No description provided for @confirmingTheSameDestinationVaultAnd.
-  ///
-  /// In en, this message translates to:
-  /// **'Confirming the same destination Vault and checking previously staged records…'**
-  String get confirmingTheSameDestinationVaultAnd;
-
-  /// No description provided for @reVerifyingTheLocalSourceSnapshot.
-  ///
-  /// In en, this message translates to:
-  /// **'Re-verifying the local source snapshot and staged encrypted data…'**
-  String get reVerifyingTheLocalSourceSnapshot;
-
-  /// No description provided for @preflightingAllLocalRecordsWritesTo.
-  ///
-  /// In en, this message translates to:
-  /// **'Preflighting all local records; writes to the source profile are temporarily blocked…'**
-  String get preflightingAllLocalRecordsWritesTo;
-
-  /// No description provided for @verifyingTheLocalProfileAndChecking.
-  ///
-  /// In en, this message translates to:
-  /// **'Verifying the local profile and checking the recovery journal…'**
-  String get verifyingTheLocalProfileAndChecking;
 
   /// No description provided for @thisMigrationCantBeCancelledSafely.
   ///
@@ -21740,12 +21523,6 @@ abstract class AppLocalizations {
   /// **'The destination Vault\'s sync preferences conflict; the migration isn\'t fully verified yet.'**
   String get theDestinationVaultsSyncPreferencesConflict;
 
-  /// No description provided for @recordsAreSavedEncryptedInThe.
-  ///
-  /// In en, this message translates to:
-  /// **'Records are saved encrypted in the sync queue, but not all server confirmations have arrived. The source profile stays frozen; click \"Continue migration\" to retry safely.'**
-  String get recordsAreSavedEncryptedInThe;
-
   /// No description provided for @migrationPreparationHasntSavedTheVault.
   ///
   /// In en, this message translates to:
@@ -21758,18 +21535,6 @@ abstract class AppLocalizations {
   /// **'Migration ciphertext staging is incomplete.'**
   String get migrationCiphertextStagingIsIncomplete;
 
-  /// No description provided for @migrationStoppedTheLocalSourceData.
-  ///
-  /// In en, this message translates to:
-  /// **'Migration stopped. The local source data is intact and writable again; data committed or pending sync in the destination Vault is kept.'**
-  String get migrationStoppedTheLocalSourceData;
-
-  /// No description provided for @migrationCompleteTheServerConfirmedEvery.
-  ///
-  /// In en, this message translates to:
-  /// **'Migration complete. The server confirmed every record; the local profile still keeps the original data.'**
-  String get migrationCompleteTheServerConfirmedEvery;
-
   /// No description provided for @theMigrationJournalDoesntMatchThe.
   ///
   /// In en, this message translates to:
@@ -21781,12 +21546,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The migration journal contains duplicate or extra records.'**
   String get theMigrationJournalContainsDuplicateOr;
-
-  /// No description provided for @migrationIncompleteTheSourceDataIs.
-  ///
-  /// In en, this message translates to:
-  /// **'Migration incomplete. The source data is unchanged; if a recovery journal was created, continue the same destination below.'**
-  String get migrationIncompleteTheSourceDataIs;
 
   /// No description provided for @theMigrationDestinationBelongsToA.
   ///
@@ -25928,7 +25687,7 @@ abstract class AppLocalizations {
   /// Account settings UI text.
   ///
   /// In en, this message translates to:
-  /// **'The local profile will be locked and its open sessions closed. Local hosts stay on this device and are not uploaded. After signing in you can move them to the server in Settings › Sync and conflicts › Import LocalVault to server.'**
+  /// **'The local profile will be locked and its open sessions closed. Local hosts stay on this device and are not uploaded. After signing in you can import them into the server in Settings › Sync and conflicts › Local-only profiles.'**
   String get accountSettingsSignInBody;
 
   /// App-owned UI text.
@@ -32350,6 +32109,186 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Current session'**
   String get workspaceMenuCurrentSession;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Import to server'**
+  String get localImportButton;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no local-only profile on this device.'**
+  String get localImportNoProfiles;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t read the local profiles on this device.'**
+  String get localImportProfilesUnreadable;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing the import…'**
+  String get localImportPreparing;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypting {done} / {total}…'**
+  String localImportEncrypting(int done, int total);
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Importing {done} / {total}…'**
+  String localImportUploading(int done, int total);
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying the imported records…'**
+  String get localImportVerifying;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'The import continues in the background. Edits to this local profile are paused until it finishes.'**
+  String get localImportRunningNote;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the server to confirm the remaining records; retrying automatically.'**
+  String get localImportWaitingForServer;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Imported 1 record into {vault}} other{Imported {count} records into {vault}}}'**
+  String localImportCompleted(int count, String vault);
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Import stopped: {reason}'**
+  String localImportFailed(String reason);
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Import paused because the workspace was signed out or locked. It continues automatically after you sign in again.'**
+  String get localImportPausedSignedOut;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Import paused because another server is connected. It continues automatically when you sign in to the original server again.'**
+  String get localImportPausedOtherServer;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Import paused because another Vault was opened. Choose Resume import to finish it.'**
+  String get localImportPausedVaultSwitched;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'This local profile has an unfinished import into another server. Abandon it before importing here.'**
+  String get localImportOtherUnfinished;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'This import is no longer interrupted; it was finished or abandoned meanwhile.'**
+  String get localImportNoLongerInterrupted;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'The server didn\'t answer in time.'**
+  String get localImportServerTimeout;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Import abandoned. The local profile can be edited again; records already in the server Vault stay there.'**
+  String get localImportAbandoned;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Import cancelled before anything was sent. The local profile can be edited again.'**
+  String get localImportPreparationCancelled;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'An import was interrupted after preparing {staged} of {total} records. Edits to this local profile stay paused until it is resumed or abandoned.'**
+  String localImportInterrupted(int staged, int total);
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'An import into another server was interrupted. Edits to this local profile stay paused until it is abandoned.'**
+  String get localImportInterruptedOtherServer;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'An import was interrupted before anything was sent. Edits to this local profile stay paused until it is resumed or cancelled.'**
+  String get localImportInterruptedEmpty;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume import'**
+  String get localImportResume;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Abandon import'**
+  String get localImportAbandon;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Abandon this import?'**
+  String get localImportAbandonTitle;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Abandon'**
+  String get localImportAbandonConfirm;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel import'**
+  String get localImportCancelPreparation;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock local profile'**
+  String get localImportPasswordTitle;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'This device doesn\'t keep the key of this local profile. Enter its password to continue.'**
+  String get localImportPasswordBody;
+
+  /// Settings › Sync and conflicts › Local-only profiles: background LocalVault import.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock'**
+  String get localImportUnlock;
 }
 
 class _AppLocalizationsDelegate

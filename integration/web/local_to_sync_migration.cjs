@@ -35,7 +35,8 @@ const CREDENTIAL_SECRET = `LocalMigrationSecret-${RUN_ID}`;
 const GROUP_NAME = `local-migration-group-${RUN_ID}`;
 const SNIPPET_NAME = `local-migration-snippet-${RUN_ID}`;
 const SNIPPET_BODY = `printf 'LocalMigrationSnippet-${RUN_ID}'`;
-const TARGET_VAULT_NAME = `Migrated ${RUN_ID.slice(0, 8)}`;
+// The background import names its new Vault with the default name.
+const TARGET_VAULT_NAME = 'Imported local profiles';
 const SECOND_DEVICE_NAME = `Migration second device ${RUN_ID.slice(0, 8)}`;
 const EXPECTED_MIGRATED_RECORDS = 8;
 const MIGRATION_QUOTA_LIMIT_BYTES = 8 * 1024 * 1024;
@@ -954,6 +955,17 @@ async function snippetPageVisualEvidence(page, profileLabel, scrollEvidence) {
     screenshotSaved,
     screenshotPath: screenshotSaved ? screenshotPath : null,
   };
+}
+
+/**
+ * Settings › Sync and conflicts › Local-only profiles: "Import to server"
+ * starts a new import or finishes this server's interrupted one. A browser
+ * keeps no local profile key, so the profile password is asked in a dialog.
+ */
+async function startInlineImport(page) {
+  await click(page, 'Import to server');
+  await fill(page, 'Local profile password', LOCAL_PASSWORD);
+  await click(page, 'Unlock');
 }
 
 async function visibleTextEvidence(page, expectedText, timeoutMs = 8000) {
@@ -2329,14 +2341,11 @@ async function main() {
     ownerDeviceId = registeredAccount.device_id;
     reportBoolean('authenticated_server_workspace_opened', true);
 
-    setStage('open LocalVault migration from authenticated server settings');
+    setStage('open the inline LocalVault import card in authenticated server settings');
     await click(page, 'Settings');
     await click(page, 'Sync and conflicts');
-    await click(page, 'Import LocalVault to server');
-    await visibleText(page, 'Move local encrypted records to a new sync Vault');
-    await fill(page, 'Local profile password', LOCAL_PASSWORD);
-    await click(page, 'Unlock and validate');
-    await visibleText(page, 'Local profile unlocked');
+    await visibleText(page, 'Local-only profiles');
+    await button(page, 'Import to server');
 
     const originUsageBeforeQuotaProbe = await readOriginStorageEstimate(page, 1000);
     console.log(`safe origin storage before quota probe ${JSON.stringify(originUsageBeforeQuotaProbe)}`);
@@ -2433,8 +2442,7 @@ async function main() {
     const vaultIdsBeforeQuotaAttempt = vaultsBeforeQuotaAttempt.body.vaults
       .map((vault) => vault.vault_id).sort();
 
-    setStage('set the exact destination name before the quota migration attempt');
-    await fill(page, 'New sync Vault name', TARGET_VAULT_NAME);
+    setStage('the background import uses the default destination name');
     const quotaMigrationStart = apiEvents.length;
     const interruptedPushStart = quotaMigrationStart;
     let firstTargetPushRouteSeen = false;
@@ -2485,7 +2493,7 @@ async function main() {
       await route.continue();
     });
     setStage('exhausted source quota leaves a durable recoverable migration stage');
-    await click(page, 'Preflight and migrate');
+    await startInlineImport(page);
     setStage('wait for the one durable destination Vault create after quota staging');
     await waitFor(() => apiEvents.slice(quotaMigrationStart).some((event) =>
       event.route === 'vaults' && event.method === 'POST' && event.status !== null), 30000);
@@ -2502,8 +2510,8 @@ async function main() {
       const text = `${document.body.innerText || ''}\n${semanticText}`;
       return {
         storageQuarantine: text.includes('本地存储写入中断') && text.includes('重新加载页面'),
-        journalRecovery: text.includes('Migration needs recovery') &&
-          text.includes('Continue migration'),
+        journalRecovery: text.includes('Import stopped') &&
+          (text.includes('Retry') || text.includes('Resume import')),
       };
     });
     setStage('classify the quota recovery UI while requiring a durable journal checkpoint');
@@ -2882,34 +2890,26 @@ async function main() {
       await click(page, 'Sign in and unlock');
       setStage('wait for authenticated workspace after quota recovery');
     }
-    setStage('open or resume LocalVault migration after re-authentication');
-    let migrationScreenReady = await visibleTextEvidence(
-      page, 'Move local encrypted records to a new sync Vault', 2500,
-    );
-    if (!migrationScreenReady) {
+    setStage('open the inline LocalVault import card after re-authentication');
+    let importCardReady = await visibleTextEvidence(page, 'Local-only profiles', 2500);
+    if (!importCardReady) {
       await (await button(page, 'Settings')).waitFor({ state: 'visible', timeout: 60000 });
       await click(page, 'Settings');
       await click(page, 'Sync and conflicts');
-      await click(page, 'Import LocalVault to server');
-      migrationScreenReady = await visibleTextEvidence(
-        page, 'Move local encrypted records to a new sync Vault', 30000,
-      );
+      importCardReady = await visibleTextEvidence(page, 'Local-only profiles', 30000);
     }
-    assertThat(migrationScreenReady,
-      'LocalVault migration review did not reopen after account login');
-    if (await fieldEvidence(page, 'Local profile password', 1500)) {
-      await fill(page, 'Local profile password', LOCAL_PASSWORD);
-      await click(page, 'Unlock and validate');
-      await visibleText(page, 'Local profile unlocked');
-    } else {
-      await visibleText(page, 'Local profile unlocked');
-    }
+    assertThat(importCardReady,
+      'the inline LocalVault import card did not reappear after account login');
+    // Without a stored key the interrupted journal is read only once the
+    // password is entered: "Import to server" then finishes it.
+    await button(page, 'Import to server');
     if (!sourceAfterQuotaReload) {
       setStage('verify recovery journal remains resumable after actual LocalVault unlock');
-      const recoveryVisible = await visibleTextEvidence(page, 'Migration needs recovery', 10000);
+      await startInlineImport(page);
+      const recoveryVisible = await visibleTextEvidence(page, 'Import stopped', 10000);
       let continueAvailable = false;
       try {
-        await button(page, 'Continue migration', 10000);
+        await button(page, 'Retry', 10000);
         continueAvailable = true;
       } catch (_) {}
       console.log(`safe LocalVault post-unlock recovery UI evidence ${JSON.stringify({
@@ -2955,7 +2955,6 @@ async function main() {
         })).sort((left, right) => left.recordId.localeCompare(right.recordId))) &&
       !reopenedSource.plaintextMarkerFound,
     'same-profile recovery did not preserve the exact quota-stage journal and staged ciphertext');
-    await visibleText(page, 'Migration needs recovery');
     await quotaSession.detach().catch(() => {});
     quotaSession = null;
 
@@ -2963,20 +2962,31 @@ async function main() {
     const target503AlreadyObserved = apiEvents.slice(interruptedPushStart).some((event) =>
       event.route === 'push' && event.method === 'POST' &&
       event.pathname === expectedTargetPushPath && event.status === 503);
-    if (!target503AlreadyObserved) await click(page, 'Continue migration');
+    console.log(`safe target 503 observed before resume ${target503AlreadyObserved}`);
+    // The resumed import keeps retrying the target in the background; the
+    // route below holds every retry until the outage is lifted.
+    setStage('resume the interrupted import from the inline card');
+    await startInlineImport(page);
     setStage('wait for the exact target Vault push 503 response');
     await waitFor(() => apiEvents.slice(interruptedPushStart).some((event) =>
       event.route === 'push' && event.method === 'POST' &&
       event.pathname === expectedTargetPushPath && event.status === 503), 60000);
-    setStage('confirm the real 503 remains associated with migration recovery UI');
-    await visibleText(page, 'Migration needs recovery', 30000);
-    setStage('wait for the initial recovery attempt to finish staging before snapshot');
-    const recoveryResumeButton = page.getByRole('button', {
-      name: 'Continue migration', exact: true,
-    });
-    await recoveryResumeButton.waitFor({ state: 'visible', timeout: 30000 });
+    setStage('confirm the background import keeps uploading through the outage');
+    await visibleText(page, 'Importing ', 30000);
+    setStage('wait for the background import to finish staging before snapshot');
+    const stagingFinished = async () => {
+      try {
+        const snapshot = await localVaultSqliteCounts(
+          page, localDatabaseName, 'local-migration-staging-poll',
+        );
+        return snapshot.counts.local_vault_migration_items === EXPECTED_MIGRATED_RECORDS &&
+          await visibleTextEvidence(page, 'Importing ', 1000);
+      } catch (_) {
+        return false;
+      }
+    };
     try {
-      await waitFor(() => recoveryResumeButton.isEnabled(), 30000);
+      await waitFor(stagingFinished, 60000);
     } catch (_) {
       let settleSnapshot = null;
       let settleSnapshotError = null;
@@ -2989,8 +2999,7 @@ async function main() {
       }
       const settlePushEvents = targetPushEvents(targetVaultId);
       console.log(`safe recovery-attempt settle timeout ${JSON.stringify({
-        resumeButtonVisible: await recoveryResumeButton.isVisible().catch(() => false),
-        resumeButtonEnabled: await recoveryResumeButton.isEnabled().catch(() => false),
+        progressVisible: await visibleTextEvidence(page, 'Importing ', 1000),
         sourceReadable: settleSnapshot != null,
         sourceSnapshotError: settleSnapshotError,
         sourceIntegrity: settleSnapshot?.integrity || null,
@@ -3196,13 +3205,15 @@ async function main() {
       !sourceBeforeExplicitResume.plaintextMarkerFound,
     'automatic retry hold changed or unfroze the exact durable LocalVault journal');
 
-    setStage('resume the exact staged target after the transient outage');
+    setStage('the background import finishes the exact staged target after the outage');
     allowTargetMigrationRetry = true;
-    const resumeButtons = page.getByRole('button', { name: 'Continue migration', exact: true });
-    await resumeButtons.first().waitFor({ state: 'visible', timeout: 30000 });
-    await resumeButtons.first().click();
-    await visibleText(page, 'Migration completed', 120000);
-    await visibleText(page, '迁移已完成', 30000);
+    // No click: the import retries with a bounded backoff (up to a minute)
+    // and releases the local profile once the server confirmed every record.
+    await visibleText(
+      page,
+      `Imported ${EXPECTED_MIGRATED_RECORDS} records into ${TARGET_VAULT_NAME}`,
+      180000,
+    );
     const createPostsAfterResume = apiEvents.filter((event) =>
       event.route === 'vaults' && event.method === 'POST');
     assertThat(createPostsAfterResume.length === 1 &&
@@ -3228,7 +3239,6 @@ async function main() {
     const serializedChanges = JSON.stringify(changes.body);
     assertThat(!PLAINTEXT_MARKERS.some((marker) => serializedChanges.includes(marker)),
       'target change feed exposed a local plaintext marker');
-    await click(page, 'Close');
     await click(page, 'Hosts');
     await visibleText(page, HOST_NAME, 45000);
     await click(page, 'Credentials');
@@ -3558,25 +3568,22 @@ async function main() {
         'Sign in and unlock',
         'Add this device',
         'Import approval',
-        'Migrate local profiles',
-        'Move local encrypted records to a new sync Vault',
-        'Unlock a local-only profile',
-        'Local profile unlocked',
-        'Start a new migration',
-        'Migration needs recovery',
-        'Migration completed',
-        '正在预检全部本地记录',
-        '本地数据已完整预检并冻结',
-        '正在准备新的同步 Vault',
-        '正在确认新 Vault 为空',
-        '正在使用目标 Vault 密钥加密并暂存记录',
-        '正在将加密记录同步到新 Vault',
-        '迁移未完成',
+        'Local-only profiles',
+        'Import to server',
+        'Unlock local profile',
+        'Preparing the import',
+        'Encrypting ',
+        'Importing ',
+        'Verifying the imported records',
+        'Waiting for the server to confirm',
+        'Import stopped',
+        'Import paused',
+        'An import was interrupted',
+        'Resume import',
+        'Imported ',
         '本地存储写入中断',
         '请先释放存储空间',
         '重新加载页面',
-        'Preflight and migrate',
-        '无法安全恢复此迁移',
         '同步 Vault 已切换',
         '本地迁移日志已保留',
       ];

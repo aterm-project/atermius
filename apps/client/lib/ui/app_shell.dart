@@ -96,6 +96,8 @@ import '../ssh/host_operating_system_probe.dart';
 import '../ssh/host_operating_system_persistence.dart';
 import '../sync/sync_repository.dart';
 import '../sync/sync_diagnostics_export.dart';
+import '../sync/local_vault_import.dart';
+import 'local_vault_import_card.dart';
 import 'app_theme.dart';
 import 'ssh_forwarding_cloud_source.dart';
 import 'ssh_forwarding_page.dart';
@@ -193,7 +195,7 @@ class AppShell extends StatefulWidget {
   const AppShell({
     required this.controller,
     this.filesLaunch,
-    this.onOpenLocalMigration,
+    this.localImport,
     this.webAppUpdateMonitor,
     this.enableWebCommandSuggestionsForTesting = false,
     super.key,
@@ -201,7 +203,10 @@ class AppShell extends StatefulWidget {
 
   final AppController controller;
   final FilesWindowLaunch? filesLaunch;
-  final Future<void> Function(BuildContext context)? onOpenLocalMigration;
+
+  /// Imports local-only profiles in the background (Settings › Sync and
+  /// conflicts); null where there is no local profile storage.
+  final LocalVaultImport? localImport;
   final WebAppUpdateMonitor? webAppUpdateMonitor;
   @visibleForTesting
   final bool enableWebCommandSuggestionsForTesting;
@@ -2462,7 +2467,7 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
                               dragScope: _cloudDragScope,
                               enableWebCommandSuggestionsForTesting:
                                   widget.enableWebCommandSuggestionsForTesting,
-                              onOpenLocalMigration: widget.onOpenLocalMigration,
+                              localImport: widget.localImport,
                               webAppUpdateMonitor: _webUpdateMonitor,
                               onArchiveExportStarting: _onArchiveExportStarting,
                               onArchiveExport: _onArchiveExported,
@@ -3715,7 +3720,7 @@ class _WorkspacePage extends StatelessWidget {
     this.onWorkspaceSplit,
     this.workspaceSplitTargets,
     this.enableWebCommandSuggestionsForTesting = false,
-    this.onOpenLocalMigration,
+    this.localImport,
     this.webAppUpdateMonitor,
     this.onArchiveExportStarting,
     this.onArchiveExport,
@@ -3743,7 +3748,7 @@ class _WorkspacePage extends StatelessWidget {
   final Iterable<String> Function()? workspaceSplitTargets;
   final String dragScope;
   final bool enableWebCommandSuggestionsForTesting;
-  final Future<void> Function(BuildContext context)? onOpenLocalMigration;
+  final LocalVaultImport? localImport;
   final WebAppUpdateMonitor? webAppUpdateMonitor;
   final Future<void> Function()? onArchiveExportStarting;
   final VoidCallback? onArchiveExport;
@@ -3820,7 +3825,7 @@ class _WorkspacePage extends StatelessWidget {
       WorkspacePage.settings || WorkspacePage.sync => _SettingsPage(
         app: app,
         sectionToOpen: _shownPage == WorkspacePage.sync ? 'sync' : null,
-        onOpenLocalMigration: onOpenLocalMigration,
+        localImport: localImport,
         webAppUpdateMonitor: webAppUpdateMonitor,
         onArchiveExportStarting: onArchiveExportStarting,
         onArchiveExport: onArchiveExport,
@@ -14715,29 +14720,15 @@ class _SftpPage extends StatelessWidget {
 }
 
 class _SyncSettingsSection extends StatelessWidget {
-  const _SyncSettingsSection({required this.app, this.onOpenLocalMigration});
+  const _SyncSettingsSection({required this.app, this.localImport});
 
   final AppController app;
-  final Future<void> Function(BuildContext context)? onOpenLocalMigration;
+  final LocalVaultImport? localImport;
 
-  Widget _localVaultImport(
-    BuildContext context,
-    Future<void> Function(BuildContext) openMigration,
-  ) => PagePanel(
-    icon: Icons.upload_rounded,
-    title: context.l10n.localOnlyProfiles,
-    subtitle: context.l10n.moveEncryptedLocalHostsCredentialsGroups,
-    children: [
-      Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: OutlinedButton.icon(
-          key: const ValueKey('local_to_sync_migration_open'),
-          onPressed: () => openMigration(context),
-          icon: const Icon(Icons.upload_rounded),
-          label: Text(context.l10n.importLocalVaultToServer),
-        ),
-      ),
-    ],
+  /// The whole LocalVault import UI; the import runs in the background.
+  Widget _localVaultImport(LocalVaultImport import) => LocalVaultImportCard(
+    import: import,
+    insecureServerOrigin: app.insecureServerOrigin,
   );
 
   Future<void> _exportAnonymousDiagnostics(BuildContext context) async {
@@ -15100,11 +15091,11 @@ class _SyncSettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final openMigration = onOpenLocalMigration;
+    final import = localImport;
     if (app.activeVault == null) {
-      return openMigration == null
+      return import == null
           ? const SizedBox.shrink()
-          : _localVaultImport(context, openMigration);
+          : _localVaultImport(import);
     }
 
     final lastSync = app.lastSuccessfulSyncAt?.toLocal();
@@ -15146,9 +15137,9 @@ class _SyncSettingsSection extends StatelessWidget {
         for (final notice in notices) ...[const SizedBox(height: 10), notice],
         const SizedBox(height: 14),
         _metrics(context),
-        if (openMigration != null) ...[
+        if (import != null) ...[
           const SizedBox(height: 14),
-          _localVaultImport(context, openMigration),
+          _localVaultImport(import),
         ],
         const SizedBox(height: 26),
         LayoutBuilder(
@@ -18809,14 +18800,14 @@ class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.app,
     this.sectionToOpen,
-    this.onOpenLocalMigration,
+    this.localImport,
     this.webAppUpdateMonitor,
     this.onArchiveExportStarting,
     this.onArchiveExport,
   });
   final AppController app;
   final String? sectionToOpen;
-  final Future<void> Function(BuildContext context)? onOpenLocalMigration;
+  final LocalVaultImport? localImport;
   final WebAppUpdateMonitor? webAppUpdateMonitor;
   final Future<void> Function()? onArchiveExportStarting;
   final VoidCallback? onArchiveExport;
@@ -18874,7 +18865,7 @@ class _SettingsPage extends StatelessWidget {
                 : null,
           ),
         ),
-        if (app.activeVault != null || onOpenLocalMigration != null)
+        if (app.activeVault != null || localImport != null)
           SettingsSection(
             id: 'sync',
             title: context.l10n.syncAndConflicts,
@@ -18883,10 +18874,8 @@ class _SettingsPage extends StatelessWidget {
                 ? ''
                 : context.l10n.encryptedRecordsImmutableRetriesAndRecovery,
             wide: true,
-            builder: (_) => _SyncSettingsSection(
-              app: app,
-              onOpenLocalMigration: onOpenLocalMigration,
-            ),
+            builder: (_) =>
+                _SyncSettingsSection(app: app, localImport: localImport),
           ),
         SettingsSection(
           id: 'mcp',

@@ -60,7 +60,7 @@ import 'ui/ios_native/ios_native.dart';
 import 'ui/auth_flow.dart';
 import 'ui/browser_storage_status_card.dart';
 import 'ui/local_profile_flow.dart';
-import 'ui/local_to_sync_migration_screen.dart';
+import 'ui/local_vault_import_card.dart';
 import 'ui/locked_workspace_screen.dart';
 import 'l10n/l10n.dart';
 import 'storage/app_language_store.dart';
@@ -69,6 +69,7 @@ import 'ui/app_theme_mode.dart';
 import 'storage/wallpaper_store.dart';
 import 'ui/wallpaper.dart';
 import 'sync/wallpaper_sync.dart';
+import 'sync/local_vault_import.dart';
 import 'storage/keyword_highlight_store.dart';
 import 'storage/terminal_palette_store.dart';
 import 'terminal/keyword_highlighter.dart';
@@ -631,8 +632,12 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
   bool _modeReadFailed = false;
   bool _splashReadyScheduled = false;
   VoidCallback? _unregisterWindowCloser;
+  LocalVaultImport? _localImport;
+  AppController? _localImportController;
 
   Future<void> _closeForNativeExit() async {
+    // Locks and closes the LocalVault of a running import first.
+    await _retireLocalImport();
     final controller = _controller;
     if (controller != null) await controller.closeWorkspace();
     await _localCatalog?.close();
@@ -667,6 +672,10 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
   void dispose() {
     _unregisterWindowCloser?.call();
     WidgetsBinding.instance.removeObserver(this);
+    final localImport = _localImport;
+    _localImport = null;
+    _localImportController = null;
+    localImport?.dispose();
     final controller = _controller;
     if (controller != null) {
       WallpaperSyncCoordinator.unbind(controller);
@@ -848,6 +857,10 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
     try {
       if (remember) await widget.modeStore?.write(WorkspaceMode.local);
       if (!mounted) return;
+      // The local workspace opens the same LocalVaults: a running import
+      // stops (it stays resumable) and closes them first.
+      await _retireLocalImport();
+      if (!mounted) return;
       final retiring = _usingServer && widget.serverInitializer != null
           ? _controller
           : null;
@@ -874,40 +887,38 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _openLocalMigration(BuildContext context) async {
-    final controller = _controller;
-    if (controller == null || !controller.authenticated) return;
-    final authScope = controller.authScopeToken;
-    final localReady = await _ensureLocalProfileStorage();
-    if (!context.mounted ||
-        !identical(controller, _controller) ||
-        controller.authScopeToken != authScope ||
-        !controller.authenticated ||
-        controller.workspaceLocked) {
-      return;
+  /// The background LocalVault import of [controller]'s account workspace
+  /// (Settings › Sync and conflicts). Only the main window imports: a files
+  /// window is another process of the same app.
+  LocalVaultImport? _localImportFor(AppController controller) {
+    final crypto = widget.crypto;
+    if (crypto == null || widget.filesLaunch != null) return null;
+    final existing = _localImport;
+    if (existing != null && identical(_localImportController, controller)) {
+      return existing;
     }
-    if (!localReady) {
-      if (_localError case final error?) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error)),
-        );
-      }
-      return;
-    }
+    existing?.dispose();
+    _localImportController = controller;
+    return _localImport = LocalVaultImport(
+      destination: AppControllerImportDestination(controller),
+      crypto: crypto,
+      openStorage: _openLocalImportStorage,
+    );
+  }
+
+  Future<void> _retireLocalImport() async {
+    final localImport = _localImport;
+    _localImport = null;
+    _localImportController = null;
+    if (localImport != null) await localImport.close();
+  }
+
+  Future<LocalImportStorage?> _openLocalImportStorage() async {
+    if (!mounted || !await _ensureLocalProfileStorage()) return null;
     final catalog = _localCatalog;
     final service = _localService;
-    final crypto = widget.crypto;
-    if (catalog == null || service == null || crypto == null) return;
-    await Navigator.of(context, rootNavigator: true).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => LocalToSyncMigrationScreen(
-          controller: controller,
-          catalog: catalog,
-          service: service,
-          crypto: crypto,
-        ),
-      ),
-    );
+    if (catalog == null || service == null) return null;
+    return (catalog: catalog, service: service);
   }
 
   @override
@@ -1102,12 +1113,14 @@ class _AtermiusAppState extends State<AtermiusApp> with WidgetsBindingObserver {
               if (mounted) reportSplashReady();
             });
           }
-          return AppShell(
-            controller: controller,
-            filesLaunch: widget.filesLaunch,
-            onOpenLocalMigration: widget.crypto == null
-                ? null
-                : (context) => _openLocalMigration(context),
+          final localImport = _localImportFor(controller);
+          return LocalVaultImportNotices(
+            import: localImport,
+            child: AppShell(
+              controller: controller,
+              filesLaunch: widget.filesLaunch,
+              localImport: localImport,
+            ),
           );
         }
         return _withModeSettings(AuthFlow(controller: controller));
