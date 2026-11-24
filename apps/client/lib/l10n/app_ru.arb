@@ -3651,6 +3651,8 @@
   "localProfileUnlockedCountResumableMigration": "{count, plural, one{Локальный профиль разблокирован · {count} миграция может быть продолжена} few{Локальный профиль разблокирован · {count} миграции могут быть продолжены} many{Локальный профиль разблокирован · {count} миграций могут быть продолжены} other{Локальный профиль разблокирован · {count} миграции могут быть продолжены}}",
   "localProfileSubstring": "Локальный профиль · {substring}",
   "lock": "Заблокировать",
+  "setLocalProfilePassword": "Задать пароль локального профиля",
+  "changeLocalProfilePassword": "Изменить пароль локального профиля",
   "importLocalVaultToServer": "Импортировать LocalVault на сервер",
   "localImportServerChanged": "Идентификатор сервера или сеанс входа изменился. Подключитесь и войдите снова перед импортом.",
   "migrateLocalProfiles": "Перенос локальных профилей",

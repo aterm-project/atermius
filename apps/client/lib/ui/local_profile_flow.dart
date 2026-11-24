@@ -1079,6 +1079,60 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
     }
   }
 
+  Future<void> _openLocalPasswordDialog() async {
+    final profile = _activeProfile;
+    if (profile == null) return;
+    final generation = _beginOperation();
+    if (generation < 0) return;
+    try {
+      final deviceManaged = await widget.service.isDeviceManaged(
+        profile.record.profileId,
+      );
+      if (!mounted ||
+          !_isCurrentOperation(generation) ||
+          _storageRecoveryRequired) {
+        return;
+      }
+      final changed = await showAppDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _LocalProfilePasswordDialog(
+          deviceManaged: deviceManaged,
+          onSave: (current, replacement) async {
+            if (!_isCurrentOperation(generation) || _storageRecoveryRequired) {
+              return false;
+            }
+            try {
+              await widget.service.changePassword(
+                profile: profile,
+                currentPassword: current,
+                newPassword: replacement,
+              );
+              if (_isCurrentOperation(generation) && !profile.isLocked) {
+                await widget.service.remember(profile);
+              }
+              return true;
+            } on DatabaseRecoveryRequiredException {
+              if (_isCurrentOperation(generation)) _requireDatabaseReload();
+              return false;
+            } on Object {
+              return false;
+            }
+          },
+        ),
+      );
+      if (changed == true && mounted && _isCurrentOperation(generation)) {
+        setState(() {
+          _deviceManagedProfiles = {..._deviceManagedProfiles}
+            ..remove(profile.record.profileId);
+        });
+        _showMessage(context.l10n.masterPasswordChanged);
+      }
+    } finally {
+      _finishOperation(generation);
+    }
+  }
+
   Future<void> _exit() async {
     unawaited(McpService.instance.stop());
     if (_busy) return;
@@ -6812,6 +6866,25 @@ _showMessage(
         builder: (_) => LocalAccountSettingsPanel(onSignIn: _exit),
       ),
       SettingsSection(
+        id: 'security',
+        title: context.l10n.localProfilePassword,
+        icon: Icons.shield_outlined,
+        description: '',
+        builder: (sectionContext) => Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: OutlinedButton.icon(
+            key: const ValueKey('local_profile_change_password'),
+            onPressed: _busy ? null : _openLocalPasswordDialog,
+            icon: const Icon(Icons.password_rounded),
+            label: Text(
+              _deviceManagedProfiles.contains(_activeProfile?.record.profileId)
+                  ? sectionContext.l10n.setLocalProfilePassword
+                  : sectionContext.l10n.changeLocalProfilePassword,
+            ),
+          ),
+        ),
+      ),
+      SettingsSection(
         id: 'mcp',
         title: 'AI / MCP',
         icon: Icons.hub_outlined,
@@ -7400,6 +7473,150 @@ class _LocalArchivePasswordDialogState
       ),
     ],
   );
+}
+
+class _LocalProfilePasswordDialog extends StatefulWidget {
+  const _LocalProfilePasswordDialog({
+    required this.deviceManaged,
+    required this.onSave,
+  });
+
+  final bool deviceManaged;
+  final Future<bool> Function(String? current, String replacement) onSave;
+
+  @override
+  State<_LocalProfilePasswordDialog> createState() =>
+      _LocalProfilePasswordDialogState();
+}
+
+class _LocalProfilePasswordDialogState
+    extends State<_LocalProfilePasswordDialog> {
+  final _current = TextEditingController();
+  final _replacement = TextEditingController();
+  final _confirmation = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _current.dispose();
+    _replacement.dispose();
+    _confirmation.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final l10n = context.l10n;
+    final current = widget.deviceManaged ? null : _current.text;
+    final replacement = _replacement.text;
+    const minimum = LocalProfileService.minimumPasswordLength;
+    final error = switch ((current, replacement)) {
+      (final String current, _) when current.length < minimum =>
+        l10n.theCurrentMasterPasswordMustBe,
+      (_, final replacement) when replacement.length < minimum =>
+        l10n.theNewMasterPasswordMustContain,
+      _ when replacement != _confirmation.text =>
+        l10n.theNewMasterPasswordsDoNot,
+      _ when current == replacement => l10n.chooseANewMasterPasswordDifferent,
+      _ => null,
+    };
+    if (error != null) {
+      setState(() => _error = error);
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    _current.clear();
+    _replacement.clear();
+    _confirmation.clear();
+    final saved = await widget.onSave(current, replacement);
+    if (!mounted) return;
+    if (saved) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _saving = false;
+        _error = context.l10n.couldntChangeTheMasterPassword;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return PopScope(
+      canPop: !_saving,
+      child: AlertDialog(
+        scrollable: true,
+        title: Text(
+          widget.deviceManaged
+              ? l10n.setLocalProfilePassword
+              : l10n.changeLocalProfilePassword,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!widget.deviceManaged) ...[
+              PasswordField(
+                fieldKey: const ValueKey('local_profile_current_password'),
+                controller: _current,
+                autofocus: true,
+                enabled: !_saving,
+                decoration: InputDecoration(
+                  labelText: l10n.currentMasterPassword,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            PasswordField(
+              fieldKey: const ValueKey('local_profile_new_password'),
+              controller: _replacement,
+              autofocus: widget.deviceManaged,
+              enabled: !_saving,
+              decoration: InputDecoration(
+                labelText: l10n.newMasterPassword12Characters,
+              ),
+            ),
+            const SizedBox(height: 12),
+            PasswordField(
+              fieldKey: const ValueKey('local_profile_confirm_password'),
+              controller: _confirmation,
+              enabled: !_saving,
+              decoration: InputDecoration(
+                labelText: l10n.confirmNewMasterPassword,
+              ),
+              onSubmitted: (_) => _save(),
+            ),
+            if (_error case final error?) ...[
+              const SizedBox(height: 12),
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  error,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ],
+            if (_saving) const LinearProgressIndicator(),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            key: const ValueKey('local_profile_save_password'),
+            onPressed: _saving ? null : _save,
+            child: Text(l10n.save),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _LocalGroupEditorDialog extends StatefulWidget {

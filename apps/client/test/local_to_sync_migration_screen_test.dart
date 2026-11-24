@@ -378,6 +378,43 @@ void main() {
     );
     expect(find.byKey(const ValueKey('migration_unlock')), findsNothing);
   });
+
+  testWidgets('stored local access opens migration without a password field', (
+    tester,
+  ) async {
+    final unlocked = await fixtureService.unlock(
+      profileId: profileRecord.profileId,
+      password: 'correct horse battery staple',
+    );
+    final database = await LocalVaultDatabase.openForTesting(
+      executor: NativeDatabase.memory(),
+      profileId: profileRecord.profileId,
+      localDataDomainId: profileRecord.localDataDomainId,
+      localVaultId: profileRecord.localVaultId,
+    );
+    final service = _ProfileServiceStub(unlocked, stored: true);
+
+    await pumpScreen(
+      tester,
+      catalog: _StubLocalProfileCatalog(records: [profileRecord]),
+      registry: DatabaseQuarantineRegistry(),
+      service: service,
+      databaseFactory: (_, {required mode}) async {
+        expect(mode, LocalVaultOpenMode.openExisting);
+        return database;
+      },
+    );
+
+    expect(find.byKey(const ValueKey('migration_start')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('migration_profile_password')),
+      findsNothing,
+    );
+    expect(service.passwordUnlocks, 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(unlocked.isLocked, isTrue);
+  });
 }
 
 class _MigrationInstanceApi extends ApiClient {
@@ -417,25 +454,35 @@ class _StubLocalProfileCatalog implements LocalProfileCatalog {
 
 class _UnusedProfileService implements LocalProfileService {
   @override
+  Future<UnlockedLocalProfile?> tryUnlockForMigration(String profileId) async =>
+      null;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _ProfileServiceStub implements LocalProfileService {
-  _ProfileServiceStub(this.profile);
+class _ProfileServiceStub extends _UnusedProfileService {
+  _ProfileServiceStub(this.profile, {this.stored = false});
 
   final UnlockedLocalProfile profile;
+  final bool stored;
+  int passwordUnlocks = 0;
+
+  @override
+  Future<UnlockedLocalProfile?> tryUnlockForMigration(String profileId) async =>
+      stored && profileId == profile.record.profileId ? profile : null;
 
   @override
   Future<UnlockedLocalProfile> unlock({
     required String profileId,
     required String password,
-  }) async => profile;
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  }) async {
+    passwordUnlocks++;
+    return profile;
+  }
 }
 
-class _DeferredProfileService implements LocalProfileService {
+class _DeferredProfileService extends _UnusedProfileService {
   _DeferredProfileService(this.unlockResult);
 
   final Future<UnlockedLocalProfile> unlockResult;
@@ -446,6 +493,4 @@ class _DeferredProfileService implements LocalProfileService {
     required String password,
   }) => unlockResult;
 
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

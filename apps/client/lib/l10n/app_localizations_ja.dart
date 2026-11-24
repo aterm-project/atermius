@@ -13335,6 +13335,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get lock => 'ロック';
 
   @override
+  String get setLocalProfilePassword => 'ローカルプロファイルのパスワードを設定';
+
+  @override
+  String get changeLocalProfilePassword => 'ローカルプロファイルのパスワードを変更';
+
+  @override
   String get importLocalVaultToServer => 'LocalVault をサーバーにインポート';
 
   @override

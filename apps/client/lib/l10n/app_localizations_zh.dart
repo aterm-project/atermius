@@ -12567,6 +12567,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lock => '锁定';
 
   @override
+  String get setLocalProfilePassword => '设置本地配置密码';
+
+  @override
+  String get changeLocalProfilePassword => '修改本地配置密码';
+
+  @override
   String get importLocalVaultToServer => '导入本地 Vault 到服务器';
 
   @override

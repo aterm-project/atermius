@@ -14202,6 +14202,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lock => 'Lock';
 
   @override
+  String get setLocalProfilePassword => 'Set local profile password';
+
+  @override
+  String get changeLocalProfilePassword => 'Change local profile password';
+
+  @override
   String get importLocalVaultToServer => 'Import LocalVault to server';
 
   @override

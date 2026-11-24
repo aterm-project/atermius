@@ -14225,6 +14225,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get lock => 'Заблокировать';
 
   @override
+  String get setLocalProfilePassword => 'Задать пароль локального профиля';
+
+  @override
+  String get changeLocalProfilePassword => 'Изменить пароль локального профиля';
+
+  @override
   String get importLocalVaultToServer => 'Импортировать LocalVault на сервер';
 
   @override

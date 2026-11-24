@@ -94,6 +94,10 @@ class LocalProfileService {
 
   Future<UnlockedLocalProfile?> tryResume() => _tryResumeFrom(_resumeStore);
 
+  Future<UnlockedLocalProfile?> tryUnlockForMigration(String profileId) async =>
+      await _tryResumeFrom(_resumeStore, profileId: profileId) ??
+      await unlockDeviceProfile(profileId);
+
   Future<bool> isDeviceManaged(String profileId) async {
     try {
       final value = await _deviceKeyStore.read();
@@ -111,20 +115,16 @@ class LocalProfileService {
 
   /// Explicit user action can reopen device-managed profiles after manual lock.
   /// The durable device key never enables startup resume by itself.
-  Future<UnlockedLocalProfile?> unlockDeviceProfile(String profileId) async {
-    final profile = await _tryResumeFrom(
-      _deviceKeyStore,
-      clearOnFailure: false,
-    );
-    if (profile == null || profile.record.profileId == profileId) {
-      return profile;
-    }
-    await profile.lock();
-    return null;
-  }
+  Future<UnlockedLocalProfile?> unlockDeviceProfile(String profileId) =>
+      _tryResumeFrom(
+        _deviceKeyStore,
+        profileId: profileId,
+        clearOnFailure: false,
+      );
 
   Future<UnlockedLocalProfile?> _tryResumeFrom(
     LocalProfileResumeStore store, {
+    String? profileId,
     bool clearOnFailure = true,
   }) async {
     Uint8List? umk;
@@ -143,7 +143,9 @@ class LocalProfileService {
           data['umk'] is! String) {
         throw const FormatException('Invalid resume record');
       }
-      final record = await _catalog.get(data['profile_id'] as String);
+      final storedProfileId = data['profile_id'] as String;
+      if (profileId != null && storedProfileId != profileId) return null;
+      final record = await _catalog.get(storedProfileId);
       if (record == null || data['fingerprint'] != _fingerprint(record)) {
         throw const FormatException('Stale resume record');
       }
@@ -234,19 +236,89 @@ class LocalProfileService {
     }
   });
 
-  Future<void> _clearBootstrapKey(
+  Future<void> _clearRetainedKey(
     LocalProfileResumeStore store,
-    String profileId,
-  ) async {
+    String profileId, {
+    String? fingerprint,
+  }) async {
     try {
       final value = await store.read();
       if (value == null || value.length > 32768) return;
       final data = jsonDecode(value);
-      if (data is Map<String, dynamic> && data['profile_id'] == profileId) {
+      if (data is Map<String, dynamic> &&
+          data['profile_id'] == profileId &&
+          (fingerprint == null || data['fingerprint'] == fingerprint)) {
         await store.clear();
       }
     } on Object {
       /* Preserve unreadable keys instead of deleting another owner. */
+    }
+  }
+
+  Future<void> changePassword({
+    required UnlockedLocalProfile profile,
+    required String? currentPassword,
+    required String newPassword,
+  }) async {
+    if (newPassword.length < minimumPasswordLength ||
+        newPassword == currentPassword) {
+      throw const FormatException('Invalid new local profile password.');
+    }
+    final previous = profile.record;
+    final umk = profile.copyUmk();
+    Uint8List? verifiedKey;
+    try {
+      if (currentPassword != null) {
+        verifiedKey = await _crypto.unwrapLocalUmk(
+          password: currentPassword,
+          envelope: Map<String, dynamic>.from(previous.umkEnvelope),
+          profileId: previous.profileId,
+          localDataDomainId: previous.localDataDomainId,
+        );
+      } else {
+        final deviceProfile = await unlockDeviceProfile(previous.profileId);
+        if (deviceProfile == null) {
+          throw StateError('Protected device key is unavailable.');
+        }
+        try {
+          verifiedKey = deviceProfile.copyUmk();
+        } finally {
+          await deviceProfile.lock();
+        }
+      }
+      if (!_crypto.sodium.memcmp(umk, verifiedKey)) {
+        throw StateError('Local profile key changed.');
+      }
+      final kdf = KdfParameters.defaults(_crypto.sodium);
+      final envelope = await _crypto.wrapLocalUmk(
+        password: newPassword,
+        params: kdf,
+        umk: umk,
+        profileId: previous.profileId,
+        localDataDomainId: previous.localDataDomainId,
+      );
+      profile._requireUnlocked();
+      profile._record = await _catalog.replacePasswordEnvelope(
+        previous: previous,
+        kdfMetadata: kdf.toJson(),
+        umkEnvelope: envelope,
+      );
+      // Retained keys include the old envelope fingerprint and stop working
+      // once the catalog changes, even if clearing secure storage fails.
+      final fingerprint = _fingerprint(previous);
+      await _clearRetainedKey(
+        _resumeStore,
+        previous.profileId,
+        fingerprint: fingerprint,
+      );
+      await _clearRetainedKey(
+        _deviceKeyStore,
+        previous.profileId,
+        fingerprint: fingerprint,
+      );
+    } finally {
+      umk.fillRange(0, umk.length, 0);
+      verifiedKey?.fillRange(0, verifiedKey.length, 0);
     }
   }
 
@@ -375,8 +447,8 @@ class LocalProfileService {
         try {
           // A database exception may follow a durable commit: retain its keys.
           if (await _catalog.get(profileId) == null) {
-            await _clearBootstrapKey(_resumeStore, profileId);
-            await _clearBootstrapKey(_deviceKeyStore, profileId);
+            await _clearRetainedKey(_resumeStore, profileId);
+            await _clearRetainedKey(_deviceKeyStore, profileId);
           }
         } on Object {
           /* Keep protected recovery material on uncertain commit. */
@@ -455,14 +527,15 @@ class LocalProfileService {
 /// callers must clear copies and must not retain the borrowed identity.
 class UnlockedLocalProfile {
   UnlockedLocalProfile._({
-    required this.record,
+    required this._record,
     required this._umk,
     required this._vaultKey,
     required this._identity,
     this.isNewlyCreated = false,
   });
 
-  final LocalProfileRecord record;
+  LocalProfileRecord _record;
+  LocalProfileRecord get record => _record;
   final bool isNewlyCreated;
   final Uint8List _umk;
   final Uint8List _vaultKey;

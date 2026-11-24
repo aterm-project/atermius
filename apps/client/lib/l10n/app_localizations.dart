@@ -22242,6 +22242,18 @@ abstract class AppLocalizations {
   /// **'Lock'**
   String get lock;
 
+  /// No description provided for @setLocalProfilePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Set local profile password'**
+  String get setLocalProfilePassword;
+
+  /// No description provided for @changeLocalProfilePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Change local profile password'**
+  String get changeLocalProfilePassword;
+
   /// No description provided for @importLocalVaultToServer.
   ///
   /// In en, this message translates to:

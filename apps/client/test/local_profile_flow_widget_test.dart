@@ -1778,6 +1778,27 @@ void main() {
         findsOneWidget,
       );
 
+      await openSettingsCategory(tester, 'security');
+      await tester.tap(
+        find.byKey(const ValueKey('local_profile_change_password')),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('local_profile_current_password')),
+        'correct horse battery staple',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('local_profile_new_password')),
+        'a new and valid password',
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('local_profile_save_password')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(currentL10n.theNewMasterPasswordsDoNot), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, currentL10n.cancel));
+      await tester.pumpAndSettle();
+
       await openSettingsCategory(tester, 'appearance');
       final fontSizeDropdown = find.byKey(
         const ValueKey('local_terminal_font_size_dropdown'),

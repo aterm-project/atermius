@@ -308,6 +308,45 @@ class LocalProfileCatalog extends GeneratedDatabase {
     return profile;
   }
 
+  Future<LocalProfileRecord> replacePasswordEnvelope({
+    required LocalProfileRecord previous,
+    required Map<String, Object?> kdfMetadata,
+    required Map<String, Object?> umkEnvelope,
+  }) async {
+    final updated = LocalProfileRecord.create(
+      profileId: previous.profileId,
+      localDataDomainId: previous.localDataDomainId,
+      localVaultId: previous.localVaultId,
+      localDeviceId: previous.localDeviceId,
+      createdAt: previous.createdAt,
+      kdfMetadata: kdfMetadata,
+      umkEnvelope: umkEnvelope,
+      vaultKeyEnvelope: previous.vaultKeyEnvelope,
+      deviceIdentityEnvelope: previous.deviceIdentityEnvelope,
+    );
+    await ensureReady();
+    final count = await customUpdate(
+      '''
+      UPDATE local_profile_catalog
+      SET kdf_json = ?, umk_envelope_json = ?
+      WHERE profile_id = ? AND umk_envelope_json = ?
+        AND vault_key_envelope_json = ? AND device_identity_envelope_json = ?
+      ''',
+      variables: [
+        Variable(canonicalJson(updated.kdfMetadata)),
+        Variable(canonicalJson(updated.umkEnvelope)),
+        Variable(previous.profileId),
+        Variable(canonicalJson(previous.umkEnvelope)),
+        Variable(canonicalJson(previous.vaultKeyEnvelope)),
+        Variable(canonicalJson(previous.deviceIdentityEnvelope)),
+      ],
+    );
+    if (count != 1) {
+      throw StateError('Local profile changed during password update.');
+    }
+    return updated;
+  }
+
   Future<LocalProfileRecord?> get(String profileId) async {
     _requireUuid(profileId, 'profile_id');
     await ensureReady();

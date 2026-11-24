@@ -142,6 +142,106 @@ void main() {
     await resumed.lock();
     expect(await restarted.tryResume(), isNull);
   });
+
+  test('migration reuses only the selected profile key', () async {
+    const password = 'correct horse battery staple';
+    final remembered = await service.create(password: password);
+    final other = await service.create(password: password);
+    addTearDown(remembered.lock);
+    addTearDown(other.lock);
+    await service.remember(remembered);
+
+    expect(await service.tryUnlockForMigration(other.record.profileId), isNull);
+    final access = await service.tryUnlockForMigration(
+      remembered.record.profileId,
+    );
+    expect(access?.record.profileId, remembered.record.profileId);
+    await access?.lock();
+  });
+
+  test(
+    'rotating a password preserves keys and rejects stale changes',
+    () async {
+      const oldPassword = 'correct horse battery staple';
+      const newPassword = 'different local vault password';
+      final profile = await service.create(password: oldPassword);
+      final previous = profile.record;
+      final stale = await service.unlock(
+        profileId: previous.profileId,
+        password: oldPassword,
+      );
+      addTearDown(profile.lock);
+      addTearDown(stale.lock);
+      await service.remember(profile);
+
+      await expectLater(
+        service.changePassword(
+          profile: profile,
+          currentPassword: 'incorrect local password',
+          newPassword: newPassword,
+        ),
+        throwsFormatException,
+      );
+      expect(
+        (await catalog.get(previous.profileId))?.umkEnvelope,
+        previous.umkEnvelope,
+      );
+      expect(store.value, isNotNull);
+      await service.changePassword(
+        profile: profile,
+        currentPassword: oldPassword,
+        newPassword: newPassword,
+      );
+      expect(profile.record.vaultKeyEnvelope, previous.vaultKeyEnvelope);
+      expect(
+        profile.record.deviceIdentityEnvelope,
+        previous.deviceIdentityEnvelope,
+      );
+      expect(profile.record.kdfMetadata, isNot(previous.kdfMetadata));
+      expect(store.value, isNull);
+      await expectLater(
+        service.changePassword(
+          profile: stale,
+          currentPassword: oldPassword,
+          newPassword: 'another local vault password',
+        ),
+        throwsStateError,
+      );
+      await expectLater(
+        service.unlock(profileId: previous.profileId, password: oldPassword),
+        throwsFormatException,
+      );
+      final reopened = await service.unlock(
+        profileId: previous.profileId,
+        password: newPassword,
+      );
+      addTearDown(reopened.lock);
+      expect(reopened.record.localVaultId, previous.localVaultId);
+      expect(reopened.record.umkEnvelope, profile.record.umkEnvelope);
+    },
+  );
+
+  test('a protected device profile can set its first password', () async {
+    final profile = await service.createDeviceProtected();
+    final id = profile.record.profileId;
+    addTearDown(profile.lock);
+    await service.forgetResume();
+    final deviceAccess = await service.tryUnlockForMigration(id);
+    expect(deviceAccess?.record.profileId, id);
+    await deviceAccess?.lock();
+
+    const password = 'new device profile password';
+    await service.changePassword(
+      profile: profile,
+      currentPassword: null,
+      newPassword: password,
+    );
+    expect(await service.isDeviceManaged(id), isFalse);
+    expect(await service.tryUnlockForMigration(id), isNull);
+    expect(deviceStore.value, isNull);
+    final reopened = await service.unlock(profileId: id, password: password);
+    await reopened.lock();
+  });
   testWidgets(
     'fresh launch opens decrypted hosts without chooser; manual lock revokes',
     (tester) async {

@@ -79,6 +79,8 @@ class _LocalToSyncMigrationScreenState
   int _stagedCount = 0;
   int _totalCount = 0;
   bool _loadingProfiles = true;
+  bool _checkingStoredAccess = false;
+  bool _canReuseStoredKey = false;
   bool _busy = false;
   bool _complete = false;
   bool _storageRecoveryRequired = false;
@@ -238,7 +240,11 @@ class _LocalToSyncMigrationScreenState
       // A LocalVault may have been quarantined before this screen knew which
       // profile would be selected. Recheck as soon as catalog hydration picks
       // the initial profile rather than waiting for a user selection event.
-      if (_hasRelevantDatabaseQuarantine) _requireDatabaseRecovery();
+      if (_hasRelevantDatabaseQuarantine) {
+        _requireDatabaseRecovery();
+      } else if (_selectedProfileId != null) {
+        await _unlockProfile(useStoredKey: true);
+      }
     } on DatabaseRecoveryRequiredException {
       if (mounted && !_storageRecoveryRequired) _requireDatabaseRecovery();
     } on Object {
@@ -250,8 +256,9 @@ class _LocalToSyncMigrationScreenState
     }
   }
 
-  Future<void> _unlockProfile() async {
+  Future<void> _unlockProfile({bool useStoredKey = false}) async {
     final profileId = _selectedProfileId;
+    final password = useStoredKey ? null : _password.text;
     if (_hasRelevantDatabaseQuarantine) {
       _requireDatabaseRecovery();
       return;
@@ -259,12 +266,13 @@ class _LocalToSyncMigrationScreenState
     if (_storageRecoveryRequired ||
         _busy ||
         profileId == null ||
-        _password.text.isEmpty) {
+        (password != null && password.isEmpty)) {
       return;
     }
     _pendingProfileId = profileId;
     setState(() {
       _busy = true;
+      _checkingStoredAccess = useStoredKey;
       _error = null;
       _status = context.l10n.verifyingTheLocalProfileAndChecking;
     });
@@ -272,15 +280,23 @@ class _LocalToSyncMigrationScreenState
     LocalVaultDatabase? database;
     try {
       final serviceUnlocked =
-          await _runLocalStorageOperation<UnlockedLocalProfile>(
-            () => widget.service.unlock(
-              profileId: profileId,
-              password: _password.text,
-            ),
-            onQuarantinedResult: (profile) => profile.lock(),
+          await _runLocalStorageOperation<UnlockedLocalProfile?>(
+            () => password == null
+                ? widget.service.tryUnlockForMigration(profileId)
+                : widget.service.unlock(
+                    profileId: profileId,
+                    password: password,
+                  ),
+            onQuarantinedResult: (profile) async {
+              await profile?.lock();
+            },
           );
       unlocked = serviceUnlocked;
       _throwIfStorageRecoveryRequired();
+      if (!mounted || serviceUnlocked == null) {
+        await serviceUnlocked?.lock();
+        return;
+      }
       _password.clear();
       final openedDatabase =
           await _runLocalStorageOperation<LocalVaultDatabase>(
@@ -320,9 +336,7 @@ class _LocalToSyncMigrationScreenState
         _repository = repository;
         _journals = journals;
         _cancelableMigrationIds = cancelableIds;
-        _busy = false;
-        _status = null;
-        _pendingProfileId = null;
+        _canReuseStoredKey = useStoredKey;
         final frozen = journals.where((item) => item.state == 'frozen');
         if (frozen.length == 1) _activeMigrationId = frozen.single.migrationId;
       });
@@ -330,18 +344,24 @@ class _LocalToSyncMigrationScreenState
       database = null;
     } on DatabaseRecoveryRequiredException {
       if (unlocked != null) await _closeLocalSession(unlocked, database);
-      _pendingProfileId = null;
       if (!mounted || _storageRecoveryRequired) return;
       _requireDatabaseRecovery();
     } on Object {
       if (unlocked != null) await _closeLocalSession(unlocked, database);
-      _pendingProfileId = null;
       if (!mounted || _storageRecoveryRequired) return;
       setState(() {
-        _busy = false;
-        _status = null;
         _error = context.l10n.couldntUnlockOrVerifyThisLocal;
       });
+    } finally {
+      if (mounted && !_storageRecoveryRequired) {
+        setState(() {
+          _pendingProfileId = null;
+          _checkingStoredAccess = false;
+          _busy = false;
+          _status = null;
+          if (_profile == null) _canReuseStoredKey = false;
+        });
+      }
     }
   }
 
@@ -901,7 +921,7 @@ class _LocalToSyncMigrationScreenState
                   ),
                   const SizedBox(height: 12),
                 ],
-                if (_loadingProfiles)
+                if (_loadingProfiles || _checkingStoredAccess)
                   const Center(child: CircularProgressIndicator())
                 else if (_profile == null)
                   _buildUnlockCard()
@@ -970,20 +990,27 @@ class _LocalToSyncMigrationScreenState
               onChanged: _busy ? null : _selectProfile,
             ),
             const SizedBox(height: 10),
-            PasswordField(
-              fieldKey: const ValueKey('migration_profile_password'),
-              controller: _password,
-              decoration: InputDecoration(
-                labelText: context.l10n.localProfilePassword,
+            if (!_canReuseStoredKey)
+              PasswordField(
+                fieldKey: const ValueKey('migration_profile_password'),
+                controller: _password,
+                decoration: InputDecoration(
+                  labelText: context.l10n.localProfilePassword,
+                ),
+                onSubmitted: (_) => _unlockProfile(),
               ),
-              onSubmitted: (_) => _unlockProfile(),
-            ),
             const SizedBox(height: 12),
             FilledButton.icon(
               key: const ValueKey('migration_unlock'),
-              onPressed: _busy ? null : _unlockProfile,
+              onPressed: _busy
+                  ? null
+                  : () => _unlockProfile(useStoredKey: _canReuseStoredKey),
               icon: const Icon(Icons.lock_open_outlined),
-              label: Text(context.l10n.unlockAndValidate),
+              label: Text(
+                _canReuseStoredKey
+                    ? context.l10n.continueLabel
+                    : context.l10n.unlockAndValidate,
+              ),
             ),
           ],
         ],
@@ -993,8 +1020,16 @@ class _LocalToSyncMigrationScreenState
 
   void _selectProfile(String? profileId) {
     if (_storageRecoveryRequired) return;
-    setState(() => _selectedProfileId = profileId);
-    if (_hasRelevantDatabaseQuarantine) _requireDatabaseRecovery();
+    setState(() {
+      _selectedProfileId = profileId;
+      _canReuseStoredKey = false;
+    });
+    _password.clear();
+    if (_hasRelevantDatabaseQuarantine) {
+      _requireDatabaseRecovery();
+    } else if (profileId != null) {
+      unawaited(_unlockProfile(useStoredKey: true));
+    }
   }
 
   Widget _buildLocalProfileCard() => Card(
