@@ -4535,8 +4535,6 @@
   "@add": {},
   "addCredentialSecretParameter": "Add Credential secret parameter",
   "@addCredentialSecretParameter": {},
-  "addAHostFirst": "Add a host first.",
-  "@addAHostFirst": {},
   "addAPasswordOrPrivateKey": "Add a password or private-key identity, then link it to a host.",
   "@addAPasswordOrPrivateKey": {},
   "addCredential2": "Add credential",
@@ -4779,8 +4777,6 @@
   "@checkingThisSelfHostedInstanceFor": {},
   "choose2575": "Choose 25–75",
   "@choose2575": {},
-  "chooseConnectOnTheLeftTo": "Choose Connect on the left to start a new session.",
-  "@chooseConnectOnTheLeftTo": {},
   "chooseAHost": "Choose a Host",
   "@chooseAHost": {},
   "chooseAHostForPaneValuevalue": "Choose a Host for Pane {valueValue}",
@@ -4793,8 +4789,6 @@
   },
   "chooseAHostFromTheActive": "Choose a Host from the active Vault. The replacement is saved as an encrypted layout update; it will not connect.",
   "@chooseAHostFromTheActive": {},
-  "chooseAHostOnTheLeft": "Choose a host on the left to start an SSH session.",
-  "@chooseAHostOnTheLeft": {},
   "chooseALocalEncryptedArchiveOr": "Choose a local encrypted archive or its remote replica to prepare a separate copy while the service stays online. Remote bytes are checked against their digest and archive authentication before the stage is published. This action does not activate the copy or replace live data; operators handle any later offline cutover.",
   "@chooseALocalEncryptedArchiveOr": {},
   "chooseALocalEncryptedArchiveTo": "Choose a local encrypted archive to prepare a separate copy while the service stays online. The archive is checked again before the stage is published. This action does not activate the copy or replace live data; operators handle any later offline cutover.",
@@ -4907,18 +4901,8 @@
   "@connect": {},
   "connectAnSshHostToBrowse": "Connect an SSH host to browse remote files.",
   "@connectAnSshHostToBrowse": {},
-  "connectToNameToOpenAn": "Connect to {name} to open an interactive shell.",
-  "@connectToNameToOpenAn": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
   "connectionSettingsAreKeptAsOne": "Connection settings are kept as one tuple. Review the original base and both verified branches, then select one complete tuple. This includes the address, port, SSH username, authentication method, selected Credential, route, proxy, forwarding rules, and host trust settings.",
   "@connectionSettingsAreKeptAsOne": {},
-  "connections": "Connections",
-  "@connections": {},
   "connectionsToEndpointUsingAlgorithmWill": "Connections to {endpoint} using {algorithm} will be blocked on devices after this signed revocation syncs. The fingerprint remains in history.",
   "@connectionsToEndpointUsingAlgorithmWill": {
     "placeholders": {
@@ -5291,8 +5275,6 @@
   "@discardIsolatedRestoreCopy": {},
   "discarded": "Discarded",
   "@discarded": {},
-  "disconnect2": "Disconnect",
-  "@disconnect2": {},
   "disconnected2": "Disconnected",
   "@disconnected2": {},
   "disconnectedRecursivePreview": "Disconnected recursive preview",
@@ -6051,8 +6033,6 @@
   "@newSplitSideBySide": {},
   "newSplitStacked": "New split: stacked",
   "@newSplitStacked": {},
-  "newTab": "New tab",
-  "@newTab": {},
   "next": "Next",
   "@next": {},
   "nextAccounts": "Next accounts",
@@ -6221,8 +6201,6 @@
   "@openAVaultToReadOr2": {},
   "openAVaultToReadOr3": "Open a Vault to read or save this synced preference.",
   "@openAVaultToReadOr3": {},
-  "openANewTerminalTab": "Open a new terminal tab",
-  "@openANewTerminalTab": {},
   "openActiveTerminals": "Open active terminals",
   "@openActiveTerminals": {},
   "openConflicts": "Open conflicts",
@@ -7162,8 +7140,6 @@
   "@securityPolicy": {},
   "selectAnActiveVaultBeforeEnabling": "Select an active Vault before enabling sync.",
   "@selectAnActiveVaultBeforeEnabling": {},
-  "selectFirstHost": "Select first host",
-  "@selectFirstHost": {},
   "selectedArchive": "Selected archive",
   "@selectedArchive": {},
   "selectedServerManagedGroup": "Selected server-managed group",

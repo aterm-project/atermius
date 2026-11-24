@@ -635,6 +635,23 @@ class _AppShellState extends State<AppShell> {
       }
     }
     setState(() {});
+    _leaveEmptySessionArea();
+  }
+
+  /// The session area is never shown empty: once no session tab, no file tab
+  /// and no staged layout is left in it, Home takes its place. Sessions are
+  /// opened from Home and switched in the tab row, so there is nothing an
+  /// empty area could offer. True when Home was put back, which notifies the
+  /// controller's listeners (this shell included).
+  bool _leaveEmptySessionArea() {
+    if (app.page != WorkspacePage.terminal ||
+        app.activeSavedWorkspaceId != null ||
+        _fileTabs.entries.isNotEmpty ||
+        app.visibleTerminalTabs.any((tab) => !tab.closed)) {
+      return false;
+    }
+    app.leaveEmptySessionArea();
+    return true;
   }
 
   Future<void> _consumeFilesLaunch() async {
@@ -2001,6 +2018,8 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
     if (!mounted) return;
     // The console replaces the workspace, a selected file tab included.
     if (_adminSiteShown) _selectedFileId = null;
+    // Putting Home back notifies again; that pass did the work below.
+    if (_leaveEmptySessionArea()) return;
     if (_searchVaultId != app.currentVaultId || app.workspaceLocked) {
       _terminalTools.close();
       _terminalTools.history.clear();
@@ -2207,6 +2226,16 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                       context.l10n.newWindow,
                       Icons.open_in_new,
                       openNewWindow,
+                    ),
+                  // Without a session there is no pane handle menu to join
+                  // a shared terminal from.
+                  if (_terminalCollaborationEnabled(app))
+                    WorkspaceAction(
+                      'terminal-share-join-open',
+                      context.l10n.joinASharedTerminal,
+                      Icons.group_add_outlined,
+                      () => _joinTerminalShare(context, app),
+                      enabled: app.activeVault?.status == 'active',
                     ),
                 ],
                 tabs: [
@@ -11427,7 +11456,6 @@ class _TerminalPageState extends State<_TerminalPage> {
     final shareStatus = activeTab == null
         ? null
         : app.terminalShareStatusFor(activeTab.id);
-    final collaborationEnabled = _terminalCollaborationEnabled;
     final stagedWorkspace = app.activeSavedWorkspace;
     final stagedSplitTabs = stagedWorkspace?.isSplit == true
         ? [
@@ -11461,337 +11489,161 @@ class _TerminalPageState extends State<_TerminalPage> {
     } else {
       _focusRequestedForTab = null;
     }
-    // In the browser an open terminal takes the full width; the tab bar
-    // already switches and opens sessions. The list stays for the empty page
-    // and for a staged saved layout, whose panes are connected from it.
-    final inlineSession = kIsWeb && activeTab != null;
-    final showConnections = !inlineSession || stagedWorkspace != null;
-    // A phone-width browser window has no room for the list and the welcome
-    // panel side by side: the panel was squeezed into a 90 px sliver. On the
-    // empty page the list is the part the user needs, so it gets the row.
-    final listOnly =
-        kIsWeb &&
-        activeTab == null &&
-        stagedWorkspace == null &&
-        MediaQuery.sizeOf(context).width < 600;
-    return Padding(
-      padding: inlineSession
-          ? EdgeInsets.zero
-          : const EdgeInsets.fromLTRB(17, 15, 17, 17),
-      child: LayoutBuilder(builder: (context, box) => Row(
+    // A session takes the whole area on every platform. The tab bar already
+    // switches and opens sessions, so no host list sits beside the terminal
+    // and no frame is drawn around it.
+    final showsSession =
+        widget.sessionWorkspace.sessionIds.length > 1 ||
+        (!liveSplitReady &&
+            (connected ||
+                deviceSession ||
+                activeTab?.connectProgress.isVisible == true ||
+                // A dropped SSH/Telnet tab keeps its terminal (scrollback)
+                // under the "Connection lost" overlay.
+                activeTab?.recovery?.everConnected == true) &&
+            activeTab != null);
+    // A staged saved layout keeps its pane buttons and its way out in one
+    // row above the sessions; with nothing connected it is the content.
+    final stagedBar =
+        stagedWorkspace != null && (showsSession || liveSplitReady);
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
         children: [
-          if (showConnections) ...[
-          Container(
-            width: listOnly ? box.maxWidth : 250,
-            decoration: BoxDecoration(
-              color: context.palette.surface,
-              border: Border.all(color: context.palette.line),
-              borderRadius: BorderRadius.circular(15),
+          if (stagedWorkspace != null && stagedBar)
+            _StagedWorkspaceBar(
+              app: app,
+              workspace: stagedWorkspace,
+              // The live split shows every pane itself, each with its own
+              // connect button.
+              showPanes: !liveSplitReady,
             ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.dns_outlined,
-                        size: 17,
-                        color: context.palette.muted,
-                      ),
-                      const SizedBox(width: 8),
-                      if (localConsoleSupported)
-                        IconButton(
-                          key: const ValueKey('open_local_console'),
-                          tooltip: context.l10n.localConsole,
-                          icon: const Icon(Icons.terminal, size: 18),
-                          onPressed: () => app.openConsoleTab(),
-                        ),
-                      Expanded(
-                        child: Text(
-                          context.l10n.connections,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      Text(
-                        '${app.hosts.length}',
-                        style: TextStyle(
-                          color: context.palette.muted,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: app.hosts.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(18),
-                            child: Text(
-                              context.l10n.addAHostFirst,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: context.palette.muted),
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: app.hosts.length,
-                          itemBuilder: (context, index) {
-                            final host = app.hosts[index];
-                            final connected = app.terminalTabs.any(
-                              (tab) =>
-                                  tab.host?.id == host.id &&
-                                  tab.state == 'connected',
-                            );
-                            return Material(
-                              color: Colors.transparent,
-                              child: ListTile(
-                                dense: true,
-                                selected: app.selectedHost?.id == host.id,
-                                selectedTileColor: context.palette.lime.withValues(
-                                  alpha: .06,
-                                ),
-                                leading: Icon(
-                                  connected ? Icons.circle : Icons.dns_outlined,
-                                  size: connected ? 10 : 17,
-                                  color: connected
-                                      ? context.palette.teal
-                                      : context.palette.muted,
-                                ),
-                                title: Text(
-                                  host.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                subtitle: Text(
-                                  host.endpoint,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: context.palette.muted,
-                                  ),
-                                ),
-                                onTap: () => app.selectHost(host),
-                                trailing: IconButton(
-                                  tooltip: context.l10n.openANewTerminalTab,
-                                  icon: const Icon(Icons.add_rounded, size: 18),
-                                  onPressed:
-                                      app.terminalTabs.length >=
-                                          AppController.maxTerminalTabs
-                                      ? null
-                                      : () => _connect(host),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-                if (app.activeSavedWorkspace case final workspace?)
-                  _StagedWorkspaceLayout(app: app, workspace: workspace),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: app.selectedHost == null
-                              ? null
-                              : () => _connect(app.selectedHost!),
-                          icon: const Icon(Icons.play_arrow_rounded, size: 17),
-                          label: Text(context.l10n.newTab),
-                        ),
-                      ),
-                      if (activeTab != null) ...[
-                        const SizedBox(width: 7),
-                        IconButton(
-                          tooltip: context.l10n.disconnect2,
-                          onPressed: () => app.disconnectTerminalTab(activeTab.id),
-                          icon: Icon(
-                            Icons.link_off_rounded,
-                            color: context.palette.red,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (!listOnly) const SizedBox(width: 13),
-          ],
-          if (!listOnly) Expanded(
-            child: Container(
-              margin: inlineSession ? null : const EdgeInsets.only(top: 8),
-              decoration: inlineSession
-                  ? null
-                  : BoxDecoration(
-                      color: wallpaperWindowFill(context, const Color(0xFF080C11)),
-                      border: Border.all(color: context.palette.line),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-              child: LayoutBuilder(
-                builder: (context, constraints) => Column(
-                  children: [
-                    if (shareStatus != null)
-                      Container(
-                        key: const ValueKey('terminal-share-status'),
-                        height: 34,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: context.palette.line),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              shareStatus.phase == 'active'
-                                  ? Icons.lock_outline_rounded
-                                  : shareStatus.phase == 'failed'
-                                  ? Icons.error_outline_rounded
-                                  : Icons.sync_rounded,
-                              size: 14,
-                              color: shareStatus.phase == 'active'
-                                  ? context.palette.teal
-                                  : shareStatus.phase == 'failed'
-                                  ? context.palette.red
-                                  : context.palette.orange,
-                            ),
-                            const SizedBox(width: 7),
-                            Text(
-                              shareStatus.errorMessage ??
-                                  context.l10n.terminalSharePhase(shareStatus.phase),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: context.palette.muted,
-                                fontSize: 10,
-                              ),
-                            ),
-                            if (shareStatus.inputControlEnabled) ...[
-                              const SizedBox(width: 10),
-                              Flexible(
-                                child: Text(
-                                  shareStatus.controllerLabel == null
-                                      ? shareStatus.controllerRevoking
-                                            ? context.l10n.inputControlRevoking
-                                            : context.l10n.inputControlOff
-                                      : context.l10n.inputControlControllerlabel('${shareStatus.controllerLabel}'),
-                                  key: const ValueKey(
-                                    'terminal-share-controller-status',
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: context.palette.muted,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ),
-                            ],
-                            if ({
-                              'starting',
-                              'connecting',
-                              'active',
-                            }.contains(shareStatus.phase)) ...[
-                              const SizedBox(width: 10),
-                              Text(
-                                'ID',
-                                style: TextStyle(
-                                  color: context.palette.muted,
-                                  fontSize: 10,
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              SelectableText(
-                                shareStatus.sessionId,
-                                key: const ValueKey('terminal-share-code'),
-                                style: TextStyle(
-                                  color: context.palette.muted,
-                                  fontSize: 10,
-                                  fontFamily: 'monospace',
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: context.l10n.copyTerminalShareId,
-                                visualDensity: VisualDensity.compact,
-                                constraints: const BoxConstraints.tightFor(
-                                  width: 28,
-                                  height: 28,
-                                ),
-                                padding: EdgeInsets.zero,
-                                onPressed: () => Clipboard.setData(
-                                  ClipboardData(
-                                    text: shareStatus.sessionId,
-                                  ),
-                                ),
-                                icon: const Icon(Icons.copy, size: 13),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    Expanded(
-                      child:
-                          widget.sessionWorkspace.sessionIds.length > 1 ||
-                              (!liveSplitReady &&
-                                  (connected ||
-                                      deviceSession ||
-                                      activeTab?.connectProgress
-                                              .isVisible ==
-                                          true ||
-                                      // A dropped SSH/Telnet tab keeps
-                                      // its terminal (scrollback) under
-                                      // the "Connection lost" overlay.
-                                      activeTab?.recovery?.everConnected ==
-                                          true) &&
-                                  activeTab != null)
-                          ? _workspaceView()
-                          : liveSplitReady
-                          ? _liveSplitTerminalViews(
-                              stagedWorkspace,
-                              stagedSplitTabs,
-                            )
-                          : _TerminalWelcome(
-                              app: app,
-                              errorMessage: activeTab?.errorMessage,
-                              // Without a session there is no pane
-                              // handle menu to offer this from.
-                              onJoinShare: collaborationEnabled
-                                  ? _joinTerminalShare
-                                  : null,
-                            ),
-                    ),
-                    if (connected && activeTab != null)
-                      TerminalKeybar(
-                        terminal: activeTab.terminal,
-                        focusNode: _focusNodeFor(activeTab.id),
-                        readOnly: activeTab.state != 'connected',
-                        // Exclude this column's share status row.
-                        availablePaneHeight: constraints.maxHeight -
-                            (shareStatus != null ? 34 : 0),
-                      ),
-                  ],
+          if (shareStatus != null)
+            Container(
+              key: const ValueKey('terminal-share-status'),
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: context.palette.line),
                 ),
               ),
+              child: Row(
+                children: [
+                  Icon(
+                    shareStatus.phase == 'active'
+                        ? Icons.lock_outline_rounded
+                        : shareStatus.phase == 'failed'
+                        ? Icons.error_outline_rounded
+                        : Icons.sync_rounded,
+                    size: 14,
+                    color: shareStatus.phase == 'active'
+                        ? context.palette.teal
+                        : shareStatus.phase == 'failed'
+                        ? context.palette.red
+                        : context.palette.orange,
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    shareStatus.errorMessage ??
+                        context.l10n.terminalSharePhase(shareStatus.phase),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: context.palette.muted,
+                      fontSize: 10,
+                    ),
+                  ),
+                  if (shareStatus.inputControlEnabled) ...[
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        shareStatus.controllerLabel == null
+                            ? shareStatus.controllerRevoking
+                                  ? context.l10n.inputControlRevoking
+                                  : context.l10n.inputControlOff
+                            : context.l10n.inputControlControllerlabel('${shareStatus.controllerLabel}'),
+                        key: const ValueKey(
+                          'terminal-share-controller-status',
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: context.palette.muted,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if ({
+                    'starting',
+                    'connecting',
+                    'active',
+                  }.contains(shareStatus.phase)) ...[
+                    const SizedBox(width: 10),
+                    Text(
+                      'ID',
+                      style: TextStyle(
+                        color: context.palette.muted,
+                        fontSize: 10,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    SelectableText(
+                      shareStatus.sessionId,
+                      key: const ValueKey('terminal-share-code'),
+                      style: TextStyle(
+                        color: context.palette.muted,
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: context.l10n.copyTerminalShareId,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 28,
+                        height: 28,
+                      ),
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Clipboard.setData(
+                        ClipboardData(
+                          text: shareStatus.sessionId,
+                        ),
+                      ),
+                      icon: const Icon(Icons.copy, size: 13),
+                    ),
+                  ],
+                ],
+              ),
             ),
+          Expanded(
+            child: showsSession
+                ? _workspaceView()
+                : liveSplitReady
+                ? _liveSplitTerminalViews(stagedWorkspace, stagedSplitTabs)
+                : stagedWorkspace != null
+                ? _StagedWorkspacePreview(
+                    app: app,
+                    workspace: stagedWorkspace,
+                    errorMessage: activeTab?.errorMessage,
+                  )
+                : _TerminalWelcome(errorMessage: activeTab?.errorMessage),
           ),
+          if (connected && activeTab != null)
+            TerminalKeybar(
+              terminal: activeTab.terminal,
+              focusNode: _focusNodeFor(activeTab.id),
+              readOnly: activeTab.state != 'connected',
+              // Exclude the rows above the sessions.
+              availablePaneHeight:
+                  constraints.maxHeight -
+                  (stagedBar ? _StagedWorkspaceBar.height : 0) -
+                  (shareStatus != null ? 34 : 0),
+            ),
         ],
-      )),
+      ),
     );
   }
-
-  bool get _terminalCollaborationEnabled =>
-      kIsWeb &&
-      (app.instance?.capabilities.contains('terminal_collaboration') ?? false);
 
   /// The function menu of one terminal session (SSH, Telnet or local
   /// console). It lives in the white handle of the session's pane (or in the
@@ -11801,7 +11653,7 @@ class _TerminalPageState extends State<_TerminalPage> {
     final connected = tab.connection != null;
     final shareStatus = app.terminalShareStatusFor(tab.id);
     final sharingThisTab = app.isTerminalShareHost(tab.id);
-    final collaborationEnabled = _terminalCollaborationEnabled;
+    final collaborationEnabled = _terminalCollaborationEnabled(app);
     final stagedWorkspace = app.activeSavedWorkspace;
     final tmuxWorkspacePane = stagedWorkspace?.panes
         .where(
@@ -11922,7 +11774,7 @@ class _TerminalPageState extends State<_TerminalPage> {
           'terminal-share-join-open',
           context.l10n.joinASharedTerminal,
           Icons.group_add_outlined,
-          _joinTerminalShare,
+          () => _joinTerminalShare(context, app),
           enabled: app.activeVault?.status == 'active',
         ),
       if (connected)
@@ -12651,14 +12503,6 @@ return DesktopView(
     WidgetsBinding.instance.addPostFrameCallback((_) => openWhenFocused());
   }
 
-  Future<void> _connect(HostRecord host) async {
-    try {
-      await app.openTerminalTab(host);
-    } catch (error) {
-      if (mounted) _snack(context, app.friendlyError(error), error: true);
-    }
-  }
-
   Future<void> _startTerminalShare(TerminalTabSession tab) async {
     try {
       final choices = await app.terminalShareEligibleDevices();
@@ -12722,14 +12566,6 @@ return DesktopView(
         );
       }
     }
-  }
-
-  Future<void> _joinTerminalShare() async {
-    await showAppDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _TerminalShareJoinDialog(app: app),
-    );
   }
 
   Future<void> _showTerminalCommandSuggestions(TerminalTabSession tab) async {
@@ -13360,6 +13196,170 @@ throw StateError(context.l10n.snippetChanged);
   }
 }
 
+/// A staged saved layout with nothing connected yet is what the session
+/// area shows: its preview, with one connect button per pane.
+class _StagedWorkspacePreview extends StatelessWidget {
+  const _StagedWorkspacePreview({
+    required this.app,
+    required this.workspace,
+    this.errorMessage,
+  });
+
+  final AppController app;
+  final WorkspaceRecord workspace;
+  final String? errorMessage;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (errorMessage != null) ...[
+              Text(
+                errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.palette.red, height: 1.45),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: context.palette.surface,
+                border: Border.all(color: context.palette.line),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: _StagedWorkspaceLayout(app: app, workspace: workspace),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// A staged saved layout while a session fills the area: its name, one
+/// connect button per pane ([showPanes]) and the way out of the preview, in
+/// one row above the sessions. With nothing connected yet the area shows
+/// [_StagedWorkspacePreview] instead, so the two never appear together.
+class _StagedWorkspaceBar extends StatelessWidget {
+  const _StagedWorkspaceBar({
+    required this.app,
+    required this.workspace,
+    required this.showPanes,
+  });
+
+  static const double height = 40;
+
+  final AppController app;
+  final WorkspaceRecord workspace;
+  final bool showPanes;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('workspace-staged-bar'),
+    height: height,
+    padding: const EdgeInsets.only(left: 12, right: 6),
+    decoration: BoxDecoration(
+      color: context.palette.surface,
+      border: Border(bottom: BorderSide(color: context.palette.line)),
+    ),
+    child: Row(
+      children: [
+        Icon(
+          Icons.lock_outline_rounded,
+          size: 15,
+          color: context.palette.teal,
+        ),
+        const SizedBox(width: 6),
+        if (showPanes) ...[
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 160),
+            child: _name(),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: workspace.panes.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (context, index) =>
+                  Center(child: _paneButton(context, index)),
+            ),
+          ),
+        ] else
+          Expanded(child: _name()),
+        IconButton(
+          key: const ValueKey('workspace-clear-staged'),
+          tooltip: context.l10n.closeSavedLayoutPreview,
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+          padding: EdgeInsets.zero,
+          onPressed: app.clearStagedWorkspace,
+          icon: const Icon(Icons.close_rounded, size: 16),
+        ),
+      ],
+    ),
+  );
+
+  Widget _name() => Text(
+    workspace.name,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+  );
+
+  Widget _paneButton(BuildContext context, int index) {
+    final pane = workspace.panes[index];
+    final host = app.hosts.where((item) => item.id == pane.hostId).firstOrNull;
+    final tab = app.workspacePaneTerminalTab(workspace.id, pane.paneId);
+    final live = tab?.connection != null || tab?.telnet != null;
+    final label = workspace.isSplit
+        ? context.l10n.paneValuevalueValuevalue2(
+            index + 1,
+            host?.name ?? context.l10n.missingHost,
+          )
+        : host == null
+        ? context.l10n.tabValuevalueMissingHost(index + 1)
+        : context.l10n.tabValuevalueName(index + 1, host.name);
+    return Tooltip(
+      message: live ? context.l10n.focus : context.l10n.connect,
+      child: OutlinedButton.icon(
+        key: ValueKey('workspace-connect-${workspace.id}-${pane.paneId}'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 28),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          visualDensity: VisualDensity.compact,
+          textStyle: const TextStyle(fontSize: 11),
+        ),
+        onPressed: host == null
+            ? null
+            : () async {
+                try {
+                  await app.connectWorkspacePane(workspace.id, pane.paneId);
+                } catch (error) {
+                  if (context.mounted) {
+                    _snack(context, app.friendlyError(error), error: true);
+                  }
+                }
+              },
+        icon: host == null
+            ? const Icon(Icons.link_off_rounded, size: 14)
+            : live
+            ? Icon(Icons.circle, size: 9, color: context.palette.teal)
+            : const Icon(Icons.play_arrow_rounded, size: 14),
+        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+    );
+  }
+}
+
+/// The preview of a staged saved layout: name, state, and its panes with
+/// their connect buttons (a split layout keeps its arrangement).
 class _StagedWorkspaceLayout extends StatelessWidget {
   const _StagedWorkspaceLayout({required this.app, required this.workspace});
 
@@ -13392,14 +13392,9 @@ class _StagedWorkspaceLayout extends StatelessWidget {
               : '$livePanes/$paneCount live · $directionLabel · $firstPercent/$secondPercent · Connect each pane explicitly'
         : context.l10n.disconnectedConnectTabsExplicitly;
     return SizedBox(
-      height: 170,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(8, 6, 8, 7),
-        decoration: BoxDecoration(
-          color: context.palette.surface,
-          border: Border(bottom: BorderSide(color: context.palette.line)),
-        ),
+      height: 220,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -14027,6 +14022,18 @@ class _TerminalShareControllerPickerState
   );
 }
 
+/// Browser client against a server that offers terminal sharing.
+bool _terminalCollaborationEnabled(AppController app) =>
+    kIsWeb &&
+    (app.instance?.capabilities.contains('terminal_collaboration') ?? false);
+
+Future<void> _joinTerminalShare(BuildContext context, AppController app) =>
+    showAppDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _TerminalShareJoinDialog(app: app),
+    );
+
 class _TerminalShareJoinDialog extends StatefulWidget {
   const _TerminalShareJoinDialog({required this.app});
 
@@ -14436,15 +14443,11 @@ class _TerminalObserverDialogState extends State<_TerminalObserverDialog> {
   }
 }
 
+/// What a session tab shows while it has neither a session nor a connect
+/// attempt to show, e.g. after a failure that left only a message.
 class _TerminalWelcome extends StatelessWidget {
-  const _TerminalWelcome({
-    required this.app,
-    this.errorMessage,
-    this.onJoinShare,
-  });
-  final AppController app;
+  const _TerminalWelcome({this.errorMessage});
   final String? errorMessage;
-  final VoidCallback? onJoinShare;
 
   // Welcome ⇄ connection-failed swap replays a short fade + 4 px lift so the
   // error reads as a new state; the panel holds no session or input.
@@ -14480,8 +14483,8 @@ class _TerminalWelcome extends StatelessWidget {
               : currentL10n.sshConnectionFailed,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 8),
-        if (errorMessage != null)
+        if (errorMessage != null) ...[
+          const SizedBox(height: 8),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: Padding(
@@ -14492,38 +14495,6 @@ class _TerminalWelcome extends StatelessWidget {
                 style: TextStyle(color: context.palette.red, height: 1.45),
               ),
             ),
-          )
-        else
-          Text(
-            app.selectedHost == null
-                ? currentL10n.chooseAHostOnTheLeft
-                : currentL10n.connectToNameToOpenAn(app.selectedHost!.name),
-            style: TextStyle(color: context.palette.muted),
-          ),
-        if (errorMessage != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            currentL10n.chooseConnectOnTheLeftTo,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: context.palette.muted),
-          ),
-        ],
-        const SizedBox(height: 14),
-        if (app.selectedHost == null && app.hosts.isNotEmpty)
-          OutlinedButton.icon(
-            onPressed: () => app.selectHost(app.hosts.first),
-            icon: const Icon(Icons.dns_outlined),
-            label: Text(currentL10n.selectFirstHost),
-          ),
-        if (onJoinShare != null) ...[
-          const SizedBox(height: 8),
-          TextButton.icon(
-            key: const ValueKey('terminal-share-join-open'),
-            onPressed: app.activeVault?.status == 'active'
-                ? onJoinShare
-                : null,
-            icon: const Icon(Icons.group_add_outlined),
-            label: Text(currentL10n.joinASharedTerminal),
           ),
         ],
       ],

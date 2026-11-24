@@ -9925,12 +9925,6 @@ abstract class AppLocalizations {
   /// **'Add Credential secret parameter'**
   String get addCredentialSecretParameter;
 
-  /// No description provided for @addAHostFirst.
-  ///
-  /// In en, this message translates to:
-  /// **'Add a host first.'**
-  String get addAHostFirst;
-
   /// No description provided for @addAPasswordOrPrivateKey.
   ///
   /// In en, this message translates to:
@@ -10397,12 +10391,6 @@ abstract class AppLocalizations {
   /// **'Choose 25–75'**
   String get choose2575;
 
-  /// No description provided for @chooseConnectOnTheLeftTo.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose Connect on the left to start a new session.'**
-  String get chooseConnectOnTheLeftTo;
-
   /// No description provided for @chooseAHost.
   ///
   /// In en, this message translates to:
@@ -10420,12 +10408,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose a Host from the active Vault. The replacement is saved as an encrypted layout update; it will not connect.'**
   String get chooseAHostFromTheActive;
-
-  /// No description provided for @chooseAHostOnTheLeft.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose a host on the left to start an SSH session.'**
-  String get chooseAHostOnTheLeft;
 
   /// No description provided for @chooseALocalEncryptedArchiveOr.
   ///
@@ -10709,23 +10691,11 @@ abstract class AppLocalizations {
   /// **'Connect an SSH host to browse remote files.'**
   String get connectAnSshHostToBrowse;
 
-  /// No description provided for @connectToNameToOpenAn.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect to {name} to open an interactive shell.'**
-  String connectToNameToOpenAn(String name);
-
   /// No description provided for @connectionSettingsAreKeptAsOne.
   ///
   /// In en, this message translates to:
   /// **'Connection settings are kept as one tuple. Review the original base and both verified branches, then select one complete tuple. This includes the address, port, SSH username, authentication method, selected Credential, route, proxy, forwarding rules, and host trust settings.'**
   String get connectionSettingsAreKeptAsOne;
-
-  /// No description provided for @connections.
-  ///
-  /// In en, this message translates to:
-  /// **'Connections'**
-  String get connections;
 
   /// No description provided for @connectionsToEndpointUsingAlgorithmWill.
   ///
@@ -11516,12 +11486,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Discarded'**
   String get discarded;
-
-  /// No description provided for @disconnect2.
-  ///
-  /// In en, this message translates to:
-  /// **'Disconnect'**
-  String get disconnect2;
 
   /// No description provided for @disconnected2.
   ///
@@ -13136,12 +13100,6 @@ abstract class AppLocalizations {
   /// **'New split: stacked'**
   String get newSplitStacked;
 
-  /// No description provided for @newTab.
-  ///
-  /// In en, this message translates to:
-  /// **'New tab'**
-  String get newTab;
-
   /// No description provided for @next.
   ///
   /// In en, this message translates to:
@@ -13609,12 +13567,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open a Vault to read or save this synced preference.'**
   String get openAVaultToReadOr3;
-
-  /// No description provided for @openANewTerminalTab.
-  ///
-  /// In en, this message translates to:
-  /// **'Open a new terminal tab'**
-  String get openANewTerminalTab;
 
   /// No description provided for @openActiveTerminals.
   ///
@@ -15636,12 +15588,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select an active Vault before enabling sync.'**
   String get selectAnActiveVaultBeforeEnabling;
-
-  /// No description provided for @selectFirstHost.
-  ///
-  /// In en, this message translates to:
-  /// **'Select first host'**
-  String get selectFirstHost;
 
   /// No description provided for @selectedArchive.
   ///

@@ -6585,9 +6585,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Добавить параметр-секрет учётных данных';
 
   @override
-  String get addAHostFirst => 'Сначала добавьте хост.';
-
-  @override
   String get addAPasswordOrPrivateKey =>
       'Добавьте пароль или закрытый ключ и свяжите его с хостом.';
 
@@ -6890,10 +6887,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get choose2575 => 'Выберите от 25 до 75';
 
   @override
-  String get chooseConnectOnTheLeftTo =>
-      'Нажмите «Подключить» слева, чтобы начать новый сеанс.';
-
-  @override
   String get chooseAHost => 'Выберите хост';
 
   @override
@@ -6904,10 +6897,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get chooseAHostFromTheActive =>
       'Выберите хост из активного сейфа. Замена сохраняется как зашифрованное обновление макета; подключение не выполняется.';
-
-  @override
-  String get chooseAHostOnTheLeft =>
-      'Выберите хост слева, чтобы начать SSH-сеанс.';
 
   @override
   String get chooseALocalEncryptedArchiveOr =>
@@ -7095,16 +7084,8 @@ class AppLocalizationsRu extends AppLocalizations {
       'Подключитесь к SSH-хосту, чтобы просматривать удалённые файлы.';
 
   @override
-  String connectToNameToOpenAn(String name) {
-    return 'Подключитесь к $name, чтобы открыть интерактивную оболочку.';
-  }
-
-  @override
   String get connectionSettingsAreKeptAsOne =>
       'Параметры подключения хранятся как единый набор. Проверьте исходную базу и обе проверенные ветки, затем выберите один полный набор. Он включает адрес, порт, имя пользователя SSH, способ аутентификации, выбранные учётные данные, маршрут, прокси, правила переадресации и параметры доверия к хосту.';
-
-  @override
-  String get connections => 'Подключения';
 
   @override
   String connectionsToEndpointUsingAlgorithmWill(
@@ -7586,9 +7567,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get discarded => 'Удалено';
-
-  @override
-  String get disconnect2 => 'Отключить';
 
   @override
   String get disconnected2 => 'Отключено';
@@ -8535,9 +8513,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get newSplitStacked => 'Новое разделение: сверху и снизу';
 
   @override
-  String get newTab => 'Новая вкладка';
-
-  @override
   String get next => 'Далее';
 
   @override
@@ -8807,9 +8782,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get openAVaultToReadOr3 =>
       'Откройте сейф, чтобы читать или сохранять эту синхронизируемую настройку.';
-
-  @override
-  String get openANewTerminalTab => 'Открыть новую вкладку терминала';
 
   @override
   String get openActiveTerminals => 'Открыть активные терминалы';
@@ -9998,9 +9970,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get selectAnActiveVaultBeforeEnabling =>
       'Выберите активный сейф, прежде чем включать синхронизацию.';
-
-  @override
-  String get selectFirstHost => 'Выберите первый хост';
 
   @override
   String get selectedArchive => 'Выбранный архив';

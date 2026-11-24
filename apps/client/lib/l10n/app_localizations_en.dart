@@ -6591,9 +6591,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addCredentialSecretParameter => 'Add Credential secret parameter';
 
   @override
-  String get addAHostFirst => 'Add a host first.';
-
-  @override
   String get addAPasswordOrPrivateKey =>
       'Add a password or private-key identity, then link it to a host.';
 
@@ -6893,10 +6890,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get choose2575 => 'Choose 25–75';
 
   @override
-  String get chooseConnectOnTheLeftTo =>
-      'Choose Connect on the left to start a new session.';
-
-  @override
   String get chooseAHost => 'Choose a Host';
 
   @override
@@ -6907,10 +6900,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chooseAHostFromTheActive =>
       'Choose a Host from the active Vault. The replacement is saved as an encrypted layout update; it will not connect.';
-
-  @override
-  String get chooseAHostOnTheLeft =>
-      'Choose a host on the left to start an SSH session.';
 
   @override
   String get chooseALocalEncryptedArchiveOr =>
@@ -7093,16 +7082,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Connect an SSH host to browse remote files.';
 
   @override
-  String connectToNameToOpenAn(String name) {
-    return 'Connect to $name to open an interactive shell.';
-  }
-
-  @override
   String get connectionSettingsAreKeptAsOne =>
       'Connection settings are kept as one tuple. Review the original base and both verified branches, then select one complete tuple. This includes the address, port, SSH username, authentication method, selected Credential, route, proxy, forwarding rules, and host trust settings.';
-
-  @override
-  String get connections => 'Connections';
 
   @override
   String connectionsToEndpointUsingAlgorithmWill(
@@ -7576,9 +7557,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discarded => 'Discarded';
-
-  @override
-  String get disconnect2 => 'Disconnect';
 
   @override
   String get disconnected2 => 'Disconnected';
@@ -8534,9 +8512,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newSplitStacked => 'New split: stacked';
 
   @override
-  String get newTab => 'New tab';
-
-  @override
   String get next => 'Next';
 
   @override
@@ -8801,9 +8776,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get openAVaultToReadOr3 =>
       'Open a Vault to read or save this synced preference.';
-
-  @override
-  String get openANewTerminalTab => 'Open a new terminal tab';
 
   @override
   String get openActiveTerminals => 'Open active terminals';
@@ -9967,9 +9939,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get selectAnActiveVaultBeforeEnabling =>
       'Select an active Vault before enabling sync.';
-
-  @override
-  String get selectFirstHost => 'Select first host';
 
   @override
   String get selectedArchive => 'Selected archive';

@@ -25404,6 +25404,15 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Puts Home back in place of a session area that has nothing left to
+  /// show. This is not a navigation of the user, so unlike
+  /// [showWorkspacePage] it leaves a Vault's default page to apply later.
+  void leaveEmptySessionArea() {
+    if (page != WorkspacePage.terminal) return;
+    page = WorkspacePage.hosts;
+    _notifyListenersIfAlive();
+  }
+
   void selectHost(HostRecord? host) {
     selectedHost = host;
     notifyListeners();

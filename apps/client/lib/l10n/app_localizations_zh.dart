@@ -5585,9 +5585,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addCredentialSecretParameter => '添加凭据机密参数';
 
   @override
-  String get addAHostFirst => '请先添加一台主机。';
-
-  @override
   String get addAPasswordOrPrivateKey => '添加密码或私钥身份，然后将其关联到主机。';
 
   @override
@@ -5867,9 +5864,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get choose2575 => '请选择 25–75';
 
   @override
-  String get chooseConnectOnTheLeftTo => '选择左侧的“连接”以开始新会话。';
-
-  @override
   String get chooseAHost => '选择主机';
 
   @override
@@ -5879,9 +5873,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chooseAHostFromTheActive => '从当前保险库中选择一台主机。替换会作为加密的布局更新保存，不会建立连接。';
-
-  @override
-  String get chooseAHostOnTheLeft => '选择左侧的主机以开始 SSH 会话。';
 
   @override
   String get chooseALocalEncryptedArchiveOr =>
@@ -6044,16 +6035,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get connectAnSshHostToBrowse => '连接 SSH 主机以浏览远程文件。';
 
   @override
-  String connectToNameToOpenAn(String name) {
-    return '连接到 $name 以打开交互式 Shell。';
-  }
-
-  @override
   String get connectionSettingsAreKeptAsOne =>
       '连接设置作为一个整体保存。请检查原始基线和两个已验证分支，然后选择一个完整的整体。其中包括地址、端口、SSH 用户名、认证方式、所选凭据、路由、代理、转发规则和主机信任设置。';
-
-  @override
-  String get connections => '连接';
 
   @override
   String connectionsToEndpointUsingAlgorithmWill(
@@ -6499,9 +6482,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get discarded => '已丢弃';
-
-  @override
-  String get disconnect2 => '断开连接';
 
   @override
   String get disconnected2 => '已断开';
@@ -7408,9 +7388,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get newSplitStacked => '新分屏：上下';
 
   @override
-  String get newTab => '新建标签页';
-
-  @override
   String get next => '下一页';
 
   @override
@@ -7656,9 +7633,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get openAVaultToReadOr3 => '打开保险库以读取或保存此同步偏好。';
-
-  @override
-  String get openANewTerminalTab => '打开新的终端标签页';
 
   @override
   String get openActiveTerminals => '打开活动终端';
@@ -8783,9 +8757,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get selectAnActiveVaultBeforeEnabling => '启用同步前请选择活动保险库。';
-
-  @override
-  String get selectFirstHost => '选择第一台主机';
 
   @override
   String get selectedArchive => '所选归档';

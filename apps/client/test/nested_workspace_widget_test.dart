@@ -648,9 +648,18 @@ void main() {
         app.stageWorkspace(_savedWorkspaceId);
         await tester.pumpAndSettle();
         for (final pane in repaired.panes) {
-          final connectButton = find.byKey(
+          // The preview offers every pane; once one is live, the others are
+          // connected from their own pane of the live split.
+          final previewButton = find.byKey(
             ValueKey('workspace-connect-$_savedWorkspaceId-${pane.paneId}'),
           );
+          final connectButton = previewButton.evaluate().isNotEmpty
+              ? previewButton
+              : find.byKey(
+                  ValueKey(
+                    'workspace-live-split-connect-$_savedWorkspaceId-${pane.paneId}',
+                  ),
+                );
           await tester.ensureVisible(connectButton);
           await tester.tap(connectButton);
           await tester.pumpAndSettle();

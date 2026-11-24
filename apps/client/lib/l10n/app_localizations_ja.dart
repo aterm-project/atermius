@@ -6110,9 +6110,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get addCredentialSecretParameter => '認証情報のシークレットパラメーターを追加';
 
   @override
-  String get addAHostFirst => '先にホストを追加してください。';
-
-  @override
   String get addAPasswordOrPrivateKey => 'パスワードまたは秘密鍵の ID を追加し、ホストに関連付けてください。';
 
   @override
@@ -6396,9 +6393,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get choose2575 => '25〜75 の範囲で選択してください';
 
   @override
-  String get chooseConnectOnTheLeftTo => '左側の「接続」を選ぶと新しいセッションを開始します。';
-
-  @override
   String get chooseAHost => 'ホストを選択';
 
   @override
@@ -6409,9 +6403,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get chooseAHostFromTheActive =>
       'アクティブな保管庫からホストを選択してください。置き換えは暗号化されたレイアウト更新として保存され、接続はしません。';
-
-  @override
-  String get chooseAHostOnTheLeft => '左側のホストを選択すると SSH セッションを開始します。';
 
   @override
   String get chooseALocalEncryptedArchiveOr =>
@@ -6580,16 +6571,8 @@ class AppLocalizationsJa extends AppLocalizations {
   String get connectAnSshHostToBrowse => 'リモートファイルを参照するには SSH ホストに接続してください。';
 
   @override
-  String connectToNameToOpenAn(String name) {
-    return '$name に接続すると対話型のシェルが開きます。';
-  }
-
-  @override
   String get connectionSettingsAreKeptAsOne =>
       '接続設定は 1 つのまとまりとして保持されます。元のベースと検証済みの 2 つのブランチを確認してから、1 つの完全なまとまりを選択してください。アドレス、ポート、SSH ユーザー名、認証方式、選択した認証情報、経路、プロキシ、転送ルール、ホストの信頼設定が含まれます。';
-
-  @override
-  String get connections => '接続';
 
   @override
   String connectionsToEndpointUsingAlgorithmWill(
@@ -7054,9 +7037,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get discarded => '破棄済み';
-
-  @override
-  String get disconnect2 => '切断';
 
   @override
   String get disconnected2 => '切断済み';
@@ -7973,9 +7953,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get newSplitStacked => '新しい分割：上下';
 
   @override
-  String get newTab => '新しいタブ';
-
-  @override
   String get next => '次へ';
 
   @override
@@ -8227,9 +8204,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get openAVaultToReadOr3 => 'この同期する設定を読み込みまたは保存するには、保管庫を開いてください。';
-
-  @override
-  String get openANewTerminalTab => '新しいターミナルタブを開く';
 
   @override
   String get openActiveTerminals => 'アクティブなターミナルを開く';
@@ -9371,9 +9345,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get selectAnActiveVaultBeforeEnabling =>
       '同期を有効にする前にアクティブな保管庫を選択してください。';
-
-  @override
-  String get selectFirstHost => '最初のホストを選択';
 
   @override
   String get selectedArchive => '選択したアーカイブ';
