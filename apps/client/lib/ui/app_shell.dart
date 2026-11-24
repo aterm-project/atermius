@@ -124,6 +124,8 @@ import 'new_window.dart';
 import 'insecure_server_widgets.dart';
 import 'ios_native/ios_mode.dart';
 import 'password_field.dart';
+import '../app_update/app_update_controller.dart';
+import 'app_update_widgets.dart';
 import '../web_update/web_app_update_factory.dart';
 import '../web_update/web_app_update_monitor.dart';
 import '../l10n/l10n.dart';
@@ -173,6 +175,11 @@ Future<void> _refreshVaultReadinessFromUi(AppController app) async {
     // AppController retains a safe, user-facing refresh error for the panel.
   }
 }
+
+/// Sessions that restarting the app would cut off.
+int _openSessionCount(AppController app) => app.terminalTabs
+    .where((tab) => tab.connection != null || tab.state == 'connecting')
+    .length;
 
 class AppShell extends StatefulWidget {
   const AppShell({
@@ -2387,6 +2394,15 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
                                   _pendingOutboxArchiveCoversCurrentState,
                               pendingOutboxArchiveStillCoversCurrentState:
                                   _pendingOutboxArchiveStillCoversCurrentState,
+                            ),
+                          // Installed copies: a new version waits for a
+                          // restart. Home only, like the banner above.
+                          if (AppUpdateController.instance case final appUpdate?
+                              when app.page != WorkspacePage.terminal &&
+                                  _selectedFileId == null)
+                            AppUpdateBanner(
+                              controller: appUpdate,
+                              openSessions: () => _openSessionCount(app),
                             ),
                           if (app.activeVault?.status == 'deleting')
                             _VaultReadOnlyBanner(vault: app.activeVault!),
@@ -18930,7 +18946,9 @@ class _SettingsPage extends StatelessWidget {
             description: context.l10n.reviewTrustedHostKeysAndTheir,
             builder: (_) => _KnownHostTrustPanel(app: app),
           ),
-        if (webAppUpdateMonitor != null || app.mobilePushSupported)
+        if (webAppUpdateMonitor != null ||
+            AppUpdateController.instance != null ||
+            app.mobilePushSupported)
           SettingsSection(
             id: 'notifications',
             title: context.l10n.notificationsAndUpdates,
@@ -18940,6 +18958,11 @@ class _SettingsPage extends StatelessWidget {
               children: [
                 if (webAppUpdateMonitor != null)
                   _WebAppUpdateSettingsCard(monitor: webAppUpdateMonitor!),
+                if (AppUpdateController.instance case final appUpdate?)
+                  AppUpdateSettingsCard(
+                    controller: appUpdate,
+                    openSessions: () => _openSessionCount(app),
+                  ),
                 if (app.mobilePushSupported) _MobilePushSettingsCard(app: app),
               ],
             ),

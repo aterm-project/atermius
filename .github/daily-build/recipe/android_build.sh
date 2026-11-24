@@ -71,6 +71,7 @@ flutter pub get --enforce-lockfile
 ATERMIUS_ANDROID_RDP_ENGINE_DIR="$ENGINE_OUT" flutter build apk --release --no-pub \
   --target lib/main.dart --target-platform android-arm64,android-x64 \
   --build-number "$ATERMIUS_VERSION_CODE" \
+  --dart-define="ATERMIUS_RELEASE_TAG=$ATERMIUS_RELEASE_TAG" \
   --android-project-arg=atermius.requireRdpEngine=true \
   --android-project-arg="atermius.rdpEngineDir=$ENGINE_OUT"
 apk="$ROOT/apps/client/build/app/outputs/flutter-apk/app-release.apk"

@@ -20869,4 +20869,121 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mobaXtermIssuePasswordsNotImported =>
       'Passwords saved in MobaXterm are encrypted with its master password and aren’t imported; enter them when you connect.';
+
+  @override
+  String get appUpdateReadyTitle => 'New version ready';
+
+  @override
+  String appUpdateReadyBody(String version) {
+    return 'Atermius $version was installed in the background. Restart to start using it.';
+  }
+
+  @override
+  String appUpdateReadyBodyAndroid(String version) {
+    return 'Atermius $version is downloaded. Installing closes the app; open it again when the installation is finished.';
+  }
+
+  @override
+  String get appUpdateRestartNow => 'Restart now';
+
+  @override
+  String get appUpdateInstallAndRestart => 'Install and restart';
+
+  @override
+  String get appUpdateWhatsNew => 'What\'s new';
+
+  @override
+  String appUpdateAvailableTitle(String version) {
+    return 'Atermius $version is available';
+  }
+
+  @override
+  String get appUpdateManualInstallBody =>
+      'This copy is installed where Atermius cannot update itself. Download the new version and install it.';
+
+  @override
+  String get appUpdateAutomaticOffBody => 'Automatic updates are off.';
+
+  @override
+  String get appUpdateMeteredBody =>
+      'You are on a metered connection. It downloads by itself on Wi-Fi.';
+
+  @override
+  String get appUpdateDownload => 'Download';
+
+  @override
+  String get appUpdateOpenDownloadPage => 'Open download page';
+
+  @override
+  String appUpdateDownloading(String version, int percent) {
+    return 'Downloading Atermius $version… $percent%';
+  }
+
+  @override
+  String get appUpdateInstalling => 'Installing…';
+
+  @override
+  String get appUpdateRestartConfirmTitle => 'Restart to update?';
+
+  @override
+  String appUpdateRestartConfirmBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count open sessions will be disconnected.',
+      one: '1 open session will be disconnected.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get appUpdateOtherWindows =>
+      'Close the other Atermius windows first, then restart.';
+
+  @override
+  String get appUpdateFailed =>
+      'The update could not be installed. Atermius keeps running the current version.';
+
+  @override
+  String get appUpdateCancelled => 'The installation was cancelled.';
+
+  @override
+  String appUpdateUpdatedTo(String version) {
+    return 'Updated to Atermius $version.';
+  }
+
+  @override
+  String get appUpdateSettingsTitle => 'App updates';
+
+  @override
+  String appUpdateCurrentVersion(String version) {
+    return 'Current version: $version';
+  }
+
+  @override
+  String get appUpdateAutomatic => 'Install updates automatically';
+
+  @override
+  String get appUpdateAutomaticHelp =>
+      'New versions are downloaded and installed in the background and take effect after a restart.';
+
+  @override
+  String get appUpdateStatusCurrent => 'Atermius is up to date.';
+
+  @override
+  String get appUpdateStatusChecking => 'Checking for updates…';
+
+  @override
+  String get appUpdateStatusCheckFailed =>
+      'Couldn\'t check for updates. Atermius tries again later.';
+
+  @override
+  String get appUpdateStatusDownloadFailed =>
+      'The download did not finish. It continues at the next check.';
+
+  @override
+  String get appUpdateDoneNoticeTitle => 'Atermius was updated';
+
+  @override
+  String get appUpdateDoneNoticeBody => 'Tap to open it again.';
 }

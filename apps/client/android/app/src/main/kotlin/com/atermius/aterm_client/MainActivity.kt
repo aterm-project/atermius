@@ -30,6 +30,7 @@ class MainActivity : FlutterActivity() {
     private var keyboardCapture: KeyboardCapture? = null
     private var clipboardBridge: ClipboardBridge? = null
     private var usbSerial: UsbSerialBridge? = null
+    private var appUpdate: AppUpdateInstaller? = null
     private val imeFocusRecovery by lazy {
         ImeFocusRecovery(getSystemService(InputMethodManager::class.java)!!)
     }
@@ -133,6 +134,7 @@ class MainActivity : FlutterActivity() {
         rdpStorage = RdpStorageAccess(this, flutterEngine.dartExecutor.binaryMessenger) { resumed }
         rdpPermissions = RdpDevicePermissions(this, flutterEngine.dartExecutor.binaryMessenger) { resumed }
         externalFileOpener = ExternalFileOpener(this, flutterEngine.dartExecutor.binaryMessenger)
+        appUpdate = AppUpdateInstaller(this, flutterEngine.dartExecutor.binaryMessenger)
         keyboardCapture = KeyboardCapture(this, flutterEngine.dartExecutor.binaryMessenger, firstWindow())
         clipboardBridge = ClipboardBridge(this, flutterEngine.dartExecutor.binaryMessenger).also {
             it.focusChanged(windowFocused)
@@ -331,6 +333,8 @@ class MainActivity : FlutterActivity() {
         // Serial Console sessions and USB connections die with the engine.
         usbSerial?.close()
         usbSerial = null
+        appUpdate?.close()
+        appUpdate = null
         externalFileOpener?.close()
         externalFileOpener = null
         rdpStorage?.close()

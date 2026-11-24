@@ -32,6 +32,7 @@ Daily builds, release tags and moving from the old repositories are covered in t
 - [Termius/OpenSSH transfer / 导入导出](IMPORT_EXPORT.md)
 - [External MCP / 外部 MCP](MCP.md) · [MCP on Android / Android 上的 MCP](MCP-ANDROID.md)
 - [Mobile push hints / 移动端推送提示](MOBILE-PUSH.md)
+- [Automatic updates / 自动更新](AUTO-UPDATE.md)
 
 ## Server operations / 服务端运维
 

@@ -18715,4 +18715,113 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get mobaXtermIssuePasswordsNotImported =>
       'MobaXterm 保存的密码用其主密码加密，不会导入；连接时输入即可。';
+
+  @override
+  String get appUpdateReadyTitle => '新版本已就绪';
+
+  @override
+  String appUpdateReadyBody(String version) {
+    return 'Atermius $version 已在后台安装完成，重启后即可使用。';
+  }
+
+  @override
+  String appUpdateReadyBodyAndroid(String version) {
+    return 'Atermius $version 已下载完成。安装时应用会关闭，安装结束后重新打开即可。';
+  }
+
+  @override
+  String get appUpdateRestartNow => '立即重启';
+
+  @override
+  String get appUpdateInstallAndRestart => '安装并重启';
+
+  @override
+  String get appUpdateWhatsNew => '更新内容';
+
+  @override
+  String appUpdateAvailableTitle(String version) {
+    return 'Atermius $version 可以更新';
+  }
+
+  @override
+  String get appUpdateManualInstallBody => '当前安装位置不允许 Atermius 自行更新，请下载新版本后安装。';
+
+  @override
+  String get appUpdateAutomaticOffBody => '自动更新已关闭。';
+
+  @override
+  String get appUpdateMeteredBody => '当前使用的是按流量计费的网络，连上 Wi-Fi 后会自动下载。';
+
+  @override
+  String get appUpdateDownload => '下载';
+
+  @override
+  String get appUpdateOpenDownloadPage => '打开下载页面';
+
+  @override
+  String appUpdateDownloading(String version, int percent) {
+    return '正在下载 Atermius $version… $percent%';
+  }
+
+  @override
+  String get appUpdateInstalling => '正在安装…';
+
+  @override
+  String get appUpdateRestartConfirmTitle => '重启以完成更新？';
+
+  @override
+  String appUpdateRestartConfirmBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '有 $count 个会话正在连接，重启会断开它们。',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get appUpdateOtherWindows => '请先关闭其他 Atermius 窗口，再重启。';
+
+  @override
+  String get appUpdateFailed => '更新未能安装，Atermius 继续使用当前版本。';
+
+  @override
+  String get appUpdateCancelled => '安装已取消。';
+
+  @override
+  String appUpdateUpdatedTo(String version) {
+    return '已更新到 Atermius $version。';
+  }
+
+  @override
+  String get appUpdateSettingsTitle => '应用更新';
+
+  @override
+  String appUpdateCurrentVersion(String version) {
+    return '当前版本：$version';
+  }
+
+  @override
+  String get appUpdateAutomatic => '自动安装更新';
+
+  @override
+  String get appUpdateAutomaticHelp => '新版本会在后台下载并安装，重启后生效。';
+
+  @override
+  String get appUpdateStatusCurrent => '已是最新版本。';
+
+  @override
+  String get appUpdateStatusChecking => '正在检查更新…';
+
+  @override
+  String get appUpdateStatusCheckFailed => '无法检查更新，稍后会自动重试。';
+
+  @override
+  String get appUpdateStatusDownloadFailed => '下载未完成，下次检查时会继续。';
+
+  @override
+  String get appUpdateDoneNoticeTitle => 'Atermius 已更新';
+
+  @override
+  String get appUpdateDoneNoticeBody => '点按即可重新打开。';
 }

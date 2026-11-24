@@ -20,6 +20,8 @@ import 'package:sodium/sodium_sumo.dart';
 import 'package:xterm/xterm.dart' show TerminalClipboard;
 
 import 'app_controller.dart';
+import 'app_update/app_update_controller.dart';
+import 'app_update/app_update_platform.dart';
 import 'mcp/mcp_listener_lifecycle.dart';
 import 'mcp/mcp_service.dart';
 import 'platform/mcp_foreground.dart';
@@ -89,6 +91,9 @@ import 'web/page_address.dart';
 import 'web/splash_bridge.dart';
 
 Future<void> main(List<String> arguments) async {
+  // Desktop: a newer version that was installed in the background takes over
+  // here, before anything of this one starts. See lib/app_update.
+  arguments = await appUpdateStartup(arguments);
   WidgetsFlutterBinding.ensureInitialized();
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     initializeAndroidTrackpad();
@@ -312,6 +317,16 @@ Future<void> main(List<String> arguments) async {
     return;
   }
   insecure_web_storage.useInsecureHttpStorageWhenNeeded();
+  // Main windows only: release builds look for newer releases, install them
+  // in the background and offer the restart on Home.
+  appUpdateHoldInstance();
+  final appUpdate = AppUpdateController.instance ??= createAppUpdateController(
+    doneNotice: () => (
+      title: currentL10n.appUpdateDoneNoticeTitle,
+      body: currentL10n.appUpdateDoneNoticeBody,
+    ),
+  );
+  if (appUpdate != null) unawaited(appUpdate.start());
   runApp(
     AtermiusStartup(
       initialize: () => _initializeAtermius(filesLaunch: filesLaunch),

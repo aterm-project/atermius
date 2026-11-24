@@ -20969,4 +20969,124 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get mobaXtermIssuePasswordsNotImported =>
       'Пароли, сохранённые в MobaXterm, зашифрованы его мастер-паролем и не импортируются; введите их при подключении.';
+
+  @override
+  String get appUpdateReadyTitle => 'Новая версия готова';
+
+  @override
+  String appUpdateReadyBody(String version) {
+    return 'Atermius $version установлен в фоновом режиме. Перезапустите приложение, чтобы начать им пользоваться.';
+  }
+
+  @override
+  String appUpdateReadyBodyAndroid(String version) {
+    return 'Atermius $version загружен. На время установки приложение закроется; откройте его снова, когда установка завершится.';
+  }
+
+  @override
+  String get appUpdateRestartNow => 'Перезапустить';
+
+  @override
+  String get appUpdateInstallAndRestart => 'Установить и перезапустить';
+
+  @override
+  String get appUpdateWhatsNew => 'Что нового';
+
+  @override
+  String appUpdateAvailableTitle(String version) {
+    return 'Доступна версия Atermius $version';
+  }
+
+  @override
+  String get appUpdateManualInstallBody =>
+      'Эта копия установлена там, где Atermius не может обновить себя сам. Загрузите новую версию и установите её.';
+
+  @override
+  String get appUpdateAutomaticOffBody =>
+      'Автоматическое обновление выключено.';
+
+  @override
+  String get appUpdateMeteredBody =>
+      'Сейчас используется сеть с оплатой за трафик. По Wi-Fi загрузка начнётся сама.';
+
+  @override
+  String get appUpdateDownload => 'Загрузить';
+
+  @override
+  String get appUpdateOpenDownloadPage => 'Открыть страницу загрузки';
+
+  @override
+  String appUpdateDownloading(String version, int percent) {
+    return 'Загрузка Atermius $version… $percent%';
+  }
+
+  @override
+  String get appUpdateInstalling => 'Установка…';
+
+  @override
+  String get appUpdateRestartConfirmTitle => 'Перезапустить для обновления?';
+
+  @override
+  String appUpdateRestartConfirmBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Будут отключены $count открытых сеанса.',
+      many: 'Будут отключены $count открытых сеансов.',
+      few: 'Будут отключены $count открытых сеанса.',
+      one: 'Будет отключён 1 открытый сеанс.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get appUpdateOtherWindows =>
+      'Сначала закройте остальные окна Atermius, затем перезапустите.';
+
+  @override
+  String get appUpdateFailed =>
+      'Не удалось установить обновление. Atermius продолжает работать в текущей версии.';
+
+  @override
+  String get appUpdateCancelled => 'Установка отменена.';
+
+  @override
+  String appUpdateUpdatedTo(String version) {
+    return 'Обновлено до Atermius $version.';
+  }
+
+  @override
+  String get appUpdateSettingsTitle => 'Обновления приложения';
+
+  @override
+  String appUpdateCurrentVersion(String version) {
+    return 'Текущая версия: $version';
+  }
+
+  @override
+  String get appUpdateAutomatic => 'Устанавливать обновления автоматически';
+
+  @override
+  String get appUpdateAutomaticHelp =>
+      'Новые версии загружаются и устанавливаются в фоновом режиме и начинают работать после перезапуска.';
+
+  @override
+  String get appUpdateStatusCurrent => 'Установлена последняя версия Atermius.';
+
+  @override
+  String get appUpdateStatusChecking => 'Проверка обновлений…';
+
+  @override
+  String get appUpdateStatusCheckFailed =>
+      'Не удалось проверить обновления. Atermius повторит попытку позже.';
+
+  @override
+  String get appUpdateStatusDownloadFailed =>
+      'Загрузка не завершилась. Она продолжится при следующей проверке.';
+
+  @override
+  String get appUpdateDoneNoticeTitle => 'Atermius обновлён';
+
+  @override
+  String get appUpdateDoneNoticeBody => 'Нажмите, чтобы открыть снова.';
 }

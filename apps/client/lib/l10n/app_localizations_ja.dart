@@ -19675,4 +19675,117 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get mobaXtermIssuePasswordsNotImported =>
       'MobaXterm に保存されたパスワードはマスターパスワードで暗号化されているため、インポートしません。接続時に入力してください。';
+
+  @override
+  String get appUpdateReadyTitle => '新しいバージョンの準備ができました';
+
+  @override
+  String appUpdateReadyBody(String version) {
+    return 'Atermius $version をバックグラウンドでインストールしました。再起動すると使い始められます。';
+  }
+
+  @override
+  String appUpdateReadyBodyAndroid(String version) {
+    return 'Atermius $version をダウンロードしました。インストール中はアプリが閉じます。完了したらもう一度開いてください。';
+  }
+
+  @override
+  String get appUpdateRestartNow => '今すぐ再起動';
+
+  @override
+  String get appUpdateInstallAndRestart => 'インストールして再起動';
+
+  @override
+  String get appUpdateWhatsNew => '更新内容';
+
+  @override
+  String appUpdateAvailableTitle(String version) {
+    return 'Atermius $version を利用できます';
+  }
+
+  @override
+  String get appUpdateManualInstallBody =>
+      'このインストール先では Atermius が自分自身を更新できません。新しいバージョンをダウンロードしてインストールしてください。';
+
+  @override
+  String get appUpdateAutomaticOffBody => '自動更新はオフです。';
+
+  @override
+  String get appUpdateMeteredBody =>
+      '従量制のネットワークに接続しています。Wi-Fi に接続すると自動でダウンロードします。';
+
+  @override
+  String get appUpdateDownload => 'ダウンロード';
+
+  @override
+  String get appUpdateOpenDownloadPage => 'ダウンロードページを開く';
+
+  @override
+  String appUpdateDownloading(String version, int percent) {
+    return 'Atermius $version をダウンロード中… $percent%';
+  }
+
+  @override
+  String get appUpdateInstalling => 'インストール中…';
+
+  @override
+  String get appUpdateRestartConfirmTitle => '再起動して更新しますか？';
+
+  @override
+  String appUpdateRestartConfirmBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '接続中のセッションが $count 件あります。再起動すると切断されます。',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get appUpdateOtherWindows => '先にほかの Atermius ウィンドウを閉じてから再起動してください。';
+
+  @override
+  String get appUpdateFailed => '更新をインストールできませんでした。Atermius は現在のバージョンのまま動作します。';
+
+  @override
+  String get appUpdateCancelled => 'インストールはキャンセルされました。';
+
+  @override
+  String appUpdateUpdatedTo(String version) {
+    return 'Atermius $version に更新しました。';
+  }
+
+  @override
+  String get appUpdateSettingsTitle => 'アプリの更新';
+
+  @override
+  String appUpdateCurrentVersion(String version) {
+    return '現在のバージョン: $version';
+  }
+
+  @override
+  String get appUpdateAutomatic => '更新を自動でインストール';
+
+  @override
+  String get appUpdateAutomaticHelp =>
+      '新しいバージョンはバックグラウンドでダウンロード・インストールされ、再起動後に有効になります。';
+
+  @override
+  String get appUpdateStatusCurrent => 'Atermius は最新です。';
+
+  @override
+  String get appUpdateStatusChecking => '更新を確認中…';
+
+  @override
+  String get appUpdateStatusCheckFailed => '更新を確認できませんでした。あとで自動的に再試行します。';
+
+  @override
+  String get appUpdateStatusDownloadFailed =>
+      'ダウンロードが完了しませんでした。次回の確認時に続きから再開します。';
+
+  @override
+  String get appUpdateDoneNoticeTitle => 'Atermius を更新しました';
+
+  @override
+  String get appUpdateDoneNoticeBody => 'タップしてもう一度開きます。';
 }

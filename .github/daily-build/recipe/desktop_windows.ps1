@@ -118,7 +118,8 @@ $env:EnforceProcessCountAcrossBuilds = 'true'
 $env:CL_MPCount = "$Workers"
 $env:ATERMIUS_RDP_DIR = ($Bundle -replace '\\', '/')
 Push-Location $App
-try { flutter build windows --release --no-pub --target lib/main.dart } finally { Pop-Location }
+# The tag is compiled in so the app can find newer releases (lib/app_update).
+try { flutter build windows --release --no-pub --target lib/main.dart "--dart-define=ATERMIUS_RELEASE_TAG=$Tag" } finally { Pop-Location }
 $Release = Join-Path $App 'build/windows/x64/runner/Release'
 foreach ($f in 'aterm_client.exe', 'flutter_windows.dll', 'atermius_rdp.dll', 'data/app.so', 'data/icudtl.dat',
                'data/licenses/desktop/FreeRDP.txt', 'data/licenses/desktop/OpenSSL.txt', 'data/licenses/desktop/zlib.txt') {

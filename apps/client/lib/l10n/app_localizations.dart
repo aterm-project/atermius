@@ -32883,6 +32883,186 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Passwords saved in MobaXterm are encrypted with its master password and aren’t imported; enter them when you connect.'**
   String get mobaXtermIssuePasswordsNotImported;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'New version ready'**
+  String get appUpdateReadyTitle;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius {version} was installed in the background. Restart to start using it.'**
+  String appUpdateReadyBody(String version);
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius {version} is downloaded. Installing closes the app; open it again when the installation is finished.'**
+  String appUpdateReadyBodyAndroid(String version);
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Restart now'**
+  String get appUpdateRestartNow;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Install and restart'**
+  String get appUpdateInstallAndRestart;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'What\'s new'**
+  String get appUpdateWhatsNew;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius {version} is available'**
+  String appUpdateAvailableTitle(String version);
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'This copy is installed where Atermius cannot update itself. Download the new version and install it.'**
+  String get appUpdateManualInstallBody;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic updates are off.'**
+  String get appUpdateAutomaticOffBody;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'You are on a metered connection. It downloads by itself on Wi-Fi.'**
+  String get appUpdateMeteredBody;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get appUpdateDownload;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Open download page'**
+  String get appUpdateOpenDownloadPage;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading Atermius {version}… {percent}%'**
+  String appUpdateDownloading(String version, int percent);
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Installing…'**
+  String get appUpdateInstalling;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Restart to update?'**
+  String get appUpdateRestartConfirmTitle;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 open session will be disconnected.} other{{count} open sessions will be disconnected.}}'**
+  String appUpdateRestartConfirmBody(int count);
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Close the other Atermius windows first, then restart.'**
+  String get appUpdateOtherWindows;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'The update could not be installed. Atermius keeps running the current version.'**
+  String get appUpdateFailed;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'The installation was cancelled.'**
+  String get appUpdateCancelled;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Updated to Atermius {version}.'**
+  String appUpdateUpdatedTo(String version);
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'App updates'**
+  String get appUpdateSettingsTitle;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Current version: {version}'**
+  String appUpdateCurrentVersion(String version);
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Install updates automatically'**
+  String get appUpdateAutomatic;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'New versions are downloaded and installed in the background and take effect after a restart.'**
+  String get appUpdateAutomaticHelp;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius is up to date.'**
+  String get appUpdateStatusCurrent;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Checking for updates…'**
+  String get appUpdateStatusChecking;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check for updates. Atermius tries again later.'**
+  String get appUpdateStatusCheckFailed;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'The download did not finish. It continues at the next check.'**
+  String get appUpdateStatusDownloadFailed;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius was updated'**
+  String get appUpdateDoneNoticeTitle;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to open it again.'**
+  String get appUpdateDoneNoticeBody;
 }
 
 class _AppLocalizationsDelegate

@@ -50,6 +50,15 @@
          per adapter by Android's USB prompt after the user picks it; there
          is deliberately no USB_DEVICE_ATTACHED filter (no auto-launch). -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+    <!-- In-app updates from the project's published releases: the verified
+         package is handed to the system installer, which checks that it is
+         signed like the installed app. Android asks the user where it must
+         (always before Android 12; later only until this app is its own
+         installer). ACCESS_NETWORK_STATE: no automatic download on a
+         metered connection. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application
         android:label="Atermius"
         android:name="${applicationName}"
@@ -81,6 +90,14 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-started local Model Context Protocol server on 127.0.0.1 for an external AI client; ongoing notification with Stop that revokes its access token." />
         </service>
+        <!-- Offers the way back into the app after an in-app update replaced it. -->
+        <receiver
+            android:name=".AppUpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <activity
             android:name=".MainActivity"
             android:exported="true"

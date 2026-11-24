@@ -17454,5 +17454,163 @@
   "mobaXtermIssuePasswordsNotImported": "Passwords saved in MobaXterm are encrypted with its master password and aren’t imported; enter them when you connect.",
   "@mobaXtermIssuePasswordsNotImported": {
     "description": "MobaXterm import: MobaXterm.ini contains encrypted saved passwords."
+  },
+  "appUpdateReadyTitle": "New version ready",
+  "@appUpdateReadyTitle": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateReadyBody": "Atermius {version} was installed in the background. Restart to start using it.",
+  "@appUpdateReadyBody": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android).",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "appUpdateReadyBodyAndroid": "Atermius {version} is downloaded. Installing closes the app; open it again when the installation is finished.",
+  "@appUpdateReadyBodyAndroid": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android).",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "appUpdateRestartNow": "Restart now",
+  "@appUpdateRestartNow": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateInstallAndRestart": "Install and restart",
+  "@appUpdateInstallAndRestart": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateWhatsNew": "What's new",
+  "@appUpdateWhatsNew": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateAvailableTitle": "Atermius {version} is available",
+  "@appUpdateAvailableTitle": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android).",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "appUpdateManualInstallBody": "This copy is installed where Atermius cannot update itself. Download the new version and install it.",
+  "@appUpdateManualInstallBody": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateAutomaticOffBody": "Automatic updates are off.",
+  "@appUpdateAutomaticOffBody": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateMeteredBody": "You are on a metered connection. It downloads by itself on Wi-Fi.",
+  "@appUpdateMeteredBody": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateDownload": "Download",
+  "@appUpdateDownload": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateOpenDownloadPage": "Open download page",
+  "@appUpdateOpenDownloadPage": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateDownloading": "Downloading Atermius {version}… {percent}%",
+  "@appUpdateDownloading": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android).",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "appUpdateInstalling": "Installing…",
+  "@appUpdateInstalling": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateRestartConfirmTitle": "Restart to update?",
+  "@appUpdateRestartConfirmTitle": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateRestartConfirmBody": "{count, plural, =1{1 open session will be disconnected.} other{{count} open sessions will be disconnected.}}",
+  "@appUpdateRestartConfirmBody": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android).",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "appUpdateOtherWindows": "Close the other Atermius windows first, then restart.",
+  "@appUpdateOtherWindows": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateFailed": "The update could not be installed. Atermius keeps running the current version.",
+  "@appUpdateFailed": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateCancelled": "The installation was cancelled.",
+  "@appUpdateCancelled": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateUpdatedTo": "Updated to Atermius {version}.",
+  "@appUpdateUpdatedTo": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android).",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "appUpdateSettingsTitle": "App updates",
+  "@appUpdateSettingsTitle": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateCurrentVersion": "Current version: {version}",
+  "@appUpdateCurrentVersion": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android).",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "appUpdateAutomatic": "Install updates automatically",
+  "@appUpdateAutomatic": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateAutomaticHelp": "New versions are downloaded and installed in the background and take effect after a restart.",
+  "@appUpdateAutomaticHelp": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateStatusCurrent": "Atermius is up to date.",
+  "@appUpdateStatusCurrent": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateStatusChecking": "Checking for updates…",
+  "@appUpdateStatusChecking": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateStatusCheckFailed": "Couldn't check for updates. Atermius tries again later.",
+  "@appUpdateStatusCheckFailed": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateStatusDownloadFailed": "The download did not finish. It continues at the next check.",
+  "@appUpdateStatusDownloadFailed": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateDoneNoticeTitle": "Atermius was updated",
+  "@appUpdateDoneNoticeTitle": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateDoneNoticeBody": "Tap to open it again.",
+  "@appUpdateDoneNoticeBody": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
   }
 }

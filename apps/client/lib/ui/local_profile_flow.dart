@@ -18,6 +18,8 @@ import '../mcp/mcp_workspace.dart';
 import 'mcp_settings_panel.dart';
 import 'account_settings.dart';
 import 'settings_scaffold.dart';
+import '../app_update/app_update_controller.dart';
+import 'app_update_widgets.dart';
 import '../console/local_console.dart';
 import '../console/local_shell_l10n.dart';
 import 'local_shell_menu.dart';
@@ -5905,12 +5907,33 @@ _showMessage(
                 ?termius,
               ],
             ),
-            Expanded(child: body),
+            Expanded(
+              child: Column(
+                children: [
+                  // Installed copies: a new version waits for a restart.
+                  if (AppUpdateController.instance case final appUpdate?)
+                    AppUpdateBanner(
+                      controller: appUpdate,
+                      openSessions: _openSessionCount,
+                    ),
+                  Expanded(child: body),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+
+  /// Sessions that restarting the app would cut off.
+  int _openSessionCount() => _sessions.where((session) {
+    final state =
+        session.desktop?.state ??
+        session.telnetState ??
+        (session.connected.value ? 'connected' : 'disconnected');
+    return !session._closed && (state == 'connected' || state == 'connecting');
+  }).length;
 
   Widget _buildStorageRecoveryPage() => Center(
     child: ConstrainedBox(
@@ -6795,6 +6818,21 @@ _showMessage(
         description: context.l10n.letExternalAiAccessTheCurrent,
         builder: (_) => const McpSettingsPanel(),
       ),
+      if (AppUpdateController.instance case final appUpdate?)
+        SettingsSection(
+          id: 'updates',
+          title: context.l10n.appUpdateSettingsTitle,
+          icon: Icons.system_update_alt_rounded,
+          description: context.l10n.appUpdateAutomaticHelp,
+          builder: (_) => SettingsCards(
+            children: [
+              AppUpdateSettingsCard(
+                controller: appUpdate,
+                openSessions: _openSessionCount,
+              ),
+            ],
+          ),
+        ),
       // SETTINGS worker: Theme (UI mode + terminal font/colors) and
       // Shortcuts are separate categories.
       SettingsSection(

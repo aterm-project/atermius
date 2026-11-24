@@ -27,7 +27,9 @@ python3 -I "$TOOLS/recipe/flutter_sdk.py" verify --out "$META/flutter-version.js
 cd "$ROOT/apps/client"
 flutter config --no-analytics >/dev/null
 flutter pub get --enforce-lockfile
-flutter build linux --release --no-pub --target lib/main.dart
+# The tag is compiled in so the app can find newer releases (lib/app_update).
+flutter build linux --release --no-pub --target lib/main.dart \
+  --dart-define="ATERMIUS_RELEASE_TAG=$ATERMIUS_RELEASE_TAG"
 bundle="$ROOT/apps/client/build/linux/x64/release/bundle"
 [[ -x "$bundle/aterm_client" ]] || die "aterm_client executable missing"
 for required in lib/libflutter_linux_gtk.so lib/libapp.so data/icudtl.dat data/flutter_assets/AssetManifest.bin; do
