@@ -41,7 +41,7 @@ docker build -t atermius-web:local .
 
 提供的 nginx 为 `/s/*`、`/join` 设置禁止缓存、referrer 与 CSP 响应头，并为 `/gateway/*` 保留 WebSocket 升级。保留 Flutter 之前加载的 `share-bootstrap.js`，先移除访问链接片段，再启动路由/请求。仅上传静态文件而不配置这些路由和代理不足以提供访客访问。
 
-账户模式常规 SSH 需要服务端 Relay 和严格目标策略；临时 SSH/RDP 使用另一个受信网关。云端协作要求 SQLite，访客 Cookie 要求 HTTPS；浏览器本地资料不能创建直接 TCP 或本机 Shell。
+账户模式常规 SSH 需要服务端启用 Relay；临时 SSH/RDP 使用另一个受信网关。云端协作要求 SQLite，访客 Cookie 要求 HTTPS；浏览器本地资料不能创建直接 TCP 或本机 Shell。
 
 ## 验证构建后的运行环境
 

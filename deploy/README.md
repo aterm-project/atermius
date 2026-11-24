@@ -554,7 +554,7 @@ provisioned **Atermius Instance Overview** dashboard. Apply it after both the
 base and Prometheus files; the base server-only deployment remains unchanged.
 The nine panels include the current count of firing Atermius scrape alerts.
 The dashboard uses only the fixed aggregate account, Vault, active-device,
-stored-blob, upload-reservation, Vault-quota, Relay-policy, and scrape-health
+stored-blob, upload-reservation, Vault-quota, Relay-availability, and scrape-health
 series. It contains no account, device, Vault, Host, or request identifiers.
 
 Create a private directory for the Grafana bootstrap password. The standard
@@ -788,9 +788,10 @@ current active authenticated session. A missing, invalid, expired, or revoked
 session receives HTTP 401, while an authenticated account outside the
 allowlist receives HTTP 403 `INSTANCE_ADMIN_REQUIRED`.
 
-`GET /api/v1/admin/overview` returns instance-wide aggregate counters, the
-effective Relay policy, and `database_encryption` (`enabled` or `disabled`,
-see [Database encryption at rest](#database-encryption-at-rest)). Counters do
+`GET /api/v1/admin/overview` returns instance-wide aggregate counters, Relay
+availability and the per-user Relay connection limit, and
+`database_encryption` (`enabled` or `disabled`, see
+[Database encryption at rest](#database-encryption-at-rest)). Counters do
 not identify accounts or Vaults, and the
 response never includes Vault names, record contents, SSH data, ciphertext, or
 other client payloads. This endpoint is read-only.
@@ -1126,55 +1127,34 @@ API and health responses are `no-store`, and Web assets are revalidated with
 `no-cache`. Preserve these headers through the TLS reverse proxy. Configure
 HSTS at the TLS terminator after HTTPS is enabled.
 
-SSH Relay remains unavailable unless deliberately enabled with explicit
-destination CIDR and port allowlists. To enable it, set
-`ATERMIUS_RELAY_ENABLED=true`, set `ATERMIUS_RELAY_ALLOW_CIDRS` to a
-comma-separated list of reviewed IP networks, set `ATERMIUS_RELAY_ALLOW_PORTS`
-to a comma-separated list of exact destination ports, and configure the exact
-TLS browser origin in `ATERMIUS_PUBLIC_ORIGIN`. For example, an SSH-only private
-network policy could use `ATERMIUS_RELAY_ALLOW_CIDRS=10.40.0.0/16,fd12:3456:789a::/48`
-and `ATERMIUS_RELAY_ALLOW_PORTS=22`. Both allowlists must be non-empty;
-malformed or over-limit CIDR and port lists fail closed and leave Relay
-disabled. The deployment accepts at most 256 CIDRs (each no longer than 64
-bytes) and 4,096 destination ports. Keep this feature
-off unless the deployment has a reviewed network policy and TLS-protected
-public origin; setting `ATERMIUS_PUBLIC_ORIGIN` alone enables sync
-notifications, not Relay.
+SSH Relay is off by default. To enable it, set `ATERMIUS_RELAY_ENABLED=true`
+and configure the exact TLS browser origin in `ATERMIUS_PUBLIC_ORIGIN`; Relay is
+available only when both are set. Setting `ATERMIUS_PUBLIC_ORIGIN` alone enables
+sync notifications, not Relay. `ATERMIUS_RELAY_ALLOW_CIDRS` and
+`ATERMIUS_RELAY_ALLOW_PORTS` are retired: if either is still present the server
+starts normally, logs one warning, and ignores them. There is no administrator
+Relay policy: when Relay is available every signed-in account can open
+connections from the server's network position, including private networks
+and other containers on the server's Docker networks. Enable it only where
+that is acceptable, and restrict the server container's egress at the network
+layer if needed.
 
-The instance-admin Settings page can further narrow the active Relay CIDRs,
-exact ports, and enabled state. These saved settings are durable in SQLite and
-are revisioned to prevent concurrent administrator edits from silently
-overwriting one another. They never replace the deployment variables: each
-selected CIDR must be contained by a configured deployment CIDR, every
-selected port must be in `ATERMIUS_RELAY_ALLOW_PORTS`, and the deployment must
-still have the Relay enable flag, a public origin, and valid non-empty network
-lists. If those deployment gates are later removed, Relay becomes unavailable
-immediately; the saved administrator selection remains stored and can become
-effective again only after the deployment gates are restored. If the operator
-narrows the deployment CIDR or port lists, the saved policy remains visible
-but server authorization intersects it with those current limits; the admin
-can revise the saved selection to fit the new limits. The admin overview
-reports effective state. A policy change invalidates unused Relay
-tickets; established server Relay connections close on their next policy
-authorization poll when disabled or outside the new allowed targets. Continue
-to treat deployment environment settings as the outer network security
-boundary.
-
-The v1 Relay accepts IP literals and DNS hostnames in ASCII IDNA A-label form.
-The normalized hostname is limited to 253 bytes; one trailing root dot may
-make the request value 254 bytes. The service resolves A and AAAA once through
-the configured system resolver, with a two-second timeout, at most 32 answers,
-and at most 32 active blocking lookups. It checks every answer against the
-effective CIDR and exact-port policy plus the special-address deny rules, then
-encrypts one allowed IP into the one-use ticket. The socket connects to that
-pinned IP without another DNS lookup. Hostnames are not stored in tickets,
-audit events, or application logs; the system DNS resolver necessarily sees
-the queried hostname, so configure that resolver according to your privacy
-requirements. Loopback, unspecified, link-local, multicast, broadcast, and
-known cloud metadata IPs (including Alibaba Cloud's `100.100.100.200`) are
-rejected even when a configured CIDR includes them. Ports outside the exact
-`ATERMIUS_RELAY_ALLOW_PORTS` list are rejected. Each target ticket is one-use,
-expires within 30 seconds,
+The v1 Relay accepts IP literals and DNS hostnames in ASCII IDNA A-label form,
+and any destination port from 1 through 65535. The normalized hostname is
+limited to 253 bytes; one trailing root dot may make the request value 254
+bytes. The service resolves A and AAAA once through the configured system
+resolver, with a two-second timeout, at most 32 answers, and at most 32 active
+blocking lookups, then encrypts the first answer that is not a forbidden
+address into the one-use ticket. The socket connects to that pinned IP without
+another DNS lookup. Hostnames are not stored in tickets, audit events, or
+application logs; the system DNS resolver necessarily sees the queried
+hostname, so configure that resolver according to your privacy requirements.
+Loopback, unspecified, link-local, multicast, broadcast, and known cloud
+metadata IPs (`169.254.169.254`, Alibaba Cloud's `100.100.100.200`, and
+`fd00:ec2::254`), including their IPv4-mapped IPv6 forms, are always rejected;
+this list is fixed and not configurable. The same rule applies to the desktop
+(guacd) Relay and to the periodic re-check of live connections. Each target
+ticket is one-use, expires within 30 seconds,
 and is bound to the current active account, device, session, and target. The
 WebSocket handshake requires exactly one `Origin` header matching
 `ATERMIUS_PUBLIC_ORIGIN`; native clients must send the same configured origin.
@@ -1186,8 +1166,6 @@ are backpressured, and WebSocket/TCP shutdown is bounded to two seconds. Success
 events appear in account audit metadata, which excludes target addresses,
 ports, host names, ticket values, and SSH bytes. Pending ticket rows are pruned
 by hourly maintenance or on subsequent ticket issuance after the rate window.
-
-Per-user or per-group network policies are not implemented in this v1 scope.
 
 Sync history is retained for 90 days by default. Set
 `ATERMIUS_HISTORY_RETENTION_DAYS` in `deploy/.env` to a value from 1 through

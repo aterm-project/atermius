@@ -32,7 +32,7 @@ around SSH or an OS `telnet` binary. No external program is launched.
 | Mode | Transport |
 | --- | --- |
 | Native (desktop/mobile), account or LocalVault | Direct TCP (`dart:io` `Socket`), 15 s connect timeout |
-| Web, signed in to a server | Authenticated server Relay: `createRelayTicket` + `connectRelaySocket` (one-use ticket in the first frame, same CIDR/port allowlist, per-user/group policy and audit as SSH). The administrator must allow the destination port (e.g. 23); defaults are not changed. |
+| Web, signed in to a server | Authenticated server Relay: `createRelayTicket` + `connectRelaySocket` (one-use ticket in the first frame; same destination rule, limits and audit as SSH, so port 23 needs no extra configuration). |
 | Web LocalVault profile | Not supported (browsers cannot open raw TCP); an explicit message is shown. |
 
 ## Supported options (RFC 854/855, RFC 1143 Q method)

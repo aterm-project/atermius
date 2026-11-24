@@ -1,6 +1,6 @@
 # Atermius 在线沙箱与出口设计（提案）
 
-- 交付状态：主动回连 Agent、可选 Debian 工作区、跨节点停机迁移，以及实例管理员使用的 Server API 和网页管理页面已经实现。部署、公开登记文件和权限边界见[工作区 Agent 指南](../../workspace-agent/README.md)。通用出口选择和本文其他规划仍处于提案阶段。
+- 交付状态：主动回连 Agent、可选 Debian 工作区、跨节点停机迁移，以及实例管理员使用的 Server API 和网页管理页面已经实现。部署、公开登记文件和权限边界见[工作区 Agent 指南](../../workspace-agent/README.md)。通用出口选择和本文其他规划仍处于提案阶段。服务端已删除 Relay 策略链与 Relay 访问组（现状见 §2），S6、S7 以及后文依赖「有效 Relay 策略」「Relay 访问组」的规划在实施前需要重新设计。
 - 日期：2026-11-18。
 - 范围：Web 客户端（`serverHostedClient == true`）经服务端发起的 SSH/SFTP/Telnet/RDP/VNC 连接，其**发起位置**（目标看到的源 IP）和**可用环境**（Linux 工具环境、Windows 环境）如何提供、如何共享、如何由实例管理员管理。
 - 安全门槛：沙箱是对外暴露的服务端执行与出网能力，按 [`../cloud-collaboration-design/DESIGN.md`](../cloud-collaboration-design/DESIGN.md) 头部同一条规则处理：对象级授权、目标策略复查、并发与速率上限、凭据与日志泄露防护以及对应的负向测试必须随功能一起交付，不归入「加固放最后」。
@@ -32,7 +32,7 @@
 2. 用户在 Web 客户端里能看到「这次连接从哪里发出」，可以按主机或按单次会话选择出口。
 3. 用户可以打开一个属于自己的 Linux 环境：有 shell、常用工具、跨会话保留的主目录，出网走指定出口。
 4. 管理员在管理面板的一个分区里看到并控制全部内容：模板、共享方式、分配、出口 IP、配额、正在运行的沙箱（停止、销毁）。
-5. 上述一切不降低现有保证：Vault 明文与 SSH 凭据不离开客户端；Relay 的目标白名单、会话绑定、授权版本断开机制继续有效；服务端内部网络对沙箱不可达。
+5. 上述一切不降低现有保证：Vault 明文与 SSH 凭据不离开客户端；Relay 的固定禁止地址、会话绑定、撤销即断开机制继续有效；服务端内部网络对沙箱不可达。
 
 ### 非目标
 
@@ -49,9 +49,9 @@
 | 领域 | 现在怎样 | 位置 |
 | --- | --- | --- |
 | Web 选传输 | `serverHostedClient => kIsWeb`；`SshService` 的 `_useRelay = useRelay ?? kIsWeb`。Web 上每条 SSH 连接先 `POST /api/v1/relay/tickets`，再用票据打开 `wss://…/relay/v1/connect`，其上跑完整的 SSH。Telnet、桌面走同一套票据。跳板链只有第一跳走 Relay，后面各跳是 SSH `direct-tcpip`。 | `apps/client/lib/platform/server_hosted.dart:8`、`lib/ssh/ssh_service.dart:862,1083-1124`、`lib/telnet/telnet_transport.dart:53`、`lib/desktop/desktop_session.dart:365` |
-| Relay 拨号 | 票据 30 秒、单次、只存哈希，目标加密存放，绑定会话/设备/授权版本。消费后服务端 `TcpStream::connect(ip:port)`，所以**源 IP 就是 `server` 容器的出口 IP**。单连接上限 60 分钟、1 GiB，全局 256 条，每用户 `relay_max_connections_per_user` 条，每约 2 秒复查会话与策略。 | `server/src/relay.rs:43-50`、`create_ticket`(1498)、`consume_ticket`、`relay_socket`(2047 处拨号)、`relay_connection_active` |
-| 目标策略 | 永久禁止环回、链路本地、组播、云元数据地址（`is_forbidden_ip`，不含私网段，私网靠白名单约束）。有效策略 = 部署环境变量上限 ∩ 实例策略 ∩ 用户策略 ∩ 该用户所在每个组的策略，全部是**收窄**语义。 | `relay.rs:154`、`effective_policy_tx`(335)、`effective_policy_for_user_tx`(452)、`restrict_effective_policy`(472)、`relay_groups.rs:1020` |
-| 管理 API | `GET/PUT /api/v1/admin/relay-policy`、`…/relay-policy/users/{user_id}`、`…/relay-groups`、`…/relay-groups/{group_id}`、`…/{group_id}/members`、`…/{group_id}/relay-policy`。全部 CAS（`expected_revision`），写入实例管理员审计（`admin.relay_*`）。**只有 Relay 组的成员变化和组策略变化**推进 `relay_user_authorization_versions`（`relay_groups.rs` 的 `bump_user_authorization_revision_tx`，PostgreSQL 模式为 `pg_relay.rs` 的 `bump_user_authorization_tx`）。实例策略和单用户策略的更新不推进版本；它们之所以对已建立的连接生效，是因为复查时用最新策略重新判定目标（`effective_target_allowed`）。目前没有「实例范围变更推进全体用户」的路径。 | `server/src/lib.rs:1527-1591`、`relay_groups.rs:434,799`、迁移 `0030`、`0042`、`0043` |
+| Relay 拨号 | 票据 30 秒、单次、只存哈希，目标加密存放，绑定会话/设备。消费后服务端 `TcpStream::connect(ip:port)`，所以**源 IP 就是 `server` 容器的出口 IP**。单连接上限 60 分钟、1 GiB，全局 256 条，每用户 `relay_max_connections_per_user` 条，每约 2 秒复查会话与目标。 | `server/src/relay.rs` `create_ticket`、`consume_ticket`、`relay_socket`（拨号处）、`relay_connection_active` |
+| 目标规则 | 部署设置 `ATERMIUS_RELAY_ENABLED=true` 且配置 `ATERMIUS_PUBLIC_ORIGIN` 时可用。任意端口、任意地址，只拒绝固定的环回、链路本地、未指定、组播、广播和云元数据地址（含 IPv4 映射形式），不可配置，私网段不受限制。 | `server/src/relay.rs` `is_forbidden_ip` |
+| 管理 API | 没有 Relay 策略或 Relay 组的管理接口。旧的 `instance_relay_policy`、`user_relay_policies`、`relay_access_group*`、`relay_user_authorization_versions` 表仍在 schema 中，但不再读写；逐用户授权版本已删除，已建立的连接只在会话、设备或账户撤销时由复查断开。 | 迁移 `0030`、`0042`、`0043` |
 | 桌面网关 | `/desktop/v1/connect` 用同一种票据；服务端连 guacd，浏览器首帧 `DesktopHello` 带**明文**用户名和密码，由服务端构造 guacd `connect`，目标 IP/端口取自票据。RDP/VNC 的凭据因此在传输中对服务端可见，这是已有且已写明的受信模式。 | `server/src/desktop.rs`、`relay.rs` `connect_desktop`(1705)、`deploy/compose.desktop.yaml` |
 | 分享网关 | 访客链接用网关 X25519 密钥解封胶囊，由 guacd 终止 SSH/RDP。有独立的 `ATERMIUS_SHARE_ALLOW_CIDRS` 和 `ATERMIUS_SHARE_DENY_CIDRS`（默认拒绝 `172.16.0.0/12`，即 compose 网络）。 | `server/src/share_gateway.rs`、`deploy/compose.share.yaml` |
 | 实例管理员 | `ATERMIUS_ADMIN_USERNAMES` 列出的账户。 | `server/src/audit.rs:660`、`cloud_orgs.rs:338` |
@@ -62,10 +62,10 @@
 两个结论直接决定了设计：
 
 - Relay 是字节管道，换一个拨号位置不触碰凭据。所以「出口」可以做得很轻。
-- 当前只有一个拨号点（`TcpStream::connect`）和一条策略链。**普通票据的出口选择**加在这两处即可，不需要第二套授权体系。
+- 当前只有一个拨号点（`TcpStream::connect`）和一条固定的目标规则。**普通票据的出口选择**加在这两处即可，不需要第二套授权体系。
 - 有三处现有行为不能直接套用，是本设计必须新写的改动点，后文分别说明：
-  1. **沙箱票据不能走用户目标策略**。`consume_ticket` 在 `effective_target_allowed(policy, ip, port)` 不成立时丢弃票据，`relay_connection_active` 每约 2 秒对 `target.ip/target.port` 重复同一判定，`relay_available` 还要求部署白名单非空。容器 sshd 在私有 Docker 网络上（§7.3 规定该网段始终拒绝），不可能是用户策略允许的目标，所以沙箱票据要走单独的授权分支（§9.3）。
-  2. **授权版本今天只覆盖组变更**。出口、分配、模板出网模式的变更需要新的失效路径（§7.2）。
+  1. **沙箱票据不能走普通票据的目标判定**。`consume_ticket` 和每约 2 秒一次的 `relay_connection_active` 只按固定禁止地址判定 `target.ip/target.port`，`relay_available` 要求部署开启 Relay。沙箱终端不应依赖部署是否开启 Relay，所以沙箱票据要走单独的授权分支（§9.3）。普通票据目前不拒绝私有 Docker 网络，§7.3 要求的该网段拒绝需要另行实现。
+  2. **没有授权版本**。出口、分配、模板出网模式的变更需要新的失效路径（§7.2）。
   3. **每用户 Relay 连接数是写死的 4**（`server/src/lib.rs:688` 的 `relay_max_connections_per_user`，没有环境变量），`acquire_connection` 把该用户的 SSH、SFTP、Telnet、桌面连接一起计数。沙箱会话需要单独计数（§6.3）。
 
 ---

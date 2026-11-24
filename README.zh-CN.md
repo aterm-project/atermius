@@ -108,7 +108,7 @@ docker compose --env-file deploy/.env -f deploy/compose.yaml -f deploy/compose.w
 
 ## 支持范围
 
-Windows 原生 RDP 需要配套的 `atermius_rdp.dll` 引擎；其他平台使用各自构建的引擎或服务端网关，见[远程桌面](docs/REMOTE-DESKTOP.md)。浏览器常规 SSH 需要启用并限制目标范围的 Relay；临时浏览器 SSH/RDP 是独立的受信网关流程，网关可解密登录胶囊并观察会话。API 与浏览器前端分别构建。云端协作目前要求 SQLite，PostgreSQL 云端路由保持关闭；经网关的 VNC 需显式启用，尚未完成真实连接验收。
+Windows 原生 RDP 需要配套的 `atermius_rdp.dll` 引擎；其他平台使用各自构建的引擎或服务端网关，见[远程桌面](docs/REMOTE-DESKTOP.md)。浏览器常规 SSH 需要服务端启用 Relay；临时浏览器 SSH/RDP 是独立的受信网关流程，网关可解密登录胶囊并观察会话。API 与浏览器前端分别构建。云端协作目前要求 SQLite，PostgreSQL 云端路由保持关闭；经网关的 VNC 需显式启用，尚未完成真实连接验收。
 
 Linux 上的 Dart/组件 CI 不代表各原生平台已完成构建或设备验收。完整 Flutter 套件仍有已披露的历史失败；仓库 CI 执行工作流中列出的针对性检查，具体范围见[验证与文档导航](docs/README.md)。服务端数据、账户凭据和签名材料不应提交到 Git。
 

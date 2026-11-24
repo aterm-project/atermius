@@ -41,7 +41,7 @@ The image listens on port **8080**, runs as nginx with `deploy/nginx.conf` and e
 
 The supplied nginx serves `/s/*` and `/join` with no-store/referrer/CSP headers and proxies `/gateway/*` with WebSocket upgrade support. Preserve `share-bootstrap.js` before Flutter; it removes access-link fragments before routing/requests. Generic static hosting without these routes/proxy headers is insufficient for guest access.
 
-Regular signed-in browser SSH needs the server Relay and a narrow target policy. Guest SSH/RDP instead requires the separate trusted gateway. Cloud collaboration is SQLite-only; guest cookies require HTTPS. Local browser profiles cannot open direct OS TCP or local shells.
+Regular signed-in browser SSH needs the server Relay to be enabled. Guest SSH/RDP instead requires the separate trusted gateway. Cloud collaboration is SQLite-only; guest cookies require HTTPS. Local browser profiles cannot open direct OS TCP or local shells.
 
 ## Verify the built runtime
 

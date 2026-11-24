@@ -336,9 +336,10 @@ matches each retained backup; a backup made before key rotation still needs
 the old key.
 
 The encrypted manifest records the policy version and effective values for
-registration, Relay enablement and allowlists, authentication limits, admin
-usernames, public origin, Web asset directory, object/request limits, history
-retention, deletion grace periods, audit retention, and object-GC grace.
+registration, Relay enablement, authentication limits, admin usernames,
+public origin, Web asset directory, object/request limits, history retention,
+deletion grace periods, audit retention, and object-GC grace. Relay CIDR/port
+allowlists recorded by older archives are ignored by the policy drift check.
 `ATERMIUS_DATA_DIR` and the listener bind address are deployment-specific and
 are supplied by the restore environment. The manifest does not contain
 credentials such as the backup key.

@@ -4,7 +4,7 @@
 
 | Workflow / 功能 | Native clients / 原生客户端 | Browser / 浏览器 |
 | --- | --- | --- |
-| SSH + SFTP/SCP | Direct SSH; OS/network permissions apply / 直接连接 | Regular account workspace uses the server's restricted Relay / 账户模式需 Relay |
+| SSH + SFTP/SCP | Direct SSH; OS/network permissions apply / 直接连接 | Regular account workspace uses the server's Relay / 账户模式需 Relay |
 | Local encrypted profile / 加密本地资料 | Device-local persistence / 设备端保存 | Browser-origin storage; no direct OS TCP / 站点存储，无直接系统 TCP |
 | Encrypted sync / 加密同步 | Optional self-hosted account / 可选自托管账户 | Same Vault/device protocol / 同一 Vault 与设备协议 |
 | Local shell / 本机终端 | Windows, Linux and macOS; installed shell required / 桌面端，需已安装 Shell | Unavailable / 不支持 |

@@ -134,7 +134,7 @@ PostgreSQL cloud routes remain closed. A PostgreSQL sync-core deployment has add
 
 ## 6. Regular browser SSH
 
-This is separate from guest access. Enable `ATERMIUS_RELAY_ENABLED=true` only with explicit `ATERMIUS_RELAY_ALLOW_CIDRS`, `ATERMIUS_RELAY_ALLOW_PORTS` and the exact public origin. Regular browser SSH/SFTP uses the byte Relay. Desktop/guest gateway traffic uses guacd and a different trust boundary. Instance/account policies can restrict access further.
+This is separate from guest access. Relay is available once `ATERMIUS_RELAY_ENABLED=true` and the exact `ATERMIUS_PUBLIC_ORIGIN` are set: signed-in users can then reach any port on any address except loopback, link-local, unspecified, multicast, broadcast and cloud-metadata addresses, which are always rejected (a fixed, non-configurable rule). The server opens these connections from its own network position; restrict egress at the network layer if you need to. `ATERMIUS_RELAY_ALLOW_CIDRS` and `ATERMIUS_RELAY_ALLOW_PORTS` are retired and ignored (the server logs one warning at startup if they are set). Regular browser SSH/SFTP uses the byte Relay. Desktop/guest gateway traffic uses guacd and a different trust boundary.
 
 ## 7. Update, back up and diagnose
 

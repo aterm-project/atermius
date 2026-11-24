@@ -94,8 +94,7 @@ unspecified, multicast/broadcast, cloud metadata (169.254.169.254,
 fd00:ec2::254, 100.100.100.200) and IPv4-mapped variants. Names are
 re-resolved at link creation, ticket issue and connect; if **any** DNS answer
 is forbidden or denied the target is refused; guacd only ever receives the
-checked IP literal. If Relay is configured, the owner's Relay user/group
-policy also bounds what they may expose.
+checked IP literal.
 
 ## Owner flow
 

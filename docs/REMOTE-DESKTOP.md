@@ -9,7 +9,7 @@
 | Windows 原生 RDP | 与应用匹配的 `atermius_rdp.dll` bundle，直接连接目标，不依赖 guacd |
 | Android 原生 RDP | APK 内的 `libatermius_rdp.so`（arm64-v8a、x86_64），直接连接目标，不依赖 guacd 或外部查看器 |
 | 原生 VNC | 使用应用中的直接 RFB 实现，具体平台取决于构建和运行能力 |
-| 账户模式浏览器 RDP/VNC | 服务端配置 guacd、来源和目标策略 |
+| 账户模式浏览器 RDP/VNC | 服务端配置 guacd 和来源，并启用 Relay |
 | 临时访客 SSH/RDP | 单独的可信分享网关，要求 SQLite、HTTPS、胶囊与链接策略 |
 | 本机 Shell / 串口 Console | 本机 Shell 需桌面操作系统和已安装的 Shell；串口 Console 支持 Windows COM、macOS `/dev/cu.*`，以及 Android 经 OTG 连接的 USB 转串口适配器（见[快捷连接](QUICK-CONNECT.md)）；浏览器不能创建系统进程或串口 |
 
@@ -47,7 +47,7 @@ Android 运行时权限只在用户发起 RDP 连接（打开连接、重试或�
 
 网关可访问目标登录信息、画面和输入，是受信组件。仅将 guacd 放在受控私有网络，限制目标范围，不向外发布 4822。普通 SSH 字节 Relay 不需要 guacd。
 
-使用[服务端部署指南](install/server.md)组装独立 API/Web；常规远程桌面添加 `compose.desktop.yaml` 并配置 Relay 目标策略。临时分享另加 `compose.share.yaml`，参考[分享配置](CLOUD-SHARING.md)。操作时保留原来的 TLS/Web/其他覆盖文件，并在仓库根目录执行 Compose 命令。
+使用[服务端部署指南](install/server.md)组装独立 API/Web；常规远程桌面添加 `compose.desktop.yaml` 并启用 Relay。临时分享另加 `compose.share.yaml`，参考[分享配置](CLOUD-SHARING.md)。操作时保留原来的 TLS/Web/其他覆盖文件，并在仓库根目录执行 Compose 命令。
 
 Windows 直接 RDP 构建步骤见[桌面版构建指南](install/desktop.md)。使用配套 FreeRDP 源码摘要与许可证，不引用历史测试机器的构建目录，也不单独替换 Dart 程序或 DLL。
 

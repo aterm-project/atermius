@@ -12,7 +12,7 @@
 | Android APK will not replace an installed app | Check application ID and signing certificate. A different signing key cannot update the existing package; preserve/export data before choosing a migration. |
 | Browser requests external CanvasKit/fonts or violates CSP | Rebuild with `--no-web-resources-cdn`, deploy the complete build output and use the supplied proxy. |
 | Sign-in says the server's certificate could not be verified, or that remote URLs must use HTTPS | Give the server a certificate the device trusts. For a development server only, see [Allow insecure connection](GETTING_STARTED.en.md#development-servers-allow-insecure-connection); a browser cannot skip certificate checks. |
-| Browser cannot connect SSH | The account workspace needs Relay enabled with the exact public origin, permitted target CIDR and port. A local browser profile has no direct OS TCP transport. |
+| Browser cannot connect SSH | The account workspace needs Relay enabled with the exact public origin. Loopback, link-local, multicast and cloud-metadata targets are always rejected. A local browser profile has no direct OS TCP transport. |
 | RDP error `20008` | Check the target port/TLS first. If a certificate fingerprint is available, review the trust prompt; a generic handshake failure is not always an untrusted certificate. |
 | Temporary link has no gateway capability | Use SQLite, HTTPS, guacd, gateway-key storage and explicit target policy. Check `/api/v1/instance` and the server logs without exposing secrets. |
 | Guest link is not yet usable or is expired | Check UTC start/expiry, openings, attempt/concurrency limits and revocation. A different link's existing cookie cannot open this link. |

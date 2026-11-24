@@ -42,7 +42,7 @@
       "id": 4,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
       "targets": [{ "expr": "atermius_ssh_relay_enabled", "instant": true, "refId": "A", "range": false }],
-      "title": "SSH Relay policy",
+      "title": "SSH Relay availability",
       "type": "stat"
     },
     {

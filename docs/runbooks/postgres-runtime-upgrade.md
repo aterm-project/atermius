@@ -59,7 +59,8 @@ audit identity-sequence invariant is missing.
    can apply the bundled migration to an isolated schema-25 restore target.
    Migration 0027 adds shared Relay policy, access-group, hash-only ticket and
    connection-lease state, plus the foreign keys and indexes used for
-   cross-node authorization and cleanup. Target data is stored only in the
+   cross-node authorization and cleanup; the Relay policy and access-group
+   tables are no longer read or written. Target data is stored only in the
    authenticated encrypted ticket envelope. It is ordinary transactional DDL
    and advances the shared marker to 27. Migration 0028 adds restore-stage
    target binding, discard actor/timestamps, two-phase cleanup state, and

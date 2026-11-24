@@ -1,5 +1,5 @@
 # docker compose -f deploy/compose.yaml -f deploy/compose.desktop.yaml up -d --build
-# Set PUBLIC_ORIGIN and Relay CIDR/port allowlists in the environment first.
+# Set ATERMIUS_RELAY_ENABLED=true and ATERMIUS_PUBLIC_ORIGIN in the environment first.
 services:
   server:
     environment:

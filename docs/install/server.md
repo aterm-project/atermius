@@ -134,7 +134,7 @@ PostgreSQL 云端路由仍保持关闭。PostgreSQL 同步核心另有密钥、�
 
 ## 6. 浏览器常规 SSH
 
-它与临时访客访问不同。仅在配置明确的 `ATERMIUS_RELAY_ALLOW_CIDRS`、`ATERMIUS_RELAY_ALLOW_PORTS` 和精确来源后启用 `ATERMIUS_RELAY_ENABLED=true`。常规浏览器 SSH/SFTP 使用字节 Relay，远程桌面/访客则使用受信 guacd；账户策略可能进一步限制目标。
+它与临时访客访问不同。设置 `ATERMIUS_RELAY_ENABLED=true` 和精确的 `ATERMIUS_PUBLIC_ORIGIN` 后 Relay 即可用：已登录用户可连接任意端口和地址，但环回、链路本地、未指定、组播、广播和云元数据地址始终被拒绝（固定规则，不可配置）。服务端以自身网络位置发起连接，需要限制出站范围时请在网络层处理。`ATERMIUS_RELAY_ALLOW_CIDRS` 和 `ATERMIUS_RELAY_ALLOW_PORTS` 已废弃，设置了也会被忽略（启动时记录一条警告）。常规浏览器 SSH/SFTP 使用字节 Relay，远程桌面/访客则使用受信 guacd。
 
 ## 7. 更新、备份与排障
 

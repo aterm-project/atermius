@@ -108,7 +108,7 @@ Daily builds are published as pre-releases on the [Releases](https://github.com/
 
 ## Support boundaries
 
-Native Windows RDP requires the bundled `atermius_rdp.dll` engine; other platforms use their own engine builds or the server gateway (see [remote desktop](docs/REMOTE-DESKTOP.md)). Browser SSH requires an enabled, restricted Relay. Temporary browser SSH/RDP is a separate trusted-gateway flow that can decrypt login capsules and observe sessions. The API image and browser image are separate. Cloud collaboration requires SQLite; PostgreSQL cloud routes remain closed. VNC through the gateway is explicit opt-in and has no live acceptance claim.
+Native Windows RDP requires the bundled `atermius_rdp.dll` engine; other platforms use their own engine builds or the server gateway (see [remote desktop](docs/REMOTE-DESKTOP.md)). Browser SSH requires the server Relay to be enabled. Temporary browser SSH/RDP is a separate trusted-gateway flow that can decrypt login capsules and observe sessions. The API image and browser image are separate. Cloud collaboration requires SQLite; PostgreSQL cloud routes remain closed. VNC through the gateway is explicit opt-in and has no live acceptance claim.
 
 Native platform build/device acceptance is separate from the Linux Dart/widget checks in CI. The full Flutter suite has disclosed historical failures. CI runs its documented focused checks; review the workflow and [validation documentation](docs/README.md) for their scope. Keep server state, account credentials and signing material outside Git.
 
