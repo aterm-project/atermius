@@ -175,4 +175,21 @@ void main() {
     expect(methods(), ['hideTray', 'show']);
     expect(host.hidden, isFalse);
   });
+
+  test('a quit while hidden (another window updating) stays out of sight',
+      () async {
+    await fromNative('closeRequested');
+    calls.clear();
+    var exits = 0;
+    // MCP stops as the workspace closes during the quit.
+    windows.registerOwnerCloser(Object(), () async => mcp.set(false));
+    windows.beforeExit = () async => exits++;
+    await windows.requestParentClose(quit: true);
+    for (var i = 0; i < 5; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(methods(), isNot(contains('show')));
+    expect(methods().last, 'closeNow');
+    expect(exits, 1);
+  });
 }

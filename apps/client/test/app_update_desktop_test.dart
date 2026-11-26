@@ -198,15 +198,67 @@ void main() {
         sha256: sha256.convert(bytes).toString(),
       );
 
-  DesktopAppUpdateBackend backend({Future<void> Function()? quit}) =>
-      DesktopAppUpdateBackend(
-        layout: layout,
-        client: client,
-        quit: quit ?? () async {},
-        currentTag: _current,
-        switchAckTimeout: const Duration(seconds: 3),
-        instanceLock: AppUpdateInstanceLock(layout.instanceLockFile),
-      );
+  DesktopAppUpdateBackend backend({
+    Future<void> Function()? quit,
+    Duration closeOthersTimeout = const Duration(seconds: 10),
+  }) => DesktopAppUpdateBackend(
+    layout: layout,
+    client: client,
+    quit: quit ?? () async {},
+    currentTag: _current,
+    switchAckTimeout: const Duration(seconds: 3),
+    closeOthersTimeout: closeOthersTimeout,
+    closeRequestPoll: const Duration(milliseconds: 50),
+    instanceLock: AppUpdateInstanceLock(layout.instanceLockFile),
+  );
+
+  /// Another main window, as a separate process (file locks are per
+  /// process): holds a share of the instance lock until it ends. With
+  /// [obey] it ends as soon as a close request appears, as a window does.
+  Future<Process> otherWindow({bool obey = false}) async {
+    layout.root.createSync(recursive: true);
+    final process = await Process.start('python3', [
+      '-c',
+      '''
+import fcntl, os, sys, time
+lock, request, obey = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+f = open(lock, "a+")
+fcntl.lockf(f, fcntl.LOCK_SH)
+print("held", flush=True)
+end = time.time() + 30
+while time.time() < end:
+    if obey and os.path.exists(request):
+        break
+    time.sleep(0.05)
+''',
+      layout.instanceLockFile.path,
+      layout.closeRequestFile.path,
+      obey ? '1' : '0',
+    ]);
+    addTearDown(process.kill);
+    await process.stdout.transform(utf8.decoder).firstWhere(
+      (line) => line.contains('held'),
+    );
+    return process;
+  }
+
+  /// A stand-in for the new version that acknowledges like the real one
+  /// and writes down its arguments.
+  Map<String, String> recordingBundle() => {
+    ..._bundle('new'),
+    'aterm_client': r'''#!/bin/sh
+for a in "$@"; do
+  case "$a" in
+    --atermius-update-root=*) root="${a#--atermius-update-root=}";;
+    --atermius-update-tag=*) tag="${a#--atermius-update-tag=}";;
+  esac
+done
+printf '%s\n' "$@" > "$root/switch.args"
+printf %s "$tag" > "$root/switch.ack"
+''',
+  };
+
+  File switchArgs() => File(p.join(layout.root.path, 'switch.args'));
 
   group('download', () {
     test('accepts exactly the announced bytes and digest', () async {
@@ -478,6 +530,42 @@ void main() {
     });
   });
 
+  test('the account that asked for an elevated update is recognised', () {
+    const row =
+        '"aterm_client.exe","4321","Console","1","182,344 K","Running",'
+        '"DESKTOP-7Q\\Administrator","0:00:09","Atermius"\r\n';
+    expect(
+      tasklistNamesAccount(row, pid: 4321, account: 'desktop-7q\\administrator\r\n'),
+      isTrue,
+    );
+    // Someone else's window (a standard user who was given the password),
+    // another process, nothing found, or no user name shown.
+    expect(
+      tasklistNamesAccount(row, pid: 4321, account: 'desktop-7q\\alice'),
+      isFalse,
+    );
+    expect(
+      tasklistNamesAccount(row, pid: 4322, account: 'desktop-7q\\administrator'),
+      isFalse,
+    );
+    expect(
+      tasklistNamesAccount(
+        'INFO: No tasks are running which match the specified criteria.',
+        pid: 4321,
+        account: 'desktop-7q\\administrator',
+      ),
+      isFalse,
+    );
+    expect(
+      tasklistNamesAccount(
+        '"aterm_client.exe","4321","Console","1","1 K","Unknown","N/A","0:00:00","N/A"',
+        pid: 4321,
+        account: 'n/a',
+      ),
+      isFalse,
+    );
+  });
+
   group('backend', () {
     setUp(() => _write(layout.installDir, _bundle('old')));
 
@@ -656,6 +744,147 @@ printf %s "$tag" > "$root/switch.ack"
       expect(quits, 2);
       expect(await update.blockedTags(), {_next});
       expect(await update.staged(_current), isNull);
+    });
+
+    test('closing the app switches quietly and leaves the rest to the end',
+        () async {
+      final bytes = _tarGz(recordingBundle());
+      served['/next.tar.gz'] = bytes;
+      var quits = 0;
+      final update = backend(quit: () async => quits++);
+      await update.stage(release(_next, 'next.tar.gz', bytes), onProgress: (_) {});
+      expect(await update.applyOnExit(), isTrue);
+      // The app is already closing: it is neither quit again nor restarted.
+      expect(quits, 0);
+      final args = switchArgs().readAsLinesSync();
+      expect(args, contains(appUpdateApplyFlag));
+      expect(args, contains('--atermius-update-quiet'));
+      expect(args, contains('--atermius-update-tag=$_next'));
+    });
+
+    test('closing one of several windows leaves the switch to the last',
+        () async {
+      final bytes = _tarGz(recordingBundle());
+      served['/next.tar.gz'] = bytes;
+      final update = backend();
+      await update.stage(release(_next, 'next.tar.gz', bytes), onProgress: (_) {});
+      final other = await otherWindow();
+      expect(await update.othersRunning(), isTrue);
+      expect(await update.applyOnExit(), isFalse);
+      expect(switchArgs().existsSync(), isFalse);
+      other.kill();
+      await other.exitCode;
+      expect(await update.othersRunning(), isFalse);
+      expect(await update.applyOnExit(), isTrue);
+    });
+
+    test('closing does nothing without a ready release or a writable copy',
+        () async {
+      final update = backend();
+      expect(await update.applyOnExit(), isFalse);
+      final bytes = _tarGz(recordingBundle());
+      served['/next.tar.gz'] = bytes;
+      await update.stage(release(_next, 'next.tar.gz', bytes), onProgress: (_) {});
+      final unsupported = _pinningUnsupported();
+      if (unsupported != null) {
+        markTestSkipped(unsupported);
+        return;
+      }
+      // Where only an administrator may write, the banner asks instead.
+      _pin(layout.installDir.path);
+      expect(await update.applyOnExit(), isFalse);
+      expect(switchArgs().existsSync(), isFalse);
+    });
+
+    test('a restart asks the other windows to close and then switches',
+        () async {
+      final bytes = _tarGz(recordingBundle());
+      served['/next.tar.gz'] = bytes;
+      var quits = 0;
+      final update = backend(quit: () async => quits++);
+      final staged = await update.stage(
+        release(_next, 'next.tar.gz', bytes),
+        onProgress: (_) {},
+      );
+      final other = await otherWindow(obey: true);
+      final own = <void>[];
+      final sub = update.closeRequests.listen(own.add);
+      addTearDown(sub.cancel);
+      // Without the user's agreement nothing is closed.
+      expect(
+        await update.apply(staged!),
+        AppUpdateApplyProblem.otherWindowsOpen,
+      );
+      expect(layout.closeRequestFile.existsSync(), isFalse);
+      expect(await update.apply(staged, closeOthers: true), isNull);
+      expect(await other.exitCode, 0);
+      expect(quits, 1);
+      expect(switchArgs().readAsLinesSync(), contains(appUpdateApplyFlag));
+      // Not quiet: the app opens again after this switch.
+      expect(
+        switchArgs().readAsLinesSync(),
+        isNot(contains('--atermius-update-quiet')),
+      );
+      // Its own request is not one for this window, and it is gone.
+      expect(own, isEmpty);
+      expect(layout.closeRequestFile.existsSync(), isFalse);
+    });
+
+    test('a window that does not close in time is reported', () async {
+      final bytes = _tarGz(recordingBundle());
+      served['/next.tar.gz'] = bytes;
+      var quits = 0;
+      final update = backend(
+        quit: () async => quits++,
+        closeOthersTimeout: const Duration(milliseconds: 800),
+      );
+      final staged = await update.stage(
+        release(_next, 'next.tar.gz', bytes),
+        onProgress: (_) {},
+      );
+      await otherWindow();
+      expect(
+        await update.apply(staged!, closeOthers: true),
+        AppUpdateApplyProblem.otherWindowsOpen,
+      );
+      expect(quits, 0);
+      expect(switchArgs().existsSync(), isFalse);
+      expect(layout.closeRequestFile.existsSync(), isFalse);
+      // Still ready for the next try.
+      expect((await update.staged(_current))!.release.tag, _next);
+    });
+
+    test('close requests reach windows that ran before them, once', () async {
+      final window = backend();
+      final requests = <void>[];
+      final sub = window.closeRequests.listen(requests.add);
+      addTearDown(sub.cancel);
+      void request(DateTime at) {
+        layout.root.createSync(recursive: true);
+        layout.closeRequestFile.writeAsStringSync(
+          jsonEncode({'id': 'another-window', 'at': at.millisecondsSinceEpoch}),
+        );
+      }
+
+      // A leftover from before this window started is not for it.
+      request(DateTime.now().subtract(const Duration(minutes: 1)));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(requests, isEmpty);
+      request(DateTime.now());
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(requests, hasLength(1));
+      // A window that is closing for another one never switches itself.
+      expect(await window.applyOnExit(), isFalse);
+      request(DateTime.now());
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(requests, hasLength(1));
+      // A window started after the request (the new version) stays.
+      final later = backend();
+      final laterRequests = <void>[];
+      final laterSub = later.closeRequests.listen(laterRequests.add);
+      addTearDown(laterSub.cancel);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(laterRequests, isEmpty);
     });
 
     test('a staged copy that vanished is reported as missing', () async {

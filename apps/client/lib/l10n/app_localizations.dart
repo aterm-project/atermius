@@ -31741,8 +31741,32 @@ abstract class AppLocalizations {
   /// Automatic app updates from published releases (Windows, Linux, Android).
   ///
   /// In en, this message translates to:
-  /// **'Close the other Atermius windows first, then restart.'**
+  /// **'Some Atermius windows did not close. Close them, then try again.'**
   String get appUpdateOtherWindows;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Close the current workspace and update?'**
+  String get appUpdateCloseConfirmTitle;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius closes, installs {version} and opens again.'**
+  String appUpdateCloseConfirmBody(String version);
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Other Atermius windows close as well, including one running in the background in the notification area.'**
+  String get appUpdateCloseOthersBody;
+
+  /// Automatic app updates from published releases (Windows, Linux, Android).
+  ///
+  /// In en, this message translates to:
+  /// **'Close and update'**
+  String get appUpdateCloseAndUpdate;
 
   /// Automatic app updates from published releases (Windows, Linux, Android).
   ///

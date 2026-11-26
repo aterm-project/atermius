@@ -20138,7 +20138,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appUpdateOtherWindows =>
-      'Close the other Atermius windows first, then restart.';
+      'Some Atermius windows did not close. Close them, then try again.';
+
+  @override
+  String get appUpdateCloseConfirmTitle =>
+      'Close the current workspace and update?';
+
+  @override
+  String appUpdateCloseConfirmBody(String version) {
+    return 'Atermius closes, installs $version and opens again.';
+  }
+
+  @override
+  String get appUpdateCloseOthersBody =>
+      'Other Atermius windows close as well, including one running in the background in the notification area.';
+
+  @override
+  String get appUpdateCloseAndUpdate => 'Close and update';
 
   @override
   String get appUpdateFailed =>

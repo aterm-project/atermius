@@ -37,6 +37,8 @@ class _Backend implements AppUpdateBackend {
   AppUpdateResult? result;
   AppUpdateApplyProblem? applyProblem;
   int applied = 0;
+  bool others = false;
+  final closedOthers = <bool>[];
 
   @override
   Future<bool> canInstall() async => installable;
@@ -56,10 +58,23 @@ class _Backend implements AppUpdateBackend {
     required void Function(double fraction) onProgress,
   }) async => stagedNow = AppUpdateStaged(release: release, path: '/x');
   @override
-  Future<AppUpdateApplyProblem?> apply(AppUpdateStaged staged) async {
+  Future<AppUpdateApplyProblem?> apply(
+    AppUpdateStaged staged, {
+    bool closeOthers = false,
+  }) async {
     applied++;
+    closedOthers.add(closeOthers);
     return applyProblem;
   }
+
+  @override
+  Future<bool> othersRunning() async => others;
+
+  @override
+  Stream<void> get closeRequests => const Stream.empty();
+
+  @override
+  Future<bool> applyOnExit() async => false;
 
   @override
   Future<void> cleanup(String currentTag) async {}
@@ -137,9 +152,34 @@ void main() {
     expect(find.textContaining('重启后即可使用'), findsOneWidget);
     expect(find.text('立即重启'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('app_update_restart')));
+    await tester.pumpAndSettle();
+    // Closing the app is always confirmed on desktop, sessions or not.
+    expect(find.text('关闭当前工作区并更新？'), findsOneWidget);
+    expect(
+      find.textContaining('Atermius 将关闭并安装 20261124.3'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('其他 Atermius 窗口'), findsNothing);
+    expect(backend.applied, 0);
+    await tester.tap(find.byKey(const ValueKey('app_update_restart_confirm')));
     await tester.pump();
     expect(backend.applied, 1);
+    expect(backend.closedOthers, [true]);
     await tester.pump(const Duration(milliseconds: 20));
+  }, variant: TargetPlatformVariant.desktop());
+
+  testWidgets('cancelling the desktop confirmation changes nothing',
+      (tester) async {
+    backend.stagedNow = AppUpdateStaged(release: _release(_next), path: '/x');
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('app_update_restart')));
+    await tester.pumpAndSettle();
+    expect(find.text('Close the current workspace and update?'), findsOneWidget);
+    expect(find.text('Close and update'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('app_update_restart_cancel')));
+    await tester.pumpAndSettle();
+    expect(backend.applied, 0);
+    expect(find.byKey(const ValueKey('app_update_banner_problem')), findsNothing);
   }, variant: TargetPlatformVariant.desktop());
 
   testWidgets('Android says that installing closes the app', (tester) async {
@@ -168,19 +208,43 @@ void main() {
     expect(backend.applied, 1);
   });
 
-  testWidgets('other open windows are named as the reason', (tester) async {
+  testWidgets('other windows and sessions are named in the confirmation',
+      (tester) async {
     backend.stagedNow = AppUpdateStaged(release: _release(_next), path: '/x');
+    backend.others = true;
+    sessions = 3;
+    await pump(tester, locale: const Locale('zh'));
+    await tester.tap(find.byKey(const ValueKey('app_update_restart')));
+    await tester.pumpAndSettle();
+    expect(find.text('关闭当前工作区并更新？'), findsOneWidget);
+    expect(find.text('有 3 个会话正在连接，重启会断开它们。'), findsOneWidget);
+    expect(
+      find.text('其他 Atermius 窗口也会一起关闭，包括在通知区域后台运行的。'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('app_update_restart_confirm')));
+    await tester.pumpAndSettle();
+    // Asked to close them, not told to do it by hand.
+    expect(backend.closedOthers, [true]);
+    expect(find.byKey(const ValueKey('app_update_banner_problem')), findsNothing);
+  }, variant: TargetPlatformVariant.desktop());
+
+  testWidgets('windows that did not close are reported after the attempt',
+      (tester) async {
+    backend.stagedNow = AppUpdateStaged(release: _release(_next), path: '/x');
+    backend.others = true;
     backend.applyProblem = AppUpdateApplyProblem.otherWindowsOpen;
     await pump(tester);
     await tester.tap(find.byKey(const ValueKey('app_update_restart')));
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('app_update_restart_confirm')));
+    await tester.pumpAndSettle();
     expect(
-      find.text('Close the other Atermius windows first, then restart.'),
+      find.text('Some Atermius windows did not close. Close them, then try again.'),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('app_update_restart')), findsOneWidget);
-  });
+  }, variant: TargetPlatformVariant.desktop());
 
   testWidgets('a copy that cannot update itself points to the download',
       (tester) async {

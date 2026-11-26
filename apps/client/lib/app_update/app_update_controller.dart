@@ -37,7 +37,8 @@ enum AppUpdateWaitReason {
 /// Looks for newer releases, has them installed in the background and tells
 /// the UI when a restart will start the new version.
 ///
-/// It never restarts by itself: [restart] is only called from the UI.
+/// It never restarts by itself: [restart] is only called from the UI. When
+/// the app closes, [installOnExit] switches without starting it again.
 class AppUpdateController extends ChangeNotifier {
   AppUpdateController({
     required this.currentTag,
@@ -69,6 +70,8 @@ class AppUpdateController extends ChangeNotifier {
 
   Timer? _startTimer, _checkTimer, _pollTimer, _applyTimer;
   StreamSubscription<AppUpdateApplyProblem>? _problems;
+  StreamSubscription<void>? _closeRequestSubscription;
+  final _closeRequests = StreamController<void>.broadcast();
   bool _started = false;
   bool _disposed = false;
 
@@ -123,6 +126,10 @@ class AppUpdateController extends ChangeNotifier {
   /// Why the last [restart] did not happen, until the next attempt.
   AppUpdateApplyProblem? get problem => _problem;
 
+  /// Another window of this user is switching to a new version and asked
+  /// this one to close (desktop). The app closes the way its quit does.
+  Stream<void> get closeRequests => _closeRequests.stream;
+
   Future<void> start() async {
     if (_started || _disposed) return;
     _started = true;
@@ -140,6 +147,9 @@ class AppUpdateController extends ChangeNotifier {
     }
     if (_disposed) return;
     _problems = _backend.problems.listen(_onApplyProblem);
+    _closeRequestSubscription = _backend.closeRequests.listen((_) {
+      if (!_disposed && !_applying) _closeRequests.add(null);
+    });
     await _adoptStaged();
     if (_disposed) return;
     notifyListeners();
@@ -298,9 +308,20 @@ class AppUpdateController extends ChangeNotifier {
     if (notify) notifyListeners();
   }
 
+  /// Whether a restart also closes other windows of this user (desktop).
+  Future<bool> othersRunning() async {
+    if (_disposed) return false;
+    try {
+      return await _backend.othersRunning();
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Switches to [ready]. On desktop the app ends here when it works; the
-  /// returned problem says why it did not.
-  Future<AppUpdateApplyProblem?> restart() async {
+  /// returned problem says why it did not. With [closeOthers] the other
+  /// windows of this user are closed first (the user agreed to that).
+  Future<AppUpdateApplyProblem?> restart({bool closeOthers = false}) async {
     final staged = _staged;
     if (_disposed || staged == null || _applying) return null;
     _applying = true;
@@ -308,7 +329,7 @@ class AppUpdateController extends ChangeNotifier {
     notifyListeners();
     AppUpdateApplyProblem? problem;
     try {
-      problem = await _backend.apply(staged);
+      problem = await _backend.apply(staged, closeOthers: closeOthers);
     } catch (_) {
       problem = AppUpdateApplyProblem.failed;
     }
@@ -326,6 +347,22 @@ class AppUpdateController extends ChangeNotifier {
     }
     _onApplyProblem(problem);
     return problem;
+  }
+
+  /// The app is closing for good (not hidden to keep running): a release
+  /// that is ready replaces the installed copy now, quietly, and the next
+  /// start runs it. Does nothing while [restart] is under way, and where the
+  /// switch would need the user (other windows, an administrator prompt).
+  Future<void> installOnExit() async {
+    if (_disposed || _applying) return;
+    _applying = true;
+    try {
+      await _backend.applyOnExit();
+    } catch (_) {
+      // The next start or close tries again.
+    } finally {
+      _applying = false;
+    }
   }
 
   void _onApplyProblem(AppUpdateApplyProblem problem) {
@@ -350,6 +387,8 @@ class AppUpdateController extends ChangeNotifier {
     _pollTimer?.cancel();
     _applyTimer?.cancel();
     unawaited(_problems?.cancel());
+    unawaited(_closeRequestSubscription?.cancel());
+    unawaited(_closeRequests.close());
     super.dispose();
   }
 }

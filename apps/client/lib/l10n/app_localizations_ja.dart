@@ -18977,7 +18977,23 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get appUpdateOtherWindows => '先にほかの Atermius ウィンドウを閉じてから再起動してください。';
+  String get appUpdateOtherWindows =>
+      '閉じられなかった Atermius ウィンドウがあります。手動で閉じてから、もう一度お試しください。';
+
+  @override
+  String get appUpdateCloseConfirmTitle => '現在のワークスペースを閉じて更新しますか？';
+
+  @override
+  String appUpdateCloseConfirmBody(String version) {
+    return 'Atermius を閉じて $version をインストールし、自動的に開き直します。';
+  }
+
+  @override
+  String get appUpdateCloseOthersBody =>
+      'ほかの Atermius ウィンドウも閉じます（通知領域でバックグラウンド実行中のものを含む）。';
+
+  @override
+  String get appUpdateCloseAndUpdate => '閉じて更新';
 
   @override
   String get appUpdateFailed => '更新をインストールできませんでした。Atermius は現在のバージョンのまま動作します。';

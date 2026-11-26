@@ -20221,7 +20221,23 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get appUpdateOtherWindows =>
-      'Сначала закройте остальные окна Atermius, затем перезапустите.';
+      'Некоторые окна Atermius не закрылись. Закройте их и повторите попытку.';
+
+  @override
+  String get appUpdateCloseConfirmTitle =>
+      'Закрыть текущее рабочее пространство и обновить?';
+
+  @override
+  String appUpdateCloseConfirmBody(String version) {
+    return 'Atermius закроется, установит $version и откроется снова.';
+  }
+
+  @override
+  String get appUpdateCloseOthersBody =>
+      'Другие окна Atermius тоже закроются, включая работающее в фоне в области уведомлений.';
+
+  @override
+  String get appUpdateCloseAndUpdate => 'Закрыть и обновить';
 
   @override
   String get appUpdateFailed =>

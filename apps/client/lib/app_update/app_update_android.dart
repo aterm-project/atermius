@@ -99,6 +99,17 @@ class AndroidAppUpdateBackend implements AppUpdateBackend {
   @override
   Stream<AppUpdateApplyProblem> get problems => _problems.stream;
 
+  /// One window, one process: nothing else to close or wait for.
+  @override
+  Future<bool> othersRunning() async => false;
+
+  @override
+  Stream<void> get closeRequests => const Stream.empty();
+
+  /// The system installer always asks first; never done unasked.
+  @override
+  Future<bool> applyOnExit() async => false;
+
   @override
   Future<AppUpdateStaged?> stage(
     AppUpdateRelease release, {
@@ -135,7 +146,10 @@ class AndroidAppUpdateBackend implements AppUpdateBackend {
   }
 
   @override
-  Future<AppUpdateApplyProblem?> apply(AppUpdateStaged staged) async {
+  Future<AppUpdateApplyProblem?> apply(
+    AppUpdateStaged staged, {
+    bool closeOthers = false,
+  }) async {
     if (!await File(staged.path).exists()) {
       return AppUpdateApplyProblem.stagedMissing;
     }

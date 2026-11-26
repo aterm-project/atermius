@@ -50,6 +50,12 @@ class _Backend implements AppUpdateBackend {
   final applied = <String>[];
   final cleaned = <String>[];
   final problemEvents = StreamController<AppUpdateApplyProblem>.broadcast();
+  final closeEvents = StreamController<void>.broadcast();
+  final closeOthersFlags = <bool>[];
+  bool others = false;
+  bool exitResult = false;
+  int exitApplies = 0;
+  Completer<void>? exitGate;
 
   @override
   Future<bool> canInstall() async => installable;
@@ -84,9 +90,26 @@ class _Backend implements AppUpdateBackend {
   }
 
   @override
-  Future<AppUpdateApplyProblem?> apply(AppUpdateStaged staged) async {
+  Future<AppUpdateApplyProblem?> apply(
+    AppUpdateStaged staged, {
+    bool closeOthers = false,
+  }) async {
     applied.add(staged.release.tag);
+    closeOthersFlags.add(closeOthers);
     return applyProblem;
+  }
+
+  @override
+  Future<bool> othersRunning() async => others;
+
+  @override
+  Stream<void> get closeRequests => closeEvents.stream;
+
+  @override
+  Future<bool> applyOnExit() async {
+    exitApplies++;
+    await exitGate?.future;
+    return exitResult;
   }
 
   @override
@@ -336,6 +359,45 @@ void main() {
     expect(update.applying, isFalse);
     expect(update.problem, AppUpdateApplyProblem.otherWindowsOpen);
     expect(update.ready!.tag, _next);
+  });
+
+  test('a restart from the banner may close the other windows', () async {
+    backend.stagedNow = AppUpdateStaged(release: _release(_next), path: '/x');
+    backend.others = true;
+    final update = controller();
+    await update.start();
+    expect(await update.othersRunning(), isTrue);
+    await update.restart(closeOthers: true);
+    expect(backend.closeOthersFlags, [true]);
+  });
+
+  test('closing the app installs what is ready, once at a time', () async {
+    backend.stagedNow = AppUpdateStaged(release: _release(_next), path: '/x');
+    final update = controller();
+    await update.start();
+    backend.exitGate = Completer<void>();
+    final first = update.installOnExit();
+    // A second close while the first is under way does nothing.
+    await update.installOnExit();
+    expect(backend.exitApplies, 1);
+    backend.exitGate!.complete();
+    await first;
+    // Never while a restart is switching: that one already quits.
+    backend.applyProblem = null;
+    final restarting = update.restart();
+    await update.installOnExit();
+    expect(backend.exitApplies, 1);
+    await restarting;
+  });
+
+  test("another window's close request reaches the app", () async {
+    final update = controller();
+    await update.start();
+    final requests = <void>[];
+    update.closeRequests.listen(requests.add);
+    backend.closeEvents.add(null);
+    await Future<void>.delayed(Duration.zero);
+    expect(requests, hasLength(1));
   });
 
   test('a cancelled system prompt is reported after the fact', () async {

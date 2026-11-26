@@ -500,4 +500,50 @@ void main() {
       chrome.dispose();
     },
   );
+  test(
+    'the exit hook runs once the app really ends, hidden, before the close',
+    () async {
+      final chrome = _Chrome(), owner = Object();
+      final manager = ApplicationWindows(
+        windowChrome: chrome,
+        liveWindowsSupported: true,
+      );
+      final actions = <String>[];
+      manager.registerOwnerCloser(owner, () async {
+        actions.add('close-owner');
+      });
+      manager.beforeExit = () async {
+        actions.add('before-exit');
+        chrome.calls.add('before-exit');
+      };
+      // Kept running in the background (MCP): nothing ends, no update.
+      manager.keepRunningOnClose = () async {
+        await chrome.hide();
+        return true;
+      };
+      await manager.requestParentClose();
+      expect(actions, isEmpty);
+      expect(chrome.calls, ['hide']);
+      // Quit from the notification area: the app ends and the hook runs.
+      await manager.requestParentClose(quit: true);
+      expect(actions, ['close-owner', 'before-exit']);
+      expect(chrome.calls, ['hide', 'hide', 'before-exit', 'close']);
+      manager.dispose();
+      chrome.dispose();
+    },
+  );
+  test('a failing or hanging exit hook never keeps the app open', () async {
+    final chrome = _Chrome();
+    final manager = ApplicationWindows(
+      windowChrome: chrome,
+      liveWindowsSupported: true,
+    );
+    manager
+      ..beforeExitLimit = const Duration(milliseconds: 50)
+      ..beforeExit = () => Completer<void>().future;
+    await manager.requestParentClose();
+    expect(chrome.calls, ['hide', 'close']);
+    manager.dispose();
+    chrome.dispose();
+  });
 }

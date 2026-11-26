@@ -395,6 +395,18 @@ class ApplicationWindows extends ChangeNotifier {
   /// `quit: true` skips it.
   Future<bool> Function()? keepRunningOnClose;
 
+  /// Runs once when the main window really ends (not when it is hidden to
+  /// keep running), after every session and child window is closed and the
+  /// window is out of sight: the updater switches to a ready release here.
+  Future<void> Function()? beforeExit;
+
+  /// How long [beforeExit] may keep the hidden process alive.
+  Duration beforeExitLimit = const Duration(seconds: 40);
+
+  /// The main window is on its way out (sessions closing, then the
+  /// process ends); a hidden window must not come back meanwhile.
+  bool get quitting => _parentClosing || _exiting;
+
   Future<void> requestParentClose({bool quit = false}) async {
     if (_handlingClose || _exiting) return;
     final keep = keepRunningOnClose;
@@ -470,6 +482,15 @@ class ApplicationWindows extends ChangeNotifier {
       await closeAll();
       for (final close in _ownerClosers.values.toList().reversed) {
         await close();
+      }
+      final last = beforeExit;
+      if (last != null) {
+        try {
+          await _chrome.hide();
+          await last().timeout(beforeExitLimit);
+        } on Object {
+          // Closing never waits on it.
+        }
       }
       await _chrome.closeNow();
     } catch (_) {

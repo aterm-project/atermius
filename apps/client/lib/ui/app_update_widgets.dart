@@ -40,48 +40,79 @@ String _waitText(BuildContext context, AppUpdateWaitReason reason) =>
       AppUpdateWaitReason.metered => context.l10n.appUpdateMeteredBody,
     };
 
-/// Asks before open sessions are disconnected, then switches to the new
+/// Asks before the app closes for the update, then switches to the new
 /// version. On desktop the app ends inside this call when it works.
+///
+/// Desktop always asks: the app closes, with every open session and every
+/// other Atermius window of the user (also one hidden in the notification
+/// area), which are closed for the user instead of being left in the way.
+/// Android asks only when sessions are open; the system asks before
+/// installing anyway.
 Future<void> restartForAppUpdate(
   BuildContext context,
   AppUpdateController controller, {
   required int openSessions,
 }) async {
   final sessions = openSessions;
-  if (sessions > 0) {
+  final ready = controller.ready;
+  if (ready == null) return;
+  final others = !_android && await controller.othersRunning();
+  if (!context.mounted) return;
+  if (!_android || sessions > 0) {
     final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        key: const ValueKey('app_update_restart_confirmation'),
-        icon: const Icon(Icons.system_update_alt_rounded),
-        title: Text(dialogContext.l10n.appUpdateRestartConfirmTitle),
-        content: SizedBox(
-          width: appDialogWidth(dialogContext, 400),
-          child: Text(
-            dialogContext.l10n.appUpdateRestartConfirmBody(sessions),
+      builder: (dialogContext) {
+        final l10n = dialogContext.l10n;
+        final lines = [
+          if (!_android)
+            l10n.appUpdateCloseConfirmBody(releaseLabel(ready.tag)),
+          if (sessions > 0) l10n.appUpdateRestartConfirmBody(sessions),
+          if (others) l10n.appUpdateCloseOthersBody,
+        ];
+        return AlertDialog(
+          key: const ValueKey('app_update_restart_confirmation'),
+          icon: const Icon(Icons.system_update_alt_rounded),
+          title: Text(
+            _android
+                ? l10n.appUpdateRestartConfirmTitle
+                : l10n.appUpdateCloseConfirmTitle,
           ),
-        ),
-        actions: [
-          TextButton(
-            key: const ValueKey('app_update_restart_cancel'),
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(dialogContext.l10n.cancel2),
-          ),
-          FilledButton(
-            key: const ValueKey('app_update_restart_confirm'),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(
-              _android
-                  ? dialogContext.l10n.appUpdateInstallAndRestart
-                  : dialogContext.l10n.appUpdateRestartNow,
+          content: SizedBox(
+            width: appDialogWidth(dialogContext, 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final (index, line) in lines.indexed)
+                  Padding(
+                    padding: EdgeInsets.only(top: index == 0 ? 0 : 8),
+                    child: Text(line),
+                  ),
+              ],
             ),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              key: const ValueKey('app_update_restart_cancel'),
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.cancel2),
+            ),
+            FilledButton(
+              key: const ValueKey('app_update_restart_confirm'),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(
+                _android
+                    ? l10n.appUpdateInstallAndRestart
+                    : l10n.appUpdateCloseAndUpdate,
+              ),
+            ),
+          ],
+        );
+      },
     );
     if (confirmed != true) return;
   }
-  await controller.restart();
+  await controller.restart(closeOthers: !_android);
 }
 
 /// The Home strip that says a new version is installed and waits for a

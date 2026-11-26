@@ -38,8 +38,8 @@ class AppUpdateResult {
 
 /// Why the app could not switch to the staged release right now.
 enum AppUpdateApplyProblem {
-  /// Other Atermius windows of this user are open; they run from the same
-  /// files and must be closed first.
+  /// Other Atermius windows of this user run from the same files and did
+  /// not close when asked to (or were not asked to).
   otherWindowsOpen,
 
   /// The staged copy is gone or incomplete; it will be downloaded again.
@@ -82,7 +82,29 @@ abstract interface class AppUpdateBackend {
   /// Switches to [staged]. On desktop this ends the process and the new
   /// version starts; on Android the system installer takes over and ends
   /// the process when it is done. Returns only when that did not happen.
-  Future<AppUpdateApplyProblem?> apply(AppUpdateStaged staged);
+  ///
+  /// With [closeOthers] (desktop) other main windows of this user are asked
+  /// to close first, which ends their sessions; the user agreed to that.
+  Future<AppUpdateApplyProblem?> apply(
+    AppUpdateStaged staged, {
+    bool closeOthers = false,
+  });
+
+  /// Whether other main windows of this user run from the same installed
+  /// copy (also one hidden in the notification area). Always false where
+  /// the app has a single window (Android).
+  Future<bool> othersRunning();
+
+  /// Another window asked every window to close because it is about to
+  /// switch to a new version. Never fires for this window's own request.
+  Stream<void> get closeRequests;
+
+  /// The app is closing (the last window, not a window hidden to keep
+  /// running): switches to a staged release without asking and without
+  /// starting the app again. True when the new version took over; the
+  /// process only has to end then. False when nothing was done, e.g. other
+  /// windows still run or the switch would need administrator rights.
+  Future<bool> applyOnExit();
 
   /// Problems reported after [apply] returned without one, e.g. the user
   /// cancelling the system's installation prompt.

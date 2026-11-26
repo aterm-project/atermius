@@ -112,7 +112,14 @@ class McpBackgroundHost {
   }
 
   void _serviceChanged() {
-    if (_hidden && !service.running && !service.starting) unawaited(_open());
+    // MCP also stops while the app quits (e.g. another window restarts into
+    // a new version): the window stays out of sight then.
+    if (_hidden &&
+        !windows.quitting &&
+        !service.running &&
+        !service.starting) {
+      unawaited(_open());
+    }
   }
 
   void dispose() {

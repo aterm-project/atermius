@@ -16942,8 +16942,29 @@
       }
     }
   },
-  "appUpdateOtherWindows": "Close the other Atermius windows first, then restart.",
+  "appUpdateOtherWindows": "Some Atermius windows did not close. Close them, then try again.",
   "@appUpdateOtherWindows": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateCloseConfirmTitle": "Close the current workspace and update?",
+  "@appUpdateCloseConfirmTitle": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateCloseConfirmBody": "Atermius closes, installs {version} and opens again.",
+  "@appUpdateCloseConfirmBody": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android).",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "appUpdateCloseOthersBody": "Other Atermius windows close as well, including one running in the background in the notification area.",
+  "@appUpdateCloseOthersBody": {
+    "description": "Automatic app updates from published releases (Windows, Linux, Android)."
+  },
+  "appUpdateCloseAndUpdate": "Close and update",
+  "@appUpdateCloseAndUpdate": {
     "description": "Automatic app updates from published releases (Windows, Linux, Android)."
   },
   "appUpdateFailed": "The update could not be installed. Atermius keeps running the current version.",

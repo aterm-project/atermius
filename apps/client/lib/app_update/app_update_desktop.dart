@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math';
 
 import 'package:archive/archive_io.dart';
 import 'package:http/http.dart' as http;
@@ -22,11 +24,13 @@ import 'release_tag.dart';
 //    [appUpdateApplyFlag]. It waits until the installed copy is no longer in
 //    use, moves the old program files aside, copies itself in, and starts the
 //    installed copy again. If anything fails the old files are moved back.
-// 3. The switch happens when the user restarts from the banner, or by itself
-//    the next time the app is started.
+// 3. The switch happens when the user restarts from the banner, by itself
+//    when the last window closes (without starting the app again), or the
+//    next time the app is started.
 // Only one process may run from the installed directory while it is being
 // replaced; [AppUpdateInstanceLock] is how the windows of one user know
-// about each other.
+// about each other. A restart from the banner asks the other windows to
+// close through [AppUpdateDesktopLayout.closeRequestFile].
 
 const _flagPrefix = '--atermius-update-';
 
@@ -43,6 +47,16 @@ const _pidArg = '${_flagPrefix}pid=';
 
 /// The installer runs with administrator rights (Windows, UAC).
 const _elevatedFlag = '${_flagPrefix}elevated';
+
+/// The app was closed: the installer does not start it again.
+const _quietFlag = '${_flagPrefix}quiet';
+
+/// Windows, with [_elevatedFlag]: the account that started the update. If
+/// the installer runs as that same account (it confirmed the UAC prompt as
+/// an administrator), the installed directory is made writable for it, so
+/// later updates need no prompt and happen when the app closes.
+const _grantArg = '${_flagPrefix}grant=';
+final _userSid = RegExp(r'^S-1-\d+(-\d+){1,14}$');
 
 /// How often one release may be tried before it is skipped for good.
 const _maxAttempts = 2;
@@ -94,6 +108,10 @@ class AppUpdateDesktopLayout {
   File get instanceLockFile => File(p.join(root.path, 'instances.lock'));
   File get workLockFile => File(p.join(root.path, 'download.lock'));
   File get ackFile => File(p.join(root.path, 'switch.ack'));
+
+  /// Written by a window that is about to switch: every other main window
+  /// of the user closes (see [DesktopAppUpdateBackend.closeRequests]).
+  File get closeRequestFile => File(p.join(root.path, 'close-request.json'));
   Directory releaseDir(String tag) => Directory(p.join(root.path, tag));
   String get installedExecutable => p.join(installDir.path, executableName);
 
@@ -180,6 +198,22 @@ class AppUpdateInstanceLock {
     }
   }
 
+  /// Takes a share without waiting. False while a switch holds the lock.
+  bool tryShare() {
+    try {
+      final file = _open();
+      try {
+        file.unlockSync();
+      } on FileSystemException {
+        // Nothing was held.
+      }
+      file.lockSync(FileLock.shared);
+      return true;
+    } on FileSystemException {
+      return false;
+    }
+  }
+
   /// Marks this process as a running window. Best effort.
   void share() {
     try {
@@ -241,9 +275,22 @@ Future<List<String>> appUpdateStartup(List<String> arguments) async {
         !layout.stateFile.existsSync()) {
       return rest;
     }
+    final lock = _instanceLock(layout)!;
+    // Atermius was closed a moment ago and is being replaced: wait for that
+    // instead of running from half-replaced files, then start what is
+    // installed now.
+    if (await _waitForSwitch(layout, lock)) {
+      lock.release();
+      await Process.start(
+        layout.installedExecutable,
+        const [appUpdateSkipFlag],
+        workingDirectory: layout.installDir.path,
+        mode: ProcessStartMode.detached,
+      );
+      exit(0);
+    }
     final staged = _usable(_read(layout), layout, atermiusReleaseTag);
     if (staged == null || !_writable(layout.installDir)) return rest;
-    final lock = _instanceLock(layout)!;
     if (!lock.tryExclusive()) return rest;
     if (await _handOver(layout, staged, const []) == _HandOver.started) {
       lock.release();
@@ -255,6 +302,35 @@ Future<List<String>> appUpdateStartup(List<String> arguments) async {
     // Updating must never keep the app from starting.
   }
   return rest;
+}
+
+/// Waits while another process holds [lock] exclusively, which is what a
+/// switch in progress does. True when the installed program changed
+/// meanwhile, so this process (loaded from the old files) must not go on.
+Future<bool> _waitForSwitch(
+  AppUpdateDesktopLayout layout,
+  AppUpdateInstanceLock lock, {
+  Duration limit = const Duration(seconds: 60),
+}) async {
+  if (lock.tryShare()) return false;
+  String stamp() {
+    try {
+      final stat = File(layout.installedExecutable).statSync();
+      return '${stat.modified.microsecondsSinceEpoch}/'
+          '${stat.changed.microsecondsSinceEpoch}/${stat.size}';
+    } on FileSystemException {
+      return '';
+    }
+  }
+
+  final before = stamp();
+  final deadline = DateTime.now().add(limit);
+  while (DateTime.now().isBefore(deadline)) {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    if (lock.tryShare()) break;
+  }
+  final after = stamp();
+  return after.isNotEmpty && after != before;
 }
 
 /// Called once the process is known to be a main window: counts it as a
@@ -295,6 +371,7 @@ Future<_HandOver> _handOver(
   List<String> restartArguments, {
   Duration ackTimeout = const Duration(seconds: 20),
   bool elevated = false,
+  bool quiet = false,
 }) async {
   final ack = layout.ackFile;
   try {
@@ -320,9 +397,12 @@ Future<_HandOver> _handOver(
     return _HandOver.failed;
   }
   final executable = p.join(staged.path, layout.executableName);
+  final grant = elevated ? await _windowsUserSid() : null;
   final arguments = [
     appUpdateApplyFlag,
     if (elevated) _elevatedFlag,
+    if (quiet) _quietFlag,
+    if (grant != null) '$_grantArg$grant',
     '$_installArg${layout.installDir.path}',
     '$_rootArg${layout.root.path}',
     '$_tagArg${staged.release.tag}',
@@ -430,7 +510,20 @@ Future<int> runAppUpdateSwitch(List<String> own, List<String> rest) async {
   final oldPid = int.tryParse(value(_pidArg) ?? '');
   var outcome = AppUpdateSwitchOutcome.failed;
   try {
+    String? grant;
+    if (own.contains(_elevatedFlag) &&
+        Platform.isWindows &&
+        layout.isBundle(layout.installDir)) {
+      // Versions before this one do not name the account; then the window
+      // that asked must belong to this same account. Looked at before the
+      // acknowledgement, while that window still waits for it.
+      grant =
+          value(_grantArg) ??
+          (oldPid != null ? await _ownSidIfStartedBySelf(oldPid) : null);
+    }
     layout.ackFile.writeAsStringSync(tag, flush: true);
+    // Before the files are copied in, so they inherit it.
+    if (grant != null) await _grantInstallDirectory(layout.installDir, grant);
     outcome = await switchInstalledCopy(
       layout: layout,
       staged: staged,
@@ -469,6 +562,10 @@ Future<int> runAppUpdateSwitch(List<String> own, List<String> rest) async {
   } on FileSystemException {
     // Harmless leftover.
   }
+  // The user closed the app; the next start runs whatever is installed.
+  if (own.contains(_quietFlag)) {
+    return outcome == AppUpdateSwitchOutcome.done ? 0 : 1;
+  }
   // Whatever happened, the installed copy (new, or the old one moved back)
   // is started again, told not to try once more during this start.
   try {
@@ -497,6 +594,96 @@ Future<int> runAppUpdateSwitch(List<String> own, List<String> rest) async {
     return 70;
   }
   return outcome == AppUpdateSwitchOutcome.done ? 0 : 1;
+}
+
+/// The SID of the account this process runs as (Windows), or null.
+Future<String?> _windowsUserSid() async {
+  if (!Platform.isWindows) return null;
+  try {
+    final result = await Process.run(
+      p.join(_system32(), 'whoami.exe'),
+      const ['/user', '/fo', 'csv', '/nh'],
+    ).timeout(const Duration(seconds: 5));
+    if (result.exitCode != 0) return null;
+    final sid = RegExp(
+      r'S-1-[0-9-]+',
+    ).firstMatch(result.stdout.toString())?.group(0);
+    return sid != null && _userSid.hasMatch(sid) ? sid : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+String _system32() => p.join(
+  Platform.environment['SystemRoot'] ?? r'C:\Windows',
+  'System32',
+);
+
+/// This process's SID when the process [requester] runs as the same
+/// account (compared by name, through `tasklist` and `whoami`), else null.
+Future<String?> _ownSidIfStartedBySelf(int requester) async {
+  try {
+    final list = await Process.run(p.join(_system32(), 'tasklist.exe'), [
+      '/fi',
+      'PID eq $requester',
+      '/v',
+      '/fo',
+      'csv',
+      '/nh',
+    ]).timeout(const Duration(seconds: 10));
+    final me = await Process.run(
+      p.join(_system32(), 'whoami.exe'),
+      const [],
+    ).timeout(const Duration(seconds: 5));
+    if (list.exitCode != 0 || me.exitCode != 0) return null;
+    if (!tasklistNamesAccount(
+      list.stdout.toString(),
+      pid: requester,
+      account: me.stdout.toString(),
+    )) {
+      return null;
+    }
+    return await _windowsUserSid();
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Whether the `tasklist /v /fo csv /nh` output [tasklist] shows the
+/// process [pid] running as [account] (`whoami` output, `domain\user`).
+bool tasklistNamesAccount(
+  String tasklist, {
+  required int pid,
+  required String account,
+}) {
+  final row = tasklist.trim().split('\n').first.trim();
+  if (!row.startsWith('"') || !row.endsWith('"')) return false;
+  // "Image","PID","Session","#","Memory","Status","User","CPU","Title"
+  final fields = row.substring(1, row.length - 1).split('","');
+  if (fields.length < 7 || fields[1] != '$pid') return false;
+  final user = fields[6].trim().toLowerCase();
+  final self = account.trim().toLowerCase();
+  return user.contains(r'\') && user == self;
+}
+
+/// Lets the account [sid] change the installed copy from now on, so its
+/// next updates need no UAC prompt. Only when this elevated installer runs
+/// as that very account: an administrator who confirmed the prompt, who
+/// could change the directory anyway. A standard user for whom someone
+/// else typed administrator credentials is never given that right. Best
+/// effort; without it the next update simply asks again.
+Future<void> _grantInstallDirectory(Directory install, String sid) async {
+  try {
+    if (!_userSid.hasMatch(sid) || await _windowsUserSid() != sid) return;
+    await Process.run(p.join(_system32(), 'icacls.exe'), [
+      install.path,
+      '/grant',
+      '*$sid:(OI)(CI)M',
+      '/Q',
+    ]).timeout(const Duration(seconds: 60));
+  } catch (_) {
+    // The switch goes on; the next update asks for permission again.
+  }
 }
 
 /// How replacing the installed copy ended. [busy]: something still runs
@@ -819,6 +1006,8 @@ class DesktopAppUpdateBackend implements AppUpdateBackend {
     required Future<void> Function() quit,
     this.currentTag = atermiusReleaseTag,
     this.switchAckTimeout = const Duration(seconds: 20),
+    this.closeOthersTimeout = const Duration(seconds: 30),
+    this.closeRequestPoll = const Duration(seconds: 1),
     AppUpdateInstanceLock? instanceLock,
   }) : _client = client,
        _quit = quit,
@@ -831,9 +1020,37 @@ class DesktopAppUpdateBackend implements AppUpdateBackend {
 
   /// How long the new version gets to report that it started.
   final Duration switchAckTimeout;
+
+  /// How long a restart waits for the other windows it asked to close.
+  final Duration closeOthersTimeout;
+
+  /// How often a window looks for another window's close request.
+  final Duration closeRequestPoll;
   final http.Client _client;
   final Future<void> Function() _quit;
   final AppUpdateInstanceLock _lock;
+
+  /// Names this window in its own close request.
+  final String _id =
+      '$pid-${Random.secure().nextInt(1 << 32).toRadixString(16)}';
+
+  /// Requests older than this window are not meant for it.
+  final DateTime _startedAt = DateTime.now();
+
+  /// This window is closing because another one asked it to.
+  bool _closingForOther = false;
+  Timer? _closeWatch;
+  late final StreamController<void> _closeRequests =
+      StreamController<void>.broadcast(
+        onListen: () => _closeWatch ??= Timer.periodic(
+          closeRequestPoll,
+          (_) => _checkCloseRequest(),
+        ),
+        onCancel: () {
+          _closeWatch?.cancel();
+          _closeWatch = null;
+        },
+      );
 
   @override
   Future<bool> canInstall() async =>
@@ -867,6 +1084,105 @@ class DesktopAppUpdateBackend implements AppUpdateBackend {
 
   @override
   Stream<AppUpdateApplyProblem> get problems => const Stream.empty();
+
+  @override
+  Stream<void> get closeRequests => _closeRequests.stream;
+
+  @override
+  Future<bool> othersRunning() async {
+    final alone = _lock.tryExclusive();
+    _lock.share();
+    return !alone;
+  }
+
+  /// A fresh close request of another window, if there is one.
+  bool _otherWindowAsksToClose() {
+    try {
+      final file = layout.closeRequestFile;
+      if (!file.existsSync() || file.lengthSync() > 4096) return false;
+      final json = jsonDecode(file.readAsStringSync());
+      if (json is! Map || json['id'] is! String || json['at'] is! int) {
+        return false;
+      }
+      if (json['id'] == _id) return false;
+      final at = DateTime.fromMillisecondsSinceEpoch(json['at'] as int);
+      // Made before this window started (it is the new version, or the
+      // request is a leftover) or long ago: not meant for this window.
+      return !at.isBefore(_startedAt) &&
+          DateTime.now().difference(at) < const Duration(minutes: 2);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _checkCloseRequest() {
+    if (_closingForOther || !_otherWindowAsksToClose()) return;
+    _closingForOther = true;
+    _closeWatch?.cancel();
+    _closeWatch = null;
+    _closeRequests.add(null);
+  }
+
+  /// Asks every other main window to close and waits until this one is
+  /// alone. True with the lock held exclusively.
+  Future<bool> _closeOtherWindows() async {
+    final request = layout.closeRequestFile;
+    try {
+      await layout.root.create(recursive: true);
+      final next = File('${request.path}.$pid.tmp');
+      await next.writeAsString(
+        jsonEncode({'id': _id, 'at': DateTime.now().millisecondsSinceEpoch}),
+        flush: true,
+      );
+      await next.rename(request.path);
+    } on FileSystemException {
+      return false;
+    }
+    try {
+      final deadline = DateTime.now().add(closeOthersTimeout);
+      while (DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        if (_lock.tryExclusive()) return true;
+        _lock.share();
+      }
+      return false;
+    } finally {
+      try {
+        if (request.existsSync()) request.deleteSync();
+      } on FileSystemException {
+        // Too old to be obeyed after two minutes anyway.
+      }
+    }
+  }
+
+  @override
+  Future<bool> applyOnExit() async {
+    // Another window is switching and asked this one to close; and where
+    // only an administrator may write, nothing is done without a prompt.
+    if (_closingForOther || _otherWindowAsksToClose() || _testElevation) {
+      return false;
+    }
+    final usable = _usable(_read(layout), layout, currentTag);
+    if (usable == null || !_writable(layout.installDir)) return false;
+    if (!_lock.tryExclusive()) {
+      // The last window to close does it.
+      _lock.share();
+      return false;
+    }
+    if (await _handOver(
+          layout,
+          usable,
+          const [],
+          ackTimeout: switchAckTimeout,
+          quiet: true,
+        ) ==
+        _HandOver.started) {
+      _lock.release();
+      return true;
+    }
+    _lock.share();
+    return false;
+  }
 
   @override
   Future<AppUpdateStaged?> stage(
@@ -929,14 +1245,19 @@ class DesktopAppUpdateBackend implements AppUpdateBackend {
   }
 
   @override
-  Future<AppUpdateApplyProblem?> apply(AppUpdateStaged staged) async {
+  Future<AppUpdateApplyProblem?> apply(
+    AppUpdateStaged staged, {
+    bool closeOthers = false,
+  }) async {
     final usable = _usable(_read(layout), layout, currentTag);
     if (usable == null || usable.release.tag != staged.release.tag) {
       return AppUpdateApplyProblem.stagedMissing;
     }
     if (!_lock.tryExclusive()) {
       _lock.share();
-      return AppUpdateApplyProblem.otherWindowsOpen;
+      if (!closeOthers || !await _closeOtherWindows()) {
+        return AppUpdateApplyProblem.otherWindowsOpen;
+      }
     }
     // The installer takes the lock over as soon as this process lets go.
     final elevated =

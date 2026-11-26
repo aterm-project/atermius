@@ -18046,7 +18046,21 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get appUpdateOtherWindows => '请先关闭其他 Atermius 窗口，再重启。';
+  String get appUpdateOtherWindows => '有 Atermius 窗口没能关闭，请手动关闭后再试。';
+
+  @override
+  String get appUpdateCloseConfirmTitle => '关闭当前工作区并更新？';
+
+  @override
+  String appUpdateCloseConfirmBody(String version) {
+    return 'Atermius 将关闭并安装 $version，完成后自动重新打开。';
+  }
+
+  @override
+  String get appUpdateCloseOthersBody => '其他 Atermius 窗口也会一起关闭，包括在通知区域后台运行的。';
+
+  @override
+  String get appUpdateCloseAndUpdate => '关闭并更新';
 
   @override
   String get appUpdateFailed => '更新未能安装，Atermius 继续使用当前版本。';
