@@ -13,6 +13,7 @@ import '../mcp/mcp_listener.dart'
 import '../mcp/mcp_listener_lifecycle.dart';
 import '../mcp/mcp_service.dart';
 import '../mcp/mcp_tools.dart';
+import 'app_motion.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'ios_native/ios_native.dart';
@@ -272,7 +273,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
       );
       return confirmed == true;
     }
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         key: const ValueKey('mcp_confirm_reset_token'),
@@ -425,7 +426,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
       return confirmed == true;
     }
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         key: const ValueKey('mcp_confirm_read_write_default'),
