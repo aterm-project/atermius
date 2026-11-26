@@ -13,8 +13,12 @@ abstract interface class McpLifecycleTarget implements Listenable {
   bool get starting;
   Uri? get endpoint;
 
-  /// Stops listening and revokes the current token.
+  /// Stops listening; the saved token stops being accepted with it.
   Future<void> stop();
+
+  /// Listens again where the user last enabled MCP, after [stop] paused it
+  /// because the app was hidden. Does nothing when that no longer applies.
+  Future<void> resume();
 }
 
 class McpServiceLifecycleTarget implements McpLifecycleTarget {
@@ -30,6 +34,8 @@ class McpServiceLifecycleTarget implements McpLifecycleTarget {
   @override
   Future<void> stop() => service.stop();
   @override
+  Future<void> resume() => service.resume();
+  @override
   void addListener(VoidCallback listener) => service.addListener(listener);
   @override
   void removeListener(VoidCallback listener) =>
@@ -44,35 +50,33 @@ enum McpBackgroundMode {
   starting,
 
   /// Listening and kept reachable in the background by an Android foreground
-  /// service whose ongoing notification (with a Stop action that revokes the
-  /// token) Android reports as displayable.
+  /// service. Its ongoing notification carries a Stop action; when Android
+  /// cannot show it (permission denied, notifications blocked) the service
+  /// still runs and stays listed, and stoppable, in Android's active apps.
   protected,
 
-  /// Listening only while the app is visible; leaving the app revokes. Used
-  /// when no foreground service runs, and also when one runs but its
-  /// notification cannot be shown (permission denied, app or channel
-  /// notifications blocked): background access must always stay visible and
-  /// stoppable.
+  /// Listening only while the app is visible: hiding the app pauses the
+  /// listener and showing it again resumes it with the same token. Used on
+  /// iOS and when Android could not start the foreground service, because a
+  /// frozen process would hold the port without answering.
   foregroundOnly,
 }
 
 /// Binds the MCP listener lifetime to the mobile app lifecycle.
 ///
-/// On iOS, hiding the app revokes an active listener or a pending start.
-///
 /// * Listener starts (explicit user action, app visible) -> foreground
-///   service lease with an ongoing notification and Stop action.
+///   service lease with an ongoing notification and Stop action. Leaving the
+///   app (Home, Back, another app) keeps MCP listening.
 /// * Listener stops for any reason -> lease released, notification removed.
-/// * Notification Stop / task removal / service death -> token revoked.
-/// * No foreground service (denied, failed, timed out) or no displayable
-///   notification -> foreground-only: the token is revoked as soon as the app
-///   is hidden, because background access must stay visible and stoppable and
-///   a frozen process would otherwise hold a valid token.
-/// * Notifications disabled while protected -> foreground-only when the app
-///   is visible, immediate revocation when it is in the background.
-/// * Notifications become displayable while the app is visible and the
-///   service runs -> protected again.
-/// * Flutter engine detaching -> token revoked.
+/// * Notification Stop / task removal / service death -> stopped.
+/// * Notifications hidden or blocked -> still listening; only
+///   [notificationsVisible] changes (Android lists the service in its active
+///   apps, where it can be stopped).
+/// * No foreground service (denied, failed, timed out), and always on iOS ->
+///   foreground-only: hiding the app pauses the listener (a frozen process
+///   would hold the port without answering) and showing it again resumes it
+///   on the same port with the same token.
+/// * Flutter engine detaching -> stopped.
 class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
   McpListenerLifecycle({
     required this.target,
@@ -127,6 +131,7 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
   bool _notificationsVisible = false;
   bool _serviceActive = false;
   String? _lastRevocation;
+  bool _resumeWhenVisible = false;
 
   McpBackgroundMode get mode => _mode;
 
@@ -138,10 +143,13 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
   /// hidden, so that granting them can restore protection without a restart.
   bool get serviceActive => _serviceActive;
 
-  /// Why the platform last revoked access (`user_stop`, `task_removed`,
+  /// Why the platform last stopped MCP (`user_stop`, `task_removed`,
   /// `timeout`, `service_destroyed`, `replaced`, `background_unprotected`,
-  /// `notifications_hidden`, `detached`, `unknown`), or null. Cleared on the next start.
+  /// `detached`, `unknown`), or null. Cleared on the next start.
   String? get lastRevocation => _lastRevocation;
+
+  /// MCP was paused because the app was hidden and resumes when it is shown.
+  bool get resumeWhenVisible => _resumeWhenVisible;
 
   bool get _inBackground =>
       _appState == AppLifecycleState.hidden ||
@@ -157,6 +165,7 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
 
   void _targetChanged() {
     if (_disposed) return;
+    if (target.running || target.starting) _resumeWhenVisible = false;
     if (foregroundOnly &&
         _inBackground &&
         (target.starting || target.running)) {
@@ -210,20 +219,22 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
       if (_inBackground) await _revoke('background_unprotected');
       return;
     }
-    // The service runs, but without a displayable notification background
-    // access would be invisible and unstoppable from the shade: keep the
-    // lease (so a later grant can restore protection) but stay foreground-only.
-    final hasNotifications = !foregroundOnly && grant.notifications;
+    if (foregroundOnly) {
+      _set(
+        McpBackgroundMode.foregroundOnly,
+        notifications: false,
+        service: true,
+      );
+      if (_inBackground) await _revoke('background_unprotected');
+      return;
+    }
+    // The service keeps the process running whether or not Android can show
+    // its notification; without one it is still listed in the active apps.
     _set(
-      hasNotifications
-          ? McpBackgroundMode.protected
-          : McpBackgroundMode.foregroundOnly,
-      notifications: hasNotifications,
+      McpBackgroundMode.protected,
+      notifications: grant.notifications,
       service: true,
     );
-    if (!hasNotifications && _inBackground) {
-      await _revoke('background_unprotected');
-    }
   }
 
   void _release() {
@@ -247,6 +258,10 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
     _lease = null;
     _leasePort = null;
     _lastRevocation = reason;
+    // Paused only because nobody can see the app: back when it is shown.
+    _resumeWhenVisible =
+        reason == 'background_unprotected' &&
+        (target.running || target.starting);
     _set(McpBackgroundMode.inactive, notifications: false, service: false);
     if (native && id != null) unawaited(_stopNative(id));
     // Stop even without a lease: a running listener must never outlive the
@@ -272,31 +287,21 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
         _mode == McpBackgroundMode.starting) {
       return;
     }
-    if (!visible) {
-      if (_mode != McpBackgroundMode.protected) {
-        _set(_mode, notifications: false);
-      } else if (_inBackground) {
-        // Notification blocked while nobody can see the app: the user has no
-        // visible way left to stop access, so revoke now.
-        unawaited(_revoke('notifications_hidden'));
-      } else {
-        _set(McpBackgroundMode.foregroundOnly, notifications: false);
-      }
-      return;
-    }
-    // Only restore protection while the app is visible; a foreground-only
-    // listener in the background has already been revoked.
-    if (_mode == McpBackgroundMode.foregroundOnly && !_inBackground) {
-      _set(McpBackgroundMode.protected, notifications: true);
-    } else {
-      _set(_mode, notifications: true);
-    }
+    // Shown or not, the service keeps running; settings say which.
+    _set(_mode, notifications: visible);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appState = state;
-    if (_disposed || (!target.running && !(foregroundOnly && target.starting))) {
+    if (_disposed) return;
+    if (state == AppLifecycleState.resumed && _resumeWhenVisible) {
+      _resumeWhenVisible = false;
+      unawaited(target.resume().catchError((Object _) {}));
+      return;
+    }
+    if (state == AppLifecycleState.detached) _resumeWhenVisible = false;
+    if (!target.running && !(foregroundOnly && target.starting)) {
       return;
     }
     if (state == AppLifecycleState.detached) {

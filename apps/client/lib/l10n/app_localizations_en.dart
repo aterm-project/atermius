@@ -13811,10 +13811,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get listensOn127001 =>
-      'Listens on 127.0.0.1 only. A new token is generated each time it\'s enabled; authorization ends after locking, signing out or switching Vaults. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.';
-
-  @override
-  String get stopAndRevokeToken => 'Stop and revoke token';
+      'Listens on 127.0.0.1 only. The token is kept on this device for this workspace and stays the same when MCP is stopped, enabled again or the app restarts. Locking, signing out or switching Vaults stops MCP. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.';
 
   @override
   String get allowExternalAiToPerformActions =>
@@ -17820,14 +17817,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mcpAndroidBackgroundHint =>
-      'While MCP runs, Atermius shows a notification so external AI can keep using it after you switch apps. Stopping it from the notification, locking or signing out revokes the token. If the notification can\'t be shown, MCP stops when you leave the app.';
+      'MCP keeps listening after you switch apps or press Back, so external AI can keep using it. Atermius shows a notification with a Stop button while it runs. Stopping it, locking or signing out ends access; the token stays the same.';
 
   @override
   String get mcpForegroundNotificationTitle => 'External AI access is on';
 
   @override
   String mcpForegroundNotificationText(int port) {
-    return 'MCP is listening on 127.0.0.1:$port. Stop it to revoke the access token.';
+    return 'MCP is listening on 127.0.0.1:$port. Stop it to end external AI access.';
   }
 
   @override
@@ -17835,11 +17832,46 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mcpAndroidProtected =>
-      'Background access is protected by the MCP notification.';
+      'MCP keeps running in the background. Stop it here or from the notification.';
 
   @override
   String get mcpAndroidForegroundOnly =>
-      'MCP works while this app is visible. Leaving the app revokes access.';
+      'MCP listens only while this app is visible. It pauses when you leave and resumes with the same token when you come back.';
+
+  @override
+  String get mcpAndroidProtectedNoNotification =>
+      'MCP keeps running in the background, but Android can\'t show its notification. Stop it here or from Android\'s active apps.';
+
+  @override
+  String get mcpStop => 'Stop MCP';
+
+  @override
+  String get mcpAccessToken => 'Access token (Bearer)';
+
+  @override
+  String get mcpAccessTokenHint =>
+      'AI clients connect with this token. It stays the same until you reset it.';
+
+  @override
+  String get mcpAccessTokenNotSaved =>
+      'This token couldn\'t be saved to the system\'s secure storage. It works until the app closes; a new one is used next time.';
+
+  @override
+  String get mcpTokenCopied => 'Token copied';
+
+  @override
+  String get mcpResetToken => 'Reset token';
+
+  @override
+  String get mcpResetTokenTitle => 'Reset the access token?';
+
+  @override
+  String get mcpResetTokenBody =>
+      'A new token replaces the current one, which stops working immediately. Every AI client set up with it needs the new token.';
+
+  @override
+  String get mcpResetTokenFailed =>
+      'Couldn\'t reset the token. The current token still works.';
 
   @override
   String get mcpAndroidStarting => 'Starting Android background protection…';
@@ -18625,7 +18657,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mcpListenTokenNote =>
-      'A new token is generated each time it\'s enabled; authorization ends after locking, signing out or switching Vaults. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.';
+      'The token is kept on this device for this workspace and stays the same when MCP is stopped, enabled again or the app restarts. Locking, signing out or switching Vaults stops MCP. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.';
 
   @override
   String get mcpEndpointsTitle =>

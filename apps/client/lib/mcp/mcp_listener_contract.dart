@@ -28,3 +28,10 @@ abstract interface class McpObservableListener implements McpListener {
 abstract interface class McpAddressedListener implements McpListener {
   List<Uri> get endpoints;
 }
+
+/// Optional listener capability: accept a different bearer token from now
+/// on (the user reset it). The port and endpoints stay the same; requests
+/// already authenticated finish, every later one needs the new token.
+abstract interface class McpRekeyableListener implements McpListener {
+  void replaceToken(String token);
+}

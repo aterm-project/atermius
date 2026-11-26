@@ -12207,10 +12207,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get listensOn127001 =>
-      '仅监听 127.0.0.1。每次启用生成新令牌；锁定、退出或切换保险库后授权失效。不同窗口可使用不同端口。停止 MCP 不会关闭你已打开的会话。';
-
-  @override
-  String get stopAndRevokeToken => '停止并撤销令牌';
+      '仅监听 127.0.0.1。令牌按工作区保存在本设备，停止、重新启用或重启应用后都不变；锁定、退出或切换保险库会停止 MCP。不同窗口可使用不同端口。停止 MCP 不会关闭你已打开的会话。';
 
   @override
   String get allowExternalAiToPerformActions => '允许外部 AI 执行操作';
@@ -15906,24 +15903,56 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mcpAndroidBackgroundHint =>
-      'MCP 运行期间，Atermius 会显示一条通知，以便你切换到其他应用后外部 AI 仍可继续使用。从通知中停止、锁定或退出登录都会撤销令牌。如果无法显示通知，离开应用时 MCP 会停止。';
+      '切换到其他应用或按返回键离开后，MCP 会继续监听，外部 AI 仍可使用。运行期间 Atermius 会显示一条带「停止」按钮的通知。停止、锁定或退出登录会结束访问，令牌保持不变。';
 
   @override
   String get mcpForegroundNotificationTitle => '外部 AI 接入已开启';
 
   @override
   String mcpForegroundNotificationText(int port) {
-    return 'MCP 正在监听 127.0.0.1:$port。停止即可撤销访问令牌。';
+    return 'MCP 正在监听 127.0.0.1:$port。停止后外部 AI 将无法访问。';
   }
 
   @override
   String get mcpForegroundNotificationStop => '停止 MCP';
 
   @override
-  String get mcpAndroidProtected => 'MCP 通知已启用，可在后台保持连接。';
+  String get mcpAndroidProtected => 'MCP 会在后台继续运行，可在这里或通知中停止。';
 
   @override
-  String get mcpAndroidForegroundOnly => 'MCP 仅在本应用可见时运行。离开应用将撤销访问权限。';
+  String get mcpAndroidForegroundOnly =>
+      'MCP 仅在本应用可见时监听。离开应用时暂停，回来后用同一个令牌自动恢复。';
+
+  @override
+  String get mcpAndroidProtectedNoNotification =>
+      'MCP 会在后台继续运行，但系统无法显示它的通知。可在这里或系统的「使用中的应用」中停止。';
+
+  @override
+  String get mcpStop => '停止 MCP';
+
+  @override
+  String get mcpAccessToken => '访问令牌（Bearer）';
+
+  @override
+  String get mcpAccessTokenHint => 'AI 客户端使用此令牌连接。重置前它始终不变。';
+
+  @override
+  String get mcpAccessTokenNotSaved => '无法将令牌保存到系统安全存储。它在应用关闭前有效，下次启动会使用新令牌。';
+
+  @override
+  String get mcpTokenCopied => '令牌已复制';
+
+  @override
+  String get mcpResetToken => '重置令牌';
+
+  @override
+  String get mcpResetTokenTitle => '重置访问令牌？';
+
+  @override
+  String get mcpResetTokenBody => '新令牌将替换当前令牌，当前令牌立即失效。所有使用它的 AI 客户端都需要改用新令牌。';
+
+  @override
+  String get mcpResetTokenFailed => '无法重置令牌，当前令牌仍然有效。';
 
   @override
   String get mcpAndroidStarting => '正在启动 Android 后台保护…';
@@ -16663,7 +16692,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mcpListenTokenNote =>
-      '每次启用生成新令牌；锁定、退出或切换保险库后授权失效。不同窗口可使用不同端口。停止 MCP 不会关闭你已打开的会话。';
+      '令牌按工作区保存在本设备，停止、重新启用或重启应用后都不变；锁定、退出或切换保险库会停止 MCP。不同窗口可使用不同端口。停止 MCP 不会关闭你已打开的会话。';
 
   @override
   String get mcpEndpointsTitle => '客户端可以使用以下任一地址连接：';

@@ -62,6 +62,9 @@ internal object McpForegroundLease {
 
     fun currentTexts(): Texts? = lease?.texts
 
+    /** A Dart MCP listener holds the service (starting or running). */
+    fun active(): Boolean = lease != null
+
     fun start(context: Context, owner: Any, id: String, texts: Texts, callback: (Boolean) -> Unit) {
         val previous = lease
         if (previous != null) {

@@ -82,10 +82,7 @@ Future<McpListener> bindMcpListener({
   Future<List<InternetAddress>> Function(InternetAddressType type)?
   localAddresses,
 }) async {
-  if (token.length < _minTokenLength ||
-      token.codeUnits.any((c) => c < 0x21 || c > 0x7e)) {
-    throw ArgumentError('MCP token is too short or malformed.');
-  }
+  _checkToken(token);
   if (port < 0 || port > 65535) throw RangeError.range(port, 0, 65535, 'port');
   final InternetAddress address;
   switch (bind.mode) {
@@ -137,16 +134,27 @@ Future<McpListener> bindMcpListener({
   );
 }
 
+void _checkToken(String token) {
+  if (token.length < _minTokenLength ||
+      token.codeUnits.any((c) => c < 0x21 || c > 0x7e)) {
+    throw ArgumentError('MCP token is too short or malformed.');
+  }
+}
+
 Future<List<InternetAddress>> _localAddresses(InternetAddressType type) async =>
     [
       for (final interface in await NetworkInterface.list(type: type))
         ...interface.addresses,
     ];
 
-class _Listener implements McpObservableListener, McpAddressedListener {
+class _Listener
+    implements
+        McpObservableListener,
+        McpAddressedListener,
+        McpRekeyableListener {
   _Listener(
     this.server,
-    this.token,
+    this._token,
     this.handler,
     this.bodyTimeout, {
     required this.exposed,
@@ -170,7 +178,7 @@ class _Listener implements McpObservableListener, McpAddressedListener {
     );
   }
   final HttpServer server;
-  final String token;
+  String _token;
   final McpRequestHandler handler;
   final Duration bodyTimeout;
 
@@ -208,8 +216,16 @@ class _Listener implements McpObservableListener, McpAddressedListener {
     }
   }
 
+  @override
+  void replaceToken(String token) {
+    _checkToken(token);
+    _token = token;
+    // Earlier failures were against the old token.
+    _authFailures.clear();
+  }
+
   bool _authorized(String? header) {
-    final expected = 'Bearer $token';
+    final expected = 'Bearer $_token';
     if (header == null || header.length != expected.length) return false;
     var diff = 0;
     for (var i = 0; i < expected.length; i++) {
@@ -266,6 +282,9 @@ class _Listener implements McpObservableListener, McpAddressedListener {
 
   Future<void> _serve(HttpRequest request) async {
     var counted = false;
+    // The token this request is checked against; a reset while its tool runs
+    // withholds the result like a stop does.
+    final token = _token;
     try {
       request.response.headers.set('Cache-Control', 'no-store');
       request.response.headers.set('X-Content-Type-Options', 'nosniff');
@@ -341,9 +360,9 @@ class _Listener implements McpObservableListener, McpAddressedListener {
           if (value != null) headers[name] = value;
         }
         final reply = await handler(body, headers: headers);
-        if (_closed) {
-          // Revoked while the tool ran: the connection was force-closed and
-          // the result must not be delivered under a revoked token.
+        if (_closed || !identical(token, _token)) {
+          // Revoked or reset while the tool ran: the result must not be
+          // delivered under a token that is no longer valid.
           try {
             request.response.statusCode = 503;
             request.response.persistentConnection = false;

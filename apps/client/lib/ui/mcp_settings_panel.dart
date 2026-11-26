@@ -86,7 +86,10 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
   McpService get service => widget.service ?? McpService.instance;
   String? _error;
   String? _accessError;
+  String? _tokenError;
   bool _copied = false;
+  bool _tokenCopied = false;
+  bool _resettingToken = false;
   bool _defaultPending = false;
   final _pendingHosts = <String>{};
 
@@ -225,6 +228,175 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
         );
       }
     }
+  }
+
+  /// The bearer token itself, for clients configured field by field.
+  Future<void> _copyToken() async {
+    final token = service.token;
+    if (token == null) return;
+    try {
+      SensitiveClipboard.markSecret(token);
+      await Clipboard.setData(ClipboardData(text: token));
+      if (mounted) setState(() => _tokenCopied = true);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = context.l10n.couldntCopyTheConfigurationCheckClipboard,
+        );
+      }
+    }
+  }
+
+  Future<bool> _confirmResetToken() async {
+    final l10n = context.l10n;
+    if (isIosPhone(context)) {
+      final confirmed = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (dialogContext) => CupertinoAlertDialog(
+          key: const ValueKey('mcp_confirm_reset_token'),
+          title: Text(l10n.mcpResetTokenTitle),
+          content: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(l10n.mcpResetTokenBody),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              key: const ValueKey('mcp_confirm_reset_token_cancel'),
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.cancel),
+            ),
+            CupertinoDialogAction(
+              key: const ValueKey('mcp_confirm_reset_token_accept'),
+              isDestructiveAction: true,
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.mcpResetToken),
+            ),
+          ],
+        ),
+      );
+      return confirmed == true;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const ValueKey('mcp_confirm_reset_token'),
+        title: Text(l10n.mcpResetTokenTitle),
+        content: Text(l10n.mcpResetTokenBody),
+        actions: [
+          TextButton(
+            key: const ValueKey('mcp_confirm_reset_token_cancel'),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            key: const ValueKey('mcp_confirm_reset_token_accept'),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l10n.mcpResetToken),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Future<void> _resetToken() async {
+    if (_resettingToken) return;
+    if (!await _confirmResetToken() || !mounted) return;
+    setState(() {
+      _resettingToken = true;
+      _tokenError = null;
+      _tokenCopied = false;
+      _copied = false;
+    });
+    try {
+      await service.resetToken();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _tokenError = context.l10n.mcpResetTokenFailed);
+      }
+    } finally {
+      if (mounted) setState(() => _resettingToken = false);
+    }
+  }
+
+  bool get _canResetToken => !_resettingToken && !service.starting;
+
+  /// The token as text on screen, with Copy and Reset.
+  Widget _tokenSection(BuildContext context) {
+    final l10n = context.l10n;
+    final token = service.token;
+    if (token == null) return const SizedBox.shrink();
+    return Column(
+      key: const ValueKey('mcp_token_section'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        Text(
+          l10n.mcpAccessToken,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: context.palette.codeBackground,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: SelectableText(
+            token,
+            key: const ValueKey('mcp_token'),
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 13,
+              color: context.palette.codeText,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            OutlinedButton.icon(
+              key: const ValueKey('mcp_copy_token'),
+              onPressed: _copyToken,
+              icon: const Icon(Icons.copy),
+              label: Text(_tokenCopied ? l10n.mcpTokenCopied : l10n.copyToken),
+            ),
+            OutlinedButton.icon(
+              key: const ValueKey('mcp_reset_token'),
+              onPressed: _canResetToken ? _resetToken : null,
+              icon: const Icon(Icons.refresh),
+              label: Text(l10n.mcpResetToken),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          service.tokenSaved
+              ? l10n.mcpAccessTokenHint
+              : l10n.mcpAccessTokenNotSaved,
+          key: const ValueKey('mcp_token_hint'),
+          style: TextStyle(
+            color: service.tokenSaved
+                ? context.palette.muted
+                : context.palette.orange,
+            fontSize: 12,
+            height: 1.5,
+          ),
+        ),
+        if (_tokenError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              _tokenError!,
+              key: const ValueKey('mcp_token_error'),
+              style: TextStyle(color: context.palette.red),
+            ),
+          ),
+      ],
+    );
   }
 
   Future<bool> _confirmReadWriteDefault() async {
@@ -503,6 +675,71 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                     : ValueKey('mcp_endpoint_$index'),
                 style: IosType.mono.copyWith(color: colors.label),
               ),
+            ),
+          ],
+          if (service.token case final token?) ...[
+            separator(),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: IosMetrics.rowPaddingH,
+                vertical: 10,
+              ),
+              child: Column(
+                key: const ValueKey('mcp_token_section'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.mcpAccessToken,
+                    style: IosType.footnote.copyWith(
+                      color: colors.secondaryLabel,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  SelectableText(
+                    token,
+                    key: const ValueKey('mcp_token'),
+                    style: IosType.mono.copyWith(color: colors.label),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    service.tokenSaved
+                        ? l10n.mcpAccessTokenHint
+                        : l10n.mcpAccessTokenNotSaved,
+                    key: const ValueKey('mcp_token_hint'),
+                    style: IosType.footnote.copyWith(
+                      color: service.tokenSaved
+                          ? colors.secondaryLabel
+                          : colors.destructive,
+                    ),
+                  ),
+                  if (_tokenError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        _tokenError!,
+                        key: const ValueKey('mcp_token_error'),
+                        style: IosType.footnote.copyWith(
+                          color: colors.destructive,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            separator(),
+            IosListActionRow(
+              key: const ValueKey('mcp_copy_token'),
+              label: _tokenCopied ? l10n.mcpTokenCopied : l10n.copyToken,
+              icon: IosIcons.copy,
+              onTap: _copyToken,
+            ),
+            separator(),
+            IosListActionRow(
+              key: const ValueKey('mcp_reset_token'),
+              label: l10n.mcpResetToken,
+              icon: Icons.refresh_rounded,
+              destructive: true,
+              onTap: _canResetToken ? _resetToken : null,
             ),
           ],
           if (service.running) ...[
@@ -1121,6 +1358,9 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   switch (lifecycle.mode) {
+                    McpBackgroundMode.protected
+                        when !lifecycle.notificationsVisible =>
+                      l10n.mcpAndroidProtectedNoNotification,
                     McpBackgroundMode.protected => l10n.mcpAndroidProtected,
                     McpBackgroundMode.foregroundOnly =>
                       l10n.mcpAndroidForegroundOnly,
@@ -1194,6 +1434,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
               textInputAction: TextInputAction.done,
               decoration: InputDecoration(labelText: l10n.localListeningPort),
             ),
+            _tokenSection(context),
             const SizedBox(height: 12),
             Text(
               l10n.readOnlyModeCanStillRead,
@@ -1226,7 +1467,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                     service.starting
                         ? l10n.starting
                         : service.running
-                        ? l10n.stopAndRevokeToken
+                        ? l10n.mcpStop
                         : l10n.enableMcp,
                   ),
                 ),

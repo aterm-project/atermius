@@ -6,6 +6,7 @@ import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/mcp/mcp_listener_lifecycle.dart';
 import 'package:aterm_client/mcp/mcp_access_policy_store_io.dart';
 import 'package:aterm_client/mcp/mcp_service.dart';
+import 'package:aterm_client/mcp/mcp_token_store.dart';
 import 'package:aterm_client/mcp/mcp_workspace.dart';
 import 'package:aterm_client/platform/mcp_foreground.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +19,7 @@ class _Target extends ChangeNotifier implements McpLifecycleTarget {
   bool starting = false;
   int port = 8765;
   int stops = 0;
+  int resumes = 0;
 
   @override
   bool get running => _running;
@@ -38,6 +40,12 @@ class _Target extends ChangeNotifier implements McpLifecycleTarget {
     _running = false;
     starting = false;
     notifyListeners();
+  }
+
+  @override
+  Future<void> resume() async {
+    resumes++;
+    startListening();
   }
 }
 
@@ -118,31 +126,66 @@ void main() {
   }
 
   test(
-    'iOS revokes both a pending start and a running listener on hide',
+    'iOS pauses a pending start and a running listener on hide, then resumes',
     () async {
       useForegroundOnly();
       target.starting = true;
       lifecycleState(AppLifecycleState.hidden);
       expect(target.starting, isFalse);
       expect(target.stops, 1);
+      expect(lifecycle.resumeWhenVisible, isTrue);
       expect(calls, isEmpty);
 
-      lifecycleState(AppLifecycleState.resumed);
       final grant = Completer<Object?>();
       native = (call) async => call.method == 'start' ? grant.future : null;
-      target.startListening();
+      lifecycleState(AppLifecycleState.resumed);
+      expect(target.resumes, 1);
+      expect(target.running, isTrue);
+      expect(lifecycle.resumeWhenVisible, isFalse);
       expect(lifecycle.mode, McpBackgroundMode.starting);
+
       lifecycleState(AppLifecycleState.hidden);
       expect(target.running, isFalse);
       expect(target.stops, 2);
       expect(lifecycle.lastRevocation, 'background_unprotected');
       grant.complete({'active': true, 'notifications': false});
       await settle();
-      lifecycleState(AppLifecycleState.resumed);
       expect(lifecycle.mode, McpBackgroundMode.inactive);
+      // The late grant for the paused start is released.
       expect(calls.where((call) => call.method == 'start'), hasLength(1));
+      expect(calls.last.method, 'stop');
+
+      native = (call) async => call.method == 'start'
+          ? {'active': true, 'notifications': true}
+          : null;
+      lifecycleState(AppLifecycleState.resumed);
+      await settle();
+      expect(target.resumes, 2);
+      expect(target.running, isTrue);
+      expect(lifecycle.mode, McpBackgroundMode.foregroundOnly);
     },
   );
+
+  test('a user stop or engine detach is never resumed', () async {
+    useForegroundOnly();
+    target.startListening();
+    await settle();
+    await target.stop();
+    lifecycleState(AppLifecycleState.hidden);
+    lifecycleState(AppLifecycleState.resumed);
+    await settle();
+    expect(target.resumes, 0);
+    expect(target.running, isFalse);
+
+    target.startListening();
+    await settle();
+    lifecycleState(AppLifecycleState.hidden);
+    expect(lifecycle.resumeWhenVisible, isTrue);
+    lifecycleState(AppLifecycleState.detached);
+    lifecycleState(AppLifecycleState.resumed);
+    await settle();
+    expect(target.resumes, 0);
+  });
 
   test(
     'iOS stays foreground-only, including after a native revocation',
@@ -259,7 +302,7 @@ void main() {
   );
 
   test(
-    'without a foreground service the token is revoked when hidden',
+    'without a foreground service MCP pauses while hidden, resumes when shown',
     () async {
       native = (call) async {
         if (call.method == 'start') {
@@ -280,6 +323,12 @@ void main() {
       await settle();
       expect(target.running, isFalse);
       expect(lifecycle.lastRevocation, 'background_unprotected');
+
+      lifecycleState(AppLifecycleState.resumed);
+      await settle();
+      expect(target.resumes, 1);
+      expect(target.running, isTrue);
+      expect(target.port, 8765);
     },
   );
 
@@ -357,39 +406,27 @@ void main() {
       {'leaseId': id ?? lease(), 'visible': visible},
     );
 
-    test('active service without a notification is foreground-only', () async {
-      serviceWithoutNotification();
-      target.startListening();
-      await settle();
-      expect(lifecycle.mode, McpBackgroundMode.foregroundOnly);
-      expect(lifecycle.serviceActive, isTrue);
-      expect(lifecycle.notificationsVisible, isFalse);
-      // The lease is kept so a later grant can restore protection.
-      expect(calls.map((c) => c.method), ['start']);
-      expect(target.running, isTrue);
+    test(
+      'active service without a notification keeps running in the background',
+      () async {
+        serviceWithoutNotification();
+        target.startListening();
+        await settle();
+        expect(lifecycle.mode, McpBackgroundMode.protected);
+        expect(lifecycle.serviceActive, isTrue);
+        expect(lifecycle.notificationsVisible, isFalse);
+        expect(calls.map((c) => c.method), ['start']);
 
-      lifecycleState(AppLifecycleState.inactive); // permission dialog/shade
-      await settle();
-      expect(target.running, isTrue);
-
-      lifecycleState(AppLifecycleState.hidden);
-      await settle();
-      expect(target.running, isFalse);
-      expect(lifecycle.lastRevocation, 'background_unprotected');
-      expect(lifecycle.serviceActive, isFalse);
-      expect(calls.map((c) => c.method), ['start', 'stop']);
-      expect(calls.last.arguments['leaseId'], calls.first.arguments['leaseId']);
-    });
-
-    test('paused without a notification also revokes', () async {
-      serviceWithoutNotification();
-      target.startListening();
-      await settle();
-      lifecycleState(AppLifecycleState.paused);
-      await settle();
-      expect(target.running, isFalse);
-      expect(calls.last.method, 'stop');
-    });
+        lifecycleState(AppLifecycleState.inactive); // permission dialog/shade
+        lifecycleState(AppLifecycleState.hidden);
+        lifecycleState(AppLifecycleState.paused);
+        await settle();
+        expect(target.running, isTrue);
+        expect(target.stops, 0);
+        expect(lifecycle.serviceActive, isTrue);
+        expect(calls.map((c) => c.method), ['start']);
+      },
+    );
 
     test(
       'granting notifications in the foreground restores protection',
@@ -397,7 +434,7 @@ void main() {
         serviceWithoutNotification();
         target.startListening();
         await settle();
-        expect(lifecycle.mode, McpBackgroundMode.foregroundOnly);
+        expect(lifecycle.notificationsVisible, isFalse);
         await notifications(true);
         expect(lifecycle.mode, McpBackgroundMode.protected);
         expect(lifecycle.notificationsVisible, isTrue);
@@ -411,36 +448,37 @@ void main() {
       },
     );
 
-    test('notifications disabled in the foreground downgrade, then background revokes', () async {
+    test(
+      'notifications disabled in the foreground only change the flag',
+      () async {
+        target.startListening();
+        await settle();
+        expect(lifecycle.mode, McpBackgroundMode.protected);
+        await notifications(false);
+        expect(lifecycle.mode, McpBackgroundMode.protected);
+        expect(lifecycle.notificationsVisible, isFalse);
+
+        lifecycleState(AppLifecycleState.hidden);
+        await settle();
+        expect(target.running, isTrue);
+        expect(calls.map((c) => c.method), ['start']);
+      },
+    );
+
+    test('visibility can flip repeatedly without touching MCP', () async {
       target.startListening();
       await settle();
-      expect(lifecycle.mode, McpBackgroundMode.protected);
       await notifications(false);
-      expect(lifecycle.mode, McpBackgroundMode.foregroundOnly);
       expect(lifecycle.notificationsVisible, isFalse);
-      expect(target.running, isTrue, reason: 'still visible in the app');
-      expect(calls.map((c) => c.method), ['start']);
-
-      lifecycleState(AppLifecycleState.hidden);
-      await settle();
-      expect(target.running, isFalse);
-      expect(lifecycle.lastRevocation, 'background_unprotected');
-      expect(calls.map((c) => c.method), ['start', 'stop']);
-    });
-
-    test('downgrade and restore can repeat while the app is visible', () async {
-      target.startListening();
-      await settle();
-      await notifications(false);
-      expect(lifecycle.mode, McpBackgroundMode.foregroundOnly);
       await notifications(true);
-      expect(lifecycle.mode, McpBackgroundMode.protected);
+      expect(lifecycle.notificationsVisible, isTrue);
       lifecycleState(AppLifecycleState.paused);
       await settle();
       expect(target.running, isTrue);
+      expect(lifecycle.mode, McpBackgroundMode.protected);
     });
 
-    test('notifications disabled while protected in the background revoke immediately', () async {
+    test('notifications disabled in the background keep MCP running', () async {
       target.startListening();
       await settle();
       lifecycleState(AppLifecycleState.hidden);
@@ -449,18 +487,11 @@ void main() {
       expect(target.running, isTrue);
 
       await notifications(false);
-      expect(target.running, isFalse);
-      expect(target.stops, 1);
-      expect(lifecycle.mode, McpBackgroundMode.inactive);
-      expect(lifecycle.lastRevocation, 'notifications_hidden');
-      // The native service is released too: no service without a token.
-      expect(calls.map((c) => c.method), ['start', 'stop']);
-
-      // Returning to the app does not silently restart anything.
-      lifecycleState(AppLifecycleState.resumed);
-      await notifications(true, calls.first.arguments['leaseId'] as String);
-      expect(target.running, isFalse);
-      expect(lifecycle.mode, McpBackgroundMode.inactive);
+      expect(target.running, isTrue);
+      expect(target.stops, 0);
+      expect(lifecycle.mode, McpBackgroundMode.protected);
+      expect(lifecycle.notificationsVisible, isFalse);
+      expect(calls.map((c) => c.method), ['start']);
     });
 
     test('stale-lease visibility events never downgrade or revoke', () async {
@@ -492,13 +523,13 @@ void main() {
         expect(lifecycle.mode, McpBackgroundMode.starting);
         ack.complete({'active': true, 'notifications': false});
         await settle();
-        expect(lifecycle.mode, McpBackgroundMode.foregroundOnly);
+        expect(lifecycle.mode, McpBackgroundMode.protected);
         expect(lifecycle.notificationsVisible, isFalse);
       },
     );
 
     test(
-      'hidden before an ACK without notification revokes and releases',
+      'hidden before an ACK without notification keeps the service',
       () async {
         final ack = Completer<Object?>();
         native = (call) async => call.method == 'start' ? ack.future : null;
@@ -509,9 +540,9 @@ void main() {
         expect(target.running, isTrue);
         ack.complete({'active': true, 'notifications': false});
         await settle();
-        expect(target.running, isFalse);
-        expect(lifecycle.lastRevocation, 'background_unprotected');
-        expect(calls.map((c) => c.method), ['start', 'stop']);
+        expect(target.running, isTrue);
+        expect(lifecycle.mode, McpBackgroundMode.protected);
+        expect(calls.map((c) => c.method), ['start']);
       },
     );
 
@@ -594,21 +625,22 @@ void main() {
       final policyDirectory = await Directory.systemTemp.createTemp(
         'mcp-lifecycle-',
       );
-      final service = McpService(
-        policyStore: FileMcpAccessPolicyStore(
-          directory: () async => policyDirectory,
-        ),
-      )
-        ..attach(
-          McpWorkspace(
-            scope: () => 'fixture:lifecycle',
-            describe: () => {'mode': 'fixture'},
-            hosts: () => const <HostRecord>[],
-            sessions: () => const <McpSession>[],
-            connect: (_) async {},
-            openConsole: () async {},
-          ),
-        );
+      final service =
+          McpService(
+            policyStore: FileMcpAccessPolicyStore(
+              directory: () async => policyDirectory,
+            ),
+            tokenStore: MemoryMcpTokenStore(),
+          )..attach(
+            McpWorkspace(
+              scope: () => 'fixture:lifecycle',
+              describe: () => {'mode': 'fixture'},
+              hosts: () => const <HostRecord>[],
+              sessions: () => const <McpSession>[],
+              connect: (_) async {},
+              openConsole: () async {},
+            ),
+          );
       final l = McpListenerLifecycle(
         target: McpServiceLifecycleTarget(service),
         channel: channel,
@@ -655,6 +687,64 @@ void main() {
         expect(service.running, isFalse);
         expect(l.lastRevocation, 'user_stop');
         await expectLater(post(), throwsA(isA<SocketException>()));
+      } finally {
+        l.dispose();
+        await service.stop();
+        service.dispose();
+        await policyDirectory.delete(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'real McpService: paused while hidden, back with the same token',
+    () async {
+      final policyDirectory = await Directory.systemTemp.createTemp(
+        'mcp-lifecycle-',
+      );
+      final tokens = MemoryMcpTokenStore();
+      final service =
+          McpService(
+            policyStore: FileMcpAccessPolicyStore(
+              directory: () async => policyDirectory,
+            ),
+            tokenStore: tokens,
+          )..attach(
+            McpWorkspace(
+              scope: () => 'fixture:resume',
+              describe: () => {'mode': 'fixture'},
+              hosts: () => const <HostRecord>[],
+              sessions: () => const <McpSession>[],
+              connect: (_) async {},
+              openConsole: () async {},
+            ),
+          );
+      final l = McpListenerLifecycle(
+        target: McpServiceLifecycleTarget(service),
+        channel: channel,
+        binding: binding,
+        newLeaseId: nextLease,
+        foregroundOnly: true,
+      );
+      try {
+        await service.start(port: 0);
+        await settle();
+        final port = service.endpoint!.port;
+        final config = service.connectionConfiguration();
+        expect(config, contains(tokens.values['fixture:resume']!));
+
+        lifecycleState(AppLifecycleState.hidden);
+        await settle();
+        expect(service.running, isFalse);
+        expect(l.resumeWhenVisible, isTrue);
+
+        lifecycleState(AppLifecycleState.resumed);
+        for (var i = 0; i < 50 && !service.running; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(service.running, isTrue);
+        expect(service.endpoint!.port, port);
+        expect(service.connectionConfiguration(), config);
       } finally {
         l.dispose();
         await service.stop();

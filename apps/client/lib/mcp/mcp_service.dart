@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -10,6 +9,7 @@ import 'mcp_access_policy_store.dart';
 import 'mcp_listener.dart';
 import 'mcp_native_bridge.dart';
 import 'mcp_protocol.dart';
+import 'mcp_token_store.dart';
 import 'mcp_workspace.dart';
 
 export 'mcp_access_policy.dart' show McpAccessMode, mcpLocalDeviceHostId;
@@ -32,19 +32,30 @@ class McpPermissionsUnavailable implements Exception {
 }
 
 class McpService extends ChangeNotifier {
-  McpService({McpAccessPolicyStore? policyStore})
-    : _store = policyStore ?? createMcpAccessPolicyStore();
+  McpService({McpAccessPolicyStore? policyStore, McpTokenStore? tokenStore})
+    : _store = policyStore ?? createMcpAccessPolicyStore(),
+      _tokens = tokenStore ?? createMcpTokenStore();
 
   static final instance = McpService();
+
+  static const _tokenStoreTimeout = Duration(seconds: 5);
 
   /// Policy identity for hostless local shell/serial sessions.
   static const localDeviceHostId = mcpLocalDeviceHostId;
 
   final McpAccessPolicyStore _store;
+  final McpTokenStore _tokens;
   McpWorkspace? _workspace;
   McpListener? _listener;
   McpProtocol? _protocol;
+
+  /// [_scope]: the workspace the listener serves; [_token]: the bearer token
+  /// it accepts.
   String? _scope, _token;
+
+  /// Where the last listener started by the user listened, so the platform
+  /// lifecycle can bring it back after pausing it in the background.
+  ({int port, McpBind bind, String scope})? _resumable;
   int _generation = 0;
   int _nativeEpoch = 0;
   bool _starting = false;
@@ -63,6 +74,9 @@ class McpService extends ChangeNotifier {
   final _pending = <McpAccessPolicy>[]; // intents not yet persisted
   McpAccessPolicy? _floor; // restrictions whose save failed
   McpAccessPolicy? _enforced; // meet(committed, pending..., floor)
+  // The bearer token of [_policyScope], loaded with its policy.
+  String? _savedToken;
+  bool _tokenSaved = false;
   Future<void> _storeChain = Future.value();
 
   bool get supported => mcpListenerSupported;
@@ -105,6 +119,8 @@ class McpService extends ChangeNotifier {
     _policyScope = scope;
     _policyError = false;
     _committed = _requested = _floor = _enforced = null;
+    _savedToken = null;
+    _tokenSaved = false;
     _pending.clear();
     _policyLoading = scope != null;
     _protocol?.revalidate();
@@ -125,13 +141,94 @@ class McpService extends ChangeNotifier {
     } catch (_) {
       policy = null;
     }
+    final (token, saved) = await _loadToken(scope);
     if (_disposed || epoch != _policyEpoch) return;
     _policyLoading = false;
     _policyError = policy == null;
     _committed = _requested = policy;
+    _savedToken = token;
+    _tokenSaved = saved;
     _recompute();
     notifyListeners();
   });
+
+  /// The saved token of [scope], creating and saving one the first time.
+  /// When the store cannot be read, this run uses a token of its own and
+  /// leaves whatever is stored untouched.
+  Future<(String?, bool)> _loadToken(String scope) async {
+    if (!supported) return (null, false);
+    String? stored;
+    try {
+      // A keyring waiting for its password must not hold up the policy.
+      stored = await _tokens.read(scope).timeout(_tokenStoreTimeout);
+    } catch (_) {
+      return (newMcpToken(), false);
+    }
+    if (mcpTokenValid(stored)) return (stored, true);
+    final created = newMcpToken();
+    try {
+      await _tokens.write(scope, created).timeout(_tokenStoreTimeout);
+      return (created, true);
+    } catch (_) {
+      return (created, false);
+    }
+  }
+
+  /// The bearer token AI clients use for the current workspace, shown in
+  /// settings. It stays the same across stops, restarts and app launches and
+  /// changes only through [resetToken]. Null while locked or loading.
+  String? get token {
+    _syncScope();
+    return _policyScope != null && _policyScope == _liveScope
+        ? _savedToken
+        : null;
+  }
+
+  /// False when [token] could not be saved on this device (no usable secure
+  /// storage): it then lasts only until the app closes.
+  bool get tokenSaved => token != null && _tokenSaved;
+
+  /// Replaces the current workspace's token. The old token stops working at
+  /// once, also on a running listener, which keeps its port. Throws (and
+  /// keeps the old token) when the new one cannot be saved.
+  Future<void> resetToken() async {
+    if (_disposed) throw StateError('MCP service disposed.');
+    if (_starting) throw StateError('MCP is starting.');
+    _syncScope();
+    final scope = _policyScope;
+    final epoch = _policyEpoch;
+    if (scope == null || scope != _liveScope || _savedToken == null) {
+      throw const McpPermissionsUnavailable();
+    }
+    final next = newMcpToken();
+    var saved = true;
+    try {
+      await _enqueue(
+        () => _tokens.write(scope, next).timeout(_tokenStoreTimeout),
+      );
+    } catch (_) {
+      // The saved token would come back at the next launch.
+      if (_tokenSaved) rethrow;
+      saved = false;
+    }
+    if (_disposed || epoch != _policyEpoch) return;
+    _savedToken = next;
+    _tokenSaved = saved;
+    final listener = _listener;
+    if (listener != null && _scope == scope) {
+      if (listener is McpRekeyableListener) {
+        listener.replaceToken(next);
+        _token = next;
+      } else {
+        final port = listener.endpoint.port;
+        final bind = _bind;
+        await stop();
+        await start(port: port, bind: bind);
+        return;
+      }
+    }
+    notifyListeners();
+  }
 
   void _recompute() {
     final committed = _committed;
@@ -472,12 +569,10 @@ class McpService extends ChangeNotifier {
           'Workspace authorization expired.',
         );
       }
-      if (_policyScope != scope || _enforced == null) {
+      if (_policyScope != scope || _enforced == null || _savedToken == null) {
         throw const McpPermissionsUnavailable();
       }
-      _token = base64UrlEncode(
-        List<int>.generate(32, (_) => Random.secure().nextInt(256)),
-      ).replaceAll('=', '');
+      _token = _savedToken;
       protocol = McpProtocol(
         workspace: workspace,
         validateAccess: () {
@@ -508,6 +603,11 @@ class McpService extends ChangeNotifier {
         return;
       }
       _listener = listener;
+      _resumable = (
+        port: port == 0 ? listener.endpoint.port : port,
+        bind: bind,
+        scope: scope,
+      );
       if (listener is McpObservableListener) {
         unawaited(
           listener.done.then((_) {
@@ -545,6 +645,18 @@ class McpService extends ChangeNotifier {
     });
   }
 
+  /// Starts listening again where the user last enabled MCP, after the
+  /// platform lifecycle paused it in the background. Does nothing while MCP
+  /// runs or when the workspace has changed since.
+  Future<void> resume() async {
+    final last = _resumable;
+    if (_disposed || last == null || running || _starting) return;
+    if (_workspace?.scope() != last.scope) return;
+    await start(port: last.port, bind: last.bind);
+  }
+
+  /// Stops listening. The workspace's token stays saved and is used again by
+  /// the next [start].
   Future<void> stop() async {
     ++_generation;
     _starting = false;

@@ -92,29 +92,37 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
+     * Something in the Flutter engine must outlive leaving the app: SSH
+     * sessions, or the MCP listener an external AI is using.
+     */
+    private fun keepEngineOnBack() =
+        SshSessionKeepalive.hasSessions() || McpForegroundLease.active()
+
+    /**
      * Back from the root route normally finishes the activity, which destroys
-     * the Flutter engine and with it every SSH transport. While SSH sessions
-     * exist, move the task to the background instead (as Home would).
+     * the Flutter engine and with it every SSH transport and the MCP
+     * listener. While either exists, move the task to the background instead
+     * (as Home would).
      */
     override fun popSystemNavigator(): Boolean {
-        if (SshSessionKeepalive.hasSessions() && moveTaskToBack(true)) return true
+        if (keepEngineOnBack() && moveTaskToBack(true)) return true
         return super.popSystemNavigator()
     }
 
     /**
      * On API 33+ the framework unregisters Flutter's OnBackInvokedCallback at
      * the root route, so system Back would bypass [popSystemNavigator] and
-     * finish the activity. While SSH sessions exist keep the callback
+     * finish the activity. While SSH sessions or MCP exist keep the callback
      * registered; nested routes, dialogs and the IME still get Back first and
      * the root route ends in SystemNavigator.pop -> moveTaskToBack.
      */
     override fun setFrameworkHandlesBack(frameworkHandlesBack: Boolean) {
         frameworkRequestsBack = frameworkHandlesBack
-        super.setFrameworkHandlesBack(frameworkHandlesBack || SshSessionKeepalive.hasSessions())
+        super.setFrameworkHandlesBack(frameworkHandlesBack || keepEngineOnBack())
     }
 
     private fun refreshBackHandling() {
-        super.setFrameworkHandlesBack(frameworkRequestsBack || SshSessionKeepalive.hasSessions())
+        super.setFrameworkHandlesBack(frameworkRequestsBack || keepEngineOnBack())
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -187,6 +195,7 @@ class MainActivity : FlutterActivity() {
             "atermius/mcp_foreground").also { channel ->
             McpForegroundLease.register(owner, McpForegroundLease.Listener(
                 revoked = { id, reason ->
+                    refreshBackHandling()
                     channel.invokeMethod("revoked", mapOf("leaseId" to id, "reason" to reason))
                 },
                 notifications = { id, visible ->
@@ -202,7 +211,11 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "start" -> startMcp(owner, id, call.argument<Int>("port"), result,
                         listOf("channelName", "title", "body", "stopLabel").map { call.argument<String>(it) })
-                    "stop" -> { McpForegroundLease.stop(owner, id); result.success(null) }
+                    "stop" -> {
+                        McpForegroundLease.stop(owner, id)
+                        refreshBackHandling()
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -288,6 +301,7 @@ class MainActivity : FlutterActivity() {
         McpForegroundLease.start(applicationContext, owner, id, strings) { active ->
             val visible = active && McpForegroundLease.notificationsVisible(applicationContext)
             if (active) McpForegroundLease.acknowledgedVisibility(id, visible)
+            refreshBackHandling()
             result.success(mapOf("active" to active, "notifications" to visible))
             // Without a visible notification Dart keeps MCP foreground-only.
             if (active && !visible) requestNotificationPermission()

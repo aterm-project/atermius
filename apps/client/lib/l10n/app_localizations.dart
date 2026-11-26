@@ -21646,14 +21646,8 @@ abstract class AppLocalizations {
   /// No description provided for @listensOn127001.
   ///
   /// In en, this message translates to:
-  /// **'Listens on 127.0.0.1 only. A new token is generated each time it\'s enabled; authorization ends after locking, signing out or switching Vaults. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.'**
+  /// **'Listens on 127.0.0.1 only. The token is kept on this device for this workspace and stays the same when MCP is stopped, enabled again or the app restarts. Locking, signing out or switching Vaults stops MCP. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.'**
   String get listensOn127001;
-
-  /// No description provided for @stopAndRevokeToken.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop and revoke token'**
-  String get stopAndRevokeToken;
 
   /// No description provided for @allowExternalAiToPerformActions.
   ///
@@ -28135,7 +28129,7 @@ abstract class AppLocalizations {
   /// Settings › AI / MCP machine access (external AI permission UI).
   ///
   /// In en, this message translates to:
-  /// **'While MCP runs, Atermius shows a notification so external AI can keep using it after you switch apps. Stopping it from the notification, locking or signing out revokes the token. If the notification can\'t be shown, MCP stops when you leave the app.'**
+  /// **'MCP keeps listening after you switch apps or press Back, so external AI can keep using it. Atermius shows a notification with a Stop button while it runs. Stopping it, locking or signing out ends access; the token stays the same.'**
   String get mcpAndroidBackgroundHint;
 
   /// Android MCP foreground-service notification (passed to the native service by the Dart lifecycle binder).
@@ -28147,7 +28141,7 @@ abstract class AppLocalizations {
   /// Android MCP foreground-service notification (passed to the native service by the Dart lifecycle binder).
   ///
   /// In en, this message translates to:
-  /// **'MCP is listening on 127.0.0.1:{port}. Stop it to revoke the access token.'**
+  /// **'MCP is listening on 127.0.0.1:{port}. Stop it to end external AI access.'**
   String mcpForegroundNotificationText(int port);
 
   /// Android MCP foreground-service notification (passed to the native service by the Dart lifecycle binder).
@@ -28159,14 +28153,74 @@ abstract class AppLocalizations {
   /// No description provided for @mcpAndroidProtected.
   ///
   /// In en, this message translates to:
-  /// **'Background access is protected by the MCP notification.'**
+  /// **'MCP keeps running in the background. Stop it here or from the notification.'**
   String get mcpAndroidProtected;
 
   /// No description provided for @mcpAndroidForegroundOnly.
   ///
   /// In en, this message translates to:
-  /// **'MCP works while this app is visible. Leaving the app revokes access.'**
+  /// **'MCP listens only while this app is visible. It pauses when you leave and resumes with the same token when you come back.'**
   String get mcpAndroidForegroundOnly;
+
+  /// Settings › AI / MCP on Android: the foreground service runs but its notification is hidden.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP keeps running in the background, but Android can\'t show its notification. Stop it here or from Android\'s active apps.'**
+  String get mcpAndroidProtectedNoNotification;
+
+  /// Settings › AI / MCP: button that stops listening (the token is kept).
+  ///
+  /// In en, this message translates to:
+  /// **'Stop MCP'**
+  String get mcpStop;
+
+  /// Settings › AI / MCP: the persistent bearer token.
+  ///
+  /// In en, this message translates to:
+  /// **'Access token (Bearer)'**
+  String get mcpAccessToken;
+
+  /// Settings › AI / MCP: the persistent bearer token.
+  ///
+  /// In en, this message translates to:
+  /// **'AI clients connect with this token. It stays the same until you reset it.'**
+  String get mcpAccessTokenHint;
+
+  /// Settings › AI / MCP: the persistent bearer token.
+  ///
+  /// In en, this message translates to:
+  /// **'This token couldn\'t be saved to the system\'s secure storage. It works until the app closes; a new one is used next time.'**
+  String get mcpAccessTokenNotSaved;
+
+  /// Settings › AI / MCP: the persistent bearer token.
+  ///
+  /// In en, this message translates to:
+  /// **'Token copied'**
+  String get mcpTokenCopied;
+
+  /// Settings › AI / MCP: the persistent bearer token.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset token'**
+  String get mcpResetToken;
+
+  /// Settings › AI / MCP: the persistent bearer token.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset the access token?'**
+  String get mcpResetTokenTitle;
+
+  /// Settings › AI / MCP: the persistent bearer token.
+  ///
+  /// In en, this message translates to:
+  /// **'A new token replaces the current one, which stops working immediately. Every AI client set up with it needs the new token.'**
+  String get mcpResetTokenBody;
+
+  /// Settings › AI / MCP: the persistent bearer token.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t reset the token. The current token still works.'**
+  String get mcpResetTokenFailed;
 
   /// No description provided for @mcpAndroidStarting.
   ///
@@ -29461,7 +29515,7 @@ abstract class AppLocalizations {
   /// MCP settings: where the listener accepts connections.
   ///
   /// In en, this message translates to:
-  /// **'A new token is generated each time it\'s enabled; authorization ends after locking, signing out or switching Vaults. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.'**
+  /// **'The token is kept on this device for this workspace and stays the same when MCP is stopped, enabled again or the app restarts. Locking, signing out or switching Vaults stops MCP. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.'**
   String get mcpListenTokenNote;
 
   /// MCP settings: where the listener accepts connections.

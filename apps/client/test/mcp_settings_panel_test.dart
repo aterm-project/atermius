@@ -14,6 +14,7 @@ import 'package:aterm_client/ui/responsive_layout.dart';
 import 'package:aterm_client/ui/settings_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Records what the panel asks the policy layer to do. Only the contract
@@ -36,6 +37,10 @@ class _FakeMcpService extends ChangeNotifier implements McpService {
   final defaultCalls = <McpAccessMode>[];
   final hostCalls = <(String, McpAccessMode?)>[];
   var stopCalls = 0;
+  String? currentToken = 'A' * 43;
+  bool saved = true;
+  bool failReset = false;
+  var resets = 0;
 
   void changed() => notifyListeners();
 
@@ -118,6 +123,19 @@ class _FakeMcpService extends ChangeNotifier implements McpService {
   Future<void> stop() async {
     stopCalls++;
     isRunning = false;
+    notifyListeners();
+  }
+
+  @override
+  String? get token => currentToken;
+  @override
+  bool get tokenSaved => saved;
+
+  @override
+  Future<void> resetToken() async {
+    resets++;
+    if (failReset) throw StateError('store unavailable');
+    currentToken = 'B' * 43;
     notifyListeners();
   }
 
@@ -884,22 +902,177 @@ void main() {
     );
   }
 
-  testWidgets('stopping revokes from the same button on every platform', (
-    tester,
-  ) async {
-    final service = _FakeMcpService();
-    await _pump(tester, service, size: phone);
-    await tester.ensureVisible(find.byKey(const ValueKey('mcp_toggle')));
-    await tester.tap(find.byKey(const ValueKey('mcp_toggle')));
-    await tester.pumpAndSettle();
-    expect(service.stopCalls, 1);
-    expect(find.byKey(const ValueKey('mcp_endpoint')), findsNothing);
-    expect(
-      find.byKey(const ValueKey('mcp_android_forward_command')),
-      findsNothing,
-    );
-    // Policy stays editable while stopped, so access can be set up first.
-    expect(_hostField('host-0'), findsOneWidget);
+  testWidgets(
+    'stopping from the same button on every platform keeps the token',
+    (tester) async {
+      final service = _FakeMcpService();
+      await _pump(tester, service, size: phone);
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      expect(find.text(l10n.mcpStop), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const ValueKey('mcp_toggle')));
+      await tester.tap(find.byKey(const ValueKey('mcp_toggle')));
+      await tester.pumpAndSettle();
+      expect(service.stopCalls, 1);
+      expect(find.text('A' * 43), findsOneWidget);
+      expect(find.byKey(const ValueKey('mcp_endpoint')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('mcp_android_forward_command')),
+        findsNothing,
+      );
+      // Policy stays editable while stopped, so access can be set up first.
+      expect(_hostField('host-0'), findsOneWidget);
+    },
+  );
+
+  group('access token', () {
+    Future<void> tapKey(WidgetTester tester, String key) async {
+      final finder = find.byKey(ValueKey(key));
+      await tester.ensureVisible(finder);
+      await tester.pumpAndSettle();
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('is on screen, copies, and changes only on a confirmed reset', (
+      tester,
+    ) async {
+      String? clipboard;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            clipboard = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final service = _FakeMcpService()..isRunning = false;
+      await _pump(
+        tester,
+        service,
+        size: const Size(900, 1400),
+        platform: TargetPlatform.windows,
+      );
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      // Shown before MCP is enabled, so a client can be set up first.
+      expect(
+        tester
+            .widget<SelectableText>(find.byKey(const ValueKey('mcp_token')))
+            .data,
+        'A' * 43,
+      );
+      expect(find.text(l10n.mcpAccessTokenHint), findsOneWidget);
+
+      await tapKey(tester, 'mcp_copy_token');
+      expect(clipboard, 'A' * 43);
+      expect(find.text(l10n.mcpTokenCopied), findsOneWidget);
+
+      await tapKey(tester, 'mcp_toggle');
+      await tapKey(tester, 'mcp_toggle');
+      expect(find.text('A' * 43), findsOneWidget);
+      expect(service.resets, 0);
+
+      await tapKey(tester, 'mcp_reset_token');
+      expect(
+        find.byKey(const ValueKey('mcp_confirm_reset_token')),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('mcp_confirm_reset_token_cancel')),
+      );
+      await tester.pumpAndSettle();
+      expect(service.resets, 0);
+      expect(find.text('A' * 43), findsOneWidget);
+
+      await tapKey(tester, 'mcp_reset_token');
+      await tester.tap(
+        find.byKey(const ValueKey('mcp_confirm_reset_token_accept')),
+      );
+      await tester.pumpAndSettle();
+      expect(service.resets, 1);
+      expect(find.text('B' * 43), findsOneWidget);
+      expect(find.text('A' * 43), findsNothing);
+      expect(find.text(l10n.copyToken), findsOneWidget);
+    });
+
+    testWidgets('a failed reset keeps the token and says so', (tester) async {
+      final service = _FakeMcpService()..failReset = true;
+      await _pump(
+        tester,
+        service,
+        size: const Size(900, 1400),
+        platform: TargetPlatform.linux,
+      );
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      await tapKey(tester, 'mcp_reset_token');
+      await tester.tap(
+        find.byKey(const ValueKey('mcp_confirm_reset_token_accept')),
+      );
+      await tester.pumpAndSettle();
+      expect(service.resets, 1);
+      expect(find.text('A' * 43), findsOneWidget);
+      expect(find.text(l10n.mcpResetTokenFailed), findsOneWidget);
+    });
+
+    testWidgets('a token that could not be saved is flagged', (tester) async {
+      final service = _FakeMcpService()..saved = false;
+      await _pump(
+        tester,
+        service,
+        size: const Size(900, 1400),
+        platform: TargetPlatform.windows,
+      );
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      expect(find.text(l10n.mcpAccessTokenNotSaved), findsOneWidget);
+    });
+
+    testWidgets('nothing is shown while the workspace is locked', (
+      tester,
+    ) async {
+      final service = _FakeMcpService()
+        ..isRunning = false
+        ..currentToken = null;
+      await _pump(
+        tester,
+        service,
+        size: const Size(900, 1400),
+        platform: TargetPlatform.windows,
+      );
+      expect(find.byKey(const ValueKey('mcp_token_section')), findsNothing);
+      expect(find.byKey(const ValueKey('mcp_reset_token')), findsNothing);
+    });
+
+    testWidgets('iPhone shows the token with copy and reset rows', (
+      tester,
+    ) async {
+      final service = _FakeMcpService();
+      await _pump(
+        tester,
+        service,
+        size: const Size(390, 844),
+        platform: TargetPlatform.iOS,
+      );
+      expect(
+        tester
+            .widget<SelectableText>(find.byKey(const ValueKey('mcp_token')))
+            .data,
+        'A' * 43,
+      );
+      expect(find.byKey(const ValueKey('mcp_copy_token')), findsOneWidget);
+      await tapKey(tester, 'mcp_reset_token');
+      await tester.tap(
+        find.byKey(const ValueKey('mcp_confirm_reset_token_accept')),
+      );
+      await tester.pumpAndSettle();
+      expect(service.resets, 1);
+      expect(find.text('B' * 43), findsOneWidget);
+    });
   });
 
   group('settings scaffold on touch devices', () {

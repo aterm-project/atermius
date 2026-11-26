@@ -12964,10 +12964,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get listensOn127001 =>
-      '127.0.0.1 でのみ待ち受けます。有効にするたびに新しいトークンが生成され、ロック、サインアウト、保管庫の切り替え後は認可が無効になります。ウィンドウごとに異なるポートを使用できます。MCP を停止しても、開いているセッションは閉じません。';
-
-  @override
-  String get stopAndRevokeToken => '停止してトークンを失効';
+      '127.0.0.1 でのみ待ち受けます。トークンはワークスペースごとにこのデバイスに保存され、停止、再有効化、アプリの再起動後も変わりません。ロック、サインアウト、保管庫の切り替えで MCP は停止します。ウィンドウごとに異なるポートを使用できます。MCP を停止しても、開いているセッションは閉じません。';
 
   @override
   String get allowExternalAiToPerformActions => '外部 AI による操作を許可';
@@ -16767,25 +16764,58 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get mcpAndroidBackgroundHint =>
-      'MCP の実行中は通知が表示され、他のアプリに切り替えた後も外部 AI が引き続き使用できます。通知から停止する、ロックする、またはサインアウトするとトークンは取り消されます。通知を表示できない場合、アプリを離れると MCP は停止します。';
+      '他のアプリに切り替えたり戻るボタンで離れたりしても、MCP は待ち受けを続け、外部 AI は引き続き使用できます。実行中は「停止」ボタン付きの通知が表示されます。停止、ロック、サインアウトでアクセスは終了しますが、トークンは変わりません。';
 
   @override
   String get mcpForegroundNotificationTitle => '外部 AI 連携がオンです';
 
   @override
   String mcpForegroundNotificationText(int port) {
-    return 'MCP は 127.0.0.1:$port で待ち受けています。停止するとアクセストークンが取り消されます。';
+    return 'MCP は 127.0.0.1:$port で待ち受けています。停止すると外部 AI はアクセスできなくなります。';
   }
 
   @override
   String get mcpForegroundNotificationStop => 'MCP を停止';
 
   @override
-  String get mcpAndroidProtected => 'MCP 通知によりバックグラウンドでも接続できます。';
+  String get mcpAndroidProtected => 'MCP はバックグラウンドでも動作し続けます。ここまたは通知から停止できます。';
 
   @override
   String get mcpAndroidForegroundOnly =>
-      'アプリの表示中のみ MCP を利用できます。アプリを離れるとアクセスは失効します。';
+      'MCP はこのアプリの表示中のみ待ち受けます。アプリを離れると一時停止し、戻ると同じトークンで自動的に再開します。';
+
+  @override
+  String get mcpAndroidProtectedNoNotification =>
+      'MCP はバックグラウンドでも動作し続けますが、Android が通知を表示できません。ここまたは Android の実行中のアプリ一覧から停止できます。';
+
+  @override
+  String get mcpStop => 'MCP を停止';
+
+  @override
+  String get mcpAccessToken => 'アクセストークン（Bearer）';
+
+  @override
+  String get mcpAccessTokenHint => 'AI クライアントはこのトークンで接続します。リセットするまで変わりません。';
+
+  @override
+  String get mcpAccessTokenNotSaved =>
+      'トークンをシステムの安全なストレージに保存できませんでした。アプリを閉じるまで有効で、次回は新しいトークンが使われます。';
+
+  @override
+  String get mcpTokenCopied => 'トークンをコピーしました';
+
+  @override
+  String get mcpResetToken => 'トークンをリセット';
+
+  @override
+  String get mcpResetTokenTitle => 'アクセストークンをリセットしますか？';
+
+  @override
+  String get mcpResetTokenBody =>
+      '新しいトークンが現在のトークンに置き換わり、現在のトークンはすぐに使えなくなります。それを設定したすべての AI クライアントに新しいトークンが必要です。';
+
+  @override
+  String get mcpResetTokenFailed => 'トークンをリセットできませんでした。現在のトークンは引き続き有効です。';
 
   @override
   String get mcpAndroidStarting => 'Android のバックグラウンド保護を開始しています…';
@@ -17548,7 +17578,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get mcpListenTokenNote =>
-      '有効にするたびに新しいトークンが生成されます。ロック、サインアウト、Vaultの切り替え後は認可が無効になります。ウィンドウごとに別のポートを使用できます。MCPを停止しても、開いているセッションは閉じません。';
+      'トークンはワークスペースごとにこのデバイスに保存され、停止、再有効化、アプリの再起動後も変わりません。ロック、サインアウト、Vaultの切り替えでMCPは停止します。ウィンドウごとに別のポートを使用できます。MCPを停止しても、開いているセッションは閉じません。';
 
   @override
   String get mcpEndpointsTitle => 'クライアントは次のいずれかのアドレスに接続できます:';

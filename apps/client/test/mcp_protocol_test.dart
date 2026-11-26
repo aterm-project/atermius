@@ -7,6 +7,7 @@ import 'package:aterm_client/mcp/mcp_access_policy_store.dart';
 import 'package:aterm_client/mcp/mcp_bind.dart';
 import 'package:aterm_client/mcp/mcp_protocol.dart';
 import 'package:aterm_client/mcp/mcp_service.dart';
+import 'package:aterm_client/mcp/mcp_token_store.dart';
 import 'package:aterm_client/mcp/mcp_workspace.dart';
 import 'package:aterm_client/ssh/ssh_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -281,10 +282,13 @@ void main() {
     }
   });
 
-  test('live loopback MCP authenticates, rejects browser origins and revokes tokens', () async {
+  test('live loopback MCP authenticates, rejects browser origins, keeps the '
+      'token across a lock and changes it only on reset', () async {
     final h = _Harness();
-    final service = McpService(policyStore: MemoryMcpAccessPolicyStore())
-      ..attach(h.workspace);
+    final service = McpService(
+      policyStore: MemoryMcpAccessPolicyStore(),
+      tokenStore: MemoryMcpTokenStore(),
+    )..attach(h.workspace);
     var http = HttpClient();
     try {
       await service.start(port: 0);
@@ -379,8 +383,18 @@ void main() {
       http = HttpClient();
       h.unlocked = true;
       await service.start(port: endpoint.port);
-      expect((await post(authorization: auth)).status, 401);
       expect(service.audit, isEmpty);
+      // The workspace's token: the AI's configuration still works.
+      expect((await post(authorization: auth)).status, 200);
+
+      await service.resetToken();
+      expect(service.running, isTrue);
+      expect(service.endpoint!.port, endpoint.port);
+      expect((await post(authorization: auth)).status, 401);
+      expect(
+        (await post(authorization: 'Bearer ${service.token}')).status,
+        200,
+      );
     } finally {
       http.close(force: true);
       await service.stop();
