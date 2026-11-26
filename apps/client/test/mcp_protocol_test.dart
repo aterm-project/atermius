@@ -8,6 +8,7 @@ import 'package:aterm_client/mcp/mcp_bind.dart';
 import 'package:aterm_client/mcp/mcp_protocol.dart';
 import 'package:aterm_client/mcp/mcp_service.dart';
 import 'package:aterm_client/mcp/mcp_token_store.dart';
+import 'package:aterm_client/mcp/mcp_tools.dart';
 import 'package:aterm_client/mcp/mcp_workspace.dart';
 import 'package:aterm_client/ssh/ssh_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -70,7 +71,7 @@ void main() {
       expect(
         (result(await h.protocol.handle(rpc('tools/list')))['tools'] as List)
             .length,
-        17,
+        mcpTools.length,
       );
       final bad = await h.protocol.handle(
         modern,

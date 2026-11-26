@@ -14,6 +14,7 @@ import '../ssh/ssh_live_tools.dart';
 import '../ssh/ssh_service.dart';
 import 'mcp_access_policy.dart';
 import 'mcp_activity.dart';
+import 'mcp_docs.dart';
 import 'mcp_workspace.dart';
 
 const mcpTextBytes = 64 * 1024;
@@ -124,6 +125,7 @@ const _page = {
   'limit': {'type': 'integer', 'minimum': 1, 'maximum': 200},
 };
 const mcpTools = [
+  mcpDocsTool,
   McpToolDefinition(
     'workspace_status',
     'Inspect the currently authorized, unlocked Atermius workspace.',
@@ -400,6 +402,8 @@ class McpToolRunner {
   ) async {
     context.check();
     switch (name) {
+      case 'docs_read':
+        return McpDocs.toolResult(args);
       case 'workspace_status':
         // Counters must not reveal denied machines; never trust the
         // workspace's own unfiltered counts.
@@ -662,7 +666,9 @@ class McpToolRunner {
             'A connected SSH session is required.',
           );
         }
-        final timeout = Duration(seconds: args['timeout_seconds'] as int? ?? 15);
+        final timeout = Duration(
+          seconds: args['timeout_seconds'] as int? ?? 15,
+        );
         final cancellation = SshExecCancellation();
         context.onCancel(cancellation.cancel);
         try {
