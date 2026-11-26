@@ -492,9 +492,6 @@ extension _LocalProfileFlowIos on _LocalProfileFlowState {
                   backgroundColor: isFileTab
                       ? null
                       : terminalPalette.background,
-                  foregroundColor: isFileTab
-                      ? null
-                      : terminalPalette.foreground,
                   sessionSubtitles: _iosSessionSubtitles(barContext),
                   onNewConnection: () {
                     _selectTerminalTab('hosts');

@@ -22,7 +22,9 @@ ImageFilter iosGlassFilter({double sigma = 24}) => ImageFilter.compose(
 bool iosGlassEnabled(BuildContext context) =>
     !(MediaQuery.maybeHighContrastOf(context) ?? false);
 
-/// 通用 Liquid Glass 表面：任意 [shape] 裁剪 + 背景模糊 + 镜面渐变描边 + 柔和投影。
+/// 通用 Liquid Glass 表面：任意 [shape] 裁剪 + 背景模糊 + 镜面渐变填充 + 柔和投影。
+///
+/// 无描边：玻璃边缘只靠渐变填充顶部的镜面微光与投影区分，不画 rim 线。
 ///
 /// 自动接入最近的 [BackdropGroup]（导航栏与 TabBar 共享一次背景采样）。
 class IosGlassSurface extends StatelessWidget {
@@ -36,10 +38,6 @@ class IosGlassSurface extends StatelessWidget {
     this.highContrastFill,
     this.shadow = true,
     this.shadows,
-    this.rim = true,
-    this.rimStrong,
-    this.rimWeak,
-    this.rimWidth,
     this.padding,
   });
 
@@ -59,10 +57,6 @@ class IosGlassSurface extends StatelessWidget {
   /// 自定义外投影列表；未指定且 [shadow] 为 true 时使用默认单层玻璃阴影。
   final List<BoxShadow>? shadows;
 
-  final bool rim;
-  final Color? rimStrong;
-  final Color? rimWeak;
-  final double? rimWidth;
   final EdgeInsetsGeometry? padding;
 
   @override
@@ -109,21 +103,6 @@ class IosGlassSurface extends StatelessWidget {
             )
           : decorated,
     );
-    if (rim) {
-      body = CustomPaint(
-        foregroundPainter: _GlassRimPainter(
-          shape: shape,
-          strong: glass
-              ? (rimStrong ?? c.glassRimStrong)
-              : (rimStrong?.withValues(alpha: 1) ?? c.separator),
-          weak: glass
-              ? (rimWeak ?? c.glassRimWeak)
-              : (rimWeak?.withValues(alpha: 1) ?? c.separator),
-          width: glass ? (rimWidth ?? 0.75) : (rimWidth ?? IosMetrics.hairline(context)),
-        ),
-        child: body,
-      );
-    }
     if (shadow) {
       body = DecoratedBox(
         decoration: ShapeDecoration(
@@ -145,45 +124,6 @@ class IosGlassSurface extends StatelessWidget {
   }
 }
 
-class _GlassRimPainter extends CustomPainter {
-  const _GlassRimPainter({
-    required this.shape,
-    required this.strong,
-    required this.weak,
-    required this.width,
-  });
-
-  final OutlinedBorder shape;
-  final Color strong;
-  final Color weak;
-  final double width;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final path = shape.getOuterPath(rect.deflate(width / 2));
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = width
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [strong, weak, weak],
-          stops: const [0, 0.55, 1],
-        ).createShader(rect),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_GlassRimPainter old) =>
-      old.shape != shape ||
-      old.strong != strong ||
-      old.weak != weak ||
-      old.width != width;
-}
-
 /// 玻璃胶囊（TabBar / Live Session Pill / Toast / 按钮组）。
 class IosGlassCapsule extends StatelessWidget {
   const IosGlassCapsule({
@@ -197,9 +137,6 @@ class IosGlassCapsule extends StatelessWidget {
     this.highContrastFill,
     this.shadow = true,
     this.shadows,
-    this.rimStrong,
-    this.rimWeak,
-    this.rimWidth,
   });
 
   final Widget child;
@@ -211,9 +148,6 @@ class IosGlassCapsule extends StatelessWidget {
   final Color? highContrastFill;
   final bool shadow;
   final List<BoxShadow>? shadows;
-  final Color? rimStrong;
-  final Color? rimWeak;
-  final double? rimWidth;
 
   @override
   Widget build(BuildContext context) => IosGlassSurface(
@@ -223,9 +157,6 @@ class IosGlassCapsule extends StatelessWidget {
     highContrastFill: highContrastFill,
     shadow: shadow,
     shadows: shadows,
-    rimStrong: rimStrong,
-    rimWeak: rimWeak,
-    rimWidth: rimWidth,
     padding: padding,
     child: height == null ? child : SizedBox(height: height, child: child),
   );

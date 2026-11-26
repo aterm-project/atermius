@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
+import 'surfaces.dart';
 
 /// Shared density rules for Home host cards (cloud and local profile).
 ///
@@ -57,15 +58,6 @@ class HostCardMetrics {
   static const maxTileWidth = 300.0;
   static const spacing = 8.0;
 
-  /// Outer corner radius for host cards across desktop and touch surfaces.
-  static const cardBorderRadius = BorderRadius.all(Radius.circular(12));
-
-  /// Soft continuous-squircle radius for protocol/OS badges on Apple platforms.
-  static const appleBadgeBorderRadius = BorderRadius.all(Radius.circular(8));
-
-  /// Standard circular corner radius for protocol/OS badges on non-Apple platforms.
-  static const standardBadgeBorderRadius = BorderRadius.all(Radius.circular(6));
-
   static const titleStrut = StrutStyle(
     fontSize: titleSize,
     height: lineHeight,
@@ -87,76 +79,65 @@ class HostCardMetrics {
     return theme.extension<AppPalette>() ?? AppPalette.fallback(theme.brightness);
   }
 
-  /// Resolves the host card outline border: a continuous-curvature squircle
-  /// with a crisp Retina hairline stroke and subtle hover/press luminance on
-  /// Apple platforms, or a standard rounded rectangle elsewhere.
-  static OutlinedBorder cardShape(
-    BuildContext context, {
-    bool hovered = false,
-    bool pressed = false,
-  }) {
-    final platform = Theme.of(context).platform;
-    final palette = _paletteOf(context);
-    if (isAppleContext(context)) {
-      final hairline = appleHairlineWidth(context);
-      final borderColor = pressed
-          ? palette.lime.withValues(alpha: palette.isDark ? 0.42 : 0.36)
-          : hovered
-          ? palette.line.withValues(alpha: palette.isDark ? 0.96 : 0.92)
-          : palette.line.withValues(alpha: palette.isDark ? 0.80 : 0.86);
-      return appleSquircleBorder(
-        BorderRadius.circular(12),
-        platform: platform,
-        side: BorderSide(
-          color: borderColor,
-          width: hovered || pressed ? math.max(hairline, 0.75) : hairline,
-        ),
+  /// Corner radius of a host card: a block on the window canvas.
+  static double cardRadius(BuildContext context) =>
+      AppDensity.of(context).radiusLg;
+
+  /// Host card shape: an outline-free block (continuous squircle on Apple
+  /// platforms). Hover and press change the fill through [overlayColor],
+  /// never a stroke.
+  static OutlinedBorder cardShape(BuildContext context) =>
+      appBlockShape(context, cardRadius(context));
+
+  /// Fill of a host card on the surface it sits on (the canvas on Home).
+  static Color cardFill(BuildContext context) =>
+      _paletteOf(context).blockFill(SurfaceScope.depthOf(context) + 1);
+
+  /// Distance from the card's top-left corner to the icon tile: the leading
+  /// padding ([leading], [padding] by default), or the top padding plus the
+  /// tile's centering slack in the header row, whichever is closer.
+  double iconTileInset({double? leading}) => math.min(
+    leading ?? padding.left,
+    padding.top + (headerHeight - iconBox) / 2,
+  );
+
+  /// Concentric radius of the icon tile in a card: the card radius minus
+  /// [iconTileInset], never below the small-shape radius.
+  double iconTileRadius(BuildContext context, {double? leading}) =>
+      concentricRadius(
+        cardRadius(context),
+        iconTileInset(leading: leading),
+        floor: AppDensity.of(context).radiusSm,
       );
-    }
-    return RoundedRectangleBorder(
-      borderRadius: cardBorderRadius,
-      side: BorderSide(
-        color: hovered ? palette.lime.withValues(alpha: 0.35) : palette.line,
+
+  /// Tinted protocol/system icon tile: a fill with the card's concentric
+  /// radius, no outline.
+  static Decoration iconBadgeDecoration(
+    BuildContext context,
+    Color tint, {
+    double? radius,
+  }) {
+    final palette = _paletteOf(context);
+    return ShapeDecoration(
+      color: tint.withValues(alpha: palette.isDark ? 0.16 : 0.12),
+      shape: appleSquircleBorder(
+        BorderRadius.circular(
+          radius ?? HostCardMetrics.of(context).iconTileRadius(context),
+        ),
+        platform: Theme.of(context).platform,
       ),
     );
   }
 
-  /// Builds the tinted protocol/system icon badge decoration using an 8pt
-  /// continuous-curvature squircle on Apple platforms and a 6px rounded box
-  /// on other platforms.
-  static Decoration iconBadgeDecoration(BuildContext context, Color tint) {
-    if (isAppleContext(context)) {
-      final palette = _paletteOf(context);
-      return ShapeDecoration(
-        color: tint.withValues(alpha: palette.isDark ? 0.15 : 0.12),
-        shape: appleSquircleBorder(
-          appleBadgeBorderRadius,
-          platform: Theme.of(context).platform,
-          side: BorderSide(
-            color: tint.withValues(alpha: palette.isDark ? 0.24 : 0.18),
-            width: appleHairlineWidth(context),
-          ),
-        ),
-      );
-    }
-    return BoxDecoration(
-      color: tint.withValues(alpha: 0.12),
-      borderRadius: standardBadgeBorderRadius,
-    );
-  }
-
-  /// Ripple-free subtle highlight/hover overlay property for Apple host cards.
+  /// Hover/press/focus feedback of a host card: the fill lifts a step (focus
+  /// tints it toward the accent) instead of an outline appearing.
   static WidgetStateProperty<Color?> overlayColor(BuildContext context) {
     final palette = _paletteOf(context);
     return WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.pressed)) {
-        return palette.text.withValues(alpha: palette.isDark ? 0.08 : 0.06);
-      }
-      if (states.contains(WidgetState.hovered)) {
-        return palette.text.withValues(alpha: palette.isDark ? 0.045 : 0.03);
-      }
+      if (states.contains(WidgetState.pressed)) return palette.fillPressed;
+      if (states.contains(WidgetState.hovered)) return palette.fill;
       if (states.contains(WidgetState.focused)) {
-        return palette.lime.withValues(alpha: palette.isDark ? 0.10 : 0.08);
+        return palette.accent.withValues(alpha: palette.isDark ? 0.16 : 0.12);
       }
       return Colors.transparent;
     });
@@ -218,7 +199,7 @@ class HostCardMetrics {
       (padding.vertical +
               headerHeight +
               (withMeta ? metaGap + metaHeight : 0) +
-              // Card outline and rounding slack.
+              // Rounding slack.
               2)
           .ceilToDouble();
 
@@ -260,10 +241,10 @@ class HostCardIconBadge extends StatelessWidget {
   );
 }
 
-/// Interactive host card surface applying Apple continuous-curvature squircle
-/// geometry, Retina hairline borders, subtle hover/press sheen, and iOS
-/// quick-connect haptics.
-class HostCardSurface extends StatefulWidget {
+/// Interactive host card surface: an outline-free block whose fill lifts on
+/// hover and press (Apple platforms drop the ripple and add the iOS
+/// quick-connect haptic).
+class HostCardSurface extends StatelessWidget {
   const HostCardSurface({
     required this.child,
     this.onConnect,
@@ -280,45 +261,24 @@ class HostCardSurface extends StatefulWidget {
   final EdgeInsetsGeometry margin;
 
   @override
-  State<HostCardSurface> createState() => _HostCardSurfaceState();
-}
-
-class _HostCardSurfaceState extends State<HostCardSurface> {
-  bool _hovered = false;
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
     final apple = isAppleContext(context);
-    final shape = HostCardMetrics.cardShape(
-      context,
-      hovered: _hovered,
-      pressed: _pressed,
-    );
+    final shape = HostCardMetrics.cardShape(context);
     return Card(
       clipBehavior: Clip.antiAlias,
-      margin: widget.margin,
-      elevation: apple ? 0 : null,
-      surfaceTintColor: apple ? Colors.transparent : null,
-      shape: apple ? shape : null,
+      margin: margin,
+      elevation: 0,
+      color: HostCardMetrics.cardFill(context),
+      surfaceTintColor: Colors.transparent,
+      shape: shape,
       child: InkWell(
-        key: widget.inkWellKey,
-        customBorder: apple ? shape : null,
+        key: inkWellKey,
+        customBorder: shape,
         splashFactory: apple ? NoSplash.splashFactory : null,
-        overlayColor: apple ? HostCardMetrics.overlayColor(context) : null,
-        onHover: apple
-            ? (value) {
-                if (_hovered != value) setState(() => _hovered = value);
-              }
-            : null,
-        onHighlightChanged: apple
-            ? (value) {
-                if (_pressed != value) setState(() => _pressed = value);
-              }
-            : null,
-        onTap: HostCardMetrics.wrapConnectAction(context, widget.onConnect),
-        onSecondaryTapDown: widget.onSecondaryTapDown,
-        child: widget.child,
+        overlayColor: HostCardMetrics.overlayColor(context),
+        onTap: HostCardMetrics.wrapConnectAction(context, onConnect),
+        onSecondaryTapDown: onSecondaryTapDown,
+        child: child,
       ),
     );
   }

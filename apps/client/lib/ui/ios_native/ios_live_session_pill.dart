@@ -145,9 +145,6 @@ class IosLiveSessionPill extends StatelessWidget {
             sigma: 28,
             gradient: glassGradient,
             highContrastFill: highContrastFill,
-            rimWidth: 1.1,
-            rimStrong: accent.withValues(alpha: c.isDark ? 0.78 : 0.58),
-            rimWeak: accent.withValues(alpha: 0.28),
             shadows: [
               BoxShadow(
                 color: accent.withValues(alpha: c.isDark ? 0.32 : 0.20),
@@ -274,14 +271,7 @@ class IosLiveSessionPill extends StatelessWidget {
                                     color: accent.withValues(
                                       alpha: c.isDark ? 0.24 : 0.16,
                                     ),
-                                    shape: StadiumBorder(
-                                      side: BorderSide(
-                                        color: accent.withValues(
-                                          alpha: c.isDark ? 0.55 : 0.42,
-                                        ),
-                                        width: 0.95,
-                                      ),
-                                    ),
+                                    shape: const StadiumBorder(),
                                   ),
                                   child: Padding(
                                     padding: EdgeInsets.symmetric(
@@ -374,10 +364,6 @@ class _LiveTerminalOrb extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [topColor, bottomColor],
-                ),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: isDark ? 0.28 : 0.36),
-                  width: 0.8,
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -518,6 +504,8 @@ class _LiveRadarBeaconState extends State<_LiveRadarBeacon>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: widget.color,
+                // Knock-out gap between the core and its halo: part of the
+                // status glyph, not a surface outline.
                 border: Border.all(color: coreBackdrop, width: 1.2),
               ),
             ),
@@ -558,12 +546,7 @@ class _LiveStateMicroPill extends StatelessWidget {
   Widget build(BuildContext context) => DecoratedBox(
     decoration: ShapeDecoration(
       color: accent.withValues(alpha: isDark ? 0.22 : 0.15),
-      shape: StadiumBorder(
-        side: BorderSide(
-          color: accent.withValues(alpha: isDark ? 0.48 : 0.36),
-          width: 0.75,
-        ),
-      ),
+      shape: const StadiumBorder(),
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),

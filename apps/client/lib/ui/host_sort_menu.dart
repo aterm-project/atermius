@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../domain/host_sort.dart';
 import '../l10n/l10n.dart';
+import 'app_density.dart';
 
 String hostSortLabel(AppLocalizations l10n, HostSortOrder order) =>
     switch (order) {
@@ -29,6 +30,8 @@ class HostSortMenu extends StatelessWidget {
           key: const ValueKey('home_host_sort'),
           tooltip: context.l10n.hostSortCurrent(label),
           initialValue: controller.order,
+          // Hover/press ink takes the control radius.
+          borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
           onSelected: (order) => unawaited(controller.select(order)),
           itemBuilder: (context) => [
             for (final order in HostSortOrder.values)

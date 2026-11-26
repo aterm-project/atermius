@@ -761,6 +761,8 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
       onTap: widget.canEdit ? choose : null,
       child: InkWell(
         onTap: widget.canEdit ? choose : null,
+        // The ink takes the filled well's shape.
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
         child: InputDecorator(
           decoration: InputDecoration(
             enabled: widget.canEdit,

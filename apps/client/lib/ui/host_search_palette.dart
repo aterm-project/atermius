@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 
 import '../domain/models.dart';
 import '../domain/quick_connect.dart';
+import 'app_density.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import 'host_search_field.dart';
+import 'surfaces.dart';
 import '../l10n/l10n.dart';
 import '../telnet/telnet_ui.dart';
 
@@ -291,6 +293,12 @@ class _HostSearchPaletteState extends State<_HostSearchPalette> {
         ? -1
         : _selectedIndex.clamp(0, matches.length - 1);
     final palette = context.palette;
+    final density = AppDensity.of(context);
+    final rowRadius = SurfaceScope.concentric(
+      context,
+      fallback: density.radiusMd,
+      floor: density.radiusSm,
+    );
 
     return Focus(
       canRequestFocus: false,
@@ -455,24 +463,18 @@ class _HostSearchPaletteState extends State<_HostSearchPalette> {
                           itemBuilder: (_, index) {
                             final host = matches[index];
                             final selected = index == activeIndex;
+                            // The active row is an accent-tinted fill, no
+                            // outline; rows sit flush with the dialog's
+                            // content edge and take its concentric radius.
                             return ListTile(
                               key: ValueKey('host-search-result-${host.id}'),
                               dense: true,
                               selected: selected,
-                              selectedTileColor: Theme.of(context)
-                                  .colorScheme
-                                  .primaryContainer
-                                  .withValues(alpha: 0.45),
+                              selectedTileColor: palette.accent.withValues(
+                                alpha: palette.isDark ? .2 : .14,
+                              ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                side: selected
-                                    ? BorderSide(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary
-                                            .withValues(alpha: 0.45),
-                                      )
-                                    : BorderSide.none,
+                                borderRadius: BorderRadius.circular(rowRadius),
                               ),
                               leading: Icon(
                                 hostProtocolIcon(host.protocol),

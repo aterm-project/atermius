@@ -6493,19 +6493,15 @@ _showMessage(
     HostCardMetrics metrics, {
     required bool showMeta,
   }) {
-    final apple = shouldUseAppleGlass(context);
     final palette = context.palette;
-    final cardShape = appleSquircleBorder(
-      BorderRadius.circular(apple ? 14 : 12),
-      platform: Theme.of(context).platform,
-      side: BorderSide(
-        color: apple ? appleGlassRimColor(context) : palette.line,
-        width: apple ? appleHairlineWidth(context) : 1.0,
-      ),
-    );
+    // An outline-free block on the canvas; hover/press lift its fill. The
+    // icon tile's corner is concentric with the card's.
+    final cardShape = HostCardMetrics.cardShape(context);
+    final cardPadding = HostCardMetrics.padding.copyWith(right: 4);
     final tileContent = InkWell(
       key: ValueKey('local_host_${host.id}'),
       customBorder: cardShape,
+      overlayColor: HostCardMetrics.overlayColor(context),
       onTap: _busy || kIsWeb
           ? null
           : () {
@@ -6518,7 +6514,7 @@ _showMessage(
         _hostActions(host),
       ),
       child: Padding(
-        padding: HostCardMetrics.padding.copyWith(right: 4),
+        padding: cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -6526,16 +6522,15 @@ _showMessage(
               children: [
                 DecoratedBox(
                   decoration: ShapeDecoration(
-                    color: palette.accent.withValues(alpha: apple ? .22 : .16),
+                    color: palette.accent.withValues(alpha: .16),
                     shape: appleSquircleBorder(
-                      BorderRadius.circular(8),
+                      BorderRadius.circular(
+                        metrics.iconTileRadius(
+                          context,
+                          leading: cardPadding.left,
+                        ),
+                      ),
                       platform: Theme.of(context).platform,
-                      side: apple
-                          ? BorderSide(
-                              color: palette.accentText.withValues(alpha: 0.25),
-                              width: appleHairlineWidth(context),
-                            )
-                          : BorderSide.none,
                     ),
                   ),
                   child: Padding(
@@ -6579,6 +6574,9 @@ _showMessage(
                 WorkspaceOverflowMenu(
                   tooltip: context.l10n.hostActions,
                   actions: _hostActions(host),
+                  borderRadius: BorderRadius.circular(
+                    AppDensity.of(context).radiusMd,
+                  ),
                   child: SizedBox.square(
                     dimension: metrics.buttonExtent,
                     child: const Icon(Icons.more_horiz, size: 18),
@@ -6606,32 +6604,12 @@ _showMessage(
         ),
       ),
     );
-    if (!apple) {
-      return Card(
-        clipBehavior: Clip.antiAlias,
-        margin: EdgeInsets.zero,
-        child: tileContent,
-      );
-    }
-    return DecoratedBox(
-      decoration: ShapeDecoration(
-        shape: cardShape,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.alphaBlend(
-              Colors.white.withValues(alpha: palette.isDark ? 0.08 : 0.55),
-              palette.surface.withValues(alpha: palette.isDark ? 0.62 : 0.76),
-            ),
-            palette.surface.withValues(alpha: palette.isDark ? 0.52 : 0.68),
-          ],
-        ),
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: tileContent,
-      ),
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
+      color: HostCardMetrics.cardFill(context),
+      shape: cardShape,
+      child: tileContent,
     );
   }
 

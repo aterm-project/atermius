@@ -347,15 +347,16 @@ class _HostSearchFieldState extends State<HostSearchField> {
 
     final Widget searchField;
     if (apple) {
-      final searchRadius = BorderRadius.circular(density.isCompact ? 10 : 12);
-      final fillColor = palette.isDark
-          ? (_focused
-                ? palette.surfaceSoft.withValues(alpha: 0.92)
-                : palette.surfaceRaised.withValues(alpha: 0.90))
-          : (_focused ? palette.surface : palette.surfaceRaised);
-      final borderColor = _focused
-          ? palette.accentText.withValues(alpha: palette.isDark ? 0.65 : 0.55)
-          : palette.line.withValues(alpha: palette.isDark ? 0.60 : 0.78);
+      // A filled well like every other field: no outline; focus tints the
+      // fill toward the accent (the theme's InputDecorator recipe).
+      final searchRadius = BorderRadius.circular(density.radiusMd);
+      final fillColor = _focused
+          ? palette.tinted(
+              palette.accent,
+              base: palette.fill,
+              strength: palette.isDark ? .16 : .09,
+            )
+          : palette.fill;
       final clearButton = !hasText
           ? null
           : IconButton(
@@ -392,25 +393,7 @@ class _HostSearchFieldState extends State<HostSearchField> {
           curve: MotionCurves.enter,
           decoration: ShapeDecoration(
             color: fillColor,
-            shape: appleSquircleBorder(
-              searchRadius,
-              platform: platform,
-              side: BorderSide(
-                color: borderColor,
-                width: _focused ? 1.0 : appleHairlineWidth(context),
-              ),
-            ),
-            shadows: _focused
-                ? [
-                    BoxShadow(
-                      color: palette.accent.withValues(
-                        alpha: palette.isDark ? 0.22 : 0.14,
-                      ),
-                      blurRadius: 8,
-                      spreadRadius: 0.5,
-                    ),
-                  ]
-                : const [],
+            shape: appleSquircleBorder(searchRadius, platform: platform),
           ),
           child: TextField(
             key: widget.fieldKey,
@@ -482,7 +465,6 @@ class _HostSearchFieldState extends State<HostSearchField> {
           prefixIcon: const Icon(Icons.search, size: 20),
           hintText: context.l10n.searchHostsOrTypeAnSsh,
           isDense: true,
-          border: const OutlineInputBorder(),
           suffixIcon: !hasText
               ? null
               : IconButton(
@@ -514,12 +496,8 @@ class _HostSearchFieldState extends State<HostSearchField> {
                         vertical: 8,
                       ),
                       shape: appleSquircleBorder(
-                        BorderRadius.circular(10),
+                        BorderRadius.circular(density.radiusMd),
                         platform: platform,
-                        side: BorderSide(
-                          color: palette.accentText.withValues(alpha: 0.24),
-                          width: appleHairlineWidth(context),
-                        ),
                       ),
                     )
                   : null,

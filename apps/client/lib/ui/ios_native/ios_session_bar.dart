@@ -40,7 +40,6 @@ class IosSessionBar extends StatelessWidget {
     this.transferProgress,
     this.transferActive = false,
     this.backgroundColor,
-    this.foregroundColor,
     this.backLabel,
     this.onNewConnection,
     this.sessionSubtitles = const {},
@@ -69,8 +68,6 @@ class IosSessionBar extends StatelessWidget {
   /// 终端主题背景色（默认按亮度取 `#000000` / `#F9F9F9`）。
   final Color? backgroundColor;
 
-  /// 终端主题前景色（取 12% 作为底部分割线）。
-  final Color? foregroundColor;
   final String? backLabel;
   final VoidCallback? onNewConnection;
   final Map<String, String> sessionSubtitles;
@@ -193,7 +190,6 @@ class IosSessionBar extends StatelessWidget {
     final barFill = (backgroundColor ?? c.groupedBackground).withValues(
       alpha: 0.88,
     );
-    final separatorColor = (foregroundColor ?? c.label).withValues(alpha: 0.12);
     final showSftp = current != null && current.canOpenFiles && !current.isFile;
     final hasTransfer = transferActive || transferProgress != null;
 
@@ -237,9 +233,8 @@ class IosSessionBar extends StatelessWidget {
     return IosGlassBar(
       key: const ValueKey('ios_session_bar'),
       sigma: 20,
+      // No separator line under the bar: the frosted fill sets it apart.
       fill: barFill,
-      bottomSeparator: true,
-      separatorColor: separatorColor,
       child: Padding(
         padding: EdgeInsets.only(
           top: pad.top,

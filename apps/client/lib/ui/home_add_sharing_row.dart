@@ -11,6 +11,7 @@ import '../domain/models.dart';
 import '../domain/quick_connect.dart';
 import '../l10n/l10n.dart';
 import '../telnet/telnet_ui.dart';
+import 'app_density.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'local_shell_menu.dart';
@@ -165,27 +166,15 @@ class HomeAddSharingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final platform = Theme.of(context).platform;
-    final apple = isAppleContext(context);
-    final palette = context.palette;
-    final hairline = apple ? appleHairlineWidth(context) : 1.0;
     final l10n = context.l10n;
-    final buttonRadius = BorderRadius.circular(apple ? 11 : 10);
-    final addShape = appleSquircleBorder(
-      buttonRadius,
-      platform: platform,
-      side: apple
-          ? BorderSide(
-              color: palette.accentText.withValues(
-                alpha: palette.isDark ? 0.28 : 0.22,
-              ),
-              width: hairline,
-            )
-          : BorderSide.none,
-    );
+    // Standalone controls: tonal fills with the control radius, no outline.
+    final buttonRadius = BorderRadius.circular(AppDensity.of(context).radiusMd);
+    final addShape = appleSquircleBorder(buttonRadius, platform: platform);
     final add = WorkspaceOverflowMenu(
       key: ValueKey('${idPrefix}_home_add'),
       tooltip: l10n.homeAddTooltip,
       actions: _actions(context),
+      borderRadius: buttonRadius,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 40, minWidth: 88),
         child: DecoratedBox(
@@ -221,56 +210,27 @@ class HomeAddSharingRow extends StatelessWidget {
     );
     final quickTermius = onQuickImportTermius;
     final quickEnabled = enabled && canAddHosts;
-    final quickShape = appleSquircleBorder(
-      buttonRadius,
-      platform: platform,
-      side: apple
-          ? BorderSide(
-              color: palette.line.withValues(
-                alpha: quickEnabled
-                    ? (palette.isDark ? 0.80 : 0.88)
-                    : (palette.isDark ? 0.40 : 0.48),
-              ),
-              width: hairline,
-            )
-          : BorderSide.none,
-    );
+    // The theme gives OutlinedButton its tonal fill; no outline.
     final quickButton = quickTermius == null
         ? null
         : SizedBox(
             height: 40,
-            child: DecoratedBox(
-              decoration: ShapeDecoration(
-                color: apple
-                    ? palette.surfaceRaised.withValues(
-                        alpha: quickEnabled
-                            ? (palette.isDark ? 0.72 : 0.90)
-                            : 0.40,
-                      )
-                    : Colors.transparent,
-                shape: quickShape,
+            child: OutlinedButton.icon(
+              key: ValueKey('${idPrefix}_home_one_click_termius'),
+              onPressed: quickEnabled
+                  ? () {
+                      AppleHaptics.light(context);
+                      quickTermius();
+                    }
+                  : null,
+              icon: const Icon(Icons.bolt_rounded, size: 18),
+              label: Text(
+                _quickImportLabel(context),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
-              child: OutlinedButton.icon(
-                key: ValueKey('${idPrefix}_home_one_click_termius'),
-                onPressed: quickEnabled
-                    ? () {
-                        AppleHaptics.light(context);
-                        quickTermius();
-                      }
-                    : null,
-                icon: const Icon(Icons.bolt_rounded, size: 18),
-                label: Text(
-                  _quickImportLabel(context),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  side: apple ? BorderSide.none : null,
-                  shape: appleSquircleBorder(
-                    buttonRadius,
-                    platform: platform,
-                  ),
-                ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                shape: appleSquircleBorder(buttonRadius, platform: platform),
               ),
             ),
           );
@@ -848,27 +808,11 @@ class HomeSharingCluster extends StatelessWidget {
     final hidden = people.skip(visible.length).toList();
     final status = _status(context);
     final scheme = Theme.of(context).colorScheme;
-    final platform = Theme.of(context).platform;
-    final apple = isAppleContext(context);
     final palette = context.palette;
     final local = snapshot.mode == HomeSharingMode.local;
-    final clusterRadius = BorderRadius.circular(apple ? 12 : 20);
-    final clusterShape = appleSquircleBorder(
-      clusterRadius,
-      platform: platform,
-      side: apple
-          ? BorderSide(
-              color: palette.line.withValues(
-                alpha: palette.isDark ? 0.45 : 0.62,
-              ),
-              width: appleHairlineWidth(context),
-            )
-          : BorderSide.none,
-    );
-    final hitShape = appleSquircleBorder(
-      clusterRadius,
-      platform: platform,
-    );
+    // A tonal capsule, concentric with the round avatars inside it; the
+    // ink highlight takes the same shape.
+    const clusterShape = StadiumBorder();
     return Semantics(
       container: true,
       button: true,
@@ -880,16 +824,12 @@ class HomeSharingCluster extends StatelessWidget {
         excludeFromSemantics: true,
         child: DecoratedBox(
           decoration: ShapeDecoration(
-            color: apple
-                ? palette.surfaceRaised.withValues(
-                    alpha: palette.isDark ? 0.55 : 0.72,
-                  )
-                : Colors.transparent,
+            color: palette.fill,
             shape: clusterShape,
           ),
           child: InkWell(
             key: ValueKey('${idPrefix}_home_sharing'),
-            customBorder: hitShape,
+            customBorder: clusterShape,
             onTap: () {
               AppleHaptics.selection(context);
               onOpenDetails();
@@ -1014,17 +954,17 @@ class _Avatar extends StatelessWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
+              // Filled discs, no rings; a pending invitation is a faded
+              // fill of the member's color instead of an outlined circle.
               Container(
                 width: 30,
                 height: 30,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: dashed ? Colors.transparent : background,
+                  color: dashed
+                      ? background.withValues(alpha: background.a * .4)
+                      : background,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: dashed ? scheme.outline : scheme.surface,
-                    width: dashed ? 1 : 1.5,
-                  ),
                 ),
                 child: icon != null
                     ? Icon(icon, size: 17, color: foreground)
@@ -1048,7 +988,6 @@ class _Avatar extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: dot,
                       shape: BoxShape.circle,
-                      border: Border.all(color: scheme.surface, width: 1.5),
                     ),
                   ),
                 ),

@@ -294,12 +294,9 @@ class IosLargeTitlePage extends StatelessWidget {
         (showBackButton || backLabel != null
             ? IosBackButton(label: backLabel, onPressed: onBack)
             : null);
-    final border = Border(
-      bottom: BorderSide(
-        color: c.separator,
-        width: IosMetrics.hairline(context),
-      ),
-    );
+    // No hairline under the bar (the Cupertino default): content scrolling
+    // under the frosted bar is told apart by the blur alone, as in iOS 26.
+    const Border? border = null;
     final titleText = Text(title);
     final bottom = iosScrollBottomPadding(context);
 
