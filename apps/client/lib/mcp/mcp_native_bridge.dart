@@ -24,7 +24,7 @@ class McpNativeGateway {
     required bool Function() isReady,
     required McpWorkspace? workspace,
     required McpAccessResolver access,
-    required void Function(String name, bool success) onCall,
+    required McpCallBegin onCallBegin,
   }) : _boundScope = boundScope,
        _isReady = isReady,
        _access = access,
@@ -41,7 +41,7 @@ class McpNativeGateway {
                  }
                },
                access: access,
-               onCall: onCall,
+               onCallBegin: onCallBegin,
              );
 
   final String callerId;

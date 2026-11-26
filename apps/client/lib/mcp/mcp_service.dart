@@ -17,12 +17,61 @@ export 'mcp_access_policy.dart' show McpAccessMode, mcpLocalDeviceHostId;
 export 'mcp_native_bridge.dart'
     show McpNativeBridge, McpNativeGateway, mcpNativeChannelName;
 
+/// One tool call shown to the user (settings and the AI activity panel).
+/// Created when the call starts; [finish] records how it ended.
 class McpAuditEntry {
-  McpAuditEntry(this.tool, this.success) : at = DateTime.now();
+  McpAuditEntry({
+    required this.id,
+    required this.tool,
+    this.source = mcpExternalCaller,
+    this.sessionId,
+    this.target,
+    this.summary = '',
+    DateTime? at,
+  }) : at = at ?? DateTime.now();
+
+  final int id;
   final String tool;
-  final bool success;
+
+  /// [mcpExternalCaller] for HTTP clients, otherwise the caller ID of an
+  /// in-process gateway.
+  final String source;
+
+  /// The session the call acts on, when it names one.
+  final String? sessionId;
+
+  /// Display name of the session or host the call acts on.
+  final String? target;
+
+  /// The arguments on one printable line (never file contents).
+  final String summary;
   final DateTime at;
+  DateTime? _finishedAt;
+  bool? _success;
+  String? _error, _result;
+
+  bool get running => _success == null;
+  bool get success => _success ?? false;
+  DateTime? get finishedAt => _finishedAt;
+
+  /// Tool error code of a failed call.
+  String? get error => _error;
+
+  /// Short printable outcome of a successful call (for example `exit 0`).
+  String? get result => _result;
+  Duration? get duration => _finishedAt?.difference(at);
+
+  void finish(bool success, {String? error, String? result}) {
+    if (!running) return;
+    _success = success;
+    _error = error;
+    _result = result;
+    _finishedAt = DateTime.now();
+  }
 }
+
+/// [McpAuditEntry.source] of calls from the HTTP listener.
+const mcpExternalCaller = 'external';
 
 /// Thrown by permission setters (and by [McpService.start]) when the policy
 /// for the current workspace is not loaded or could not be read.
@@ -477,10 +526,30 @@ class McpService extends ChangeNotifier {
     return _enforced?.effective(hostKey) ?? McpAccessMode.denied;
   }
 
-  void _recordAudit(String name, bool success) {
-    _audit.add(McpAuditEntry(name, success));
+  int _nextAuditId = 1;
+
+  /// Calls that have started and not finished yet, oldest first.
+  List<McpAuditEntry> get activeCalls =>
+      List.unmodifiable(_audit.where((entry) => entry.running));
+
+  McpCallEnd _beginCall(
+    String source,
+    String tool,
+    Map<String, dynamic> arguments,
+  ) {
+    final entry = McpAuditEntry(
+      id: _nextAuditId++,
+      tool: tool,
+      source: source,
+      sessionId: arguments['session_id'] as String?,
+    );
+    _audit.add(entry);
     if (_audit.length > 50) _audit.removeAt(0);
     if (!_disposed) notifyListeners();
+    return (success, {error, output}) {
+      entry.finish(success, error: error);
+      if (!_disposed) notifyListeners();
+    };
   }
 
   void _revalidateNativeGateways() {
@@ -565,10 +634,11 @@ class McpService extends ChangeNotifier {
       access: (hostKey) => workspace == null || scope == null
           ? McpAccessMode.denied
           : _resolveNative(hostKey, capturedEpoch, workspace, scope),
-      onCall: (name, success) {
-        if (!_disposed && capturedEpoch == _nativeEpoch) {
-          _recordAudit(name, success);
+      onCallBegin: (tool, arguments) {
+        if (_disposed || capturedEpoch != _nativeEpoch) {
+          return (success, {error, output}) {};
         }
+        return _beginCall(callerId, tool, arguments);
       },
     );
     if (workspace != null && scope != null && !_disposed) {
@@ -667,8 +737,11 @@ class McpService extends ChangeNotifier {
           }
         },
         access: (hostKey) => _resolve(hostKey, generation, workspace, scope),
-        onCall: (name, success) {
-          if (generation == _generation) _recordAudit(name, success);
+        onCallBegin: (tool, arguments) {
+          if (generation != _generation) {
+            return (success, {error, output}) {};
+          }
+          return _beginCall(mcpExternalCaller, tool, arguments);
         },
       );
       _protocol = protocol;
