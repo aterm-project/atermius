@@ -1469,10 +1469,10 @@ class McpToolRunner {
     final lines = view.logicalLines(from, end);
     final texts = lines.texts;
     final context = args['context_lines'] as int? ?? 0;
-    final found = await pattern.newest(
-      texts,
-      args['max_results'] as int? ?? 50,
-    );
+    // Atermius's own [MCP] lines are context, never matches.
+    final found = await pattern.newest([
+      for (final text in texts) McpActivity.isAnnouncement(text) ? '' : text,
+    ], args['max_results'] as int? ?? 50);
     checkSession();
     // The newest matches are kept when the output budget runs out.
     var budget = mcpTextBytes;

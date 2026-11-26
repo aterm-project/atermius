@@ -22,6 +22,15 @@ abstract final class McpActivity {
   static const readInterval = Duration(seconds: 10);
 
   static final _pending = Expando<List<String>>('mcp activity');
+
+  /// Start of every line [show] writes.
+  static const linePrefix = '[MCP] ';
+
+  /// Whether a terminal line is one of these announcements (or remote text
+  /// that looks exactly like one). Pattern matching leaves such lines out, so
+  /// a wait or search never matches what Atermius itself wrote, such as the
+  /// announcement of the `terminal_write` it is waiting on.
+  static bool isAnnouncement(String line) => line.startsWith(linePrefix);
   static final _lastRead = Expando<DateTime>('mcp read');
 
   /// [value] on one line: control characters become visible escapes so a
@@ -57,7 +66,9 @@ abstract final class McpActivity {
     String detail = '',
     String? output,
   }) {
-    final line = detail.isEmpty ? '[MCP] $tool' : '[MCP] $tool $detail';
+    final line = detail.isEmpty
+        ? '$linePrefix$tool'
+        : '$linePrefix$tool $detail';
     final terminal = session.terminal;
     if (terminal == null) {
       session.notice?.call(line);

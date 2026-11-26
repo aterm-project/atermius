@@ -724,6 +724,41 @@ void main() {
     });
   });
 
+  group('own [MCP] lines are never matches', () {
+    test('a wait does not end on the announcement of the input it '
+        'waits for, and a search skips announcements', () async {
+      final h = _Harness();
+      h.terminal.write(r'$ ');
+      final start = McpTerminalView(h.terminal).cursor;
+      await h.call('terminal_write', {
+        'session_id': 's1',
+        'text': 'make deploy-done\r',
+      });
+      expect(h.screen.any((l) => l.contains('deploy-done')), isTrue);
+      final early = await h.call('terminal_wait', {
+        'session_id': 's1',
+        'since_cursor': start,
+        'pattern': 'deploy-done',
+        'timeout_seconds': 1,
+      });
+      expect(early['matched'], isFalse);
+      expect(early['timed_out'], isTrue);
+      final found = await h.call('terminal_search', {
+        'session_id': 's1',
+        'pattern': 'deploy-done',
+      });
+      expect(found['matches'], isEmpty);
+      h.terminal.write('\r\ndeploy-done\r\n\$ ');
+      final later = await h.call('terminal_wait', {
+        'session_id': 's1',
+        'since_cursor': start,
+        'pattern': 'deploy-done',
+        'timeout_seconds': 5,
+      });
+      expect(later['matched'], isTrue);
+    });
+  });
+
   group('terminal_wait', () {
     test('waits for a pattern that appears later', () async {
       final h = _Harness();

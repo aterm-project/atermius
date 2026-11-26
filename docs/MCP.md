@@ -86,7 +86,7 @@ MCP 正在监听、有调用正在执行，或最近 2 分钟内有过调用时�
 ### 终端里的 `[MCP]` 行
 
 - SSH、Telnet、Console：在该终端的滚动记录里插入一行暗青色的 `[MCP] 工具名 参数`。这是本地显示，不会发送到远端。`ssh_exec` 先显示命令，结束后显示退出码和命令输出（最多 60 行或 4 KiB，更多内容只返回给客户端）；`terminal_run` 在输入命令前显示一行，命令和输出本身就在终端里；`terminal_send_keys` 显示按键名；`sftp_*` 显示路径和结果（修改类在动手前显示）；`terminal_write` 显示写入的文本；`session_focus`、`session_close`、`host_connect`、`console_open` 各显示一行；失败的调用显示 `→ failed: 错误码`。
-- `terminal_read`、`terminal_screen`、`terminal_wait` 每个会话每 10 秒最多显示一行，避免轮询刷屏；读取结果不包含它自己的那一行。`terminal_search` 和 `terminal_wait` 只显示结果（匹配数、等了多久），不显示搜索词，免得下一次搜索匹配到这一行。
+- `terminal_read`、`terminal_screen`、`terminal_wait` 每个会话每 10 秒最多显示一行，避免轮询刷屏；读取结果不包含它自己的那一行。`terminal_search` 和 `terminal_wait` 只显示结果（匹配数、等了多久），不显示搜索词。以 `[MCP] ` 开头的行会出现在读取结果里，但搜索、等待和 `terminal_run` 的 `until` 都不会匹配它们，所以等待刚用 `terminal_write` 输入的文字时，等到的是远端的输出，而不是这条提示。
 - RDP、VNC 没有终端，改为在远程桌面画面上弹出同样内容的提示。
 - 参数里的控制字符显示为 `\n`、`\e` 这类转义，不能借此操纵终端。全屏程序（vim、htop 等）运行期间不在其画面上写字，等它退出后补写。
 - 这些行属于终端文本，之后的 `terminal_read` 会读到它们。被权限拒绝的调用没有到达会话，因此不显示。

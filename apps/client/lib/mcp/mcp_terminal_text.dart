@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:clock/clock.dart';
 import 'package:xterm/xterm.dart';
 
+import 'mcp_activity.dart';
 import 'mcp_regex.dart';
 import 'mcp_workspace.dart';
 
@@ -486,6 +487,9 @@ Future<bool> _patternFound(
   if (echo != null && texts.isNotEmpty && lines.numbers.first == since) {
     final at = texts.first.indexOf(echo);
     if (at >= 0) texts[0] = texts.first.substring(at + echo.length);
+  }
+  for (var i = 0; i < texts.length; i++) {
+    if (McpActivity.isAnnouncement(texts[i])) texts[i] = '';
   }
   // A full-screen program that took over meanwhile is matched as well.
   final terminal = view.terminal;
