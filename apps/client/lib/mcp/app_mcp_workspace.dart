@@ -7,6 +7,10 @@ McpWorkspace appMcpWorkspace(AppController app) => McpWorkspace(
   // policy-filtered lists so denied machines are never counted.
   describe: () => {'mode': 'account', 'vault_id': app.currentVaultId},
   hosts: () => List.of(app.hosts),
+  groups: () => [
+    for (final group in app.groups)
+      McpGroup(id: group.id, name: group.name, parentId: group.parentId),
+  ],
   sessions: () => app.terminalTabs
       .map(
         (tab) => McpSession(
@@ -21,6 +25,9 @@ McpWorkspace appMcpWorkspace(AppController app) => McpWorkspace(
           terminal: tab.desktop == null ? tab.terminal : null,
           connection: tab.connection,
           notice: tab.desktop?.showNotice,
+          isFocused: () =>
+              app.activeTerminalTabId == tab.id &&
+              app.page == WorkspacePage.terminal,
           input: (text) => app.sendTerminalInputFor(tab.id, text),
           focus: () {
             app.activateTerminalTab(tab.id);

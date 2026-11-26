@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/mcp/mcp_access_policy_store.dart';
 import 'package:aterm_client/mcp/mcp_service.dart';
+import 'package:aterm_client/mcp/mcp_tools.dart';
 import 'package:aterm_client/mcp/mcp_workspace.dart';
 import 'package:aterm_client/ssh/ssh_service.dart';
 import 'package:flutter/services.dart';
@@ -30,7 +31,7 @@ void main() {
       expect(discovery['supportedVersions'], isNotEmpty);
 
       final tools = await gateway.listTools();
-      expect(tools.length, 17);
+      expect(tools.length, mcpTools.length);
       expect(
         tools.map((t) => t['name']),
         containsAll([
@@ -166,7 +167,7 @@ void main() {
       final list = Map<String, Object?>.from(
         await sendPlatformMessage('listTools') as Map,
       );
-      expect((list['tools'] as List).length, 17);
+      expect((list['tools'] as List).length, mcpTools.length);
 
       final call = Map<String, Object?>.from(
         await sendPlatformMessage('callTool', {

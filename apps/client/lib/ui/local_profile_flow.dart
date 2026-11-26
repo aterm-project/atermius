@@ -249,6 +249,10 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
       'sessions': _sessions.length,
     },
     hosts: () => List.of(_hosts),
+    groups: () => [
+      for (final group in _groups)
+        McpGroup(id: group.id, name: group.name, parentId: group.parentId),
+    ],
     sessions: () => _sessions
         .map(
           (session) => McpSession(
@@ -266,6 +270,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
             terminal: session.desktop == null ? session.terminal : null,
             connection: session.connection,
             notice: session.desktop?.showNotice,
+            isFocused: () => _selectedTabId == session.id,
             input: (text) => session.terminal.onOutput?.call(text),
             focus: () => _selectTerminalTab(session.id),
             close: () => _closeTerminalSession(session.id),
