@@ -1090,30 +1090,33 @@ class _AnsibleRefreshPreviewTile extends StatelessWidget {
                         ),
                       ),
                     ),
-                    DropdownButton<String>(
-                      key: ValueKey(
-                        'ansible_refresh_field_choice_${hostId}_${field.key}',
+                    DropdownWell(
+                      child: DropdownButton<String>(
+                        key: ValueKey(
+                          'ansible_refresh_field_choice_${hostId}_${field.key}',
+                        ),
+                        isDense: true,
+                        value:
+                            (useInventoryFieldsByHostId[hostId] ?? const {})
+                                .contains(field.key)
+                            ? 'inventory'
+                            : 'manual',
+                        items: [
+                          DropdownMenuItem(
+                            value: 'manual',
+                            child: Text(context.l10n.keepManual),
+                          ),
+                          DropdownMenuItem(
+                            value: 'inventory',
+                            child: Text(context.l10n.useInventory),
+                          ),
+                        ],
+                        onChanged: (choice) {
+                          if (choice != null) {
+                            inventoryFieldChoice(hostId, field.key, choice);
+                          }
+                        },
                       ),
-                      value:
-                          (useInventoryFieldsByHostId[hostId] ?? const {})
-                              .contains(field.key)
-                          ? 'inventory'
-                          : 'manual',
-                      items: [
-                        DropdownMenuItem(
-                          value: 'manual',
-                          child: Text(context.l10n.keepManual),
-                        ),
-                        DropdownMenuItem(
-                          value: 'inventory',
-                          child: Text(context.l10n.useInventory),
-                        ),
-                      ],
-                      onChanged: (choice) {
-                        if (choice != null) {
-                          inventoryFieldChoice(hostId, field.key, choice);
-                        }
-                      },
                     ),
                   ],
                 ),

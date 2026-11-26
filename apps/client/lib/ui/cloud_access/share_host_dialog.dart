@@ -16,6 +16,7 @@ import '../credential_visibility/credential_visibility_widgets.dart';
 import 'cloud_access_common.dart';
 import 'organizations_page.dart';
 import '../app_motion.dart';
+import '../surfaces.dart';
 
 Future<void> showCloudShareDialog(
   BuildContext context, {
@@ -680,13 +681,16 @@ class _LinkEditorState extends State<_LinkEditor> {
         Row(
           children: [
             Expanded(child: Text(l10n.cloudAccessConcurrent)),
-            DropdownButton<int>(
-              value: concurrent,
-              items: [
-                for (var i = 1; i <= 10; i++)
-                  DropdownMenuItem(value: i, child: Text('$i')),
-              ],
-              onChanged: (value) => setState(() => concurrent = value ?? 1),
+            DropdownWell(
+              child: DropdownButton<int>(
+                isDense: true,
+                value: concurrent,
+                items: [
+                  for (var i = 1; i <= 10; i++)
+                    DropdownMenuItem(value: i, child: Text('$i')),
+                ],
+                onChanged: (value) => setState(() => concurrent = value ?? 1),
+              ),
             ),
           ],
         ),
@@ -1311,29 +1315,32 @@ class _VaultGrantsPanelState extends State<VaultGrantsPanel> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    DropdownButton<String>(
-                      value: grant['role'] as String,
-                      items: [
-                        DropdownMenuItem(
-                          value: 'viewer',
-                          child: Text(l10n.cloudAccessRoleViewer),
-                        ),
-                        DropdownMenuItem(
-                          value: 'editor',
-                          child: Text(l10n.cloudAccessRoleEditor),
-                        ),
-                      ],
-                      onChanged: busy
-                          ? null
-                          : (role) => _run(
-                              () => service.api.setGrant(
-                                widget.vaultId,
-                                grant['principal_type'] as String,
-                                grant['principal_id'] as String,
-                                role!,
-                                revision,
+                    DropdownWell(
+                      child: DropdownButton<String>(
+                        isDense: true,
+                        value: grant['role'] as String,
+                        items: [
+                          DropdownMenuItem(
+                            value: 'viewer',
+                            child: Text(l10n.cloudAccessRoleViewer),
+                          ),
+                          DropdownMenuItem(
+                            value: 'editor',
+                            child: Text(l10n.cloudAccessRoleEditor),
+                          ),
+                        ],
+                        onChanged: busy
+                            ? null
+                            : (role) => _run(
+                                () => service.api.setGrant(
+                                  widget.vaultId,
+                                  grant['principal_type'] as String,
+                                  grant['principal_id'] as String,
+                                  role!,
+                                  revision,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                     IconButton(
                       tooltip: l10n.cloudAccessRemove,

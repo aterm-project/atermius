@@ -280,6 +280,29 @@ class GlassSurface extends StatelessWidget {
   }
 }
 
+/// A bare [DropdownButton] shown as a filled control well: its default
+/// underline is hidden and the translucent control fill takes its place, like
+/// the outline-free text fields. Give the dropdown `isDense: true`.
+class DropdownWell extends StatelessWidget {
+  const DropdownWell({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.palette.fill,
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+        child: DropdownButtonHideUnderline(child: child),
+      ),
+    );
+  }
+}
+
 /// Soft two-layer shadow of floating surfaces (menus, popovers, sidebars).
 List<BoxShadow> appFloatingShadow(AppPalette palette) => [
   BoxShadow(

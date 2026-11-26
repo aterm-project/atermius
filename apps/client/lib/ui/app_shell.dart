@@ -9747,23 +9747,26 @@ class _CreateSplitWorkspaceDialogState
                     runSpacing: 5,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      DropdownButton<WorkspaceSplitAxis>(
-                        key: const ValueKey('workspace-split-new-axis'),
-                        value: _newSplitAxis,
-                        onChanged: (axis) {
-                          if (axis != null)
-                            setState(() => _newSplitAxis = axis);
-                        },
-                        items: [
-                          DropdownMenuItem(
-                            value: WorkspaceSplitAxis.horizontal,
-                            child: Text(context.l10n.newSplitSideBySide),
-                          ),
-                          DropdownMenuItem(
-                            value: WorkspaceSplitAxis.vertical,
-                            child: Text(context.l10n.newSplitStacked),
-                          ),
-                        ],
+                      DropdownWell(
+                        child: DropdownButton<WorkspaceSplitAxis>(
+                          key: const ValueKey('workspace-split-new-axis'),
+                          isDense: true,
+                          value: _newSplitAxis,
+                          onChanged: (axis) {
+                            if (axis != null)
+                              setState(() => _newSplitAxis = axis);
+                          },
+                          items: [
+                            DropdownMenuItem(
+                              value: WorkspaceSplitAxis.horizontal,
+                              child: Text(context.l10n.newSplitSideBySide),
+                            ),
+                            DropdownMenuItem(
+                              value: WorkspaceSplitAxis.vertical,
+                              child: Text(context.l10n.newSplitStacked),
+                            ),
+                          ],
+                        ),
                       ),
                       SizedBox(
                         width: 112,

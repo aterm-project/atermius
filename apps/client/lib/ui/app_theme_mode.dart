@@ -525,7 +525,6 @@ class _AccentOption extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: scheme.accent,
-                    border: Border.all(color: scheme.accentText, width: 1.5),
                   ),
                   child: selected
                       ? Icon(Icons.check, size: 14, color: scheme.onAccent)
