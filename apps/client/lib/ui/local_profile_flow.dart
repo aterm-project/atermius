@@ -5712,6 +5712,16 @@ _showMessage(
                   onSearch: active == null || _storageRecoveryRequired
                       ? null
                       : () => unawaited(_openHostSearch()),
+                  onOpenMcpSettings: active == null || _storageRecoveryRequired
+                      ? null
+                      : () {
+                          if (_busy) return;
+                          SettingsScaffold.requestSection('mcp');
+                          setState(() {
+                            _selectedTabId = 'hosts';
+                            _workspace = _LocalWorkspace.preferences;
+                          });
+                        },
                   onSftp: (id) => unawaited(_openSessionFilesById(id)),
                   onScp: (id) => unawaited(
                     _openSessionScp(id, SshTransferDirection.upload),

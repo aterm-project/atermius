@@ -12850,7 +12850,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get onlyTheLast50ToolNames =>
-      'メモリ内に保持するのは直近 50 件のツール名と結果のみで、コマンド、ファイルの内容、トークンは記録しません。';
+      '直近 50 件の呼び出しだけをメモリ内に保持し、MCP を停止すると消去します。記録するのはツール、対象、引数の 1 行の要約（コマンド、パス、キーなど）と結果で、ファイルの内容とトークンは記録しません。';
 
   @override
   String get listensOn127001 =>
@@ -19242,4 +19242,74 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get localImportUnlock => 'ロック解除';
+
+  @override
+  String get mcpActivityTitle => 'AI のアクティビティ';
+
+  @override
+  String mcpActivityLabel(String tool) {
+    return 'AI：$tool';
+  }
+
+  @override
+  String mcpActivityRunning(String tool) {
+    return 'AI が $tool を実行中';
+  }
+
+  @override
+  String mcpActivityRunningOn(String tool, String target) {
+    return 'AI が $tool を実行中 · $target';
+  }
+
+  @override
+  String get mcpActivityEmpty =>
+      'AI のアクティビティはまだありません。AI クライアントが MCP 経由で行うツール呼び出しは、実行中からここに表示されます。';
+
+  @override
+  String mcpActivityListening(String endpoint) {
+    return '$endpoint で待ち受け中';
+  }
+
+  @override
+  String get mcpActivityNotListening => 'MCP サーバーはオフです。外部の AI クライアントは接続できません。';
+
+  @override
+  String get mcpActivityStop => 'MCP を停止';
+
+  @override
+  String get mcpActivityOpenSettings => 'MCP 設定';
+
+  @override
+  String get mcpActivityShowSession => 'セッションを表示';
+
+  @override
+  String get mcpActivityInProgress => '実行中…';
+
+  @override
+  String mcpActivityFailed(String code) {
+    return '失敗 · $code';
+  }
+
+  @override
+  String mcpActivityDurationMs(int milliseconds) {
+    return '$milliseconds ミリ秒';
+  }
+
+  @override
+  String mcpActivityDurationSeconds(String seconds) {
+    return '$seconds 秒';
+  }
+
+  @override
+  String mcpActivityVia(String caller) {
+    return '$caller 経由';
+  }
+
+  @override
+  String mcpNoticeFromAi(String message) {
+    return 'AI：$message';
+  }
+
+  @override
+  String get mcpNoticeView => '表示';
 }

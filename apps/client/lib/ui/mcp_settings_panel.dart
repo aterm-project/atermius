@@ -6,6 +6,7 @@ import '../credential_visibility/sensitive_clipboard.dart';
 import '../domain/models.dart';
 import '../l10n/l10n.dart';
 import '../mcp/mcp_access_policy.dart';
+import '../mcp/mcp_call_summary.dart' show mcpToolTitle;
 import '../mcp/mcp_listen_settings_store.dart';
 import '../mcp/mcp_listener.dart'
     show McpBind, McpBindMode, McpListenSettings, normalizeMcpAddress;
@@ -15,6 +16,7 @@ import '../mcp/mcp_tools.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'ios_native/ios_native.dart';
+import 'mcp_activity_panel.dart';
 import 'responsive_layout.dart';
 import 'settings_scaffold.dart';
 
@@ -1299,24 +1301,68 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 child: ColoredBox(color: colors.separator),
               ),
             ),
-            IosListRow(
-              leading: Icon(
-                entries[i].success ? IosIcons.success : IosIcons.warning,
-                size: 20,
-                color: entries[i].success ? colors.online : colors.warning,
-              ),
-              title: Text(entries[i].tool),
-              subtitle: Text(
-                entries[i].at.toLocal().toString().split('.').first,
-              ),
-              monoSubtitle: true,
-              value: entries[i].success
-                  ? context.l10n.done
-                  : context.l10n.failed,
-            ),
+            _iosAuditRow(context, entries[i]),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _iosAuditRow(BuildContext context, McpAuditEntry entry) {
+    final colors = IosColors.of(context);
+    final l10n = context.l10n;
+    final failed = !entry.running && !entry.success;
+    final meta = [
+      mcpClockTime(entry.at),
+      if (!entry.running)
+        if (entry.duration case final duration?)
+          mcpCallDuration(l10n, duration),
+      if (failed) l10n.mcpActivityFailed(entry.error ?? '?') else ?entry.result,
+      if (entry.source != mcpExternalCaller) l10n.mcpActivityVia(entry.source),
+    ].join(' · ');
+    return IosListRow(
+      key: ValueKey('mcp_audit_${entry.id}'),
+      leading: entry.running
+          ? const CupertinoActivityIndicator(radius: 9)
+          : Icon(
+              entry.success ? IosIcons.success : IosIcons.warning,
+              size: 20,
+              color: entry.success ? colors.online : colors.warning,
+            ),
+      title: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: mcpToolTitle(entry.tool)),
+            if (entry.target case final target?)
+              TextSpan(
+                text: ' · $target',
+                style: TextStyle(color: colors.secondaryLabel),
+              ),
+          ],
+        ),
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (entry.summary.isNotEmpty)
+            Text(
+              entry.summary,
+              key: ValueKey('mcp_call_summary_${entry.id}'),
+              maxLines: 2,
+            ),
+          Text(
+            meta,
+            maxLines: 1,
+            style: IosType.footnote.copyWith(color: colors.secondaryLabel),
+          ),
+        ],
+      ),
+      monoSubtitle: true,
+      value: entry.running
+          ? l10n.mcpActivityInProgress
+          : entry.success
+          ? l10n.done
+          : l10n.failed,
     );
   }
 
@@ -1936,20 +1982,12 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             padding: const EdgeInsets.only(top: 12),
             child: Text(context.l10n.noCallsYet),
           ),
+        if (service.audit.isNotEmpty) const SizedBox(height: 6),
         for (final entry in service.audit.take(10))
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(
-              entry.success ? Icons.check_circle_outline : Icons.error_outline,
-              color: entry.success
-                  ? context.palette.lime
-                  : context.palette.orange,
-            ),
-            title: Text(entry.tool),
-            subtitle: Text(entry.at.toLocal().toString().split('.').first),
-            trailing: Text(
-              entry.success ? context.l10n.done : context.l10n.failed,
-            ),
+          McpCallTile(
+            key: ValueKey('mcp_audit_${entry.id}'),
+            entry: entry,
+            padding: const EdgeInsets.symmetric(vertical: 8),
           ),
       ],
     ),

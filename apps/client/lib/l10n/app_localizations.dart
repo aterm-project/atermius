@@ -21448,7 +21448,7 @@ abstract class AppLocalizations {
   /// No description provided for @onlyTheLast50ToolNames.
   ///
   /// In en, this message translates to:
-  /// **'Only the last 50 tool names and results are kept in memory; commands, file contents and tokens aren\'t recorded.'**
+  /// **'Only the last 50 calls are kept, in memory only, and they\'re cleared when MCP stops: the tool, its target, a one-line summary of the arguments (such as commands, paths or keys) and the outcome. File contents and tokens aren\'t recorded.'**
   String get onlyTheLast50ToolNames;
 
   /// No description provided for @listensOn127001.
@@ -32175,6 +32175,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unlock'**
   String get localImportUnlock;
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'AI activity'**
+  String get mcpActivityTitle;
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'AI · {tool}'**
+  String mcpActivityLabel(String tool);
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'AI is running {tool}'**
+  String mcpActivityRunning(String tool);
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'AI is running {tool} · {target}'**
+  String mcpActivityRunningOn(String tool, String target);
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'No AI activity yet. Each tool call an AI client makes through MCP appears here while it runs.'**
+  String get mcpActivityEmpty;
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'Listening on {endpoint}'**
+  String mcpActivityListening(String endpoint);
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'The MCP server is off; external AI clients can\'t connect.'**
+  String get mcpActivityNotListening;
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'Stop MCP'**
+  String get mcpActivityStop;
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'MCP settings'**
+  String get mcpActivityOpenSettings;
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'Show the session'**
+  String get mcpActivityShowSession;
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'Running…'**
+  String get mcpActivityInProgress;
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'Failed · {code}'**
+  String mcpActivityFailed(String code);
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'{milliseconds} ms'**
+  String mcpActivityDurationMs(int milliseconds);
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds} s'**
+  String mcpActivityDurationSeconds(String seconds);
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'via {caller}'**
+  String mcpActivityVia(String caller);
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'AI: {message}'**
+  String mcpNoticeFromAi(String message);
+
+  /// Top bar › AI activity (MCP tool calls an AI client makes).
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get mcpNoticeView;
 }
 
 class _AppLocalizationsDelegate

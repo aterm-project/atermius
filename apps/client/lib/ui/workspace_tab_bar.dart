@@ -17,6 +17,7 @@ import 'workspace_menu.dart';
 import 'fullscreen_menu.dart';
 import 'fullscreen_tabs_peek.dart';
 import 'host_system_icon.dart';
+import 'mcp_activity_panel.dart';
 import '../domain/models.dart' show HostRecord;
 import '../l10n/l10n.dart';
 import '../platform/fullscreen.dart';
@@ -147,6 +148,7 @@ class WorkspaceTabBar extends StatelessWidget {
     this.groupSelections = const {},
     this.onUnsplit,
     this.onDisconnect,
+    this.onOpenMcpSettings,
   });
   final List<WorkspaceTab> tabs;
   final List<List<String>> groups;
@@ -173,6 +175,9 @@ class WorkspaceTabBar extends StatelessWidget {
   final List<WorkspaceAction> homeMenuActions;
   final VoidCallback? onSearch, onToggleTools;
   final ValueChanged<String>? onSftp, onScp, onScpUpload, onScpDownload;
+
+  /// Opens Settings › AI / MCP (from the AI activity panel).
+  final VoidCallback? onOpenMcpSettings;
 
   List<WorkspaceTab> get _displayTabs {
     final byId = {for (final tab in tabs) tab.id: tab};
@@ -867,7 +872,8 @@ class WorkspaceTabBar extends StatelessWidget {
                             ? 110.0
                             : 128.0;
                         final platform = Theme.of(context).platform;
-                        final compact = tabConstraints.maxWidth + menuWidth <
+                        final compact =
+                            tabConstraints.maxWidth + menuWidth <
                             homeSlot + 3 * 152;
                         if (platform == TargetPlatform.android && compact) {
                           return _CompactWorkspaceTabs(bar: this, metrics: bar);
@@ -1001,6 +1007,17 @@ class WorkspaceTabBar extends StatelessWidget {
                       icon: const Icon(Icons.add_to_queue_outlined),
                     ),
                   ...actions,
+                  // What AI clients do through MCP, while MCP is in use.
+                  McpActivityButton(
+                    metrics: bar,
+                    showLabel: barConstraints.maxWidth >= 960,
+                    liveSessionIds: {
+                      for (final tab in tabs)
+                        if (!tab.isHome && !tab.isFile) tab.id,
+                    },
+                    onFocusSession: onSelect,
+                    onOpenSettings: onOpenMcpSettings,
+                  ),
                   const FullscreenToolsMenu(),
                   if (onSearch != null)
                     IconButton(
@@ -1240,7 +1257,10 @@ class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
                       Icons.home_outlined,
                       size: widget.metrics.iconSize,
                     ),
-                    selectedIcon: Icon(Icons.home, size: widget.metrics.iconSize),
+                    selectedIcon: Icon(
+                      Icons.home,
+                      size: widget.metrics.iconSize,
+                    ),
                     onPressed: () {
                       if (_open) _hide();
                       bar.onSelect(home.id);

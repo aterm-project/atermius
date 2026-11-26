@@ -13700,7 +13700,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get onlyTheLast50ToolNames =>
-      'В памяти хранятся только названия и результаты последних 50 вызовов инструментов; команды, содержимое файлов и токены не записываются.';
+      'Хранятся только последние 50 вызовов, только в памяти, и они удаляются при остановке MCP: инструмент, цель, однострочная сводка аргументов (например, команды, пути или клавиши) и результат. Содержимое файлов и токены не записываются.';
 
   @override
   String get listensOn127001 =>
@@ -20501,4 +20501,75 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get localImportUnlock => 'Разблокировать';
+
+  @override
+  String get mcpActivityTitle => 'Действия ИИ';
+
+  @override
+  String mcpActivityLabel(String tool) {
+    return 'ИИ · $tool';
+  }
+
+  @override
+  String mcpActivityRunning(String tool) {
+    return 'ИИ выполняет $tool';
+  }
+
+  @override
+  String mcpActivityRunningOn(String tool, String target) {
+    return 'ИИ выполняет $tool · $target';
+  }
+
+  @override
+  String get mcpActivityEmpty =>
+      'Действий ИИ пока нет. Каждый вызов инструмента, который ИИ-клиент делает через MCP, появляется здесь во время выполнения.';
+
+  @override
+  String mcpActivityListening(String endpoint) {
+    return 'Ожидает подключений на $endpoint';
+  }
+
+  @override
+  String get mcpActivityNotListening =>
+      'Сервер MCP выключен: внешние ИИ-клиенты не могут подключиться.';
+
+  @override
+  String get mcpActivityStop => 'Остановить MCP';
+
+  @override
+  String get mcpActivityOpenSettings => 'Настройки MCP';
+
+  @override
+  String get mcpActivityShowSession => 'Показать сеанс';
+
+  @override
+  String get mcpActivityInProgress => 'Выполняется…';
+
+  @override
+  String mcpActivityFailed(String code) {
+    return 'Ошибка · $code';
+  }
+
+  @override
+  String mcpActivityDurationMs(int milliseconds) {
+    return '$milliseconds мс';
+  }
+
+  @override
+  String mcpActivityDurationSeconds(String seconds) {
+    return '$seconds с';
+  }
+
+  @override
+  String mcpActivityVia(String caller) {
+    return 'через $caller';
+  }
+
+  @override
+  String mcpNoticeFromAi(String message) {
+    return 'ИИ: $message';
+  }
+
+  @override
+  String get mcpNoticeView => 'Показать';
 }

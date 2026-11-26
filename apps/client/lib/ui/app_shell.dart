@@ -2115,6 +2115,11 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                 onSearch: app.activeVault == null
                     ? null
                     : () => unawaited(_openHostSearch()),
+                onOpenMcpSettings: () {
+                  SettingsScaffold.requestSection('mcp');
+                  setState(() => _selectedFileId = null);
+                  app.showWorkspacePage(WorkspacePage.settings);
+                },
                 onToggleTools:
                     app.page == WorkspacePage.terminal &&
                         _fileTabs.find(_sessionWorkspace.selectedId ?? '') ==

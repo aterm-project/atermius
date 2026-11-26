@@ -12095,7 +12095,8 @@ class AppLocalizationsZh extends AppLocalizations {
       'SSH / Console 支持文本读取与输入；SSH 支持独立命令执行和 SFTP 文本文件读写。RDP / VNC 支持连接和标签管理，暂不提供画面识别或鼠标控制。';
 
   @override
-  String get onlyTheLast50ToolNames => '仅在内存中保留最近 50 次工具名称和结果，不记录命令、文件内容或令牌。';
+  String get onlyTheLast50ToolNames =>
+      '仅在内存中保留最近 50 次调用，MCP 停止时清空：包括工具、目标、参数的单行摘要（如命令、路径或按键）和结果。不记录文件内容和令牌。';
 
   @override
   String get listensOn127001 =>
@@ -18299,4 +18300,73 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get localImportUnlock => '解锁';
+
+  @override
+  String get mcpActivityTitle => 'AI 活动';
+
+  @override
+  String mcpActivityLabel(String tool) {
+    return 'AI：$tool';
+  }
+
+  @override
+  String mcpActivityRunning(String tool) {
+    return 'AI 正在执行 $tool';
+  }
+
+  @override
+  String mcpActivityRunningOn(String tool, String target) {
+    return 'AI 正在执行 $tool · $target';
+  }
+
+  @override
+  String get mcpActivityEmpty => '暂无 AI 活动。AI 客户端通过 MCP 发起的每次工具调用都会在执行时显示在这里。';
+
+  @override
+  String mcpActivityListening(String endpoint) {
+    return '正在监听 $endpoint';
+  }
+
+  @override
+  String get mcpActivityNotListening => 'MCP 服务器已关闭，外部 AI 客户端无法连接。';
+
+  @override
+  String get mcpActivityStop => '停止 MCP';
+
+  @override
+  String get mcpActivityOpenSettings => 'MCP 设置';
+
+  @override
+  String get mcpActivityShowSession => '显示该会话';
+
+  @override
+  String get mcpActivityInProgress => '进行中…';
+
+  @override
+  String mcpActivityFailed(String code) {
+    return '失败 · $code';
+  }
+
+  @override
+  String mcpActivityDurationMs(int milliseconds) {
+    return '$milliseconds 毫秒';
+  }
+
+  @override
+  String mcpActivityDurationSeconds(String seconds) {
+    return '$seconds 秒';
+  }
+
+  @override
+  String mcpActivityVia(String caller) {
+    return '来自 $caller';
+  }
+
+  @override
+  String mcpNoticeFromAi(String message) {
+    return 'AI：$message';
+  }
+
+  @override
+  String get mcpNoticeView => '查看';
 }

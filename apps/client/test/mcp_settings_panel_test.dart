@@ -64,8 +64,9 @@ class _FakeMcpService extends ChangeNotifier implements McpService {
       : const [];
   @override
   Uri? get endpoint => isRunning ? endpoints.first : null;
+  List<McpAuditEntry> auditEntries = const [];
   @override
-  List<McpAuditEntry> get audit => const [];
+  List<McpAuditEntry> get audit => auditEntries;
   @override
   bool get permissionsLoading => loading;
   @override
@@ -1260,6 +1261,70 @@ void main() {
       lessThan(AppBreakpoints.settingsNavigation),
     );
   });
+
+  for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+    testWidgets('recent calls show title, target, summary and outcome '
+        '(${platform.name}, 390 px)', (tester) async {
+      final service = _FakeMcpService();
+      final ok = McpAuditEntry(
+        id: 1,
+        tool: 'ssh_exec',
+        sessionId: 's1',
+        target: 'production-database-primary-eu-west-replica-0',
+        summary:
+            'systemctl restart nginx && journalctl -u nginx -n 200 '
+            '--no-pager | grep -i error | tail -n 50',
+      )..finish(true, result: 'exit 0');
+      final failed = McpAuditEntry(
+        id: 2,
+        tool: 'terminal_write',
+        source: 'apple_intelligence',
+        target: 'web-01',
+        summary: r'rm -rf /tmp/cache\n',
+      )..finish(false, error: 'read_only');
+      final running = McpAuditEntry(
+        id: 3,
+        tool: 'sftp_list',
+        target: 'web-01',
+        summary: '/var/log',
+      );
+      service.auditEntries = [running, failed, ok];
+      await _pump(
+        tester,
+        service,
+        size: const Size(390, 2400),
+        platform: platform,
+        settle: false,
+      );
+      expect(tester.takeException(), isNull);
+      for (final entry in [ok, failed, running]) {
+        final row = find.byKey(ValueKey('mcp_audit_${entry.id}'));
+        await tester.ensureVisible(row);
+        await tester.pump();
+        expect(row, findsOneWidget);
+        expect(
+          find.descendant(
+            of: row,
+            matching: find.byKey(ValueKey('mcp_call_summary_${entry.id}')),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.getRect(row).right, lessThanOrEqualTo(390));
+      }
+      expect(
+        find.textContaining(
+          'Run a command (separate SSH channel) · '
+          'production-database-primary',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('exit 0'), findsOneWidget);
+      expect(find.textContaining('Failed · read_only'), findsOneWidget);
+      expect(find.textContaining('via apple_intelligence'), findsOneWidget);
+      expect(find.textContaining('Running…'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   test('every MCP access label exists in all four catalogs with matching '
       'placeholders', () {

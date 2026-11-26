@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 
 import '../domain/models.dart';
 import 'mcp_access_policy.dart';
 import 'mcp_access_policy_store.dart';
+import 'mcp_call_summary.dart';
 import 'mcp_listen_settings_store.dart';
 import 'mcp_listener.dart';
 import 'mcp_native_bridge.dart';
@@ -28,7 +30,7 @@ class McpAuditEntry {
     this.target,
     this.summary = '',
     DateTime? at,
-  }) : at = at ?? DateTime.now();
+  }) : at = at ?? clock.now();
 
   final int id;
   final String tool;
@@ -48,7 +50,7 @@ class McpAuditEntry {
   final DateTime at;
   DateTime? _finishedAt;
   bool? _success;
-  String? _error, _result;
+  String? _error, _result, _openedSessionId;
 
   bool get running => _success == null;
   bool get success => _success ?? false;
@@ -61,12 +63,28 @@ class McpAuditEntry {
   String? get result => _result;
   Duration? get duration => _finishedAt?.difference(at);
 
-  void finish(bool success, {String? error, String? result}) {
+  /// The session a successful call opened (`host_connect`, `console_open`).
+  String? get openedSessionId => _openedSessionId;
+
+  /// The session to show for this call: the one it acted on, or the one it
+  /// opened.
+  String? get focusSessionId => sessionId ?? _openedSessionId;
+
+  /// When the call last changed: its end, or its start while it runs.
+  DateTime get lastActivity => _finishedAt ?? at;
+
+  void finish(
+    bool success, {
+    String? error,
+    String? result,
+    String? openedSessionId,
+  }) {
     if (!running) return;
     _success = success;
     _error = error;
     _result = result;
-    _finishedAt = DateTime.now();
+    _openedSessionId = openedSessionId;
+    _finishedAt = clock.now();
   }
 }
 
@@ -532,24 +550,80 @@ class McpService extends ChangeNotifier {
   List<McpAuditEntry> get activeCalls =>
       List.unmodifiable(_audit.where((entry) => entry.running));
 
+  /// When the most recent call started or ended; null without calls.
+  DateTime? get lastActivity => _audit.isEmpty
+      ? null
+      : _audit
+            .map((entry) => entry.lastActivity)
+            .reduce((a, b) => a.isAfter(b) ? a : b);
+
   McpCallEnd _beginCall(
     String source,
     String tool,
     Map<String, dynamic> arguments,
   ) {
+    final sessionId = switch (arguments['session_id']) {
+      final String id => id,
+      _ => null,
+    };
     final entry = McpAuditEntry(
       id: _nextAuditId++,
       tool: tool,
       source: source,
-      sessionId: arguments['session_id'] as String?,
+      sessionId: sessionId,
+      target: _targetName(sessionId, arguments['host_id']),
+      summary: summarizeArguments(tool, arguments),
     );
     _audit.add(entry);
     if (_audit.length > 50) _audit.removeAt(0);
     if (!_disposed) notifyListeners();
     return (success, {error, output}) {
-      entry.finish(success, error: error);
+      entry.finish(
+        success,
+        error: error,
+        result: success ? summarizeResult(tool, output) : null,
+        openedSessionId: success ? _openedSession(output) : null,
+      );
       if (!_disposed) notifyListeners();
     };
+  }
+
+  /// Starts an audit entry as a tool call would, for widget tests of the
+  /// activity UI.
+  @visibleForTesting
+  McpCallEnd debugBeginCall(
+    String tool,
+    Map<String, dynamic> arguments, {
+    String source = mcpExternalCaller,
+  }) => _beginCall(source, tool, arguments);
+
+  /// Display name of the session or saved host a call names, looked up in
+  /// the attached workspace when the call starts.
+  String? _targetName(String? sessionId, Object? hostId) {
+    final workspace = _workspace;
+    if (workspace == null) return null;
+    try {
+      if (sessionId != null) {
+        for (final session in workspace.sessions()) {
+          if (session.id == sessionId) return session.name;
+        }
+      }
+      if (hostId is String) {
+        for (final host in workspace.hosts()) {
+          if (host.id == hostId) return host.name;
+        }
+      }
+    } catch (_) {
+      // A name is a convenience; the call itself reports real errors.
+    }
+    return null;
+  }
+
+  static String? _openedSession(Map<String, Object?>? output) {
+    if (output?['sessions'] case [final Map first, ...]) {
+      if (first['id'] case final String id) return id;
+    }
+    return null;
   }
 
   void _revalidateNativeGateways() {

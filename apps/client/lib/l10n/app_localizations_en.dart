@@ -13695,7 +13695,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onlyTheLast50ToolNames =>
-      'Only the last 50 tool names and results are kept in memory; commands, file contents and tokens aren\'t recorded.';
+      'Only the last 50 calls are kept, in memory only, and they\'re cleared when MCP stops: the tool, its target, a one-line summary of the arguments (such as commands, paths or keys) and the outcome. File contents and tokens aren\'t recorded.';
 
   @override
   String get listensOn127001 =>
@@ -20416,4 +20416,75 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get localImportUnlock => 'Unlock';
+
+  @override
+  String get mcpActivityTitle => 'AI activity';
+
+  @override
+  String mcpActivityLabel(String tool) {
+    return 'AI · $tool';
+  }
+
+  @override
+  String mcpActivityRunning(String tool) {
+    return 'AI is running $tool';
+  }
+
+  @override
+  String mcpActivityRunningOn(String tool, String target) {
+    return 'AI is running $tool · $target';
+  }
+
+  @override
+  String get mcpActivityEmpty =>
+      'No AI activity yet. Each tool call an AI client makes through MCP appears here while it runs.';
+
+  @override
+  String mcpActivityListening(String endpoint) {
+    return 'Listening on $endpoint';
+  }
+
+  @override
+  String get mcpActivityNotListening =>
+      'The MCP server is off; external AI clients can\'t connect.';
+
+  @override
+  String get mcpActivityStop => 'Stop MCP';
+
+  @override
+  String get mcpActivityOpenSettings => 'MCP settings';
+
+  @override
+  String get mcpActivityShowSession => 'Show the session';
+
+  @override
+  String get mcpActivityInProgress => 'Running…';
+
+  @override
+  String mcpActivityFailed(String code) {
+    return 'Failed · $code';
+  }
+
+  @override
+  String mcpActivityDurationMs(int milliseconds) {
+    return '$milliseconds ms';
+  }
+
+  @override
+  String mcpActivityDurationSeconds(String seconds) {
+    return '$seconds s';
+  }
+
+  @override
+  String mcpActivityVia(String caller) {
+    return 'via $caller';
+  }
+
+  @override
+  String mcpNoticeFromAi(String message) {
+    return 'AI: $message';
+  }
+
+  @override
+  String get mcpNoticeView => 'View';
 }
