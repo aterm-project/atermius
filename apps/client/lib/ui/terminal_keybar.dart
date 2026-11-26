@@ -556,7 +556,6 @@ class _TerminalKeybarState extends State<TerminalKeybar>
       final bottomSafePad = _iosBottomSafePad(context);
       return IosGlassBar(
         sigma: 20,
-        topSeparator: true,
         fill: c.isDark ? const Color(0xB31C1C1E) : const Color(0xCCD1D3D9),
         child: ExcludeFocus(
           // Pointer/semantics activation must not take focus from the IME.

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:aterm_client/ui/app_theme.dart';
 import 'package:aterm_client/ui/apple_hig.dart';
+import 'package:aterm_client/ui/surfaces.dart';
 import 'package:flutter/foundation.dart' show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -249,50 +250,60 @@ void main() {
   });
 
   group('Apple Liquid Glass & iOS soft-keyboard SSH Backspace', () {
-    testWidgets(
-      'AppleGlassSurface and AppleGlassBar render BackdropFilter on Apple platforms and degrade cleanly on Android / highContrast',
-      (tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: buildAppTheme(platform: TargetPlatform.iOS),
-            home: const Scaffold(
-              body: Column(
-                children: [
-                  AppleGlassBar(
-                    fallbackColor: Color(0xFF12191C),
-                    child: SizedBox(height: 38, width: 200),
-                  ),
-                  AppleGlassSurface(
-                    child: SizedBox(height: 80, width: 200),
-                  ),
-                ],
+    for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+      testWidgets(
+        'GlassSurface renders blurred glass on ${platform.name} without an outline and drops the blur in high contrast',
+        (tester) async {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: buildAppTheme(platform: platform),
+              home: const Scaffold(
+                body: Column(
+                  children: [
+                    GlassSurface(
+                      tint: Color(0xFF12191C),
+                      child: SizedBox(height: 38, width: 200),
+                    ),
+                    GlassSurface(
+                      borderRadius: BorderRadius.all(Radius.circular(16)),
+                      elevated: true,
+                      child: SizedBox(height: 80, width: 200),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-        expect(find.byType(BackdropFilter), findsNWidgets(2));
+          );
+          expect(find.byType(BackdropFilter), findsNWidgets(2));
+          for (final box in tester.widgetList<DecoratedBox>(
+            find.descendant(
+              of: find.byType(GlassSurface),
+              matching: find.byType(DecoratedBox),
+            ),
+          )) {
+            final decoration = box.decoration;
+            if (decoration is BoxDecoration) {
+              expect(decoration.border, isNull);
+            }
+          }
 
-        // High-contrast accessibility disables blur for crisp legibility.
-        await tester.pumpWidget(
-          MediaQuery(
-            data: const MediaQueryData(highContrast: true),
-            child: MaterialApp(
-              theme: buildAppTheme(platform: TargetPlatform.iOS),
+          // High-contrast accessibility disables blur for crisp legibility.
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: buildAppTheme(platform: platform),
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context).copyWith(highContrast: true),
                 child: child!,
               ),
               home: const Scaffold(
-                body: AppleGlassSurface(
-                  child: SizedBox(height: 80, width: 200),
-                ),
+                body: GlassSurface(child: SizedBox(height: 80, width: 200)),
               ),
             ),
-          ),
-        );
-        expect(find.byType(BackdropFilter), findsNothing);
-      },
-    );
+          );
+          expect(find.byType(BackdropFilter), findsNothing);
+        },
+      );
+    }
 
     testWidgets(
       'iOS TerminalView enables zero-width-space deleteDetection by default and emits DEL (0x7F) on repeated soft-keyboard Backspace',
