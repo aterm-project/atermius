@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import 'app_theme.dart';
+import 'app_density.dart';
 import 'apple_hig.dart';
+import 'surfaces.dart';
 
 /// Home destinations shown in the Home LEFT sidebar. The sidebar exists only
 /// on the Home surface; terminal/file panes never show it.
@@ -101,13 +103,10 @@ class HomeSidebar extends StatelessWidget {
     final mode =
         layout ?? homeSidebarLayoutFor(MediaQuery.sizeOf(context).width);
     final platform = Theme.of(context).platform;
-    final apple = isAppleContext(context);
-    final hairline = apple ? appleHairlineWidth(context) : 1.0;
-    final dividerColor = apple
-        ? context.palette.line.withValues(
-            alpha: context.palette.isDark ? 0.55 : 0.68,
-          )
-        : context.palette.line.withValues(alpha: .8);
+    final density = AppDensity.of(context);
+    // A floating glass block beside Home; the phone rail stays flush with
+    // the window edge.
+    final floating = mode != HomeSidebarLayout.phoneRail;
     final touch = switch (platform) {
       TargetPlatform.android || TargetPlatform.iOS => true,
       _ => false,
@@ -124,14 +123,15 @@ class HomeSidebar extends StatelessWidget {
       child: SizedBox(
         key: const ValueKey('home_sidebar'),
         width: widthFor(mode),
-        child: AppleGlassBar(
-          fallbackColor: context.palette.rail,
+        child: Padding(
+          padding: floating
+              ? const EdgeInsets.fromLTRB(8, 2, 0, 8)
+              : EdgeInsets.zero,
+          child: GlassSurface(
+          tint: context.palette.rail,
           sigma: 22,
-          border: Border(
-            right: BorderSide(
-              color: apple ? appleGlassRimColor(context) : dividerColor,
-              width: hairline,
-            ),
+          borderRadius: BorderRadius.circular(
+            floating ? density.radiusLg : 0,
           ),
           child: Column(
             children: [
@@ -157,11 +157,6 @@ class HomeSidebar extends StatelessWidget {
                 ),
               ),
               if (footerActions.isNotEmpty) ...[
-                Divider(
-                  height: 1,
-                  thickness: hairline,
-                  color: apple ? appleGlassRimColor(context) : context.palette.line,
-                ),
                 _HomeSidebarFooterMenu(
                   actions: footerActions,
                   label: footerLabel ?? context.l10n.r7NavImportExport,
@@ -172,10 +167,24 @@ class HomeSidebar extends StatelessWidget {
               ],
             ],
           ),
+          ),
         ),
       ),
     );
   }
+}
+
+/// Inset of sidebar rows from the block edge, and their concentric radius.
+(double inset, double radius) _homeSidebarRowGeometry(
+  BuildContext context,
+  HomeSidebarLayout layout,
+) {
+  final density = AppDensity.of(context);
+  final inset = layout == HomeSidebarLayout.labelled ? density.blockInset : 4.0;
+  final radius = layout == HomeSidebarLayout.phoneRail
+      ? density.radiusMd
+      : concentricRadius(density.radiusLg, inset);
+  return (inset, radius);
 }
 
 class _HomeSidebarItem extends StatelessWidget {
@@ -248,20 +257,9 @@ class _HomeSidebarItem extends StatelessWidget {
       ),
       HomeSidebarLayout.phoneRail => Center(child: iconWidget),
     };
-    final itemRadius = BorderRadius.circular(apple ? 10 : 8);
-    final borderSide = selected
-        ? BorderSide(
-            color: palette.accentText.withValues(
-              alpha: apple ? (palette.isDark ? 0.24 : 0.20) : 0.28,
-            ),
-            width: apple ? appleHairlineWidth(context) : 1.0,
-          )
-        : BorderSide.none;
-    final pillShape = appleSquircleBorder(
-      itemRadius,
-      platform: platform,
-      side: borderSide,
-    );
+    final (rowInset, rowRadius) = _homeSidebarRowGeometry(context, layout);
+    final itemRadius = BorderRadius.circular(rowRadius);
+    final pillShape = appleSquircleBorder(itemRadius, platform: platform);
     final hitShape = appleSquircleBorder(
       itemRadius,
       platform: platform,
@@ -274,10 +272,7 @@ class _HomeSidebarItem extends StatelessWidget {
                 ))
         : Colors.transparent;
     final tile = Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: layout == HomeSidebarLayout.labelled ? 8 : 4,
-        vertical: 1.5,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: rowInset, vertical: 1.5),
       child: DecoratedBox(
         decoration: ShapeDecoration(
           color: pillColor,
@@ -332,15 +327,13 @@ class _HomeSidebarFooterMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final platform = Theme.of(context).platform;
     final apple = isAppleContext(context);
+    final (rowInset, rowRadius) = _homeSidebarRowGeometry(context, layout);
     final footerShape = appleSquircleBorder(
-      BorderRadius.circular(apple ? 10 : 8),
+      BorderRadius.circular(rowRadius),
       platform: platform,
     );
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: layout == HomeSidebarLayout.labelled ? 8 : 4,
-        vertical: 4,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: rowInset, vertical: 4),
       child: MenuAnchor(
         menuChildren: [
           for (final action in actions)

@@ -242,13 +242,42 @@ class AppPalette extends ThemeExtension<AppPalette> {
   Color get lime => accentText;
   Color get teal => accentSoft;
 
+  // Surface-system fills (see surfaces.dart): areas are told apart by these,
+  // never by an outline.
+
+  /// Opaque fill of a block at [depth] (1 = a block on the canvas).
+  Color blockFill(int depth) => switch (depth) {
+    <= 1 => surface,
+    2 => surfaceRaised,
+    _ => surfaceSoft,
+  };
+
+  /// Translucent fill of controls (fields, tonal buttons, chips, tracks). It
+  /// reads on the canvas, on blocks and on glass alike.
+  Color get fill => text.withValues(alpha: isDark ? .075 : .055);
+
+  /// [fill] under a hovering pointer.
+  Color get fillHover => text.withValues(alpha: isDark ? .11 : .085);
+
+  /// [fill] while pressed or open.
+  Color get fillPressed => text.withValues(alpha: isDark ? .14 : .11);
+
+  /// Soft rule kept only inside one block (menu sections); never an outline.
+  Color get separator => line.withValues(alpha: isDark ? .55 : .7);
+
+  /// [tone] laid over [base] as a tinted block (notices, selected rows).
+  Color tinted(Color tone, {Color? base, double? strength}) => Color.alphaBlend(
+    tone.withValues(alpha: strength ?? (isDark ? .14 : .10)),
+    base ?? surface,
+  );
+
   static const dark = AppPalette(
     brightness: Brightness.dark,
     background: AppColors.background,
     surface: AppColors.surface,
     surfaceRaised: AppColors.surfaceRaised,
     surfaceSoft: AppColors.surfaceSoft,
-    rail: Color(0xFF0E1416),
+    rail: Color(0xFF151D20),
     line: AppColors.line,
     text: AppColors.text,
     muted: AppColors.muted,
@@ -273,19 +302,20 @@ class AppPalette extends ThemeExtension<AppPalette> {
     tooltipText: Color(0xFFFFFFFF),
   );
 
-  /// White canvas and cards, cool porcelain separators, dark readable text and
-  /// the emerald-teal app accent. Text-role colors meet WCAG AA (>= 4.5:1).
+  /// Porcelain-grey canvas with white blocks on it, dark readable text and the
+  /// emerald-teal app accent. Text-role colors meet WCAG AA (>= 4.5:1) on the
+  /// canvas and on every block level.
   static const light = AppPalette(
     brightness: Brightness.light,
-    background: Color(0xFFFFFFFF),
+    background: Color(0xFFEFF3F2),
     surface: Color(0xFFFFFFFF),
     surfaceRaised: Color(0xFFF3F7F6),
     surfaceSoft: Color(0xFFE6EFED),
-    rail: Color(0xFFF3F7F6),
+    rail: Color(0xFFFAFCFB),
     line: Color(0xFFD6E2DF),
     text: Color(0xFF14211F),
     muted: Color(0xFF516360),
-    hint: Color(0xFF657875),
+    hint: Color(0xFF5E716E),
     accent: AppColors.accent,
     onAccent: AppColors.onAccent,
     accentContainer: Color(0xFFD4F5EC),
@@ -464,10 +494,19 @@ ThemeData buildAppTheme({
   // never a transform or a text-scale override.
   final density = AppDensity.forPlatform(effectivePlatform);
   final textTheme = density.applyTextSizes(base.textTheme);
-  final radiusSm = BorderRadius.circular(density.radiusSm);
   final radiusMd = BorderRadius.circular(density.radiusMd);
   final radiusLg = BorderRadius.circular(density.radiusLg);
   final menuShadowColor = Colors.black.withValues(alpha: dark ? 0.45 : 0.14);
+  // Menus are blocks: rows sit blockInset in, with the concentric radius.
+  final menuInset = density.blockInset;
+  final menuItemShape = appleSquircleBorder(
+    BorderRadius.circular(density.radiusLg - menuInset),
+    platform: effectivePlatform,
+  );
+  final noOutline = OutlineInputBorder(
+    borderRadius: radiusMd,
+    borderSide: BorderSide.none,
+  );
   return base.copyWith(
     platform: effectivePlatform,
     splashFactory: apple ? NoSplash.splashFactory : null,
@@ -544,10 +583,17 @@ ThemeData buildAppTheme({
       contentPadding: density.listTilePadding,
       horizontalTitleGap: density.space5,
       minLeadingWidth: density.iconLg,
+      shape: RoundedRectangleBorder(borderRadius: radiusMd),
     ),
-    dividerColor: p.line,
+    dividerColor: p.separator,
+    dividerTheme: DividerThemeData(color: p.separator, thickness: 1),
+    // Expanded tiles keep no top/bottom rules; the block around them groups.
+    expansionTileTheme: ExpansionTileThemeData(
+      shape: RoundedRectangleBorder(borderRadius: radiusMd),
+      collapsedShape: RoundedRectangleBorder(borderRadius: radiusMd),
+    ),
     chipTheme: base.chipTheme.copyWith(
-      backgroundColor: p.surfaceRaised,
+      backgroundColor: p.fill,
       selectedColor: p.accentContainer,
       // A chip label style replaces the text theme's, so it carries the
       // language's font fallbacks itself (Han glyph forms, Cyrillic).
@@ -557,8 +603,8 @@ ThemeData buildAppTheme({
         fontFamilyFallback: fallback,
       ),
       checkmarkColor: p.onAccentContainer,
-      side: BorderSide(color: p.line),
-      shape: appleSquircleBorder(radiusSm, platform: effectivePlatform),
+      side: BorderSide.none,
+      shape: const StadiumBorder(),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
@@ -567,10 +613,13 @@ ThemeData buildAppTheme({
         shape: appleSquircleBorder(radiusMd, platform: effectivePlatform),
       ),
     ),
+    // Secondary buttons are tonal: a translucent fill, no outline.
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: p.accentText,
-        side: BorderSide(color: p.line),
+        backgroundColor: p.fill,
+        disabledBackgroundColor: p.fill.withValues(alpha: p.fill.a * .6),
+        side: BorderSide.none,
         padding: EdgeInsets.symmetric(horizontal: density.space6),
         shape: appleSquircleBorder(radiusMd, platform: effectivePlatform),
       ),
@@ -586,7 +635,20 @@ ThemeData buildAppTheme({
         visualDensity: density.isCompact
             ? VisualDensity.compact
             : VisualDensity.standard,
-        side: WidgetStatePropertyAll(BorderSide(color: p.line)),
+        // One filled track; the chosen segment is an accent block on it.
+        side: const WidgetStatePropertyAll(BorderSide.none),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? p.accentContainer
+              : p.fill,
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled)
+              ? p.muted.withValues(alpha: .5)
+              : states.contains(WidgetState.selected)
+              ? p.onAccentContainer
+              : p.text,
+        ),
         shape: WidgetStatePropertyAll(
           appleSquircleBorder(radiusMd, platform: effectivePlatform),
         ),
@@ -605,19 +667,20 @@ ThemeData buildAppTheme({
             : null,
       ),
     ),
-    switchTheme: nativeAppleColors
-        ? SwitchThemeData(
-            trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
-            trackOutlineWidth: const WidgetStatePropertyAll(0),
-            trackColor: _AppleSwitchTrackColor(
-              accent: p.accent,
-              surfaceSoft: p.surfaceSoft,
-            ),
-            thumbColor: _AppleSwitchThumbColor(dark: dark),
-            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-            splashRadius: 0,
-          )
-        : null,
+    // Switch tracks are filled on every platform; no track outline.
+    switchTheme: SwitchThemeData(
+      trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+      trackOutlineWidth: const WidgetStatePropertyAll(0),
+      trackColor: _AppleSwitchTrackColor(
+        accent: p.accent,
+        surfaceSoft: p.surfaceSoft,
+      ),
+      thumbColor: _AppleSwitchThumbColor(dark: dark),
+      overlayColor: nativeAppleColors
+          ? const WidgetStatePropertyAll(Colors.transparent)
+          : null,
+      splashRadius: nativeAppleColors ? 0 : null,
+    ),
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: p.accentText,
       selectionColor: p.accent.withValues(alpha: .45),
@@ -627,49 +690,35 @@ ThemeData buildAppTheme({
       labelColor: p.accentText,
       indicatorColor: p.accentText,
       unselectedLabelColor: p.muted,
+      dividerColor: Colors.transparent,
+      dividerHeight: 0,
     ),
     popupMenuTheme: PopupMenuThemeData(
-      color: p.surfaceRaised,
+      color: dark ? p.surfaceRaised : p.surface,
       surfaceTintColor: Colors.transparent,
-      elevation: apple ? 10 : 6,
+      elevation: 12,
       shadowColor: menuShadowColor,
-      shape: appleSquircleBorder(
-        radiusMd,
-        platform: effectivePlatform,
-        side: BorderSide(
-          color: nativeAppleColors ? p.line.withValues(alpha: dark ? 0.85 : 0.75) : p.line,
-        ),
-      ),
-      menuPadding: EdgeInsets.symmetric(vertical: density.space2),
+      shape: appleSquircleBorder(radiusLg, platform: effectivePlatform),
+      menuPadding: EdgeInsets.symmetric(vertical: menuInset),
       labelTextStyle: _PopupMenuLabelTextStyle(
         fontSize: density.textSize(density.isCompact ? 12 : 13),
         enabledColor: p.text,
         disabledColor: p.muted.withValues(alpha: .5),
       ),
     ),
+    // Menus are floating blocks: no outline, a soft shadow, and rows inset
+    // by blockInset with the concentric radius (radiusLg - blockInset).
     menuTheme: MenuThemeData(
       style: MenuStyle(
-        backgroundColor: nativeAppleColors
-            ? WidgetStatePropertyAll(p.surfaceRaised)
-            : null,
-        surfaceTintColor: nativeAppleColors
-            ? const WidgetStatePropertyAll(Colors.transparent)
-            : null,
-        elevation: apple ? const WidgetStatePropertyAll(10) : null,
-        shadowColor: nativeAppleColors ? WidgetStatePropertyAll(menuShadowColor) : null,
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(vertical: 4),
+        backgroundColor: WidgetStatePropertyAll(
+          dark ? p.surfaceRaised : p.surface,
         ),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        elevation: const WidgetStatePropertyAll(12),
+        shadowColor: WidgetStatePropertyAll(menuShadowColor),
+        padding: WidgetStatePropertyAll(EdgeInsets.all(menuInset)),
         shape: WidgetStatePropertyAll(
-          appleSquircleBorder(
-            radiusMd,
-            platform: effectivePlatform,
-            side: BorderSide(
-              color: nativeAppleColors
-                  ? p.line.withValues(alpha: dark ? 0.85 : 0.75)
-                  : p.line,
-            ),
-          ),
+          appleSquircleBorder(radiusLg, platform: effectivePlatform),
         ),
       ),
     ),
@@ -687,11 +736,11 @@ ThemeData buildAppTheme({
         ),
         iconSize: WidgetStatePropertyAll(density.menuIconSize),
         visualDensity: VisualDensity.standard,
+        shape: WidgetStatePropertyAll(menuItemShape),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: p.surfaceRaised,
       contentPadding: density.inputPadding,
       // Compact desktop drops the 48px minimum field height (pointer input);
       // touch keeps it so fields stay >= 48dp hit targets.
@@ -706,25 +755,27 @@ ThemeData buildAppTheme({
       suffixIconConstraints: density.isCompact
           ? const BoxConstraints(minWidth: 40, minHeight: 36)
           : null,
-      border: OutlineInputBorder(
-        borderRadius: radiusMd,
-        borderSide: BorderSide(
-          color: nativeAppleColors ? p.line.withValues(alpha: dark ? 0.72 : 0.85) : p.line,
-        ),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: radiusMd,
-        borderSide: BorderSide(
-          color: nativeAppleColors ? p.line.withValues(alpha: dark ? 0.72 : 0.85) : p.line,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: radiusMd,
-        borderSide: BorderSide(
-          color: nativeAppleColors ? p.lime.withValues(alpha: dark ? 0.65 : 0.55) : p.lime,
-          width: apple ? 1.0 : 1.4,
-        ),
-      ),
+      // Fields are filled wells without an outline. Focus tints the well
+      // toward the accent, an error toward red; hover lifts it a step.
+      fillColor: WidgetStateColor.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return p.fill.withValues(alpha: p.fill.a * .6);
+        }
+        if (states.contains(WidgetState.error)) {
+          return p.tinted(p.red, base: p.fill, strength: dark ? .16 : .10);
+        }
+        if (states.contains(WidgetState.focused)) {
+          return p.tinted(p.accent, base: p.fill, strength: dark ? .16 : .09);
+        }
+        return p.fill;
+      }),
+      hoverColor: p.text.withValues(alpha: dark ? .035 : .03),
+      border: noOutline,
+      enabledBorder: noOutline,
+      disabledBorder: noOutline,
+      focusedBorder: noOutline,
+      errorBorder: noOutline,
+      focusedErrorBorder: noOutline,
       labelStyle: TextStyle(color: p.muted),
       hintStyle: TextStyle(color: p.hint),
     ),
@@ -732,30 +783,18 @@ ThemeData buildAppTheme({
       backgroundColor: p.surfaceSoft,
       contentTextStyle: TextStyle(color: p.text),
       behavior: SnackBarBehavior.floating,
-      shape: apple
-          ? appleSquircleBorder(
-              radiusMd,
-              platform: effectivePlatform,
-              side: BorderSide(color: p.line),
-            )
-          : null,
+      elevation: 8,
+      shape: appleSquircleBorder(radiusLg, platform: effectivePlatform),
     ),
+    // Dialogs float on a blurred barrier (showAppDialog), so a slightly
+    // translucent surface reads as glass; no outline.
     dialogTheme: DialogThemeData(
-      backgroundColor: nativeAppleColors
-          ? p.surface.withValues(alpha: dark ? 0.76 : 0.84)
-          : p.surface,
+      backgroundColor: p.surface.withValues(alpha: dark ? 0.9 : 0.92),
       surfaceTintColor: Colors.transparent,
-      elevation: apple ? 18 : 12,
+      elevation: 18,
       shape: appleSquircleBorder(
         BorderRadius.circular(density.radiusDialog),
         platform: effectivePlatform,
-        side: BorderSide(
-          color: nativeAppleColors
-              ? (dark
-                    ? Colors.white.withValues(alpha: 0.16)
-                    : Colors.black.withValues(alpha: 0.09))
-              : p.line,
-        ),
       ),
       insetPadding: EdgeInsets.symmetric(
         horizontal: density.dialogInset,
@@ -777,10 +816,15 @@ ThemeData buildAppTheme({
       color: p.surface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      shape: appleSquircleBorder(
-        radiusLg,
-        platform: effectivePlatform,
-        side: BorderSide(color: p.line),
+      shape: appleSquircleBorder(radiusLg, platform: effectivePlatform),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: p.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(density.radiusDialog),
+        ),
       ),
     ),
     appBarTheme: AppBarTheme(
@@ -794,7 +838,7 @@ ThemeData buildAppTheme({
     tooltipTheme: TooltipThemeData(
       decoration: BoxDecoration(
         color: p.tooltipBackground,
-        borderRadius: const BorderRadius.all(Radius.circular(8)),
+        borderRadius: BorderRadius.circular(density.radiusSm),
       ),
       textStyle: TextStyle(
         color: p.tooltipText,

@@ -75,8 +75,8 @@ class AppDensity extends ThemeExtension<AppDensity> {
     dialogXl: 860,
     radiusSm: 6,
     radiusMd: 10,
-    radiusLg: 12,
-    radiusDialog: 16,
+    radiusLg: 16,
+    radiusDialog: 22,
   );
 
   /// Windows uses the native caption as the chrome baseline, with one logical
@@ -107,8 +107,8 @@ class AppDensity extends ThemeExtension<AppDensity> {
     dialogXl: 896,
     radiusSm: 6,
     radiusMd: 10,
-    radiusLg: 12,
-    radiusDialog: 16,
+    radiusLg: 16,
+    radiusDialog: 22,
   );
 
   /// Touch (Android/iOS) proportions: glyphs slightly smaller than R6a, hit
@@ -139,8 +139,8 @@ class AppDensity extends ThemeExtension<AppDensity> {
     dialogXl: 860,
     radiusSm: 8,
     radiusMd: 12,
-    radiusLg: 14,
-    radiusDialog: 18,
+    radiusLg: 20,
+    radiusDialog: 28,
   );
 
   static AppDensity forPlatform(TargetPlatform platform) => switch (platform) {
@@ -184,10 +184,29 @@ class AppDensity extends ThemeExtension<AppDensity> {
   final double dialogMd;
   final double dialogLg;
   final double dialogXl;
+  // Concentric corner chain (see surfaces.dart): each radius is the next one
+  // out minus the inset between the two edges.
+  //   radiusDialog - blockInset = radiusLg   (dialog → block)
+  //   radiusLg     - blockInset = radiusMd   (block → row / control)
+  //   radiusMd     - controlInset = radiusSm (control → glyph tile / badge)
+
+  /// Small shapes inside a control: icon tiles, badges, selection inside rows.
   final double radiusSm;
+
+  /// Controls and rows: buttons, fields, list rows, menu items, tabs.
   final double radiusMd;
+
+  /// Blocks: cards, panels, sidebars, menus, popovers.
   final double radiusLg;
+
+  /// Dialogs and sheets.
   final double radiusDialog;
+
+  /// Inset between a block's edge and the rows/controls flush inside it.
+  double get blockInset => radiusLg - radiusMd;
+
+  /// Inset between a control's edge and the shapes flush inside it.
+  double get controlInset => radiusMd - radiusSm;
 
   bool get isCompact => profile != AppDensityProfile.touch;
 

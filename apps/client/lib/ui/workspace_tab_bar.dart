@@ -5,10 +5,12 @@ import 'app_menu.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'app_density.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'session_workspace.dart';
+import 'surfaces.dart';
 import 'remote_file_workspace.dart' show FileTabDropTarget;
 import '../ssh/file_workspace_controller.dart' show FileWorkspaceController;
 import 'window_caption.dart';
@@ -646,8 +648,7 @@ class WorkspaceTabBar extends StatelessWidget {
       elevation: 10,
       color: palette.isDark ? palette.surfaceSoft : palette.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: colors.primary.withValues(alpha: .6)),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       child: SizedBox(
         width: sessionWidth,
@@ -821,23 +822,20 @@ class WorkspaceTabBar extends StatelessWidget {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       visualDensity: VisualDensity.compact,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(7),
+                        borderRadius: BorderRadius.circular(
+                          AppDensity.of(context).radiusMd,
+                        ),
                       ),
                     ),
             ),
             child: row,
           );
-    return AppleGlassBar(
-      fallbackColor: palette.rail,
+    // The bar is glass in the canvas color: it reads as part of the window
+    // (a unified title bar), with the tabs as blocks on it. No bottom rule.
+    return GlassSurface(
+      tint: palette.background,
+      opacity: .82,
       sigma: 24,
-      border: Border(
-        bottom: BorderSide(
-          color: isAppleContext(context)
-              ? appleGlassRimColor(context)
-              : palette.line.withValues(alpha: .72),
-          width: isAppleContext(context) ? appleHairlineWidth(context) : 1.0,
-        ),
-      ),
       child: SizedBox(
         key: const ValueKey('workspace_navigation_bar'),
         height: bar.height,
@@ -1277,13 +1275,14 @@ class _CompactWorkspaceTabsState extends State<_CompactWorkspaceTabs> {
                 child: Material(
                   color: palette.isDark ? palette.surfaceSoft : palette.surface,
                   shape: appleSquircleBorder(
-                    BorderRadius.circular(8),
+                    BorderRadius.circular(AppDensity.of(context).radiusMd),
                     platform: Theme.of(context).platform,
-                    side: BorderSide(color: palette.line),
                   ),
                   child: InkWell(
                     key: const ValueKey('workspace-tab-list-button'),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(
+                      AppDensity.of(context).radiusMd,
+                    ),
                     onTap: _toggle,
                     child: LayoutBuilder(
                       builder: (context, constraints) {
@@ -1446,19 +1445,12 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
     final palette = widget.palette;
     final colors = widget.colors;
     final selected = widget.selected;
+    // Selected tab: a solid block on the glass bar. Others: a faint fill that
+    // firms up under the pointer. No outlines.
     final targetFill = selected
         ? (palette.isDark ? palette.surfaceSoft : palette.surface)
-        : Color.alphaBlend(
-            colors.onSurface.withValues(alpha: _hovered ? .09 : .02),
-            palette.rail,
-          );
-    final borderColor = selected
-        ? (palette.isDark
-              ? colors.primary.withValues(alpha: .55)
-              : palette.line)
-        : (_hovered
-              ? colors.onSurface.withValues(alpha: .12)
-              : Colors.transparent);
+        : (_hovered ? palette.fillHover : palette.fill.withValues(alpha: .02));
+    final radius = BorderRadius.circular(AppDensity.of(context).radiusMd);
     final showCloseStrong = widget.mobile || selected || _hovered;
     final closeIconColor = colors.onSurfaceVariant.withValues(
       alpha: showCloseStrong ? .9 : .40,
@@ -1475,14 +1467,11 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
           key: ValueKey('workspace-tab-surface-${tab.id}'),
           color: color,
           animationDuration: AppMotion.duration(context, MotionDurations.quick),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: borderColor),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: radius),
           child: child,
         ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: radius,
           onTap: widget.onTap,
           child: SizedBox(
             key: ValueKey('workspace-tab-${tab.id}'),
@@ -1578,7 +1567,7 @@ class _WorkspaceMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final colors = Theme.of(context).colorScheme;
-    final radius = BorderRadius.circular(8);
+    final radius = BorderRadius.circular(AppDensity.of(context).radiusMd);
     return Padding(
       padding: EdgeInsets.fromLTRB(8, metrics.tabInset, 2, metrics.tabInset),
       // The bar is not a Material; the trigger's ink needs one of its own.

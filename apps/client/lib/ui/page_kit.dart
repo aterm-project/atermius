@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'app_density.dart';
 import 'app_theme.dart';
+import 'surfaces.dart';
 
 /// Shared building blocks of the workspace pages (Sync health, Groups,
 /// Keychain, Devices, …), so every page has the same header, panels,
@@ -88,9 +89,17 @@ class PageHeader extends StatelessWidget {
   }
 }
 
-/// Radius shared by the page's own surfaces; one step rounder than a Card so
-/// the summary reads as the page's lead element.
-double _radius(BuildContext context) => AppDensity.of(context).radiusLg + 4;
+/// Radius of the page's blocks: the block radius, or the concentric radius
+/// of an enclosing block (see surfaces.dart).
+double _radius(BuildContext context) => SurfaceScope.concentric(
+  context,
+  fallback: AppDensity.of(context).radiusLg,
+  floor: AppDensity.of(context).radiusMd,
+);
+
+/// Fill of a page block at this depth (one level above its parent).
+Color _blockFill(BuildContext context) =>
+    context.palette.blockFill(SurfaceScope.depthOf(context) + 1);
 
 /// One label/value fact shown under the summary title.
 class HeroFact {
@@ -154,9 +163,8 @@ class StatusHero extends StatelessWidget {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: tone.withValues(alpha: .14),
+                  color: tone.withValues(alpha: .16),
                   shape: BoxShape.circle,
-                  border: Border.all(color: tone.withValues(alpha: .28)),
                 ),
               ),
               if (busy)
@@ -219,17 +227,17 @@ class StatusHero extends StatelessWidget {
                   ],
                 ),
               );
+        final fill = _blockFill(context);
         return DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: radius,
-            color: palette.surface,
-            border: Border.all(color: tone.withValues(alpha: .32)),
+            color: fill,
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color.alphaBlend(tone.withValues(alpha: .12), palette.surface),
-                palette.surface,
+                Color.alphaBlend(tone.withValues(alpha: .16), fill),
+                fill,
               ],
               stops: const [0, .75],
             ),
@@ -259,9 +267,7 @@ class StatusHero extends StatelessWidget {
                   ],
                 ),
                 if (factWrap != null) ...[
-                  SizedBox(height: narrow ? 14 : 18),
-                  Divider(height: 1, color: palette.line),
-                  SizedBox(height: narrow ? 12 : 14),
+                  SizedBox(height: narrow ? 16 : 20),
                   factWrap,
                 ],
                 if (narrow && actions.isNotEmpty) ...[
@@ -290,9 +296,8 @@ class _HeroFactChip extends StatelessWidget {
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: palette.surfaceRaised.withValues(alpha: .7),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: palette.line.withValues(alpha: .7)),
+        color: palette.fill,
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       // A Wrap, not a Row: a long label (Russian) moves the value to a
       // second line instead of running out of the chip.
@@ -341,9 +346,8 @@ class PageNotice extends StatelessWidget {
     final palette = context.palette;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Color.alphaBlend(tone.withValues(alpha: .09), palette.surface),
-        borderRadius: BorderRadius.circular(_radius(context) - 4),
-        border: Border.all(color: tone.withValues(alpha: .35)),
+        color: palette.tinted(tone, base: _blockFill(context)),
+        borderRadius: BorderRadius.circular(_radius(context)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
@@ -457,9 +461,8 @@ class EmptyRow extends StatelessWidget {
     final palette = context.palette;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(_radius(context) - 2),
-        border: Border.all(color: palette.line),
+        color: _blockFill(context),
+        borderRadius: BorderRadius.circular(_radius(context)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -527,58 +530,53 @@ class PagePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(_radius(context) - 2),
-        border: Border.all(color: palette.line),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Icon(icon, size: 18, color: palette.teal),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+    final radius = _radius(context);
+    return AppBlock(
+      radius: radius,
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(icon, size: 18, color: palette.teal),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: palette.text,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 4),
                       Text(
-                        title,
+                        subtitle!,
                         style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: palette.text,
+                          fontSize: 12,
+                          height: 1.5,
+                          color: palette.muted,
                         ),
                       ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.5,
-                            color: palette.muted,
-                          ),
-                        ),
-                      ],
                     ],
-                  ),
+                  ],
                 ),
-                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
-              ],
-            ),
-            if (children.isNotEmpty) const SizedBox(height: 12),
-            ...children,
-          ],
-        ),
+              ),
+              if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+            ],
+          ),
+          if (children.isNotEmpty) const SizedBox(height: 12),
+          ...children,
+        ],
       ),
     );
   }

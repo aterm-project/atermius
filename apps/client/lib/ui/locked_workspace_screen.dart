@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../l10n/l10n.dart';
 import 'app_density.dart';
+import 'surfaces.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'insecure_server_widgets.dart';
@@ -113,24 +114,9 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
       );
     }
     final theme = Theme.of(context);
-    final apple = isAppleContext(context);
     final density = AppDensity.of(context);
     final palette = _lockedPaletteOf(context);
-    final hairline = appleHairlineWidth(context);
     final panelRadius = BorderRadius.circular(density.radiusDialog);
-    final fieldRadius = BorderRadius.circular(density.radiusMd);
-    final cardShape = apple
-        ? appleSquircleBorder(
-            panelRadius,
-            platform: theme.platform,
-            side: BorderSide(
-              color: palette.line.withValues(
-                alpha: palette.isDark ? 0.85 : 0.88,
-              ),
-              width: hairline,
-            ),
-          )
-        : null;
 
     final unlockCard = Card(
       // A Card merges its content into one accessibility node by default.
@@ -138,50 +124,40 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
       // "Workspace locked. Your account stays signed in…", with the status
       // line lying on top of it.
       semanticContainer: false,
-      margin: apple ? EdgeInsets.zero : const EdgeInsets.all(24),
-      elevation: apple ? 0 : null,
-      color: apple ? Colors.transparent : null,
-      surfaceTintColor: apple ? Colors.transparent : null,
-      clipBehavior: apple ? Clip.antiAlias : null,
-      shape: apple ? const RoundedRectangleBorder() : cardShape,
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      color: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(),
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (apple)
-              Center(
-                child: SizedBox.square(
-                  dimension: 56,
-                  child: DecoratedBox(
-                    decoration: ShapeDecoration(
-                      color: palette.isDark
-                          ? palette.accent.withValues(alpha: 0.16)
-                          : palette.accentContainer.withValues(alpha: 0.72),
-                      shape: appleSquircleBorder(
-                        BorderRadius.circular(16),
-                        platform: theme.platform,
-                        side: BorderSide(
-                          color: palette.isDark
-                              ? palette.lime.withValues(alpha: 0.26)
-                              : palette.accent.withValues(alpha: 0.20),
-                          width: hairline,
-                        ),
-                      ),
+            Center(
+              child: SizedBox.square(
+                dimension: 56,
+                child: DecoratedBox(
+                  decoration: ShapeDecoration(
+                    color: palette.isDark
+                        ? palette.accent.withValues(alpha: 0.2)
+                        : palette.accentContainer.withValues(alpha: 0.8),
+                    shape: appleSquircleBorder(
+                      BorderRadius.circular(density.radiusLg),
+                      platform: theme.platform,
                     ),
-                    child: Center(
-                      child: Icon(
-                        Icons.lock_outline,
-                        size: 28,
-                        color: palette.accentText,
-                      ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.lock_outline,
+                      size: 28,
+                      color: palette.accentText,
                     ),
                   ),
                 ),
-              )
-            else
-              const Icon(Icons.lock_outline, size: 38),
+              ),
+            ),
             const SizedBox(height: 18),
             Text(
               context.l10n.workspaceLocked,
@@ -239,41 +215,6 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
               onSubmitted: (_) => _unlock(),
               decoration: InputDecoration(
                 labelText: context.l10n.accountPassword,
-                filled: apple ? true : null,
-                fillColor: apple ? palette.surfaceRaised : null,
-                border: apple
-                    ? OutlineInputBorder(
-                        borderRadius: fieldRadius,
-                        borderSide: BorderSide(
-                          color: palette.line.withValues(
-                            alpha: palette.isDark ? 0.75 : 0.85,
-                          ),
-                          width: hairline,
-                        ),
-                      )
-                    : const OutlineInputBorder(),
-                enabledBorder: apple
-                    ? OutlineInputBorder(
-                        borderRadius: fieldRadius,
-                        borderSide: BorderSide(
-                          color: palette.line.withValues(
-                            alpha: palette.isDark ? 0.75 : 0.85,
-                          ),
-                          width: hairline,
-                        ),
-                      )
-                    : null,
-                focusedBorder: apple
-                    ? OutlineInputBorder(
-                        borderRadius: fieldRadius,
-                        borderSide: BorderSide(
-                          color: palette.lime.withValues(
-                            alpha: palette.isDark ? 0.70 : 0.60,
-                          ),
-                          width: 1.0,
-                        ),
-                      )
-                    : null,
               ),
             ),
             const SizedBox(height: 14),
@@ -304,53 +245,34 @@ class _LockedWorkspaceScreenState extends State<LockedWorkspaceScreen> {
     );
 
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: (constraints.maxHeight - 24).clamp(
-                  0,
-                  double.infinity,
-                ),
-              ),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: appDialogWidth(context, 460),
+      body: AmbientCanvas(
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: (constraints.maxHeight - 24).clamp(
+                    0,
+                    double.infinity,
                   ),
-                  child: apple
-                      ? Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: AppleGlassSurface(
-                            borderRadius: panelRadius,
-                            tintColor: palette.surface,
-                            sigma: 26,
-                            borderSide: BorderSide(
-                              color: appleGlassRimColor(context),
-                              width: hairline,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(
-                                  alpha: palette.isDark ? 0.34 : 0.07,
-                                ),
-                                blurRadius: 28,
-                                offset: const Offset(0, 12),
-                              ),
-                              BoxShadow(
-                                color: Colors.black.withValues(
-                                  alpha: palette.isDark ? 0.18 : 0.03,
-                                ),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                            child: unlockCard,
-                          ),
-                        )
-                      : unlockCard,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: appDialogWidth(context, 460),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: GlassSurface(
+                        borderRadius: panelRadius,
+                        tint: palette.surface,
+                        sigma: 26,
+                        elevated: true,
+                        child: unlockCard,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

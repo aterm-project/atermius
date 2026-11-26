@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/l10n.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
+import 'surfaces.dart';
 import 'apple_hig.dart';
 import 'ios_native/ios_native.dart';
 import 'ios_native/ios_settings_navigator.dart';
@@ -250,7 +251,6 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
     final touch = isTouchPlatform(platform);
     final apple = isAppleContext(context);
     final palette = _settingsPaletteOf(context);
-    final hairline = appleHairlineWidth(context);
     // Padding follows the width this scaffold actually gets (not the window),
     // so it always agrees with the picker/navigation choice below, e.g. on a
     // tablet beside the Home rail or in Android split-screen.
@@ -395,22 +395,7 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                           shape: appleSquircleBorder(
                             BorderRadius.circular(density.radiusLg),
                             platform: platform,
-                            side: BorderSide(
-                              color: palette.line.withValues(
-                                alpha: palette.isDark ? 0.80 : 0.86,
-                              ),
-                              width: hairline,
-                            ),
                           ),
-                          shadows: [
-                            BoxShadow(
-                              color: Colors.black.withValues(
-                                alpha: palette.isDark ? 0.16 : 0.04,
-                              ),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
                         ),
                         child: pickerField,
                       )
@@ -420,13 +405,24 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
             ],
           );
         }
+        // The category list is a block of its own beside the page; rows sit
+        // space4 in with the concentric radius. A gap, not a rule, separates
+        // it from the page.
+        final rowRadius = concentricRadius(density.radiusLg, density.space4);
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
               width: density.isCompact ? 200 : 220,
-              child: Material(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 2, 0, 8),
+                child: Material(
                 color: palette.surface,
+                shape: appleSquircleBorder(
+                  BorderRadius.circular(density.radiusLg),
+                  platform: platform,
+                ),
+                clipBehavior: Clip.antiAlias,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -463,21 +459,11 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                                 selected: section.id == _selectedId,
                                 selectedColor: palette.lime,
                                 selectedTileColor: palette.lime.withValues(
-                                  alpha: apple
-                                      ? (palette.isDark ? 0.12 : 0.10)
-                                      : .09,
+                                  alpha: palette.isDark ? 0.14 : 0.11,
                                 ),
                                 shape: appleSquircleBorder(
-                                  BorderRadius.circular(density.radiusMd),
+                                  BorderRadius.circular(rowRadius),
                                   platform: platform,
-                                  side: apple && section.id == _selectedId
-                                      ? BorderSide(
-                                          color: palette.lime.withValues(
-                                            alpha: palette.isDark ? 0.24 : 0.20,
-                                          ),
-                                          width: hairline,
-                                        )
-                                      : BorderSide.none,
                                 ),
                                 leading: apple
                                     ? _SettingsCategoryIconBadge(
@@ -517,13 +503,7 @@ class _SettingsScaffoldState extends State<SettingsScaffold> {
                   ],
                 ),
               ),
-            ),
-            VerticalDivider(
-              width: apple ? hairline : 1,
-              thickness: apple ? hairline : 1,
-              color: apple
-                  ? palette.line.withValues(alpha: palette.isDark ? 0.80 : 0.86)
-                  : palette.line,
+              ),
             ),
             Expanded(child: content(false)),
           ],
@@ -547,13 +527,8 @@ class _SettingsCategoryIconBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = _settingsPaletteOf(context);
     final fillColor = palette.isDark
-        ? palette.accent.withValues(alpha: selected ? 0.28 : 0.16)
+        ? palette.accent.withValues(alpha: selected ? 0.32 : 0.18)
         : palette.accentContainer.withValues(alpha: selected ? 0.95 : 0.60);
-    final borderColor = palette.isDark
-        ? (selected
-              ? palette.lime.withValues(alpha: 0.34)
-              : palette.line.withValues(alpha: 0.72))
-        : palette.accent.withValues(alpha: selected ? 0.28 : 0.16);
     final iconColor = palette.isDark
         ? palette.lime.withValues(alpha: selected ? 1.0 : 0.88)
         : palette.accentText;
@@ -566,12 +541,8 @@ class _SettingsCategoryIconBadge extends StatelessWidget {
           decoration: ShapeDecoration(
             color: fillColor,
             shape: appleSquircleBorder(
-              BorderRadius.circular(7),
+              BorderRadius.circular(AppDensity.of(context).radiusSm),
               platform: Theme.of(context).platform,
-              side: BorderSide(
-                color: borderColor,
-                width: appleHairlineWidth(context),
-              ),
             ),
           ),
           child: Center(
@@ -645,30 +616,34 @@ class SettingsCard extends StatelessWidget {
       return semanticContainer ? Semantics(container: true, child: body) : body;
     }
 
+    // A block one level above whatever it sits on; no outline.
     final density = AppDensity.of(context);
-    final apple = isAppleContext(context);
     final palette = _settingsPaletteOf(context);
+    final depth = SurfaceScope.depthOf(context) + 1;
+    final radius = SurfaceScope.concentric(
+      context,
+      fallback: density.radiusLg,
+      floor: density.radiusMd,
+    );
     return Card(
       margin: EdgeInsets.zero,
       semanticContainer: semanticContainer,
-      elevation: apple ? 0 : null,
-      surfaceTintColor: apple ? Colors.transparent : null,
-      clipBehavior: apple ? Clip.antiAlias : null,
-      shape: apple
-          ? appleSquircleBorder(
-              BorderRadius.circular(density.radiusLg),
-              platform: Theme.of(context).platform,
-              side: BorderSide(
-                color: palette.line.withValues(
-                  alpha: palette.isDark ? 0.80 : 0.86,
-                ),
-                width: appleHairlineWidth(context),
-              ),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.all(density.space6),
-        child: child,
+      elevation: 0,
+      color: palette.blockFill(depth),
+      surfaceTintColor: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      shape: appleSquircleBorder(
+        BorderRadius.circular(radius),
+        platform: Theme.of(context).platform,
+      ),
+      child: SurfaceScope(
+        depth: depth,
+        innerRadius: concentricRadius(
+          radius,
+          density.space6,
+          floor: density.radiusSm,
+        ),
+        child: Padding(padding: EdgeInsets.all(density.space6), child: child),
       ),
     );
   }

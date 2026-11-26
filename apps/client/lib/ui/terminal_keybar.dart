@@ -13,6 +13,7 @@ import '../platform/window_keyboard_insets.dart';
 import '../storage/terminal_keybar_store.dart';
 import 'terminal_font_zoom.dart';
 import 'apple_hig.dart';
+import 'surfaces.dart';
 import 'ios_native/ios_native.dart';
 import 'paste_safety_dialog.dart';
 import 'clipboard_paste.dart';
@@ -569,18 +570,9 @@ class _TerminalKeybarState extends State<TerminalKeybar>
         ),
       );
     }
-    final apple = isAppleContext(context);
-    return AppleGlassBar(
-      fallbackColor: Theme.of(context).colorScheme.surfaceContainerLow,
+    return GlassSurface(
+      tint: Theme.of(context).colorScheme.surfaceContainerLow,
       sigma: 22,
-      border: apple
-          ? Border(
-              top: BorderSide(
-                color: appleGlassRimColor(context),
-                width: appleHairlineWidth(context),
-              ),
-            )
-          : null,
       child: ExcludeFocus(
         // Pointer/semantics activation must not take focus from the IME.
         child: TerminalFontZoom.enabled

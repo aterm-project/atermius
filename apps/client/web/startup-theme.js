@@ -11,12 +11,12 @@
       "graphite": ["#0d0e10", "#eff1f4", "#b8bfc8", "#ffb55e"]
     },
     "light": {
-      "emerald": ["#ffffff", "#14211f", "#0c6b5e", "#9e4b00"],
-      "ocean": ["#ffffff", "#181f27", "#2c5e94", "#9e4b00"],
-      "violet": ["#ffffff", "#1f1c26", "#644d90", "#9e4b00"],
-      "rose": ["#ffffff", "#261a1e", "#89405b", "#9e4b00"],
-      "amber": ["#ffffff", "#231d14", "#7b530c", "#9e4b00"],
-      "graphite": ["#ffffff", "#1b1e22", "#585d62", "#9e4b00"]
+      "emerald": ["#eff3f2", "#14211f", "#0c6b5e", "#9e4b00"],
+      "ocean": ["#f0f2f5", "#181f27", "#2c5e94", "#9e4b00"],
+      "violet": ["#f2f1f5", "#1f1c26", "#644d90", "#9e4b00"],
+      "rose": ["#f5f1f2", "#261a1e", "#89405b", "#9e4b00"],
+      "amber": ["#f4f2ef", "#231d14", "#7b530c", "#9e4b00"],
+      "graphite": ["#f1f2f3", "#1b1e22", "#585d62", "#9e4b00"]
     }
   };
 

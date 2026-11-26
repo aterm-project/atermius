@@ -37,13 +37,19 @@ void main() {
       expect(theme.extension<AppPalette>(), same(AppPalette.dark));
     });
 
-    test('light theme: white canvas, same accent, readable text roles', () {
+    test('light theme: grey canvas, white blocks, readable text roles', () {
       final theme = buildAppTheme(brightness: Brightness.light);
       final p = theme.extension<AppPalette>()!;
       expect(theme.brightness, Brightness.light);
       expect(p, same(AppPalette.resolve(defaultAppAccent, Brightness.light)));
-      expect(theme.scaffoldBackgroundColor, const Color(0xFFFFFFFF));
+      expect(theme.scaffoldBackgroundColor, p.background);
+      expect(theme.scaffoldBackgroundColor, isNot(const Color(0xFFFFFFFF)));
+      // Blocks are told apart from the canvas by fill, not by an outline.
       expect(theme.cardTheme.color, const Color(0xFFFFFFFF));
+      expect(
+        (theme.cardTheme.shape! as OutlinedBorder).side,
+        BorderSide.none,
+      );
       expect(
         theme.colorScheme.primary,
         AppPalette.resolve(defaultAppAccent, Brightness.dark).accent,

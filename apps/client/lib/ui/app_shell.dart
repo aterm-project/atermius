@@ -14,6 +14,7 @@ import '../platform/server_hosted.dart';
 import '../domain/open_workspace_snapshot.dart';
 import 'open_workspace_restore.dart';
 import 'app_density.dart';
+import 'surfaces.dart';
 import '../telnet/telnet_ui.dart';
 import 'app_motion.dart';
 import 'window_combinations.dart';
@@ -2935,7 +2936,15 @@ class _SideNavigation extends StatelessWidget {
     };
     final phone = MediaQuery.sizeOf(context).width < 600;
     final itemHeight = touch ? 48.0 : 38.0;
-    final itemInset = wide ? 8.0 : touch ? 1.0 : 6.0;
+    final density = AppDensity.of(context);
+    // A floating glass block beside the pages; the phone rail stays flush
+    // with the window edge. Rows sit itemInset in, with the concentric radius.
+    final floating = !phone;
+    final blockRadius = floating ? density.radiusLg : 0.0;
+    final itemInset = touch && !wide ? 1.0 : density.blockInset;
+    final itemRadius = floating
+        ? concentricRadius(blockRadius, itemInset)
+        : density.radiusMd;
     // The signed-in account's own name; the id prefix is only a fallback for
     // a session whose username is not known on this device.
     final username = app.authenticatedUsername?.trim();
@@ -2956,20 +2965,23 @@ class _SideNavigation extends StatelessWidget {
               (app.activeVault != null || _pageWorksWithoutVault(item.page)),
         )
         .toList(growable: false);
-    return Container(
+    return SizedBox(
       width: wide ? 200 : phone ? 52 : 72,
-      decoration: BoxDecoration(
-        color: wallpaperWindowFill(context, context.palette.rail, opacity: .72),
-        border: Border(right: BorderSide(color: context.palette.line)),
-      ),
-      child: Column(
+      child: Padding(
+        padding: floating
+            ? const EdgeInsets.fromLTRB(8, 2, 0, 8)
+            : EdgeInsets.zero,
+        child: GlassSurface(
+          tint: wallpaperWindowFill(context, context.palette.rail, opacity: .72),
+          borderRadius: BorderRadius.circular(blockRadius),
+          child: Column(
         children: [
           Padding(
             padding: EdgeInsets.fromLTRB(
-              wide ? 16 : 8,
-              19,
-              wide ? 16 : 8,
-              25,
+              wide ? 12 : 4,
+              17,
+              wide ? 12 : 4,
+              23,
             ),
             child: Row(
               mainAxisAlignment: wide
@@ -2981,7 +2993,7 @@ class _SideNavigation extends StatelessWidget {
                   height: 32,
                   decoration: BoxDecoration(
                     color: context.palette.lime,
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius: BorderRadius.circular(density.radiusMd),
                   ),
                   child: Icon(
                     Icons.terminal_rounded,
@@ -3021,7 +3033,7 @@ class _SideNavigation extends StatelessWidget {
           ),
           if (wide)
             Padding(
-              padding: const EdgeInsets.fromLTRB(19, 0, 16, 9),
+              padding: const EdgeInsets.fromLTRB(15, 0, 12, 9),
               child: Row(
                 children: [
                   // Both labels shrink with ellipsis so large text scales and
@@ -3095,7 +3107,7 @@ class _SideNavigation extends StatelessWidget {
                     excludeFromSemantics: wide,
                     child: InkWell(
                       key: ValueKey('home_nav_${item.page.name}'),
-                      borderRadius: BorderRadius.circular(11),
+                      borderRadius: BorderRadius.circular(itemRadius),
                       onTap: () => app.showWorkspacePage(
                         conflicts > 0 ? WorkspacePage.sync : item.page,
                       ),
@@ -3111,14 +3123,9 @@ class _SideNavigation extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: selected
-                              ? context.palette.lime.withValues(alpha: .105)
+                              ? context.palette.lime.withValues(alpha: .16)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(11),
-                          border: selected
-                              ? Border.all(
-                                  color: context.palette.lime.withValues(alpha: .18),
-                                )
-                              : null,
+                          borderRadius: BorderRadius.circular(itemRadius),
                         ),
                         child: Row(
                           mainAxisAlignment: wide
@@ -3180,6 +3187,7 @@ class _SideNavigation extends StatelessWidget {
                       app: app,
                       wide: wide,
                       height: itemHeight,
+                      radius: itemRadius,
                     ),
                   ),
               ],
@@ -3203,7 +3211,7 @@ class _SideNavigation extends StatelessWidget {
                   message: wide ? '' : context.l10n.r7NavImportExport,
                   child: InkWell(
                     key: const ValueKey('home_nav_import_export'),
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius: BorderRadius.circular(itemRadius),
                     onTap: () => controller.isOpen
                         ? controller.close()
                         : controller.open(),
@@ -3250,12 +3258,11 @@ class _SideNavigation extends StatelessWidget {
           if (wide)
             Container(
               key: const ValueKey('home_nav_user_card'),
-              margin: const EdgeInsets.all(14),
+              margin: EdgeInsets.all(itemInset),
               padding: const EdgeInsets.fromLTRB(13, 9, 7, 9),
               decoration: BoxDecoration(
-                color: context.palette.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: context.palette.line),
+                color: context.palette.fill,
+                borderRadius: BorderRadius.circular(itemRadius),
               ),
               child: Row(
                 children: [
@@ -3330,8 +3337,10 @@ class _SideNavigation extends StatelessWidget {
               onPressed: () => app.lock(),
               icon: Icon(Icons.lock_outline, color: context.palette.muted),
             ),
-          const SizedBox(height: 9),
+          SizedBox(height: wide ? 0 : 9),
         ],
+      ),
+        ),
       ),
     );
   }
@@ -3345,11 +3354,15 @@ class _AdminConsoleNavRow extends StatelessWidget {
     required this.app,
     required this.wide,
     required this.height,
+    required this.radius,
   });
 
   final AppController app;
   final bool wide;
   final double height;
+
+  /// Concentric radius of the sidebar rows.
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
@@ -3363,7 +3376,7 @@ class _AdminConsoleNavRow extends StatelessWidget {
         excludeFromSemantics: true,
         child: InkWell(
           key: const ValueKey('home_nav_admin_console'),
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(radius),
           onTap: () => app.showWorkspacePage(WorkspacePage.admin),
           child: SizedBox(
             height: height,

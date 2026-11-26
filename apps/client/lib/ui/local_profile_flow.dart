@@ -105,6 +105,7 @@ import '../import/termius_keychain_bridge.dart';
 import 'termius_transfer_dialog.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
+import 'surfaces.dart';
 import 'home_sidebar.dart';
 import 'host_editor_panel.dart';
 import 'keychain_page.dart';
@@ -6035,7 +6036,7 @@ _showMessage(
     if (isIosPhone(context)) return _iosHomeShell(context, active);
     final termiusOneClick = _termiusOneClickSidebarAction();
     final termius = _termiusTransferAction();
-    return AppleAmbientBackdrop(
+    return AmbientCanvas(
       child: LayoutBuilder(
         builder: (context, constraints) => Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,

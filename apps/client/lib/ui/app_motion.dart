@@ -8,8 +8,9 @@ import 'package:flutter/cupertino.dart'
         CupertinoSheetRoute;
 import 'package:flutter/material.dart';
 
+import 'app_density.dart';
 import 'app_theme.dart';
-import 'apple_hig.dart';
+import 'surfaces.dart';
 import 'ios_native/ios_native.dart';
 
 /// Shared motion language for Atermius.
@@ -415,9 +416,10 @@ Future<T?> showAppDialog<T>({
               : IosNativeScope(enabled: forcedIosScope, child: adapted);
         }
       : builder;
-  final glassBackdrop =
-      shouldUseAppleGlass(context) && !AppMotion.reduced(context)
-      ? ImageFilter.blur(sigmaX: 18, sigmaY: 18)
+  // Every platform: the page behind a dialog is frosted, so the dialog's
+  // slightly translucent surface reads as glass.
+  final glassBackdrop = shouldUseGlass(context)
+      ? ImageFilter.blur(sigmaX: 14, sigmaY: 14)
       : null;
   final effectiveBarrierColor =
       barrierColor ??
@@ -566,7 +568,7 @@ class AppDialogRoute<T> extends DialogRoute<T> {
        super(
          builder: (dialogContext) => AppDialogMotionFrame(
            motion: motion,
-           child: builder(dialogContext),
+           child: _DialogSurfaceScope(child: builder(dialogContext)),
          ),
          animationStyle: AppMotion.dialogStyle(context, motion: motion),
        );
@@ -575,6 +577,31 @@ class AppDialogRoute<T> extends DialogRoute<T> {
 
   @override
   ImageFilter? get filter => _backdropFilter;
+}
+
+/// A dialog is the first block level: blocks and cards in it take the next
+/// fill, so they stay visible without an outline.
+class _DialogSurfaceScope extends StatelessWidget {
+  const _DialogSurfaceScope({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final density = AppDensity.of(context);
+    return SurfaceScope(
+      depth: 1,
+      innerRadius: density.radiusMd,
+      child: Theme(
+        data: theme.copyWith(
+          cardTheme: theme.cardTheme.copyWith(color: palette.blockFill(2)),
+        ),
+        child: child,
+      ),
+    );
+  }
 }
 
 /// Theme-level page route motion: fade + 8 px lift over 200 ms. Replaces the
