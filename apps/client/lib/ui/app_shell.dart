@@ -3522,7 +3522,8 @@ class _CountBadge extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
     decoration: BoxDecoration(
       color: context.palette.orange.withValues(alpha: .15),
-      borderRadius: BorderRadius.circular(20),
+      // A capsule.
+      borderRadius: BorderRadius.circular(999),
     ),
     child: Text(
       '$count',
@@ -4137,9 +4138,12 @@ class _HostsPageState extends State<_HostsPage> {
                   DecoratedBox(
                     key: ValueKey('cloud_group_tile_${group.id}'),
                     decoration: BoxDecoration(
-                      color: context.palette.surface,
-                      border: Border.all(color: context.palette.line),
-                      borderRadius: BorderRadius.circular(10),
+                      color: context.palette.blockFill(
+                        SurfaceScope.depthOf(context) + 1,
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        AppDensity.of(context).radiusMd,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -4927,7 +4931,6 @@ class _AutomaticPurgeConsentDialogState
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: context.l10n.typeEnableAutomaticPurge,
-              border: const OutlineInputBorder(),
             ),
           ),
         ],
@@ -5486,6 +5489,18 @@ class _GroupCardGrid extends StatelessWidget {
   );
 }
 
+/// Radius of a block on a workspace page: the block radius on the canvas, or
+/// the concentric radius inside an enclosing block (see surfaces.dart).
+double _blockRadius(BuildContext context) => SurfaceScope.concentric(
+  context,
+  fallback: AppDensity.of(context).radiusLg,
+  floor: AppDensity.of(context).radiusMd,
+);
+
+/// Fill of a block at this depth: one level above whatever encloses it.
+Color _blockFill(BuildContext context) =>
+    context.palette.blockFill(SurfaceScope.depthOf(context) + 1);
+
 /// One Group: its colour and name, where it sits, what it holds and which
 /// credential its hosts fall back to.
 class _GroupCard extends StatelessWidget {
@@ -5527,7 +5542,10 @@ class _GroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final radius = BorderRadius.circular(AppDensity.of(context).radiusLg + 2);
+    final density = AppDensity.of(context);
+    final blockRadius = _blockRadius(context);
+    final radius = BorderRadius.circular(blockRadius);
+    final fillColor = _blockFill(context);
     final credentialMissing =
         defaultCredentialSet && defaultCredentialName == null;
     final credentialLabel = !defaultCredentialSet
@@ -5585,9 +5603,11 @@ class _GroupCard extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: .16),
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(color: color.withValues(alpha: .4)),
+            color: color.withValues(alpha: .18),
+            // 14px in from the card's corner.
+            borderRadius: BorderRadius.circular(
+              concentricRadius(blockRadius, 14, floor: density.radiusSm),
+            ),
           ),
           child: Icon(Icons.folder_copy_outlined, size: 20, color: color),
         ),
@@ -5617,11 +5637,8 @@ class _GroupCard extends StatelessWidget {
       container: true,
       button: onTap != null,
       child: Material(
-        color: palette.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: radius,
-          side: BorderSide(color: palette.line),
-        ),
+        color: fillColor,
+        shape: RoundedRectangleBorder(borderRadius: radius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -5631,11 +5648,8 @@ class _GroupCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Color.alphaBlend(
-                    color.withValues(alpha: .09),
-                    palette.surface,
-                  ),
-                  palette.surface,
+                  Color.alphaBlend(color.withValues(alpha: .12), fillColor),
+                  fillColor,
                 ],
                 stops: const [0, .6],
               ),
@@ -5697,12 +5711,8 @@ class _GroupCard extends StatelessWidget {
                     ),
                   ],
                   if (fill) const Spacer(),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Divider(height: 1, color: palette.line),
-                  ),
-                  const SizedBox(height: 10),
+                  // The credential footer is set apart by space, not a rule.
+                  const SizedBox(height: 23),
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: Row(
@@ -5796,9 +5806,8 @@ class _ProtocolCountChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(7, 3, 8, 3),
       decoration: BoxDecoration(
-        color: palette.surfaceRaised,
+        color: palette.fill,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: palette.line.withValues(alpha: .7)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -5846,9 +5855,8 @@ class _GroupsRepairNotice extends StatelessWidget {
     final tone = palette.orange;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Color.alphaBlend(tone.withValues(alpha: .09), palette.surface),
-        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusLg),
-        border: Border.all(color: tone.withValues(alpha: .35)),
+        color: palette.tinted(tone, base: _blockFill(context)),
+        borderRadius: BorderRadius.circular(_blockRadius(context)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 12, 16, 6),
@@ -5898,7 +5906,7 @@ class _ToneChip extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(7, 3, 9, 3),
     decoration: BoxDecoration(
       color: tone.withValues(alpha: .12),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppDensity.of(context).radiusSm),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -5943,9 +5951,8 @@ class _PageSummaryPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: palette.line),
+        color: palette.fill,
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -5975,19 +5982,13 @@ class _PageEmptyPanel extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(
-          AppDensity.of(context).radiusLg + 2,
-        ),
-        border: Border.all(color: palette.line),
-      ),
-      child: child,
-    );
-  }
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: _blockFill(context),
+      borderRadius: BorderRadius.circular(_blockRadius(context)),
+    ),
+    child: child,
+  );
 }
 
 class _ServerGroupEditorDialog extends StatefulWidget {
@@ -6409,7 +6410,14 @@ class _HostCard extends StatelessWidget {
                       DecoratedBox(
                         decoration: BoxDecoration(
                           color: _hostColor(context, host.color).withValues(alpha: .12),
-                          borderRadius: BorderRadius.circular(6),
+                          // Concentric with the card's corner.
+                          borderRadius: BorderRadius.circular(
+                            concentricRadius(
+                              AppDensity.of(context).radiusLg,
+                              compact ? 8 : HostCardMetrics.padding.left,
+                              floor: AppDensity.of(context).radiusSm,
+                            ),
+                          ),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(
@@ -7036,17 +7044,8 @@ class _KeychainFilterChip extends StatelessWidget {
       button: true,
       selected: selected,
       child: Material(
-        color: selected
-            ? Color.alphaBlend(
-                palette.teal.withValues(alpha: .14),
-                palette.surface,
-              )
-            : palette.surface,
-        shape: StadiumBorder(
-          side: BorderSide(
-            color: selected ? palette.teal.withValues(alpha: .5) : palette.line,
-          ),
-        ),
+        color: selected ? palette.teal.withValues(alpha: .18) : palette.fill,
+        shape: const StadiumBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -7078,7 +7077,7 @@ class _KeychainFilterChip extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: selected
                         ? palette.teal.withValues(alpha: .2)
-                        : palette.surfaceRaised,
+                        : palette.fill,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -7100,40 +7099,29 @@ class _KeychainFilterChip extends StatelessWidget {
   }
 }
 
-/// The Keychain items as one bordered list with hairline separators.
+/// The Keychain items as one filled block with soft separators.
 class _KeychainList extends StatelessWidget {
   const _KeychainList({required this.rows});
 
   final List<Widget> rows;
 
   @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Material(
-      color: palette.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          AppDensity.of(context).radiusLg + 2,
-        ),
-        side: BorderSide(color: palette.line),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0)
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: palette.line.withValues(alpha: .7),
-              ),
-            rows[i],
-          ],
+  Widget build(BuildContext context) => Material(
+    color: _blockFill(context),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(_blockRadius(context)),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const Divider(height: 1, thickness: 1),
+          rows[i],
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
 }
 
 /// One Keychain item: type badge, name, sign-in details and where it is
@@ -7176,7 +7164,14 @@ class _CloudKeychainRow extends StatelessWidget {
               height: 38,
               decoration: BoxDecoration(
                 color: tone.withValues(alpha: .14),
-                borderRadius: BorderRadius.circular(10),
+                // 12px in from the list's corner.
+                borderRadius: BorderRadius.circular(
+                  concentricRadius(
+                    _blockRadius(context),
+                    12,
+                    floor: AppDensity.of(context).radiusSm,
+                  ),
+                ),
               ),
               child: Icon(icon, size: 19, color: tone),
             ),
@@ -7280,7 +7275,7 @@ class _KeychainTypePill extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
     decoration: BoxDecoration(
       color: tone.withValues(alpha: .12),
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(AppDensity.of(context).radiusSm),
     ),
     child: Text(
       label,
@@ -7991,7 +7986,14 @@ class _SnippetCard extends StatelessWidget {
           height: 36,
           decoration: BoxDecoration(
             color: tone.withValues(alpha: .13),
-            borderRadius: BorderRadius.circular(10),
+            // 14px in from the card's corner.
+            borderRadius: BorderRadius.circular(
+              concentricRadius(
+                _blockRadius(context),
+                14,
+                floor: density.radiusSm,
+              ),
+            ),
           ),
           child: Icon(
             structured ? Icons.data_object_rounded : Icons.code_rounded,
@@ -8048,7 +8050,6 @@ class _SnippetCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.codeBackground,
         borderRadius: BorderRadius.circular(density.radiusMd),
-        border: Border.all(color: palette.line.withValues(alpha: .7)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -8114,11 +8115,10 @@ class _SnippetCard extends StatelessWidget {
       explicitChildNodes: true,
       label: l10n.snippetTitle3(snippet.title),
       child: Material(
-        color: palette.surface,
+        color: _blockFill(context),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(density.radiusLg + 2),
-          side: BorderSide(color: palette.line),
+          borderRadius: BorderRadius.circular(_blockRadius(context)),
         ),
         child: Padding(
           padding: EdgeInsets.fromLTRB(16, 14, compact ? 8 : 10, 16),
@@ -8266,15 +8266,8 @@ class _LibraryChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: tone == null
-            ? palette.surfaceRaised
-            : tone.withValues(alpha: .12),
+        color: tone == null ? palette.fill : tone.withValues(alpha: .14),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: tone == null
-              ? palette.line.withValues(alpha: .8)
-              : tone.withValues(alpha: .3),
-        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -8334,9 +8327,8 @@ class _LibraryEmptyState extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: palette.teal.withValues(alpha: .12),
+              color: palette.teal.withValues(alpha: .14),
               shape: BoxShape.circle,
-              border: Border.all(color: palette.teal.withValues(alpha: .25)),
             ),
             child: Icon(icon, size: 24, color: palette.teal),
           ),
@@ -8368,12 +8360,9 @@ class _LibraryEmptyState extends StatelessWidget {
       ),
     );
     return Material(
-      color: palette.surface,
+      color: _blockFill(context),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          AppDensity.of(context).radiusLg + 2,
-        ),
-        side: BorderSide(color: palette.line),
+        borderRadius: BorderRadius.circular(_blockRadius(context)),
       ),
       child: fill
           ? Center(child: SingleChildScrollView(child: content))
@@ -8674,19 +8663,15 @@ class _SavedWorkspaceCard extends StatelessWidget {
             ],
           );
 
+    final cardFill = _blockFill(context);
     return Material(
       key: ValueKey('saved-workspace-${workspace.id}'),
-      color: palette.surface,
+      color: missingCount > 0
+          ? palette.tinted(palette.orange, base: cardFill)
+          : cardFill,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          AppDensity.of(context).radiusLg + 2,
-        ),
-        side: BorderSide(
-          color: missingCount > 0
-              ? palette.orange.withValues(alpha: .45)
-              : palette.line,
-        ),
+        borderRadius: BorderRadius.circular(_blockRadius(context)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 10, 16),
@@ -8735,11 +8720,7 @@ class _SavedWorkspaceCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
-                children: [
-                  Divider(height: 1, color: palette.line.withValues(alpha: .7)),
-                  const SizedBox(height: 12),
-                  footer,
-                ],
+                children: [const SizedBox(height: 13), footer],
               ),
             ),
           ],
@@ -8766,6 +8747,15 @@ class _WorkspaceLayoutThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final density = AppDensity.of(context);
+    // The miniature sits 14px in from the card's corner; its cells 4px in
+    // from its own.
+    final thumbRadius = concentricRadius(
+      _blockRadius(context),
+      14,
+      floor: density.radiusSm,
+    );
+    final cellRadius = concentricRadius(thumbRadius, 4, floor: 2);
     final numbers = {
       for (final (index, pane) in workspace.panes.indexed) pane.paneId: index,
     };
@@ -8782,11 +8772,8 @@ class _WorkspaceLayoutThumbnail extends StatelessWidget {
       final emphasis = strong(paneId, hostId);
       return DecoratedBox(
         decoration: BoxDecoration(
-          color: tone.withValues(alpha: emphasis ? .22 : .1),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: tone.withValues(alpha: emphasis ? .75 : .3),
-          ),
+          color: tone.withValues(alpha: emphasis ? .34 : .14),
+          borderRadius: BorderRadius.circular(cellRadius),
         ),
         child: Center(
           child: FittedBox(
@@ -8851,7 +8838,7 @@ class _WorkspaceLayoutThumbnail extends StatelessWidget {
                         color: toneOf(pane.paneId, pane.hostId).withValues(
                           alpha: strong(pane.paneId, pane.hostId) ? .75 : .3,
                         ),
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(cellRadius),
                       ),
                     ),
                   ),
@@ -8870,9 +8857,8 @@ class _WorkspaceLayoutThumbnail extends StatelessWidget {
         height: compact ? 42 : 48,
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: palette.surfaceRaised,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: palette.line),
+          color: palette.fill,
+          borderRadius: BorderRadius.circular(thumbRadius),
         ),
         child: body,
       ),
@@ -9005,20 +8991,11 @@ class _WorkspacePaneSummary extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(10, 4, trailing is TextButton ? 2 : 8, 4),
       decoration: BoxDecoration(
         color: missing
-            ? palette.orange.withValues(alpha: .07)
+            ? palette.orange.withValues(alpha: .14)
             : active
-            ? palette.teal.withValues(alpha: .07)
-            : palette.surfaceRaised.withValues(alpha: .45),
-        borderRadius: BorderRadius.circular(
-          AppDensity.of(context).radiusMd - 1,
-        ),
-        border: Border.all(
-          color: missing
-              ? palette.orange.withValues(alpha: .3)
-              : active
-              ? palette.teal.withValues(alpha: .28)
-              : palette.line.withValues(alpha: .55),
-        ),
+            ? palette.teal.withValues(alpha: .14)
+            : palette.fill,
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       child: stacked
           ? Column(
@@ -9453,12 +9430,15 @@ class _CreateSplitWorkspaceDialogState
                       margin: const EdgeInsets.only(bottom: 5),
                       padding: const EdgeInsets.fromLTRB(8, 3, 5, 3),
                       decoration: BoxDecoration(
-                        color: context.palette.surface,
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(
-                          color: _selectedPaneId == pane.paneId
-                              ? context.palette.teal
-                              : context.palette.line,
+                        color: _selectedPaneId == pane.paneId
+                            ? context.palette.tinted(
+                                context.palette.teal,
+                                base: _blockFill(context),
+                                strength: .18,
+                              )
+                            : _blockFill(context),
+                        borderRadius: BorderRadius.circular(
+                          AppDensity.of(context).radiusMd,
                         ),
                       ),
                       child: Row(
@@ -9586,8 +9566,7 @@ class _CreateSplitWorkspaceDialogState
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  const Divider(height: 13),
+                  const SizedBox(height: 21),
                   Row(
                     children: [
                       Icon(
@@ -9613,9 +9592,10 @@ class _CreateSplitWorkspaceDialogState
                       padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
                       margin: const EdgeInsets.only(top: 5),
                       decoration: BoxDecoration(
-                        color: context.palette.surface,
-                        border: Border.all(color: context.palette.line),
-                        borderRadius: BorderRadius.circular(8),
+                        color: _blockFill(context),
+                        borderRadius: BorderRadius.circular(
+                          AppDensity.of(context).radiusMd,
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -9832,9 +9812,8 @@ class _SplitPreviewHostCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(6),
     decoration: BoxDecoration(
-      color: context.palette.surface,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: context.palette.line),
+      color: _blockFill(context),
+      borderRadius: BorderRadius.circular(_blockRadius(context)),
     ),
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -10326,7 +10305,6 @@ Future<void> _runSnippetBatch(
                               hintText: parameter.defaultValue == null
                                   ? context.l10n.requiredTextValue
                                   : context.l10n.defaultDefaultvalue('${parameter.defaultValue}'),
-                              border: const OutlineInputBorder(),
                             ),
                           ),
                         ],
@@ -10368,8 +10346,9 @@ Future<void> _runSnippetBatch(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: context.palette.codeBackground,
-                            borderRadius: BorderRadius.circular(9),
-                            border: Border.all(color: context.palette.line),
+                            borderRadius: BorderRadius.circular(
+                              AppDensity.of(context).radiusMd,
+                            ),
                           ),
                           child: Semantics(
                             key: ValueKey('snippet-batch-preview-$index'),
@@ -10720,7 +10699,6 @@ Future<void> _runSnippet(
                               hintText: parameter.defaultValue == null
                                   ? context.l10n.requiredTextValue
                                   : context.l10n.defaultDefaultvalue('${parameter.defaultValue}'),
-                              border: const OutlineInputBorder(),
                             ),
                           ),
                         ],
@@ -10757,8 +10735,9 @@ Future<void> _runSnippet(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: context.palette.codeBackground,
-                          borderRadius: BorderRadius.circular(9),
-                          border: Border.all(color: context.palette.line),
+                          borderRadius: BorderRadius.circular(
+                            AppDensity.of(context).radiusMd,
+                          ),
                         ),
                         child: Semantics(
                           key: const ValueKey('snippet_execution_preview'),
@@ -11000,8 +10979,7 @@ Widget _snippetExecutionOutput(BuildContext context, SshExecResult result) {
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
       color: context.palette.codeBackground,
-      borderRadius: BorderRadius.circular(9),
-      border: Border.all(color: context.palette.line),
+      borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
     ),
     child: SingleChildScrollView(
       child: Semantics(
@@ -11682,6 +11660,12 @@ class _TerminalPageState extends State<_TerminalPage> {
     // row above the sessions; with nothing connected it is the content.
     final stagedBar =
         stagedWorkspace != null && (showsSession || liveSplitReady);
+    // The share status strip is a tinted band, not a ruled-off row.
+    final shareTone = shareStatus?.phase == 'active'
+        ? context.palette.teal
+        : shareStatus?.phase == 'failed'
+        ? context.palette.red
+        : context.palette.orange;
     return LayoutBuilder(
       builder: (context, constraints) => Column(
         children: [
@@ -11699,8 +11683,9 @@ class _TerminalPageState extends State<_TerminalPage> {
               height: 34,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: context.palette.line),
+                color: context.palette.tinted(
+                  shareTone,
+                  base: context.palette.surface,
                 ),
               ),
               child: Row(
@@ -12458,8 +12443,7 @@ return DesktopView(
       ),
       decoration: BoxDecoration(
         color: wallpaperWindowFill(context, const Color(0xFF080C11)),
-        border: Border.all(color: context.palette.line),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       clipBehavior: Clip.antiAlias,
       // Stable slot: follow-splits wallpaper for this pane (incl. its chrome).
@@ -12570,9 +12554,8 @@ return DesktopView(
       key: ValueKey('workspace-live-split-pane-${pane.paneId}'),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: context.palette.surface,
-        border: Border.all(color: context.palette.line),
-        borderRadius: BorderRadius.circular(8),
+        color: _blockFill(context),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       child: Stack(
         clipBehavior: Clip.none,
@@ -13414,13 +13397,8 @@ class _StagedWorkspacePreview extends StatelessWidget {
               ),
               const SizedBox(height: 12),
             ],
-            Container(
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: context.palette.surface,
-                border: Border.all(color: context.palette.line),
-                borderRadius: BorderRadius.circular(12),
-              ),
+            AppBlock(
+              clip: true,
               child: _StagedWorkspaceLayout(app: app, workspace: workspace),
             ),
           ],
@@ -13452,10 +13430,8 @@ class _StagedWorkspaceBar extends StatelessWidget {
     key: const ValueKey('workspace-staged-bar'),
     height: height,
     padding: const EdgeInsets.only(left: 12, right: 6),
-    decoration: BoxDecoration(
-      color: context.palette.surface,
-      border: Border(bottom: BorderSide(color: context.palette.line)),
-    ),
+    // Set apart from the sessions below by its fill.
+    decoration: BoxDecoration(color: context.palette.surface),
     child: Row(
       children: [
         Icon(
@@ -13759,7 +13735,6 @@ class _StagedSplitWorkspacePane extends StatelessWidget {
         minimumSize: Size.zero,
         padding: EdgeInsets.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        side: BorderSide.none,
         visualDensity: VisualDensity.compact,
       ),
       onPressed: host == null
@@ -13786,9 +13761,16 @@ class _StagedSplitWorkspacePane extends StatelessWidget {
           key: ValueKey('workspace-split-pane-$index'),
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
           decoration: BoxDecoration(
-            color: context.palette.surface,
-            borderRadius: BorderRadius.circular(7),
-            border: Border.all(color: context.palette.line),
+            color: _blockFill(context),
+            // 10px in from the preview block's corner.
+            borderRadius: BorderRadius.circular(
+              SurfaceScope.concentric(
+                context,
+                inset: 10,
+                fallback: AppDensity.of(context).radiusSm,
+                floor: AppDensity.of(context).radiusSm,
+              ),
+            ),
           ),
           child: narrow && !short
               ? Column(
@@ -14555,7 +14537,7 @@ class _TerminalObserverDialogState extends State<_TerminalObserverDialog> {
                     ],
                   ),
                 ),
-                const Divider(height: 1),
+                // The dark terminal below sets itself apart; no rule.
                 Expanded(
                   child: Container(
                     color: const Color(0xFF080C11),
@@ -14656,7 +14638,9 @@ class _TerminalWelcome extends StatelessWidget {
           height: 58,
           decoration: BoxDecoration(
             color: context.palette.lime.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(17),
+            borderRadius: BorderRadius.circular(
+              AppDensity.of(context).radiusLg,
+            ),
           ),
           child: Icon(
             Icons.terminal_rounded,
@@ -15284,9 +15268,13 @@ class _ConflictFeedCardState extends State<_ConflictFeedCard> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (item.isVerified ? context.palette.teal : context.palette.orange)
-                      .withValues(alpha: .08),
-                  borderRadius: BorderRadius.circular(9),
+                  color: context.palette.tinted(
+                    item.isVerified
+                        ? context.palette.teal
+                        : context.palette.orange,
+                    base: _blockFill(context),
+                  ),
+                  borderRadius: BorderRadius.circular(_blockRadius(context)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -15786,8 +15774,13 @@ class _CredentialConflictMergeDialogState
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: context.palette.orange.withValues(alpha: .1),
-                        borderRadius: BorderRadius.circular(9),
+                        color: context.palette.tinted(
+                          context.palette.orange,
+                          base: _blockFill(context),
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          _blockRadius(context),
+                        ),
                       ),
                       child: Text(
                         context.l10n.theCurrentVaultVersionChangedWhile,
@@ -15959,7 +15952,6 @@ class _SameCredentialField extends StatelessWidget {
     child: InputDecorator(
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
       ),
       child: Row(
         children: [
@@ -16666,7 +16658,7 @@ class _AuditPage extends StatelessWidget {
   }
 }
 
-/// The bordered surface the audit timeline, its loading row and a pager
+/// The filled block the audit timeline, its loading row and a pager
 /// without events sit on.
 class _AuditFrame extends StatelessWidget {
   const _AuditFrame({required this.children});
@@ -16675,13 +16667,11 @@ class _AuditFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
-    final radius = BorderRadius.circular(AppDensity.of(context).radiusLg + 2);
+    final radius = BorderRadius.circular(_blockRadius(context));
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: palette.surface,
+        color: _blockFill(context),
         borderRadius: radius,
-        border: Border.all(color: palette.line),
       ),
       child: ClipRRect(
         borderRadius: radius,
@@ -16704,7 +16694,6 @@ class _AuditTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.palette;
     final groups = <({DateTime day, List<AuditEvent> events})>[];
     for (final event in events) {
       final day = DateUtils.dateOnly(event.occurredAt.toLocal());
@@ -16714,18 +16703,15 @@ class _AuditTimeline extends StatelessWidget {
         groups.last.events.add(event);
       }
     }
-    final divider = Divider(height: 1, thickness: 1, color: palette.line);
+    // Day headers are tinted bands, so only events of one day keep a soft
+    // separator between them.
+    const divider = Divider(height: 1, thickness: 1);
     return _AuditFrame(
       children: [
         for (var g = 0; g < groups.length; g++) ...[
-          if (g > 0) divider,
           _AuditDayHeader(day: groups[g].day, events: groups[g].events),
-          for (final event in groups[g].events) ...[
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: palette.line.withValues(alpha: .6),
-            ),
+          for (final (i, event) in groups[g].events.indexed) ...[
+            if (i > 0) divider,
             _AuditEventCard(event: event),
           ],
         ],
@@ -16849,7 +16835,14 @@ class _AuditEventCard extends StatelessWidget {
       height: 32,
       decoration: BoxDecoration(
         color: tone.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(9),
+        // Concentric with the timeline block, 16px in.
+        borderRadius: BorderRadius.circular(
+          concentricRadius(
+            _blockRadius(context),
+            16,
+            floor: AppDensity.of(context).radiusSm,
+          ),
+        ),
       ),
       child: Icon(_auditActionIcon(event), size: 17, color: tone),
     );
@@ -17056,14 +17049,8 @@ class _AuditErrorPanel extends StatelessWidget {
     final palette = context.palette;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Color.alphaBlend(
-          palette.red.withValues(alpha: .08),
-          palette.surface,
-        ),
-        borderRadius: BorderRadius.circular(
-          AppDensity.of(context).radiusLg + 2,
-        ),
-        border: Border.all(color: palette.red.withValues(alpha: .35)),
+        color: palette.tinted(palette.red, base: _blockFill(context)),
+        borderRadius: BorderRadius.circular(_blockRadius(context)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
@@ -17358,12 +17345,12 @@ class _VaultRedactionReadinessPanel extends StatelessWidget {
         if (readiness.isNotEmpty) ...[
           const SizedBox(height: 10),
           ClipRRect(
-            borderRadius: BorderRadius.circular(99),
+            borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
               value: readyCount / readiness.length,
               minHeight: 6,
               color: tone,
-              backgroundColor: palette.line.withValues(alpha: .7),
+              backgroundColor: palette.fill,
             ),
           ),
         ],
@@ -17489,45 +17476,39 @@ class _VaultRedactionDeviceReadinessRow extends StatelessWidget {
       key: ValueKey('vault_redaction_device-$deviceId'),
       container: true,
       label: context.l10n.vaultDeviceNameStatuslabel(name, statusLabel),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: palette.line.withValues(alpha: .6)),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 4,
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: name,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        color: palette.text,
-                      ),
+      // Rows of the panel are told apart by rhythm, not by rules.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 4,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: palette.text,
                     ),
-                    TextSpan(
-                      text: ' · $shortId',
-                      style: TextStyle(
-                        color: palette.hint,
-                        fontFamily: 'monospace',
-                        fontSize: 11.5,
-                      ),
+                  ),
+                  TextSpan(
+                    text: ' · $shortId',
+                    style: TextStyle(
+                      color: palette.hint,
+                      fontFamily: 'monospace',
+                      fontSize: 11.5,
                     ),
-                  ],
-                ),
-                style: const TextStyle(fontSize: 12.5, height: 1.4),
+                  ),
+                ],
               ),
-              _WrapStatusChip(label: statusLabel, tone: statusColor),
-            ],
-          ),
+              style: const TextStyle(fontSize: 12.5, height: 1.4),
+            ),
+            _WrapStatusChip(label: statusLabel, tone: statusColor),
+          ],
         ),
       ),
     );
@@ -17688,11 +17669,8 @@ class _DevicesEmptyRow extends StatelessWidget {
     final palette = context.palette;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(
-          AppDensity.of(context).radiusLg + 2,
-        ),
-        border: Border.all(color: palette.line),
+        color: _blockFill(context),
+        borderRadius: BorderRadius.circular(_blockRadius(context)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -17779,7 +17757,9 @@ class _TrustedDeviceTile extends StatelessWidget {
         : active
         ? palette.teal
         : palette.muted;
-    final radius = BorderRadius.circular(AppDensity.of(context).radiusLg + 2);
+    final blockRadius = _blockRadius(context);
+    final radius = BorderRadius.circular(blockRadius);
+    final cardFill = _blockFill(context);
 
     final actions = <Widget>[
       if (!current && active && signedIn == true)
@@ -17801,7 +17781,6 @@ class _TrustedDeviceTile extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               visualDensity: VisualDensity.compact,
               foregroundColor: palette.red,
-              side: BorderSide(color: palette.red.withValues(alpha: .45)),
             ),
             onPressed: () async {
               if (await _confirmRevokeDevice(context, name) != true) {
@@ -17833,9 +17812,8 @@ class _TrustedDeviceTile extends StatelessWidget {
 
     final details = DecoratedBox(
       decoration: BoxDecoration(
-        color: palette.surfaceRaised.withValues(alpha: .55),
+        color: palette.fill,
         borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
-        border: Border.all(color: palette.line.withValues(alpha: .6)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
@@ -17865,15 +17843,9 @@ class _TrustedDeviceTile extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: current
-            ? Color.alphaBlend(
-                palette.lime.withValues(alpha: .05),
-                palette.surface,
-              )
-            : palette.surface,
+            ? palette.tinted(palette.lime, base: cardFill)
+            : cardFill,
         borderRadius: radius,
-        border: Border.all(
-          color: current ? palette.lime.withValues(alpha: .45) : palette.line,
-        ),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
@@ -17888,7 +17860,14 @@ class _TrustedDeviceTile extends StatelessWidget {
                   height: 40,
                   decoration: BoxDecoration(
                     color: tone.withValues(alpha: .13),
-                    borderRadius: BorderRadius.circular(11),
+                    // 13px in from the card's corner.
+                    borderRadius: BorderRadius.circular(
+                      concentricRadius(
+                        blockRadius,
+                        13,
+                        floor: AppDensity.of(context).radiusSm,
+                      ),
+                    ),
                   ),
                   child: Icon(
                     switch (platform) {
@@ -18398,9 +18377,8 @@ class VaultLifecycleTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       decoration: BoxDecoration(
-        color: context.palette.surfaceSoft,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: context.palette.line),
+        color: _blockFill(context),
+        borderRadius: BorderRadius.circular(_blockRadius(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -18430,7 +18408,7 @@ class VaultLifecycleTile extends StatelessWidget {
             ),
           ),
           if (deleting) ...[
-            const Divider(height: 14),
+            const SizedBox(height: 14),
             Text(
               context.l10n.readOnlyGracePeriodAllMembers,
               style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
@@ -18467,7 +18445,7 @@ class VaultLifecycleTile extends StatelessWidget {
               ),
             ],
           ] else if (vault.status == 'active' && vault.role == 'owner') ...[
-            const Divider(height: 14),
+            const SizedBox(height: 14),
             Text(
               context.l10n.deletingThisVaultStartsTheServer,
               style: TextStyle(
@@ -18488,7 +18466,7 @@ class VaultLifecycleTile extends StatelessWidget {
               ),
             ),
           ] else if (!vault.canWrite) ...[
-            const Divider(height: 14),
+            const SizedBox(height: 14),
             Text(
               context.l10n.thisVaultIsReadOnlyFor,
               style: TextStyle(
@@ -19192,7 +19170,7 @@ class _InstanceAdminPushHealthCard extends StatelessWidget {
                 Text(context.l10n.noPushProviderSnapshotIsAvailable)
               else
                 for (final provider in value.providers) ...[
-                  const Divider(height: 18),
+                  const SizedBox(height: 18),
                   Text(
                     _pushProviderLabel(provider.provider),
                     style: const TextStyle(fontWeight: FontWeight.w600),
@@ -19331,7 +19309,7 @@ class _InstanceAdminOverviewCard extends StatelessWidget {
                 label: context.l10n.protocolVersion,
                 value: 'v${value.protocolVersion}',
               ),
-              const Divider(height: 20),
+              const SizedBox(height: 20),
               _DetailLine(
                 label: context.l10n.accounts,
                 value:
@@ -19351,7 +19329,7 @@ class _InstanceAdminOverviewCard extends StatelessWidget {
                 value:
                     '${_formatAdminBytes(value.storedBytes)} used · ${_formatAdminBytes(value.reservedUploadBytes)} reserved · ${_formatAdminBytes(value.vaultQuotaBytes)} quota',
               ),
-              const Divider(height: 20),
+              const SizedBox(height: 20),
               if (value.relayEnabled case final enabled?)
                 _DetailLine(
                   label: context.l10n.sshRelay,
@@ -20513,7 +20491,7 @@ class _InstanceAdminRestoreStageCardState
               ),
             ],
             if (restoreJob case final stageJob?) ...[
-              const Divider(height: 22),
+              const SizedBox(height: 22),
               Row(
                 children: [
                   Expanded(
@@ -21784,7 +21762,6 @@ class _AdminAccountInvitationIssueDialogState
               keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
                 labelText: context.l10n.invitationUsername,
-                border: const OutlineInputBorder(),
                 isDense: true,
               ),
             ),
@@ -21794,7 +21771,6 @@ class _AdminAccountInvitationIssueDialogState
               initialValue: _expiresInDays,
               decoration: InputDecoration(
                 labelText: context.l10n.invitationExpiresInDays,
-                border: const OutlineInputBorder(),
                 isDense: true,
               ),
               items: [
@@ -21930,9 +21906,10 @@ class _AdminAccountInvitationTokenDialogState
             const SizedBox(height: 6),
             DecoratedBox(
               decoration: BoxDecoration(
-                color: context.palette.surfaceRaised,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: context.palette.line),
+                color: context.palette.fill,
+                borderRadius: BorderRadius.circular(
+                  AppDensity.of(context).radiusMd,
+                ),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -22383,8 +22360,8 @@ class _AdminAccountsTable extends StatelessWidget {
           key: const ValueKey('admin_accounts_table'),
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: palette.line),
+            color: _blockFill(context),
+            borderRadius: BorderRadius.circular(_blockRadius(context)),
           ),
           child: Material(
             type: MaterialType.transparency,
@@ -22440,8 +22417,9 @@ class _AdminAccountsTable extends StatelessWidget {
                     ),
                   ),
                 for (final (index, account) in accounts.indexed) ...[
-                  if (index > 0 || !compact)
-                    Divider(height: 1, thickness: 1, color: palette.line),
+                  // The header is a band of its own; rows keep a soft
+                  // separator between them.
+                  if (index > 0) const Divider(height: 1, thickness: 1),
                   _AdminAccountRow(
                     key: ValueKey('admin_account_${account.userId}'),
                     account: account,
@@ -22521,7 +22499,7 @@ class _AdminAccountRow extends StatelessWidget {
       child: InkWell(
       onTap: onTap,
       child: Container(
-        color: open ? palette.lime.withValues(alpha: .08) : null,
+        color: open ? palette.lime.withValues(alpha: .14) : null,
         padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
         child: compact
             ? Row(
@@ -22614,9 +22592,8 @@ class _AdminAccountStatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: .28)),
+        color: color.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         _adminAccountStatusLabel(context, status),
@@ -22950,7 +22927,7 @@ class _AdminAccountSessionsPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Divider(),
+          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
@@ -23555,11 +23532,13 @@ class _VaultSyncedPreferencesPanelState
               Container(
                 key: const ValueKey('vault_preference_conflict_repair'),
                 decoration: BoxDecoration(
-                  color: context.palette.surfaceRaised,
-                  border: Border.all(
-                    color: context.palette.orange.withValues(alpha: 0.55),
+                  color: context.palette.tinted(
+                    context.palette.orange,
+                    base: _blockFill(context),
                   ),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(
+                    AppDensity.of(context).radiusMd,
+                  ),
                 ),
                 padding: const EdgeInsets.all(12),
                 child: Material(
@@ -24022,11 +24001,13 @@ class _TerminalFontSizePreferenceSectionState
           Container(
             key: const ValueKey('terminal_font_size_conflict'),
             decoration: BoxDecoration(
-              color: context.palette.surfaceRaised,
-              border: Border.all(
-                color: context.palette.orange.withValues(alpha: .55),
+              color: context.palette.tinted(
+                context.palette.orange,
+                base: _blockFill(context),
               ),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusMd,
+              ),
             ),
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -24481,11 +24462,13 @@ class _TerminalThemePreferenceSectionState
           Container(
             key: const ValueKey('terminal_theme_conflict'),
             decoration: BoxDecoration(
-              color: context.palette.surfaceRaised,
-              border: Border.all(
-                color: context.palette.orange.withValues(alpha: .55),
+              color: context.palette.tinted(
+                context.palette.orange,
+                base: _blockFill(context),
               ),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusMd,
+              ),
             ),
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -24991,11 +24974,13 @@ class _TerminalShortcutsPreferenceSectionState
           Container(
             key: const ValueKey('terminal_shortcuts_conflict'),
             decoration: BoxDecoration(
-              color: context.palette.surfaceRaised,
-              border: Border.all(
-                color: context.palette.orange.withValues(alpha: .55),
+              color: context.palette.tinted(
+                context.palette.orange,
+                base: _blockFill(context),
               ),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusMd,
+              ),
             ),
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -25870,10 +25855,12 @@ class _KnownHostTrustPanel extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: context.palette.orange.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: context.palette.orange.withValues(alpha: 0.5),
+                  color: context.palette.tinted(
+                    context.palette.orange,
+                    base: _blockFill(context),
+                  ),
+                  borderRadius: BorderRadius.circular(
+                    AppDensity.of(context).radiusMd,
                   ),
                 ),
                 child: Text(
@@ -25910,9 +25897,10 @@ class _KnownHostTrustPanel extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.fromLTRB(10, 7, 4, 7),
                   decoration: BoxDecoration(
-                    color: context.palette.surfaceSoft,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: context.palette.line),
+                    color: context.palette.fill,
+                    borderRadius: BorderRadius.circular(
+                      AppDensity.of(context).radiusMd,
+                    ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -26948,8 +26936,7 @@ Future<void> _inviteVaultMember(BuildContext context, AppController app) async {
                   },
                 ),
                 if (recipient != null) ...[
-                  const SizedBox(height: 16),
-                  const Divider(),
+                  const SizedBox(height: 32),
                   Text(
                     context.l10n.confirmTargetName(recipient!.name),
                     style: const TextStyle(fontWeight: FontWeight.w600),
@@ -27750,8 +27737,10 @@ class _EmptyState extends StatelessWidget {
             width: AppDensity.of(context).isCompact ? 44 : 48,
             height: AppDensity.of(context).isCompact ? 44 : 48,
             decoration: BoxDecoration(
-              color: context.palette.surfaceRaised,
-              borderRadius: BorderRadius.circular(15),
+              color: context.palette.fill,
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusLg,
+              ),
             ),
             child: Icon(icon, color: context.palette.muted),
           ),
@@ -27790,8 +27779,8 @@ class _Tag extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
     decoration: BoxDecoration(
-      color: context.palette.surfaceRaised,
-      borderRadius: BorderRadius.circular(6),
+      color: context.palette.fill,
+      borderRadius: BorderRadius.circular(AppDensity.of(context).radiusSm),
     ),
     child: Text(
       label,
@@ -27808,7 +27797,7 @@ class _Pill extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
     decoration: BoxDecoration(
       color: context.palette.lime.withValues(alpha: .1),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(999),
     ),
     child: Text(
       label,
@@ -27915,9 +27904,11 @@ class _MessageBoxLikeWarning extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(11),
     decoration: BoxDecoration(
-      color: context.palette.orange.withValues(alpha: .08),
-      border: Border.all(color: context.palette.orange.withValues(alpha: .25)),
-      borderRadius: BorderRadius.circular(11),
+      color: context.palette.tinted(
+        context.palette.orange,
+        base: _blockFill(context),
+      ),
+      borderRadius: BorderRadius.circular(_blockRadius(context)),
     ),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
