@@ -19741,6 +19741,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recordHistoryNoFieldChanges => 'No field changes';
 
   @override
+  String get recordHistoryFieldDetectedOs => 'Detected operating system';
+
+  @override
+  String get recordHistoryFieldAnsibleImport => 'Ansible inventory import';
+
+  @override
   String get recordHistoryEarliestKept => 'Earliest kept version';
 
   @override

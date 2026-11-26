@@ -5,6 +5,7 @@ import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/crypto/host_attachment_crypto.dart';
 import 'package:aterm_client/crypto/vault_crypto.dart';
+import 'package:aterm_client/desktop/rdp_settings.dart';
 import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/l10n/l10n.dart';
 import 'package:aterm_client/storage/client_database.dart';
@@ -502,6 +503,69 @@ void main() {
     },
   );
 
+  test('a manifest change is listed per entry, not as attachments', () {
+    final en = lookupAppLocalizations(const Locale('en'));
+    final zh = lookupAppLocalizations(const Locale('zh'));
+    final fields = recordHistoryChangedFields(
+      newer: {
+        'id': _recordId,
+        'type': 'host',
+        'port': 3390,
+        '_manifest': {
+          'attachments': const <Object>[],
+          'rdp_settings_v1': {'resolution': 'fixed', 'width': 1920},
+          'host_os_v1': {'family': 'windows'},
+        },
+      },
+      older: {
+        'id': _recordId,
+        'type': 'host',
+        'port': 3389,
+        '_manifest': {
+          'attachments': const <Object>[],
+          'host_os_v1': {'family': 'windows'},
+          'ssh_legacy_algorithms': true,
+        },
+      },
+    );
+    expect(fields, [
+      '_manifest.rdp_settings_v1',
+      '_manifest.ssh_legacy_algorithms',
+      'port',
+    ]);
+    expect(
+      [for (final field in fields) recordHistoryFieldLabel(en, 'host', field)],
+      ['RDP options', 'Legacy SSH compatibility', 'Port'],
+    );
+    expect(
+      recordHistoryFieldLabel(zh, 'host', '_manifest.host_os_v1'),
+      '识别到的操作系统',
+    );
+    expect(
+      recordHistoryFieldLabel(zh, 'host', '_manifest.object_refs'),
+      '附件',
+    );
+    expect(
+      recordHistoryFieldLabel(en, 'host', '_manifest.future_entry_v2'),
+      'future entry v2',
+    );
+    // Only the attachments changed: still reported as attachments.
+    expect(
+      recordHistoryChangedFields(
+        newer: {
+          'type': 'host',
+          '_manifest': {
+            'attachments': [
+              {'id': 'a'},
+            ],
+          },
+        },
+        older: {'type': 'host'},
+      ),
+      ['_manifest.attachments'],
+    );
+  });
+
   test('changed fields carry the editor labels of the current language', () {
     final en = lookupAppLocalizations(const Locale('en'));
     final zh = lookupAppLocalizations(const Locale('zh'));
@@ -620,6 +684,52 @@ void main() {
       envelope: envelope,
       authorPublicKey: fixture.local.signing.publicKey,
     );
+
+    test('a version that differs only in RDP options can be restored', () async {
+      final fixture = await _Fixture.create(sodium);
+      final app = fixture.controller()..api = fixture.api;
+      try {
+        final first = original.copyWith(
+          protocol: HostProtocol.rdp,
+          port: 3389,
+          username: '',
+          manifest: const RdpSettings(
+            resolution: RdpResolutionMode.fixed,
+            width: 1600,
+            height: 900,
+          ).applyTo(null),
+        );
+        await app.saveHost(first);
+        final firstRevision = await fixture.acknowledgeHead('1');
+        await app.saveHost(
+          first.copyWith(
+            manifest: const RdpSettings(microphone: true).applyTo(null),
+          ),
+        );
+        await fixture.acknowledgeHead('2');
+
+        final version = versionOf(first, firstRevision);
+        expect(
+          await app.planRecordVersionRestore(
+            recordId: _recordId,
+            version: version,
+          ),
+          isNot(RecordRestoreOutcome.nothingToRestore),
+        );
+        await app.restoreRecordVersion(recordId: _recordId, version: version);
+        expect(
+          RdpSettings.of(app.hosts.single),
+          const RdpSettings(
+            resolution: RdpResolutionMode.fixed,
+            width: 1600,
+            height: 900,
+          ),
+        );
+      } finally {
+        app.dispose();
+        await fixture.dispose();
+      }
+    });
 
     test(
       're-applies the old manifest when every object is available',

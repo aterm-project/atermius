@@ -5253,6 +5253,8 @@
   "recordHistoryNode": "Узел {id}",
   "recordHistoryChangedFields": "Изменено: {fields}",
   "recordHistoryNoFieldChanges": "Поля не изменились",
+  "recordHistoryFieldDetectedOs": "Определённая ОС",
+  "recordHistoryFieldAnsibleImport": "Сведения об импорте из Ansible",
   "recordHistoryEarliestKept": "Самая ранняя сохранённая версия",
   "recordHistoryRestoreConfirmTitle": "Восстановить эту версию?",
   "recordHistoryRestoreConfirmBody": "Содержимое от {time} будет сохранено как новая версия поверх текущей. Из истории ничего не удаляется.",

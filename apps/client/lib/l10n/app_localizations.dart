@@ -31210,6 +31210,18 @@ abstract class AppLocalizations {
   /// **'No field changes'**
   String get recordHistoryNoFieldChanges;
 
+  /// Version history: a Host's automatically detected operating system changed.
+  ///
+  /// In en, this message translates to:
+  /// **'Detected operating system'**
+  String get recordHistoryFieldDetectedOs;
+
+  /// Version history: the Ansible inventory import details of a Host changed.
+  ///
+  /// In en, this message translates to:
+  /// **'Ansible inventory import'**
+  String get recordHistoryFieldAnsibleImport;
+
   /// App-owned UI text.
   ///
   /// In en, this message translates to:

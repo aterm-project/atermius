@@ -19799,6 +19799,13 @@ class AppLocalizationsRu extends AppLocalizations {
   String get recordHistoryNoFieldChanges => 'Поля не изменились';
 
   @override
+  String get recordHistoryFieldDetectedOs => 'Определённая ОС';
+
+  @override
+  String get recordHistoryFieldAnsibleImport =>
+      'Сведения об импорте из Ansible';
+
+  @override
   String get recordHistoryEarliestKept => 'Самая ранняя сохранённая версия';
 
   @override

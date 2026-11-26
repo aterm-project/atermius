@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:aterm_client/api/api_client.dart';
 import 'package:aterm_client/app_controller.dart';
 import 'package:aterm_client/crypto/vault_crypto.dart';
+import 'package:aterm_client/desktop/desktop_resolution.dart';
+import 'package:aterm_client/desktop/rdp_settings.dart';
 import 'package:aterm_client/domain/models.dart';
 import 'package:aterm_client/storage/client_database.dart';
 import 'package:aterm_client/storage/secure_store.dart';
@@ -165,6 +167,116 @@ void main() {
         );
         expect(opened['port_forward_profiles'], [profile.toJson()]);
       } finally {
+        app.dispose();
+        identity.dispose();
+        key.fillRange(0, key.length, 0);
+        await database.close();
+      }
+    },
+  );
+
+  test(
+    'Host editor saves RDP and VNC settings and keeps a sibling port edit',
+    () async {
+      final fixture = await _fixture(sodium);
+      final (app, database, repository, identity, key) = fixture;
+      final sibling = AppController(
+        sodium: sodium,
+        database: database,
+        secureStore: ClientSecureStore(),
+        repositoryForTesting: repository,
+      )..activeVault = app.activeVault;
+      const original = HostRecord(
+        id: _thirdId,
+        name: 'Remote desktop',
+        address: 'rdp.example.test',
+        protocol: HostProtocol.rdp,
+        manifest: {'host_os_v1': {'family': 'windows'}},
+      );
+      const settings = RdpSettings(
+        resolution: RdpResolutionMode.fixed,
+        width: 1920,
+        height: 1080,
+        microphone: true,
+      );
+      try {
+        await app.saveHost(original);
+        await _acknowledgeLocalCreate(database, _thirdId);
+        await sibling.reloadRecords();
+        await sibling.saveHost(sibling.hosts.single.copyWith(port: 3390));
+
+        // What the editor builds: its settings applied to the manifest it
+        // opened with, which still lacks the sibling's change.
+        await app.saveHostFromEditor(
+          original: original,
+          edited: original.copyWith(
+            manifest: settings.applyTo(original.manifest),
+          ),
+        );
+
+        final saved = app.hosts.single;
+        expect(RdpSettings.of(saved), settings);
+        expect(saved.port, 3390);
+        expect(saved.manifest?['host_os_v1'], {'family': 'windows'});
+
+        // A sibling change to the same settings is a collision, not a
+        // silent overwrite of either side.
+        await sibling.reloadRecords();
+        await sibling.saveHostFromEditor(
+          original: sibling.hosts.single,
+          edited: sibling.hosts.single.copyWith(
+            manifest: const RdpSettings(microphone: true).applyTo(
+              sibling.hosts.single.manifest,
+            ),
+          ),
+        );
+        await expectLater(
+          app.saveHostFromEditor(
+            original: saved,
+            edited: saved.copyWith(
+              manifest: const RdpSettings(cameras: true).applyTo(
+                saved.manifest,
+              ),
+            ),
+          ),
+          throwsFormatException,
+        );
+
+        // Returning a VNC Host's settings to the defaults removes them.
+        await app.reloadRecords();
+        final rdp = app.hosts.single;
+        final vncHost = rdp.copyWith(
+          protocol: HostProtocol.vnc,
+          port: 5900,
+          manifest: const VncSettings(
+            resolution: VncResolutionMode.fixed,
+          ).applyTo(RdpSettings.defaults.applyTo(rdp.manifest)),
+        );
+        await app.saveHostFromEditor(original: rdp, edited: vncHost);
+        expect(app.hosts.single.protocol, HostProtocol.vnc);
+        expect(
+          VncSettings.of(app.hosts.single).resolution,
+          VncResolutionMode.fixed,
+        );
+        expect(
+          app.hosts.single.manifest?.containsKey(rdpSettingsManifestKey),
+          isFalse,
+        );
+        await app.saveHostFromEditor(
+          original: app.hosts.single,
+          edited: app.hosts.single.copyWith(
+            manifest: VncSettings.defaults.applyTo(app.hosts.single.manifest),
+          ),
+        );
+        expect(
+          app.hosts.single.manifest?.containsKey(vncSettingsManifestKey),
+          isFalse,
+        );
+        expect(app.hosts.single.manifest?['host_os_v1'], {
+          'family': 'windows',
+        });
+      } finally {
+        sibling.dispose();
         app.dispose();
         identity.dispose();
         key.fillRange(0, key.length, 0);

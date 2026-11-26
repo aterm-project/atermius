@@ -3,9 +3,11 @@ import 'domain/window_combination.dart';
 import 'domain/open_workspace_snapshot.dart';
 import 'console/local_console.dart';
 import 'console/local_shell_l10n.dart';
+import 'desktop/desktop_resolution.dart' show vncSettingsManifestKey;
 import 'desktop/desktop_session.dart';
 import 'desktop/direct/connection.dart' show DirectDesktopConnection;
 import 'desktop/rdp_certificate_persistence.dart';
+import 'desktop/rdp_settings.dart' show rdpSettingsManifestKey;
 import 'desktop/window/desktop_tab_windows.dart';
 import 'auth/session_startup.dart';
 
@@ -8580,6 +8582,34 @@ class AppController extends ChangeNotifier {
           : latest.portForwardProfiles;
     }
 
+    // RDP and VNC settings live in the manifest. Each entry is one field:
+    // the user's change wins over the latest head, a sibling change is kept,
+    // and different changes to the same entry are a collision. Compared as
+    // canonical JSON, so key order or a missing-versus-null entry is not a
+    // change.
+    Map<String, Object?>? chooseEditorManifest() {
+      final next = {...?latest.manifest};
+      for (final (key, label) in _hostEditorManifestEntries) {
+        final originalValue = canonicalJson(original.manifest?[key]);
+        final editedValue = canonicalJson(edited.manifest?[key]);
+        final latestValue = canonicalJson(latest.manifest?[key]);
+        final userChanged = editedValue != originalValue;
+        if (userChanged &&
+            latestValue != originalValue &&
+            editedValue != latestValue) {
+          throw FormatException(currentL10n.theHostsLabelFieldWasAlso(label));
+        }
+        if (!userChanged) continue;
+        final value = edited.manifest?[key];
+        if (value == null) {
+          next.remove(key);
+        } else {
+          next[key] = value;
+        }
+      }
+      return next.isEmpty ? null : next;
+    }
+
     return HostRecord(
       id: latest.id,
       name: choose(currentL10n.name, original.name, edited.name, latest.name),
@@ -8658,7 +8688,7 @@ class AppController extends ChangeNotifier {
       revisionId: latest.revisionId,
       baseRevisionId: latest.baseRevisionId,
       online: latest.online,
-      manifest: latest.manifest,
+      manifest: chooseEditorManifest(),
     ).copyWithLegacySsh(
       choose(
         currentL10n.legacySshCompatibility,
@@ -8668,6 +8698,15 @@ class AppController extends ChangeNotifier {
       ),
     );
   }
+
+  /// Manifest entries the Host editor writes, with the label of the editor
+  /// section they come from. Every other entry (attachments, the detected
+  /// operating system, import metadata) has other writers and is taken from
+  /// the latest head.
+  static List<(String, String)> get _hostEditorManifestEntries => [
+    (rdpSettingsManifestKey, currentL10n.rdpOptions),
+    (vncSettingsManifestKey, currentL10n.vncDisplay),
+  ];
 
   ({
     List<HostRecord> hosts,

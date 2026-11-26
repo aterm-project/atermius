@@ -83,6 +83,43 @@ void main() {
     expect(loaded.copyWith(protocol: HostProtocol.telnet).legacySshEnabled, isFalse);
   });
 
+  testWidgets('untouched RDP settings keep their stored entry exactly', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    // Written by a newer client: this version cannot read it and shows the
+    // defaults, but saving an unrelated change must not replace it.
+    const future = {
+      'resolution': 'follow_monitor_v9',
+      'width': 1920,
+      'height': 1080,
+    };
+    const remote = HostRecord(
+      id: 'rdp',
+      name: 'Desktop',
+      address: 'desktop.example.test',
+      protocol: HostProtocol.rdp,
+      manifest: {'rdp_settings_v1': future, 'host_os_v1': {'family': 'windows'}},
+    );
+    final saved = await editWith(
+      tester,
+      remote,
+      interact: () async {
+        await tester.enterText(
+          find.byKey(const ValueKey('host_editor_name')),
+          'Renamed desktop',
+        );
+      },
+    );
+    expect(saved?.name, 'Renamed desktop');
+    expect(saved?.manifest, {
+      'rdp_settings_v1': future,
+      'host_os_v1': {'family': 'windows'},
+    });
+  });
+
   testWidgets('editing unrelated fields keeps the Keychain reference', (
     tester,
   ) async {

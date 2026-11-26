@@ -18595,6 +18595,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get recordHistoryNoFieldChanges => 'フィールドの変更なし';
 
   @override
+  String get recordHistoryFieldDetectedOs => '検出された OS';
+
+  @override
+  String get recordHistoryFieldAnsibleImport => 'Ansible インベントリの取り込み情報';
+
+  @override
   String get recordHistoryEarliestKept => '保持されている最も古いバージョン';
 
   @override

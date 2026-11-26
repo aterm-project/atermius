@@ -17676,6 +17676,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get recordHistoryNoFieldChanges => '字段无变化';
 
   @override
+  String get recordHistoryFieldDetectedOs => '识别到的操作系统';
+
+  @override
+  String get recordHistoryFieldAnsibleImport => 'Ansible 清单导入信息';
+
+  @override
   String get recordHistoryEarliestKept => '保留的最早版本';
 
   @override

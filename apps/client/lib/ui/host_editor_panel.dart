@@ -914,6 +914,33 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
     }
   }
 
+  /// The saved Host's manifest. A protocol that does not use RDP or VNC
+  /// settings drops them. Settings the user left untouched on a saved Host
+  /// keep their stored entry exactly, so opening and saving the editor is
+  /// not a change to them (and an entry a newer client wrote, which this
+  /// version shows as defaults, survives).
+  Map<String, Object?>? _manifestForSave() {
+    final existing = widget.existing;
+    var manifest = existing?.manifest;
+    final rdp = _protocol == HostProtocol.rdp
+        ? _rdpSettings
+        : RdpSettings.defaults;
+    if (existing == null ||
+        _protocol != HostProtocol.rdp ||
+        rdp != _initialRdpSettings) {
+      manifest = rdp.applyTo(manifest);
+    }
+    final vnc = _protocol == HostProtocol.vnc
+        ? _vncSettings
+        : VncSettings.defaults;
+    if (existing == null ||
+        _protocol != HostProtocol.vnc ||
+        vnc != _initialVncSettings) {
+      manifest = vnc.applyTo(manifest);
+    }
+    return manifest;
+  }
+
   void _save() {
     final port = int.tryParse(_port.text.trim());
     final initialHost = widget.existing ?? widget.initialDraft;
@@ -974,14 +1001,7 @@ class _HostEditorPanelState extends State<HostEditorPanel> {
       revisionId: widget.existing?.revisionId,
       baseRevisionId: widget.existing?.baseRevisionId,
       online: widget.existing?.online ?? false,
-      manifest:
-          (_protocol == HostProtocol.vnc ? _vncSettings : VncSettings.defaults)
-              .applyTo(
-                (_protocol == HostProtocol.rdp
-                        ? _rdpSettings
-                        : RdpSettings.defaults)
-                    .applyTo(widget.existing?.manifest),
-              ),
+      manifest: _manifestForSave(),
     ).copyWithLegacySsh(_legacySshEnabled);
     final issue =
         (_protocol == HostProtocol.rdp ? _rdpSettings.validate() : null) ??

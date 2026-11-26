@@ -5253,6 +5253,8 @@
   "recordHistoryNode": "ノード {id}",
   "recordHistoryChangedFields": "変更: {fields}",
   "recordHistoryNoFieldChanges": "フィールドの変更なし",
+  "recordHistoryFieldDetectedOs": "検出された OS",
+  "recordHistoryFieldAnsibleImport": "Ansible インベントリの取り込み情報",
   "recordHistoryEarliestKept": "保持されている最も古いバージョン",
   "recordHistoryRestoreConfirmTitle": "このバージョンに復元しますか？",
   "recordHistoryRestoreConfirmBody": "{time} の内容が、現在のバージョンの上に新しいバージョンとして保存されます。履歴から削除されるものはありません。",

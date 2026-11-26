@@ -5253,6 +5253,8 @@
   "recordHistoryNode": "节点 {id}",
   "recordHistoryChangedFields": "修改了：{fields}",
   "recordHistoryNoFieldChanges": "字段无变化",
+  "recordHistoryFieldDetectedOs": "识别到的操作系统",
+  "recordHistoryFieldAnsibleImport": "Ansible 清单导入信息",
   "recordHistoryEarliestKept": "保留的最早版本",
   "recordHistoryRestoreConfirmTitle": "恢复到此版本？",
   "recordHistoryRestoreConfirmBody": "{time} 的内容将作为新版本保存在当前版本之上，历史中的任何版本都不会被移除。",

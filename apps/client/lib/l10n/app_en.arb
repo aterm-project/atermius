@@ -16510,6 +16510,14 @@
   "@recordHistoryNoFieldChanges": {
     "description": "App-owned UI text."
   },
+  "recordHistoryFieldDetectedOs": "Detected operating system",
+  "@recordHistoryFieldDetectedOs": {
+    "description": "Version history: a Host's automatically detected operating system changed."
+  },
+  "recordHistoryFieldAnsibleImport": "Ansible inventory import",
+  "@recordHistoryFieldAnsibleImport": {
+    "description": "Version history: the Ansible inventory import details of a Host changed."
+  },
   "recordHistoryEarliestKept": "Earliest kept version",
   "@recordHistoryEarliestKept": {
     "description": "App-owned UI text."

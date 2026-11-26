@@ -7,6 +7,12 @@ import 'package:intl/intl.dart';
 
 import '../app_controller.dart';
 import '../crypto/jcs.dart';
+import '../desktop/desktop_resolution.dart' show vncSettingsManifestKey;
+import '../desktop/rdp_settings.dart' show rdpSettingsManifestKey;
+import '../domain/ansible_inventory_metadata.dart'
+    show ansibleInventoryManifestKey;
+import '../domain/host_operating_system.dart'
+    show hostOperatingSystemManifestKey;
 import '../l10n/l10n.dart';
 import '../sync/sync_repository.dart';
 import 'app_density.dart';
@@ -15,6 +21,11 @@ import 'app_theme.dart';
 
 /// Plaintext keys of the fields that differ between two versions of one
 /// record, sorted.
+///
+/// The manifest holds unrelated settings side by side (attachments, RDP and
+/// VNC settings, legacy SSH, the detected operating system), so a manifest
+/// change is reported per entry as `_manifest.<entry>`; a manifest that is
+/// not a map on either side is reported as `_manifest`.
 ///
 /// Only keys are returned, never values: a record may hold a password or a
 /// private key. [recordHistoryFieldLabel] turns a key into what is shown.
@@ -27,10 +38,32 @@ List<String> recordHistoryChangedFields({
   for (final key in keys) {
     if (key == 'id' || key == 'type' || key == 'deleted') continue;
     if (canonicalJson(newer[key]) == canonicalJson(older[key])) continue;
+    final newerValue = newer[key];
+    final olderValue = older[key];
+    if (key == _manifestKey &&
+        (newerValue == null || newerValue is Map) &&
+        (olderValue == null || olderValue is Map)) {
+      final newerManifest = (newerValue as Map?) ?? const {};
+      final olderManifest = (olderValue as Map?) ?? const {};
+      final entries = <String>{
+        for (final entry in [...olderManifest.keys, ...newerManifest.keys])
+          '$entry',
+      }.toList()..sort();
+      for (final entry in entries) {
+        if (canonicalJson(newerManifest[entry]) ==
+            canonicalJson(olderManifest[entry])) {
+          continue;
+        }
+        names.add('$_manifestKey.$entry');
+      }
+      continue;
+    }
     names.add(key);
   }
   return names;
 }
+
+const _manifestKey = '_manifest';
 
 /// The label the editor of a [recordType] record shows for the plaintext
 /// field [field], in the language of [l10n]. A field without an editor label
@@ -41,7 +74,19 @@ String recordHistoryFieldLabel(
   Object? recordType,
   String field,
 ) {
-  if (field == '_manifest') return l10n.attachments;
+  if (field == _manifestKey) return l10n.attachments;
+  if (field.startsWith('$_manifestKey.')) {
+    final entry = field.substring(_manifestKey.length + 1);
+    return switch (entry) {
+      'attachments' || 'object_refs' => l10n.attachments,
+      rdpSettingsManifestKey => l10n.rdpOptions,
+      vncSettingsManifestKey => l10n.vncDisplay,
+      'ssh_legacy_algorithms' => l10n.legacySshCompatibility,
+      hostOperatingSystemManifestKey => l10n.recordHistoryFieldDetectedOs,
+      ansibleInventoryManifestKey => l10n.recordHistoryFieldAnsibleImport,
+      _ => entry.replaceAll('_', ' ').trim(),
+    };
+  }
   final label = switch (recordType) {
     'host' => switch (field) {
       'name' => l10n.displayName,
