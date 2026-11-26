@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 
 import '../l10n/l10n.dart';
 import '../platform/window_keyboard_insets.dart';
+import '../ui/app_density.dart';
 
 enum _Latch { off, armed, locked }
 
@@ -477,7 +478,9 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
             key: const ValueKey('desktop_ime_preedit'),
             color: colors.inverseSurface,
             elevation: 3,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(
+              AppDensity.of(context).radiusMd,
+            ),
             clipBehavior: Clip.antiAlias,
             child: SingleChildScrollView(
               // Keep the end, where the user is typing, in view.
@@ -675,7 +678,10 @@ class DesktopMobileControlsState extends State<DesktopMobileControls>
                   color: Theme.of(context).colorScheme.surfaceContainerHigh
                       .withValues(alpha: .94),
                   elevation: 3,
-                  borderRadius: BorderRadius.circular(16),
+                  // A floating block: the block radius, no outline.
+                  borderRadius: BorderRadius.circular(
+                    AppDensity.of(context).radiusLg,
+                  ),
                   clipBehavior: Clip.antiAlias,
                   child: SizedBox(
                     width: math.min(dockSize.width, available.width),

@@ -9,8 +9,10 @@ import 'package:flutter/services.dart';
 import '../domain/models.dart';
 import '../ssh/ssh_live_tools.dart';
 import '../ssh/ssh_service.dart';
+import 'app_density.dart';
 import 'app_theme.dart';
 import 'ios_native/ios_native.dart';
+import 'surfaces.dart';
 
 /// 四语在线 SSH 诊断小工具菜单文案。
 String sshLiveToolsMenuLabel(BuildContext context) => switch (
@@ -46,18 +48,20 @@ Future<void> showSshLiveToolsSheet(
     builder: (dialogContext) {
       final size = MediaQuery.sizeOf(dialogContext);
       final p = dialogContext.palette;
+      // The sheet is the canvas its blocks sit on: no outline, the dialog
+      // radius, never glass (it floats over the terminal).
+      final radius = BorderRadius.circular(
+        AppDensity.of(dialogContext).radiusDialog,
+      );
       return Dialog(
         backgroundColor: p.background,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: p.line),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: radius),
         insetPadding: const EdgeInsets.all(24),
         child: SizedBox(
           width: math.min(720, size.width - 48),
           height: math.min(640, size.height - 48),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: radius,
             child: _SshLiveToolsView(
               host: host,
               connection: connection,
@@ -280,8 +284,7 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: p.errorContainer,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: p.red.withValues(alpha: 0.4)),
+              borderRadius: _blockRadius,
             ),
             child: Text(
               _error!,
@@ -389,9 +392,16 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
             ),
           ),
         ),
-        Divider(height: 1, color: p.line),
         Expanded(child: bodyList),
       ],
+    );
+  }
+
+  /// Blocks sit 16 px inside the sheet's edge: the concentric radius.
+  BorderRadius get _blockRadius {
+    final density = AppDensity.of(context);
+    return BorderRadius.circular(
+      concentricRadius(density.radiusDialog, 16, floor: density.radiusMd),
     );
   }
 
@@ -401,8 +411,7 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: p.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: p.line),
+        borderRadius: _blockRadius,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -437,7 +446,6 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
                     decoration: InputDecoration(
                       isDense: true,
                       labelText: _t(zh: '目标主机/IP', en: 'Host', ja: 'ホスト', ru: 'Хост'),
-                      border: const OutlineInputBorder(),
                     ),
                   ),
                 ),
@@ -450,7 +458,6 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
                     decoration: InputDecoration(
                       isDense: true,
                       labelText: _t(zh: '端口', en: 'Port', ja: 'ポート', ru: 'Порт'),
-                      border: const OutlineInputBorder(),
                     ),
                   ),
                 ),
@@ -500,8 +507,7 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: p.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: p.line),
+        borderRadius: _blockRadius,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -533,7 +539,6 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
                     labelText: _logSource == 'journal'
                         ? 'Systemd Unit'
                         : _t(zh: '绝对路径', en: 'Absolute Path', ja: '絶対パス', ru: 'Путь'),
-                    border: const OutlineInputBorder(),
                   ),
                 ),
               ),
@@ -545,7 +550,6 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
                   decoration: InputDecoration(
                     isDense: true,
                     labelText: _t(zh: '过滤词', en: 'Filter', ja: '絞り込み', ru: 'Фильтр'),
-                    border: const OutlineInputBorder(),
                   ),
                 ),
               ),
@@ -572,8 +576,7 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: p.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: p.line),
+            borderRadius: _blockRadius,
           ),
           child: Column(
             children: [
@@ -605,14 +608,12 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
         if (data == null) return const SizedBox.shrink();
         if (data['mode'] == 'tcp_check') {
           final reachable = data['reachable'] == true;
+          // Reachable tints the block toward the accent (no outline).
           return Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: p.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: reachable ? p.accent.withValues(alpha: 0.5) : p.line,
-              ),
+              color: reachable ? p.tinted(p.accent) : p.surface,
+              borderRadius: _blockRadius,
             ),
             child: Row(
               children: [
@@ -685,8 +686,9 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
   Widget _kvRow(AppPalette p, String label, String value, {bool last = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 9),
+      // A soft rule between rows inside the one block.
       decoration: BoxDecoration(
-        border: last ? null : Border(bottom: BorderSide(color: p.line)),
+        border: last ? null : Border(bottom: BorderSide(color: p.separator)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -716,8 +718,7 @@ class _SshLiveToolsViewState extends State<_SshLiveToolsView> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: p.codeBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: p.line),
+        borderRadius: _blockRadius,
       ),
       child: SelectableText(
         text,

@@ -247,7 +247,7 @@ class WorkspaceTabBar extends StatelessWidget {
     final action = await showMenu<String>(
       popUpAnimationStyle: AppMotion.menuStyle(context),
       context: context,
-      shape: Theme.of(context).popupMenuTheme.shape ?? workspaceMenuShape,
+      shape: workspaceMenuBorder(context),
       clipBehavior: Clip.antiAlias,
       position: RelativeRect.fromRect(
         Rect.fromPoints(point, point),
@@ -317,7 +317,7 @@ class WorkspaceTabBar extends StatelessWidget {
     final selected = await showMenu<_TabCommand>(
       popUpAnimationStyle: AppMotion.menuStyle(context),
       context: context,
-      shape: Theme.of(context).popupMenuTheme.shape ?? workspaceMenuShape,
+      shape: workspaceMenuBorder(context),
       clipBehavior: Clip.antiAlias,
       position: RelativeRect.fromRect(
         Rect.fromPoints(localPosition, localPosition),
@@ -775,7 +775,13 @@ class WorkspaceTabBar extends StatelessWidget {
           return FullscreenTabsOverlay(
             hover: hover,
             builder: (overlayContext) =>
-                _bar(overlayContext, chrome, colors, visibleTabs),
+                _bar(
+                  overlayContext,
+                  chrome,
+                  colors,
+                  visibleTabs,
+                  overPane: true,
+                ),
           );
         }
         return _bar(context, chrome, colors, visibleTabs);
@@ -787,8 +793,9 @@ class WorkspaceTabBar extends StatelessWidget {
     BuildContext context,
     WindowChromeController chrome,
     ColorScheme colors,
-    List<WorkspaceTab> visibleTabs,
-  ) {
+    List<WorkspaceTab> visibleTabs, {
+    bool overPane = false,
+  }) {
     final palette = context.palette;
     final customCaption = chrome.supported && chrome.state.customFrame;
     final mergedTitlebar =
@@ -832,11 +839,18 @@ class WorkspaceTabBar extends StatelessWidget {
           );
     // The bar is glass in the canvas color: it reads as part of the window
     // (a unified title bar), with the tabs as blocks on it. No bottom rule.
-    return GlassSurface(
-      tint: palette.background,
-      opacity: .82,
-      sigma: 24,
-      child: SizedBox(
+    // Dropped down over a fullscreen pane it is opaque instead: nothing
+    // blurs live terminal or desktop content.
+    Widget surface(Widget child) => overPane
+        ? Material(color: palette.background, child: child)
+        : GlassSurface(
+            tint: palette.background,
+            opacity: .82,
+            sigma: 24,
+            child: child,
+          );
+    return surface(
+      SizedBox(
         key: const ValueKey('workspace_navigation_bar'),
         height: bar.height,
         child: LayoutBuilder(
@@ -1566,7 +1580,6 @@ class _WorkspaceMenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final colors = Theme.of(context).colorScheme;
     final radius = BorderRadius.circular(AppDensity.of(context).radiusMd);
     return Padding(
       padding: EdgeInsets.fromLTRB(8, metrics.tabInset, 2, metrics.tabInset),
@@ -1587,7 +1600,7 @@ class _WorkspaceMenuButton extends StatelessWidget {
               borderRadius: radius,
               color: open
                   ? palette.accent.withValues(alpha: palette.isDark ? .24 : .16)
-                  : colors.onSurface.withValues(alpha: hovered ? .12 : .05),
+                  : (hovered ? palette.fillHover : palette.fill),
             ),
             child: Icon(
               open ? Icons.menu_open_rounded : Icons.menu_rounded,

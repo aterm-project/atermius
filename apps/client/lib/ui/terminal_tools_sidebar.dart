@@ -22,6 +22,7 @@ import 'app_theme.dart';
 import 'app_density.dart';
 import 'apple_hig.dart' show AppleHaptics;
 import 'ios_native/ios_native.dart';
+import 'surfaces.dart';
 import 'workspace_controls.dart' show WorkspaceAction;
 import '../l10n/l10n.dart';
 
@@ -169,7 +170,10 @@ class _TerminalToolsLayoutState extends State<TerminalToolsLayout> {
                 bottom: 0,
                 right: 0,
                 width: width,
-                child: KeyedSubtree(key: _sidebarKey, child: sidebar),
+                child: _TerminalToolsPlacement(
+                  docked: docked,
+                  child: KeyedSubtree(key: _sidebarKey, child: sidebar),
+                ),
               ),
             if (sidebar != null)
               Positioned(
@@ -194,6 +198,25 @@ class _TerminalToolsLayoutState extends State<TerminalToolsLayout> {
       },
     ),
   );
+}
+
+/// Whether the sidebar below sits beside the terminal ([docked]) or floats
+/// over it (narrow layouts), where it casts a floating shadow.
+class _TerminalToolsPlacement extends InheritedWidget {
+  const _TerminalToolsPlacement({required this.docked, required super.child});
+
+  final bool docked;
+
+  /// True outside a [TerminalToolsLayout].
+  static bool dockedOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_TerminalToolsPlacement>()
+          ?.docked ??
+      true;
+
+  @override
+  bool updateShouldNotify(_TerminalToolsPlacement oldWidget) =>
+      docked != oldWidget.docked;
 }
 
 /// iOS Phone 终端工具底部毛玻璃 Sheet：支持半屏 / 全屏两档 detent 跟手切换与下拉收起。
@@ -286,6 +309,9 @@ class _IosTerminalToolsSheetState extends State<_IosTerminalToolsSheet> {
     final sheetFill = c.isDark
         ? const Color(0xD91C1C1E)
         : const Color(0xEBFFFFFF);
+    final sheetRadius = BorderRadius.vertical(
+      top: Radius.circular(AppDensity.of(context).radiusDialog),
+    );
 
     Widget sheetSurface = ColoredBox(
       color: glass ? sheetFill : c.groupedBackground,
@@ -338,16 +364,9 @@ class _IosTerminalToolsSheetState extends State<_IosTerminalToolsSheet> {
             curve: Curves.easeOutCubic,
             width: double.infinity,
             height: targetHeight,
+            // No rim: the sheet's fill and shadow set it off.
             decoration: ShapeDecoration(
-              shape: RoundedSuperellipseBorder(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
-                ),
-                side: BorderSide(
-                  color: glass ? c.glassRimStrong : c.separator,
-                  width: IosMetrics.hairline(context),
-                ),
-              ),
+              shape: RoundedSuperellipseBorder(borderRadius: sheetRadius),
               shadows: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: c.isDark ? 0.42 : 0.14),
@@ -357,9 +376,7 @@ class _IosTerminalToolsSheetState extends State<_IosTerminalToolsSheet> {
               ],
             ),
             child: ClipRSuperellipse(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(28),
-              ),
+              borderRadius: sheetRadius,
               child: sheetSurface,
             ),
           ),
@@ -715,17 +732,19 @@ class TerminalToolsSectionTabs extends StatelessWidget {
       );
     }
     final colors = Theme.of(context).colorScheme;
+    final density = AppDensity.of(context);
+    // A filled control track (no outline); the selected icon is a block on
+    // it, concentric with the track.
     return Row(
       key: const ValueKey('terminal-tools-sections'),
       children: [
         DecoratedBox(
           decoration: BoxDecoration(
-            color: context.palette.surfaceRaised,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: context.palette.line),
+            color: context.palette.fill,
+            borderRadius: BorderRadius.circular(density.radiusMd),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(2),
+            padding: const EdgeInsets.all(_sectionTrackInset),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -763,6 +782,21 @@ class TerminalToolsSectionTabs extends StatelessWidget {
   }
 }
 
+/// Inset of the section icons in their track.
+const _sectionTrackInset = 2.0;
+
+/// A section icon's corners, concentric with the track around it.
+BorderRadius _sectionIconRadius(BuildContext context) {
+  final density = AppDensity.of(context);
+  return BorderRadius.circular(
+    concentricRadius(
+      density.radiusMd,
+      _sectionTrackInset,
+      floor: density.radiusSm,
+    ),
+  );
+}
+
 bool _touch(BuildContext context) => switch (Theme.of(context).platform) {
   TargetPlatform.android || TargetPlatform.iOS => true,
   _ => false,
@@ -796,9 +830,9 @@ class _SectionIcon extends StatelessWidget {
         message: label,
         child: Material(
           color: selected ? selectedColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: _sectionIconRadius(context),
           child: InkWell(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: _sectionIconRadius(context),
             onTap: onPressed,
             child: SizedBox(
               // Touch platforms keep a real 48x48 hit box.
@@ -927,10 +961,16 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
   );
 
   Widget _buildMaterial(BuildContext context) {
-    return Material(
-      key: const ValueKey('terminal-tools-sidebar'),
-      color: context.palette.surface,
-      shape: Border(left: BorderSide(color: context.palette.line)),
+    final density = AppDensity.of(context);
+    final palette = context.palette;
+    // A block inset from the sidebar's edges, so the terminal and the tools
+    // are told apart by a gap instead of a rule. Over the terminal (narrow
+    // layouts) it floats with a soft shadow; it is never glass there.
+    final radius = density.radiusLg;
+    Widget block = Material(
+      color: palette.surface,
+      shape: appBlockShape(context, radius),
+      clipBehavior: Clip.antiAlias,
       child: CustomScrollView(
         key: const ValueKey('terminal-tools-scroll'),
         slivers: [
@@ -994,6 +1034,21 @@ class _TerminalToolsSidebarState extends State<TerminalToolsSidebar> {
           },
         ],
       ),
+    );
+    if (!_TerminalToolsPlacement.dockedOf(context)) {
+      block = DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          boxShadow: appFloatingShadow(palette),
+        ),
+        child: block,
+      );
+    }
+    // Transparent but still hit-opaque, as the whole sidebar area was.
+    return Material(
+      key: const ValueKey('terminal-tools-sidebar'),
+      color: Colors.transparent,
+      child: Padding(padding: EdgeInsets.all(density.blockInset), child: block),
     );
   }
 

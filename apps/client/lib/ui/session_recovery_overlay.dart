@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import '../terminal/session_recovery.dart';
+import 'app_density.dart';
+import 'app_theme.dart';
+import 'surfaces.dart';
 
 /// `m:ss` until the automatic reconnect attempts stop, rounded up so the
 /// display starts at the full limit and reaches 0:00 only when it is over.
@@ -136,13 +139,25 @@ class _SessionRecoveryOverlayState extends State<SessionRecoveryOverlay> {
           Center(
             child: Padding(
               padding: const EdgeInsets.all(12),
+              // A floating block over the paused session: block radius and
+              // the soft floating shadow, no outline.
               child: SingleChildScrollView(
-                child: Material(
-                  color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: _card(context, model),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(
+                      AppDensity.of(context).radiusLg,
+                    ),
+                    boxShadow: appFloatingShadow(context.palette),
+                  ),
+                  child: Material(
+                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(
+                      AppDensity.of(context).radiusLg,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: _card(context, model),
+                    ),
                   ),
                 ),
               ),

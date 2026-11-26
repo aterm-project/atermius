@@ -1,5 +1,6 @@
 import '../ui/app_menu.dart';
 import '../ui/session_workspace.dart';
+import '../ui/workspace_controls.dart' show workspaceMenuBorder;
 import '../ui/fullscreen_menu.dart';
 import '../platform/fullscreen.dart';
 import '../platform/wheel_scroll_lines.dart';
@@ -37,6 +38,8 @@ import 'rdp_permission_prompts.dart';
 import 'rdp_permissions.dart';
 import '../l10n/l10n.dart';
 import '../ui/app_density.dart';
+import '../ui/app_theme.dart';
+import '../ui/surfaces.dart';
 
 class DesktopView extends StatefulWidget {
   const DesktopView({
@@ -931,7 +934,8 @@ class DesktopViewState extends State<DesktopView>
           ? Icon(Icons.desktop_windows_outlined, size: appMenuIconSize(context))
           : const Icon(Icons.more_horiz),
       padding: inPaneActions ? EdgeInsets.zero : const EdgeInsets.all(8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      // Menu block shape (radiusLg, no outline) like every other menu.
+      shape: workspaceMenuBorder(context),
       // The pane hides its actions when the pointer leaves; they must stay
       // while this menu is open, or its choice would have no receiver.
       onCanceled: () => _paneSlot?.release(),
@@ -1423,41 +1427,53 @@ class DesktopViewState extends State<DesktopView>
                   left: 12,
                   right: 56,
                   top: 8,
-                  child: Material(
-                    key: const ValueKey('rdp_file_transfer'),
-                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  context.l10n.savingRemoteFilesDoneTotal(
-                                    session.transfer!.done,
-                                    session.transfer!.total,
+                  // Floats over the remote desktop: block radius and the
+                  // soft floating shadow (no blur over the framebuffer).
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(
+                        AppDensity.of(context).radiusLg,
+                      ),
+                      boxShadow: appFloatingShadow(context.palette),
+                    ),
+                    child: Material(
+                      key: const ValueKey('rdp_file_transfer'),
+                      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(
+                        AppDensity.of(context).radiusLg,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    context.l10n.savingRemoteFilesDoneTotal(
+                                      session.transfer!.done,
+                                      session.transfer!.total,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                LinearProgressIndicator(
-                                  value: session.transfer!.total == 0
-                                      ? null
-                                      : session.transfer!.done /
-                                            session.transfer!.total,
-                                ),
-                              ],
+                                  const SizedBox(height: 4),
+                                  LinearProgressIndicator(
+                                    value: session.transfer!.total == 0
+                                        ? null
+                                        : session.transfer!.done /
+                                              session.transfer!.total,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          IconButton(
-                            tooltip: context.l10n.cancel,
-                            icon: const Icon(Icons.close),
-                            onPressed: session.cancelFileTransfer,
-                          ),
-                        ],
+                            IconButton(
+                              tooltip: context.l10n.cancel,
+                              icon: const Icon(Icons.close),
+                              onPressed: session.cancelFileTransfer,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

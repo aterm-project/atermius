@@ -8,6 +8,7 @@ import '../domain/vault_preference.dart';
 import '../l10n/l10n.dart';
 import '../terminal/keyword_highlighter.dart';
 import 'app_menu.dart';
+import 'app_density.dart';
 import 'app_theme.dart';
 import 'terminal_palette.dart';
 
@@ -155,7 +156,9 @@ class _TerminalKeywordHighlightSettingsState
             ),
             const SizedBox(height: 10),
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusMd,
+              ),
               child: KeywordHighlightPreview(
                 key: const ValueKey('keyword_highlight_preview'),
                 theme: theme,
@@ -410,7 +413,8 @@ class _GroupSectionState extends State<_GroupSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Divider(height: 1, color: palette.line),
+        // A soft rule between groups of the one list (theme separator).
+        const Divider(height: 1),
         Row(
           children: [
             _ColorButton(
@@ -428,7 +432,9 @@ class _GroupSectionState extends State<_GroupSection> {
                       expanded: widget.expanded,
                       child: InkWell(
                         key: ValueKey('keyword_highlight_expand_${group.id}'),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(
+                          AppDensity.of(context).radiusMd,
+                        ),
                         onTap: widget.onToggle,
                         child: heading,
                       ),
@@ -569,7 +575,6 @@ class _ColorButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.background,
           shape: BoxShape.circle,
-          border: Border.all(color: context.palette.line),
         ),
         alignment: Alignment.center,
         child: Container(

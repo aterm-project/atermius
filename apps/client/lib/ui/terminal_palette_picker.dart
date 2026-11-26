@@ -7,6 +7,7 @@ import 'package:xterm/xterm.dart';
 
 import '../domain/vault_preference.dart';
 import '../l10n/l10n.dart';
+import 'app_density.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'ios_native/ios_native.dart';
@@ -159,7 +160,7 @@ class TerminalPaletteTile extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isIosPhone(context)) {
       final colors = IosColors.of(context);
-      final hairline = IosMetrics.hairline(context);
+      final radius = BorderRadius.circular(AppDensity.of(context).radiusMd);
       return Semantics(
         container: true,
         button: true,
@@ -171,73 +172,64 @@ class TerminalPaletteTile extends StatelessWidget {
         child: ExcludeSemantics(
           child: SizedBox(
             width: width,
+            // No rim: the chosen palette is a tinted tile (and a check).
             child: ClipRSuperellipse(
-              borderRadius: BorderRadius.circular(14),
-              child: DecoratedBox(
-                position: DecorationPosition.foreground,
-                decoration: ShapeDecoration(
-                  shape: RoundedSuperellipseBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(
-                      color: selected ? colors.tint : colors.separator,
-                      width: selected ? 2 : hairline,
-                    ),
-                  ),
-                ),
-                child: IosPressable(
-                  color: colors.fill,
-                  enabled: onSelected != null,
-                  onTap: onSelected == null
-                      ? null
-                      : () {
-                          AppleHaptics.selection(context);
-                          onSelected!();
-                        },
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TerminalPalettePreview(theme: theme),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 6, 8, 7),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
+              borderRadius: radius,
+              child: IosPressable(
+                color: selected
+                    ? colors.tint.withValues(alpha: colors.isDark ? .24 : .16)
+                    : colors.fill,
+                enabled: onSelected != null,
+                onTap: onSelected == null
+                    ? null
+                    : () {
+                        AppleHaptics.selection(context);
+                        onSelected!();
+                      },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TerminalPalettePreview(theme: theme),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 6, 8, 7),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: IosType.footnote.copyWith(
+                                    color: colors.label,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                if (subtitle case final subtitle?)
                                   Text(
-                                    name,
+                                    subtitle,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: IosType.footnote.copyWith(
-                                      color: colors.label,
-                                      fontWeight: FontWeight.w600,
+                                    style: IosType.caption1.copyWith(
+                                      color: colors.secondaryLabel,
                                     ),
                                   ),
-                                  if (subtitle case final subtitle?)
-                                    Text(
-                                      subtitle,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: IosType.caption1.copyWith(
-                                        color: colors.secondaryLabel,
-                                      ),
-                                    ),
-                                ],
-                              ),
+                              ],
                             ),
-                            if (selected)
-                              Icon(
-                                IosIcons.success,
-                                size: 17,
-                                color: colors.tint,
-                              ),
-                          ],
-                        ),
+                          ),
+                          if (selected)
+                            Icon(
+                              IosIcons.success,
+                              size: 17,
+                              color: colors.tint,
+                            ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -258,14 +250,16 @@ class TerminalPaletteTile extends StatelessWidget {
       child: ExcludeSemantics(
         child: SizedBox(
           width: width,
+          // No outline: the chosen palette is an accent-tinted tile (and a
+          // check).
           child: Material(
-            color: context.palette.surfaceRaised,
+            color: selected
+                ? context.palette.accentContainer
+                : context.palette.surfaceRaised,
             clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-              side: BorderSide(
-                color: selected ? colors.primary : context.palette.line,
-                width: selected ? 2 : 1,
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusMd,
               ),
             ),
             child: InkWell(
@@ -508,7 +502,9 @@ class _TerminalPaletteGalleryState extends State<TerminalPaletteGallery> {
           ),
           const SizedBox(height: 12),
           ClipRSuperellipse(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(
+              AppDensity.of(context).radiusMd,
+            ),
             child: TerminalPalettePreview(
               key: const ValueKey('terminal_palette_active_preview'),
               theme: _palettes.resolve(widget.synced),
@@ -695,7 +691,9 @@ class _TerminalPaletteGalleryState extends State<TerminalPaletteGallery> {
           const SizedBox(height: 10),
           // Large live preview of what terminals on this device use now.
           ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(
+              AppDensity.of(context).radiusMd,
+            ),
             child: TerminalPalettePreview(
               key: const ValueKey('terminal_palette_active_preview'),
               theme: _palettes.resolve(widget.synced),

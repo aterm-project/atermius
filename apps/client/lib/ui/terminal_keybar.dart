@@ -12,6 +12,7 @@ import '../l10n/l10n.dart';
 import '../platform/window_keyboard_insets.dart';
 import '../storage/terminal_keybar_store.dart';
 import 'terminal_font_zoom.dart';
+import 'app_density.dart';
 import 'apple_hig.dart';
 import 'surfaces.dart';
 import 'ios_native/ios_native.dart';
@@ -668,7 +669,9 @@ class _TerminalKeybarState extends State<TerminalKeybar>
         decoration: ShapeDecoration(
           color: bg,
           shape: RoundedSuperellipseBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(
+              AppDensity.of(context).radiusSm,
+            ),
           ),
           shadows: enabled
               ? [

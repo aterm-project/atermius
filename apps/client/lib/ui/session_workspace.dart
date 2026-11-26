@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import 'app_motion.dart';
 import 'app_density.dart';
+import 'app_theme.dart';
 import 'wallpaper.dart';
 import '../l10n/l10n.dart';
 import '../platform/fullscreen.dart';
@@ -955,8 +956,9 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
             elevation: 10,
             color: colors.surfaceContainerHigh,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: colors.primary.withValues(alpha: .6)),
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusMd,
+              ),
             ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 192),
@@ -1019,10 +1021,10 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
               child: Container(
                 width: 24,
                 height: 4,
+                // A white capsule; its shadow sets it off from light content.
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: const Color(0x33000000), width: .5),
                   boxShadow: const [
                     BoxShadow(color: Color(0x55000000), blurRadius: 3),
                   ],
@@ -1136,20 +1138,22 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
                 _showControls(false);
               }
             },
-            // Paint-only: the pane border colour eases between panes; the
-            // live child is never faded, moved or re-keyed.
+            // Paint-only: the selected pane takes a faint accent tint under
+            // its content (no outline; nothing is drawn over the terminal or
+            // desktop) that eases between panes; the live child is never
+            // faded, moved or re-keyed.
             child: TweenAnimationBuilder<Color?>(
               tween: ColorTween(
-                end: widget.selected
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.transparent,
+                end: context.palette.accent.withValues(
+                  alpha: widget.selected
+                      ? (context.palette.isDark ? .08 : .06)
+                      : 0,
+                ),
               ),
               duration: AppMotion.duration(context, MotionDurations.quick),
               curve: MotionCurves.move,
               builder: (context, color, child) => DecoratedBox(
-                decoration: BoxDecoration(
-                  border: Border.all(color: color ?? Colors.transparent),
-                ),
+                decoration: BoxDecoration(color: color),
                 child: child,
               ),
               child: Stack(
@@ -1235,7 +1239,7 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
 
   Widget _actions(BuildContext context) => Material(
     elevation: 3,
-    borderRadius: BorderRadius.circular(7),
+    borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
     color: Theme.of(context).colorScheme.surfaceContainerHigh,
     child: Wrap(
       alignment: WrapAlignment.center,

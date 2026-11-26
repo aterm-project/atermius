@@ -9,28 +9,15 @@ import 'app_menu.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
+import 'surfaces.dart';
 
-const workspaceMenuShape = RoundedRectangleBorder(
-  borderRadius: BorderRadius.all(Radius.circular(14)),
+/// Shape of the workspace menus: a floating block with the block radius
+/// (a squircle on Apple platforms) and no outline; the menu's shadow sets it
+/// off from what it floats over.
+OutlinedBorder workspaceMenuBorder(BuildContext context) => appleSquircleBorder(
+  BorderRadius.circular(AppDensity.of(context).radiusLg),
+  platform: Theme.of(context).platform,
 );
-
-ShapeBorder workspaceMenuBorder(BuildContext context) {
-  final theme = Theme.of(context);
-  final platform = theme.platform;
-  if (isApplePlatform(platform)) {
-    return appleSquircleBorder(
-      const BorderRadius.all(Radius.circular(12)),
-      platform: platform,
-      side: BorderSide(
-        color: context.palette.line.withValues(
-          alpha: context.palette.isDark ? 0.85 : 0.75,
-        ),
-        width: appleHairlineWidth(context),
-      ),
-    );
-  }
-  return theme.popupMenuTheme.shape ?? workspaceMenuShape;
-}
 
 class WorkspaceAction {
   const WorkspaceAction(
@@ -135,20 +122,16 @@ class WorkspaceOverflowMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final platform = Theme.of(context).platform;
     final apple = isAppleContext(context);
-    final palette = context.palette;
     final triggerShape = appleSquircleBorder(
-      BorderRadius.circular(apple ? 10 : 8),
+      BorderRadius.circular(AppDensity.of(context).radiusMd),
       platform: platform,
     );
     final customTrigger = child;
     return PopupMenuButton<String>(
       popUpAnimationStyle: AppMotion.menuStyle(context),
+      // Fill, elevation and soft shadow come from the menu theme on every
+      // platform.
       shape: workspaceMenuBorder(context),
-      color: apple ? palette.surfaceRaised : null,
-      elevation: apple ? 10 : null,
-      shadowColor: apple
-          ? Colors.black.withValues(alpha: palette.isDark ? 0.45 : 0.14)
-          : null,
       clipBehavior: Clip.antiAlias,
       borderRadius: borderRadius,
       tooltip: tooltip ?? context.l10n.more,
@@ -218,19 +201,12 @@ Future<void> showWorkspaceContextMenu(
   List<WorkspaceAction> actions,
 ) async {
   AppleHaptics.selection(context);
-  final apple = isAppleContext(context);
-  final palette = context.palette;
   final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
   final localPosition = overlay.globalToLocal(position);
   final id = await showMenu<String>(
     popUpAnimationStyle: AppMotion.menuStyle(context),
     context: context,
     shape: workspaceMenuBorder(context),
-    color: apple ? palette.surfaceRaised : null,
-    elevation: apple ? 10 : null,
-    shadowColor: apple
-        ? Colors.black.withValues(alpha: palette.isDark ? 0.45 : 0.14)
-        : null,
     clipBehavior: Clip.antiAlias,
     position: RelativeRect.fromRect(
       Rect.fromLTWH(localPosition.dx, localPosition.dy, 1, 1),
@@ -277,7 +253,6 @@ Future<void> showHostProperties(
 }) => showAppDialog<void>(
   context: context,
   builder: (context) {
-    final platform = Theme.of(context).platform;
     final apple = isAppleContext(context);
     final palette = context.palette;
     final rows = [
@@ -331,28 +306,15 @@ Future<void> showHostProperties(
       content: SizedBox(
         width: appDialogWidth(context, 400),
         child: SingleChildScrollView(
+          // Apple groups the rows in an inset block (the next fill level
+          // inside the dialog, no outline).
           child: apple
-              ? DecoratedBox(
-                  decoration: ShapeDecoration(
-                    color: palette.surfaceRaised,
-                    shape: appleSquircleBorder(
-                      BorderRadius.circular(10),
-                      platform: platform,
-                      side: BorderSide(
-                        color: palette.line.withValues(
-                          alpha: palette.isDark ? 0.65 : 0.80,
-                        ),
-                        width: appleHairlineWidth(context),
-                      ),
-                    ),
+              ? AppBlock(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    child: contentColumn,
-                  ),
+                  child: contentColumn,
                 )
               : contentColumn,
         ),

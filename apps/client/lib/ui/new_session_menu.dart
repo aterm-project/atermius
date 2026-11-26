@@ -28,7 +28,7 @@ class NewSessionMenu extends StatelessWidget {
     tooltip: context.l10n.newSession,
     enabled: enabled,
     icon: const Icon(Icons.add),
-    shape: workspaceMenuShape,
+    shape: workspaceMenuBorder(context),
     clipBehavior: Clip.antiAlias,
     onSelected: (value) {
       if (value == 'console') {

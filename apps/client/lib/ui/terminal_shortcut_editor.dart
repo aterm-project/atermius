@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../domain/vault_preference.dart';
 import '../l10n/l10n.dart';
+import 'app_density.dart';
 import 'app_theme.dart';
 
 /// Localized name of a semantic terminal shortcut action.
@@ -93,15 +94,13 @@ class TerminalShortcutKeycaps extends StatelessWidget {
             for (final token in tokens)
               Container(
                 constraints: const BoxConstraints(minWidth: 22),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                // A filled keycap tile; no outline. The padding keeps the
+                // size the outlined cap had.
+                padding: const EdgeInsets.fromLTRB(7, 3, 7, 4),
                 decoration: BoxDecoration(
                   color: context.palette.surfaceSoft,
-                  borderRadius: BorderRadius.circular(5),
-                  border: Border(
-                    top: BorderSide(color: context.palette.line),
-                    left: BorderSide(color: context.palette.line),
-                    right: BorderSide(color: context.palette.line),
-                    bottom: BorderSide(color: context.palette.line, width: 2),
+                  borderRadius: BorderRadius.circular(
+                    AppDensity.of(context).radiusSm,
                   ),
                 ),
                 child: Text(
@@ -304,7 +303,9 @@ class _TerminalShortcutEditorState extends State<TerminalShortcutEditor> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: context.palette.accentContainer,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusSm,
+              ),
             ),
             child: Semantics(
               liveRegion: true,

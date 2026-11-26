@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../platform/window_chrome.dart';
+import 'app_theme.dart';
 import 'terminal_palette.dart';
 import 'workspace_controls.dart';
 import '../l10n/l10n.dart';
@@ -260,8 +261,10 @@ class WindowCaption extends StatelessWidget {
     listenable: controller,
     builder: (context, _) {
       final metrics = WindowBarMetrics.of(context, controller);
+      // The window canvas color, like the merged tab bar: the caption
+      // reads as part of the window, not as a block on it.
       return Material(
-      color: Theme.of(context).colorScheme.surface,
+      color: context.palette.background,
       child: SizedBox(
         key: const ValueKey('windows_window_caption'),
         height: metrics.height,

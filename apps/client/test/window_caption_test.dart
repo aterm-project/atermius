@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:aterm_client/platform/window_chrome.dart';
 import 'package:aterm_client/ui/window_caption.dart';
 import 'package:aterm_client/ui/workspace_tab_bar.dart';
+import 'package:aterm_client/ui/app_density.dart';
 import 'package:aterm_client/ui/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -107,9 +108,16 @@ void main() {
         .widgetList<Material>(find.byType(Material))
         .where((m) => m.shape is RoundedRectangleBorder)
         .last;
+    // A menu is a block: the density's block radius, no outline.
     expect(
       (menuMaterial.shape! as RoundedRectangleBorder).borderRadius,
-      BorderRadius.circular(12),
+      BorderRadius.circular(
+        AppDensity.of(tester.element(find.text('Minimize'))).radiusLg,
+      ),
+    );
+    expect(
+      (menuMaterial.shape! as RoundedRectangleBorder).side,
+      BorderSide.none,
     );
     await tester.tap(find.text('Minimize'));
     await tester.pumpAndSettle();

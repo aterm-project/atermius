@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../platform/fullscreen.dart';
 import '../ssh/ssh_connection_health.dart';
+import 'app_density.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
@@ -244,11 +245,14 @@ class _StatusBarHealthPillState extends State<_StatusBarHealthPill> {
 
         final content = Container(
           key: const ValueKey('workspace_status_health_pill'),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          // A tinted badge, no outline; the padding keeps the size the
+          // outlined one had.
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           decoration: BoxDecoration(
             color: dotColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: dotColor.withValues(alpha: 0.28)),
+            borderRadius: BorderRadius.circular(
+              AppDensity.of(context).radiusSm,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

@@ -14,6 +14,8 @@ import '../ssh/file_workspace_controller.dart';
 import '../ssh/peer_file_copy.dart';
 import 'file_copy_route_dialog.dart';
 import 'app_motion.dart';
+import 'app_density.dart';
+import 'app_theme.dart';
 import 'external_edit_footer.dart';
 import 'sftp_text_editor_dialog.dart';
 import 'remote_file_icon.dart';
@@ -177,11 +179,14 @@ class FileTabDropTarget extends StatelessWidget {
         }
       }
     },
+    // A file held over the tab tints it toward the accent (no outline).
     builder: (context, candidates, _) => DecoratedBox(
+      position: DecorationPosition.foreground,
       decoration: BoxDecoration(
-        border: candidates.isEmpty
+        color: candidates.isEmpty
             ? null
-            : Border.all(color: Theme.of(context).colorScheme.primary),
+            : context.palette.accent.withValues(alpha: .16),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       child: child,
     ),
@@ -302,9 +307,6 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
                   horizontal: 10,
                   vertical: 8,
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
               ),
               onSubmitted: (value) {
                 _pathFocus.unfocus();
@@ -321,10 +323,11 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
                 alignment: Alignment.centerLeft,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 foregroundColor: Theme.of(context).colorScheme.onSurface,
-                backgroundColor: Theme.of(context).colorScheme.onSurface
-                    .withValues(alpha: .04),
+                backgroundColor: context.palette.fill,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(
+                    AppDensity.of(context).radiusMd,
+                  ),
                 ),
               ),
               child: Row(
@@ -932,7 +935,7 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
       final feedback = Material(
         elevation: 4,
         color: colors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
@@ -1139,13 +1142,13 @@ class _RemoteFileWorkspaceState extends State<RemoteFileWorkspace> {
                   _run(() => _copyFrom(drag.owner, drag.path, dropDirectory));
                 }
               },
+              // An entry held over the listing tints it toward the accent
+              // (under the rows; no outline).
               builder: (context, candidates, _) => DecoratedBox(
                 decoration: BoxDecoration(
-                  border: candidates.isEmpty
+                  color: candidates.isEmpty
                       ? null
-                      : Border.all(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
+                      : context.palette.accent.withValues(alpha: .08),
                 ),
                 child: _listingShortcuts(listing, disabled),
               ),

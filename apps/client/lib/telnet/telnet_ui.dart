@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../domain/models.dart';
 import '../l10n/l10n.dart';
+import '../ui/app_density.dart';
 import '../ui/atermius_icons.dart';
+import '../ui/surfaces.dart';
 
 /// Icon used for a Host protocol in menus, search results and lists. RDP has
 /// the app's own mark so it is never mistaken for VNC's plain monitor.
@@ -37,9 +39,16 @@ class TelnetPlaintextNotice extends StatelessWidget {
         key: const ValueKey('telnet_plaintext_notice'),
         width: double.infinity,
         padding: EdgeInsets.all(dense ? 8 : 12),
+        // A tinted status block; its corners follow the block it sits in.
         decoration: BoxDecoration(
           color: scheme.errorContainer.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(
+            SurfaceScope.concentric(
+              context,
+              fallback: AppDensity.of(context).radiusLg,
+              floor: AppDensity.of(context).radiusMd,
+            ),
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

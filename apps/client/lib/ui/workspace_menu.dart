@@ -8,6 +8,7 @@ import '../l10n/l10n.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
+import 'surfaces.dart';
 import 'workspace_controls.dart';
 
 /// Windows narrower than this open a submenu in place of its parent, with a
@@ -182,23 +183,27 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     setState(_path.removeLast);
   }
 
+  /// The panel is a floating block: the block radius, no outline, a soft
+  /// floating shadow, and rows [AppDensity.blockInset] in from its edge.
   MenuStyle _style(BuildContext context, {required bool drillDown}) {
     final palette = context.palette;
-    final apple = isAppleContext(context);
+    final density = AppDensity.of(context);
     final screen = MediaQuery.sizeOf(context).width;
     final width = math.max(200.0, math.min(300.0, screen - 16));
     return MenuStyle(
-      backgroundColor: WidgetStatePropertyAll(palette.surfaceRaised),
-      surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-      elevation: WidgetStatePropertyAll(apple ? 10 : 6),
-      shadowColor: WidgetStatePropertyAll(
-        Colors.black.withValues(alpha: palette.isDark ? 0.45 : 0.14),
+      backgroundColor: WidgetStatePropertyAll(
+        palette.isDark ? palette.surfaceRaised : palette.surface,
       ),
-      shape: WidgetStatePropertyAll(switch (workspaceMenuBorder(context)) {
-        final OutlinedBorder border => border,
-        _ => workspaceMenuShape,
-      }),
-      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 6)),
+      surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+      // A menu panel casts a Material elevation shadow, not a BoxShadow
+      // list; this one is matched to [appFloatingShadow] (a wide soft drop
+      // plus a faint contact shadow).
+      elevation: const WidgetStatePropertyAll(8),
+      shadowColor: WidgetStatePropertyAll(
+        Colors.black.withValues(alpha: palette.isDark ? .9 : .32),
+      ),
+      shape: WidgetStatePropertyAll(workspaceMenuBorder(context)),
+      padding: WidgetStatePropertyAll(EdgeInsets.all(density.blockInset)),
       // One width for every level of a drill-down, so going in and out does
       // not make the panel jump; cascaded panels size to their labels.
       minimumSize: WidgetStatePropertyAll(Size(drillDown ? width : 232, 0)),
@@ -212,7 +217,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   Widget build(BuildContext context) {
     final drillDown = _drillDown;
     final style = _style(context, drillDown: drillDown);
-    final radius = widget.borderRadius ?? BorderRadius.circular(8);
+    final radius =
+        widget.borderRadius ??
+        BorderRadius.circular(AppDensity.of(context).radiusMd);
     return MenuAnchor(
       controller: _controller,
       childFocusNode: _triggerFocus,
@@ -298,7 +305,11 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             key: ValueKey(action.id),
             focusNode: identical(action, first) ? _firstFocus : null,
             menuStyle: style,
-            alignmentOffset: const Offset(-4, 0),
+            style: _rowStyle(context),
+            // The submenu panel overlaps this panel's edge by 4 px; its
+            // first row lines up with this one (SubmenuButton subtracts the
+            // panel's top padding itself).
+            alignmentOffset: Offset(AppDensity.of(context).blockInset - 4, 0),
             submenuIcon: WidgetStatePropertyAll(_chevron(context)),
             leadingIcon: _icon(context, action),
             menuChildren: _cascadeChildren(context, action.children, style),
@@ -366,6 +377,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             key: ValueKey(action.id),
             focusNode: identical(action, first) ? _firstFocus : null,
             closeOnActivate: false,
+            style: _rowStyle(context),
             leadingIcon: _icon(context, action),
             trailingIcon: _chevron(context),
             onPressed: action.enabled ? () => _enter(action) : null,
@@ -393,6 +405,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
               key: const ValueKey('workspace_menu_back'),
               focusNode: _backFocus,
               closeOnActivate: false,
+              style: _rowStyle(context),
               leadingIcon: Icon(
                 Icons.chevron_left_rounded,
                 size: AppDensity.of(context).menuIconSize,
@@ -439,10 +452,27 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
               )
             : null,
         onPressed: action.enabled ? () => _run(action) : null,
-        style: action.destructive
-            ? MenuItemButton.styleFrom(foregroundColor: error, iconColor: error)
-            : null,
+        style: _rowStyle(
+          context,
+          foreground: action.destructive ? error : null,
+        ),
         child: _label(context, action),
+      ),
+    );
+  }
+
+  /// A row: [AppDensity.blockInset] in from the panel edge (the panel's
+  /// padding), so its highlight takes the concentric radius of the panel.
+  ButtonStyle _rowStyle(BuildContext context, {Color? foreground}) {
+    final density = AppDensity.of(context);
+    return MenuItemButton.styleFrom(
+      foregroundColor: foreground,
+      iconColor: foreground,
+      shape: appleSquircleBorder(
+        BorderRadius.circular(
+          concentricRadius(density.radiusLg, density.blockInset),
+        ),
+        platform: Theme.of(context).platform,
       ),
     );
   }
@@ -497,16 +527,22 @@ List<WorkspaceAction> normalizeWorkspaceMenu(List<WorkspaceAction> actions) {
   return out;
 }
 
+/// A soft rule between two sections, inset within the rows' rounded ends.
 class _MenuDivider extends StatelessWidget {
   const _MenuDivider();
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Divider(
-      height: 1,
-      thickness: isAppleContext(context) ? appleHairlineWidth(context) : 1,
-      color: context.palette.line.withValues(alpha: .7),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final inset = AppDensity.of(context).controlInset;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Divider(
+        height: 1,
+        thickness: isAppleContext(context) ? appleHairlineWidth(context) : 1,
+        indent: inset,
+        endIndent: inset,
+        color: context.palette.separator,
+      ),
+    );
+  }
 }

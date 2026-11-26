@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../sftp/sftp_text_editor_service.dart';
 import 'app_motion.dart';
+import 'surfaces.dart';
 import '../l10n/l10n.dart';
 
 class SftpTextEditorDialog extends StatefulWidget {
@@ -125,7 +126,6 @@ class _SftpTextEditorDialogState extends State<SftpTextEditorDialog> {
                 decoration: InputDecoration(
                   labelText: context.l10n.remoteFileContents,
                   alignLabelWithHint: true,
-                  border: const OutlineInputBorder(),
                 ),
               ),
             ),
@@ -384,10 +384,11 @@ class _SftpTextEditorDialogState extends State<SftpTextEditorDialog> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Three blocks told apart by the gap between them.
                     _comparisonPane('Original', widget.document.text),
-                    const VerticalDivider(width: 20),
+                    const SizedBox(width: 20),
                     _comparisonPane(context.l10n.latestRemote, latest.text),
-                    const VerticalDivider(width: 20),
+                    const SizedBox(width: 20),
                     _comparisonPane(context.l10n.yourDraft, _content.text),
                   ],
                 ),
@@ -412,11 +413,9 @@ class _SftpTextEditorDialogState extends State<SftpTextEditorDialog> {
         Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         Expanded(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(color: Theme.of(context).dividerColor),
-              borderRadius: BorderRadius.circular(8),
-            ),
+          // A filled block inside the dialog (no outline).
+          child: AppBlock(
+            clip: true,
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(10),
               child: SelectionArea(

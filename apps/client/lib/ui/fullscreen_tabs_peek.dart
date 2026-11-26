@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'app_motion.dart';
+import 'app_theme.dart';
+import 'surfaces.dart';
 
 /// Android fullscreen "peek": tapping the white pane handle temporarily drops
 /// the workspace tab strip down as an overlay above the selected pane.
@@ -239,15 +241,13 @@ class _FullscreenTabsOverlayState extends State<FullscreenTabsOverlay> {
                           animateOnFirstBuild: true,
                           duration: MotionDurations.quick,
                           offset: const Offset(0, -8),
+                          // A floating strip: the soft shadow of floating
+                          // surfaces sets it off from the pane below.
                           child: DecoratedBox(
-                            decoration: const BoxDecoration(
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Color(0x55000000),
-                                  blurRadius: 6,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
+                            decoration: BoxDecoration(
+                              boxShadow: appFloatingShadow(
+                                overlayContext.palette,
+                              ),
                             ),
                             child: widget.builder(overlayContext),
                           ),
