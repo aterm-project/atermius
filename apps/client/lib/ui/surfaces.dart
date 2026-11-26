@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
+import 'wallpaper.dart' show wallpaperWindowActive;
 
 // Atermius surface system (2026-11-26).
 //
@@ -294,7 +295,8 @@ List<BoxShadow> appFloatingShadow(AppPalette palette) => [
 ];
 
 /// Faint accent glows painted on the window canvas so glass above it has
-/// color to refract even without a wallpaper.
+/// color to refract even without a wallpaper. A wallpaper, when shown, is
+/// left exactly as the person chose it.
 class AmbientCanvas extends StatelessWidget {
   const AmbientCanvas({super.key, required this.child});
 
@@ -302,7 +304,9 @@ class AmbientCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!shouldUseGlass(context)) return child;
+    if (!shouldUseGlass(context) || wallpaperWindowActive(context)) {
+      return child;
+    }
     final palette = context.palette;
     final dark = palette.isDark;
     return Stack(

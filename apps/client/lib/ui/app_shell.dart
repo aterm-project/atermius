@@ -2075,7 +2075,10 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
       // which is also the window's title bar and leads back to the sessions.
       final adminSite = _adminSiteShown;
       final scaffold = Scaffold(
-        body: SafeArea(
+        // Faint accent glows on the canvas give the glass bars something
+        // to refract (skipped under a wallpaper).
+        body: AmbientCanvas(
+          child: SafeArea(
           child: Column(
             children: [
               if (!(adminSite && serverHostedClient))
@@ -2493,6 +2496,7 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
               if (!adminSite) _statusBar(),
             ],
           ),
+        ),
         ),
       );
       final active = app.activeTerminalTab;

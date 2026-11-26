@@ -1138,21 +1138,24 @@ class _SessionPaneDropTargetState extends State<_SessionPaneDropTarget> {
                 _showControls(false);
               }
             },
-            // Paint-only: the selected pane takes a faint accent tint under
-            // its content (no outline; nothing is drawn over the terminal or
-            // desktop) that eases between panes; the live child is never
-            // faded, moved or re-keyed.
+            // Paint-only, no outline: in a split the panes that are not
+            // selected are dimmed a little with the canvas colour (like
+            // inactive split panes in desktop terminals), and the dim eases
+            // between panes. A lone pane is always the selected one. The
+            // live child is never faded, moved or re-keyed, and the dim does
+            // not take part in hit testing.
             child: TweenAnimationBuilder<Color?>(
               tween: ColorTween(
-                end: context.palette.accent.withValues(
+                end: context.palette.background.withValues(
                   alpha: widget.selected
-                      ? (context.palette.isDark ? .08 : .06)
-                      : 0,
+                      ? 0
+                      : (context.palette.isDark ? .3 : .26),
                 ),
               ),
               duration: AppMotion.duration(context, MotionDurations.quick),
               curve: MotionCurves.move,
               builder: (context, color, child) => DecoratedBox(
+                position: DecorationPosition.foreground,
                 decoration: BoxDecoration(color: color),
                 child: child,
               ),

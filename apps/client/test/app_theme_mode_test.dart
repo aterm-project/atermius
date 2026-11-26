@@ -62,6 +62,17 @@ void main() {
       expect(_contrast(p.onErrorContainer, p.errorContainer), greaterThan(7));
     });
 
+    // AnimatedTheme animates whenever a rebuilt theme is not == the last one,
+    // so state-dependent colors must be value types, not closures.
+    for (final brightness in Brightness.values) {
+      test('$brightness theme builds compare equal', () {
+        expect(
+          buildAppTheme(brightness: brightness),
+          buildAppTheme(brightness: brightness),
+        );
+      });
+    }
+
     for (final brightness in Brightness.values) {
       test('$brightness tooltips are dark with explicit white text', () {
         final tooltip = buildAppTheme(brightness: brightness).tooltipTheme;

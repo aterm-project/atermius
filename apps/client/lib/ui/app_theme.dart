@@ -637,17 +637,14 @@ ThemeData buildAppTheme({
             : VisualDensity.standard,
         // One filled track; the chosen segment is an accent block on it.
         side: const WidgetStatePropertyAll(BorderSide.none),
-        backgroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? p.accentContainer
-              : p.fill,
+        backgroundColor: _SelectedColor(
+          selected: p.accentContainer,
+          normal: p.fill,
         ),
-        foregroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.disabled)
-              ? p.muted.withValues(alpha: .5)
-              : states.contains(WidgetState.selected)
-              ? p.onAccentContainer
-              : p.text,
+        foregroundColor: _SelectedColor(
+          selected: p.onAccentContainer,
+          normal: p.text,
+          disabled: p.muted.withValues(alpha: .5),
         ),
         shape: WidgetStatePropertyAll(
           appleSquircleBorder(radiusMd, platform: effectivePlatform),
@@ -757,18 +754,11 @@ ThemeData buildAppTheme({
           : null,
       // Fields are filled wells without an outline. Focus tints the well
       // toward the accent, an error toward red; hover lifts it a step.
-      fillColor: WidgetStateColor.resolveWith((states) {
-        if (states.contains(WidgetState.disabled)) {
-          return p.fill.withValues(alpha: p.fill.a * .6);
-        }
-        if (states.contains(WidgetState.error)) {
-          return p.tinted(p.red, base: p.fill, strength: dark ? .16 : .10);
-        }
-        if (states.contains(WidgetState.focused)) {
-          return p.tinted(p.accent, base: p.fill, strength: dark ? .16 : .09);
-        }
-        return p.fill;
-      }),
+      fillColor: _FieldFillColor(
+        fill: p.fill,
+        error: p.tinted(p.red, base: p.fill, strength: dark ? .16 : .10),
+        focused: p.tinted(p.accent, base: p.fill, strength: dark ? .16 : .09),
+      ),
       hoverColor: p.text.withValues(alpha: dark ? .035 : .03),
       border: noOutline,
       enabledBorder: noOutline,
@@ -848,6 +838,74 @@ ThemeData buildAppTheme({
       ),
     ),
   );
+}
+
+/// Field well: [fill], tinted toward the accent when focused and toward red
+/// on error. A value type, so equal themes stay equal (AnimatedTheme).
+@immutable
+class _FieldFillColor extends WidgetStateColor {
+  _FieldFillColor({
+    required this.fill,
+    required this.error,
+    required this.focused,
+  }) : super(fill.toARGB32());
+
+  final Color fill;
+  final Color error;
+  final Color focused;
+
+  @override
+  Color resolve(Set<WidgetState> states) {
+    if (states.contains(WidgetState.disabled)) {
+      return fill.withValues(alpha: fill.a * .6);
+    }
+    if (states.contains(WidgetState.error)) return error;
+    if (states.contains(WidgetState.focused)) return focused;
+    return fill;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _FieldFillColor &&
+      other.fill == fill &&
+      other.error == error &&
+      other.focused == focused;
+
+  @override
+  int get hashCode => Object.hash(runtimeType, fill, error, focused);
+}
+
+/// [selected] for selected states, [disabled] (when given) for disabled ones,
+/// [normal] otherwise. A value type, so equal themes stay equal.
+@immutable
+class _SelectedColor implements WidgetStateProperty<Color?> {
+  const _SelectedColor({
+    required this.selected,
+    required this.normal,
+    this.disabled,
+  });
+
+  final Color selected;
+  final Color normal;
+  final Color? disabled;
+
+  @override
+  Color resolve(Set<WidgetState> states) {
+    if (disabled != null && states.contains(WidgetState.disabled)) {
+      return disabled!;
+    }
+    return states.contains(WidgetState.selected) ? selected : normal;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _SelectedColor &&
+      other.selected == selected &&
+      other.normal == normal &&
+      other.disabled == disabled;
+
+  @override
+  int get hashCode => Object.hash(runtimeType, selected, normal, disabled);
 }
 
 @immutable

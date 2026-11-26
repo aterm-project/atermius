@@ -1156,6 +1156,10 @@ double wallpaperTerminalBackgroundOpacity(BuildContext context) {
   return visibility!.overlay ?? wallpaperTerminalOpacity;
 }
 
+/// Whether the whole-window wallpaper is shown behind the app chrome.
+bool wallpaperWindowActive(BuildContext context) =>
+    _WallpaperVisibility.of(context)?.windowActive == true;
+
 /// [color] made translucent while the whole-window wallpaper is shown, so
 /// large chrome fills (rail, terminal frame) let it through; else [color].
 Color wallpaperWindowFill(

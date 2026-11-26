@@ -30,7 +30,8 @@ void main() {
               theme.popupMenuTheme.shape,
               isA<RoundedSuperellipseBorder>(),
             );
-            expect(theme.chipTheme.shape, isA<RoundedSuperellipseBorder>());
+            // Chips are capsules on every platform (no outline).
+            expect(theme.chipTheme.shape, isA<StadiumBorder>());
             expect(
               theme.filledButtonTheme.style?.shape?.resolve(const {}),
               isA<RoundedSuperellipseBorder>(),
