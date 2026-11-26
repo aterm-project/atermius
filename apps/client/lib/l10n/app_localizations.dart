@@ -9754,12 +9754,6 @@ abstract class AppLocalizations {
   /// **'Adjust the search or group filter to see more hosts.'**
   String get adjustTheSearchOrGroupFilter;
 
-  /// No description provided for @advanceOnlyAfterEachPageIs.
-  ///
-  /// In en, this message translates to:
-  /// **'Advance only after each page is persisted'**
-  String get advanceOnlyAfterEachPageIs;
-
   /// No description provided for @afterConfirmationThisFingerprintIsSaved.
   ///
   /// In en, this message translates to:
@@ -9795,18 +9789,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'An encrypted Vault archive covering {pendingCount, plural, =1{1 pending operation} other{{pendingCount} pending operations}} was exported recently. The outbox remains stored locally and will sync after reload.'**
   String anEncryptedVaultArchiveCoveringPendingcount(int pendingCount);
-
-  /// No description provided for @anonymousDiagnostics.
-  ///
-  /// In en, this message translates to:
-  /// **'Anonymous diagnostics'**
-  String get anonymousDiagnostics;
-
-  /// No description provided for @anonymousSyncDiagnosticsExported.
-  ///
-  /// In en, this message translates to:
-  /// **'Anonymous sync diagnostics exported.'**
-  String get anonymousSyncDiagnosticsExported;
 
   /// No description provided for @appliedAppliedInventoryChangeSHost.
   ///
@@ -10334,12 +10316,6 @@ abstract class AppLocalizations {
   /// **'Compare this public fingerprint with another device or a trusted administrator over a separate channel to confirm the instance identity.'**
   String get compareThisPublicFingerprintWithAnother;
 
-  /// No description provided for @comparedWithTheLastVerifiedServer.
-  ///
-  /// In en, this message translates to:
-  /// **'Compared with the last verified server metadata; this value may be stale while offline.'**
-  String get comparedWithTheLastVerifiedServer;
-
   /// No description provided for @compatibilityReportNotReported.
   ///
   /// In en, this message translates to:
@@ -10406,12 +10382,6 @@ abstract class AppLocalizations {
   /// **'Confirm target: {name}'**
   String confirmTargetName(String name);
 
-  /// No description provided for @conflictBranches.
-  ///
-  /// In en, this message translates to:
-  /// **'Conflict branches'**
-  String get conflictBranches;
-
   /// No description provided for @conflictResolutionSynced.
   ///
   /// In en, this message translates to:
@@ -10423,12 +10393,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Conflicting SSH keys are saved for {join}. Connections are blocked. Revoke every key you do not intend to trust; if neither fingerprint is verified, revoke both, then approve a key only after checking it out of band.'**
   String conflictingSshKeysAreSavedFor(String join);
-
-  /// No description provided for @conflictingBranchesArePreservedUntilYou.
-  ///
-  /// In en, this message translates to:
-  /// **'Conflicting branches are preserved until you choose the version to keep.'**
-  String get conflictingBranchesArePreservedUntilYou;
 
   /// No description provided for @connect.
   ///
@@ -10588,12 +10552,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not enable Vault history sync. Check that the active Vault is writable and try again.'**
   String get couldNotEnableVaultHistorySync;
-
-  /// No description provided for @couldNotExportAnonymousSyncDiagnostics.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not export anonymous sync diagnostics.'**
-  String get couldNotExportAnonymousSyncDiagnostics;
 
   /// No description provided for @couldNotGrantInputControlCheck.
   ///
@@ -10905,12 +10863,6 @@ abstract class AppLocalizations {
   /// **'Current signed-in account · administrative actions hidden'**
   String get currentSignedInAccountAdministrativeActions;
 
-  /// No description provided for @cursorPolicy.
-  ///
-  /// In en, this message translates to:
-  /// **'Cursor policy'**
-  String get cursorPolicy;
-
   /// No description provided for @deletionScheduled.
   ///
   /// In en, this message translates to:
@@ -11108,12 +11060,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Devices active'**
   String get devicesActive;
-
-  /// No description provided for @diagnosticsExportCancelled.
-  ///
-  /// In en, this message translates to:
-  /// **'Diagnostics export cancelled.'**
-  String get diagnosticsExportCancelled;
 
   /// No description provided for @direction.
   ///
@@ -11432,12 +11378,6 @@ abstract class AppLocalizations {
   /// **'Encrypted object blocks: {count}'**
   String encryptedObjectBlocksCount(int count);
 
-  /// No description provided for @encryptedRecordsImmutableRetriesAndRecovery.
-  ///
-  /// In en, this message translates to:
-  /// **'Encrypted records, immutable retries and recovery checkpoints for this Vault.'**
-  String get encryptedRecordsImmutableRetriesAndRecovery;
-
   /// No description provided for @encryptedWithTheActiveVaultKey.
   ///
   /// In en, this message translates to:
@@ -11594,12 +11534,6 @@ abstract class AppLocalizations {
   /// **'Export archive'**
   String get exportArchive;
 
-  /// No description provided for @exportDiagnostics.
-  ///
-  /// In en, this message translates to:
-  /// **'Export diagnostics'**
-  String get exportDiagnostics;
-
   /// No description provided for @exportTheFixedServerHistoryCurrent.
   ///
   /// In en, this message translates to:
@@ -11701,24 +11635,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Generation'**
   String get generation;
-
-  /// No description provided for @generationCheckpoint.
-  ///
-  /// In en, this message translates to:
-  /// **'Generation checkpoint'**
-  String get generationCheckpoint;
-
-  /// No description provided for @generationMatches.
-  ///
-  /// In en, this message translates to:
-  /// **'Generation matches'**
-  String get generationMatches;
-
-  /// No description provided for @generationMismatch.
-  ///
-  /// In en, this message translates to:
-  /// **'Generation mismatch'**
-  String get generationMismatch;
 
   /// No description provided for @go.
   ///
@@ -12235,12 +12151,6 @@ abstract class AppLocalizations {
   /// **'Last changed'**
   String get lastChanged;
 
-  /// No description provided for @lastPull.
-  ///
-  /// In en, this message translates to:
-  /// **'Last pull'**
-  String get lastPull;
-
   /// No description provided for @lastRun.
   ///
   /// In en, this message translates to:
@@ -12396,12 +12306,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Local device'**
   String get localDevice;
-
-  /// No description provided for @localEditsAreEncryptedAndCommitted.
-  ///
-  /// In en, this message translates to:
-  /// **'Local edits are encrypted and committed to the persistent outbox before any network request. A retry reuses the same operation IDs and ciphertext. The server never receives credentials or the Vault key.'**
-  String get localEditsAreEncryptedAndCommitted;
 
   /// No description provided for @localEncryptedArchiveUnavailable.
   ///
@@ -12723,12 +12627,6 @@ abstract class AppLocalizations {
   /// **'No active credential'**
   String get noActiveCredential;
 
-  /// No description provided for @noCheckpoint.
-  ///
-  /// In en, this message translates to:
-  /// **'No checkpoint'**
-  String get noCheckpoint;
-
   /// No description provided for @noCommandEventsReceivedYetPaste.
   ///
   /// In en, this message translates to:
@@ -12836,12 +12734,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No newer bundle is available at this address yet. Update the self-hosted Web assets, then check again.'**
   String get noNewerBundleIsAvailableAt;
-
-  /// No description provided for @noOpenConflicts.
-  ///
-  /// In en, this message translates to:
-  /// **'No open conflicts'**
-  String get noOpenConflicts;
 
   /// No description provided for @noOtherActiveVaultDevicesCan.
   ///
@@ -12993,12 +12885,6 @@ abstract class AppLocalizations {
   /// **'Offline device copies and retained backups are not remotely erased.'**
   String get offlineDeviceCopiesAndRetainedBackups;
 
-  /// No description provided for @offlineFirstCiphertextOnly.
-  ///
-  /// In en, this message translates to:
-  /// **'Offline-first, ciphertext-only'**
-  String get offlineFirstCiphertextOnly;
-
   /// No description provided for @oneTimePrometheusScrapeCredential.
   ///
   /// In en, this message translates to:
@@ -13118,12 +13004,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Other sync issue'**
   String get otherSyncIssue;
-
-  /// No description provided for @outboxItems.
-  ///
-  /// In en, this message translates to:
-  /// **'Outbox items'**
-  String get outboxItems;
 
   /// No description provided for @outputIsEncryptedForThisDevice.
   ///
@@ -13632,12 +13512,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Records are decrypted only on this device. Restore creates a new signed revision if the same tombstone is still current.'**
   String get recordsAreDecryptedOnlyOnThis;
-
-  /// No description provided for @recoveryDetails.
-  ///
-  /// In en, this message translates to:
-  /// **'Recovery details'**
-  String get recoveryDetails;
 
   /// No description provided for @recoveryInProgress.
   ///
@@ -14974,12 +14848,6 @@ abstract class AppLocalizations {
   /// **'Server backup configuration ready'**
   String get serverBackupConfigurationReady;
 
-  /// No description provided for @serverGenerationUnknown.
-  ///
-  /// In en, this message translates to:
-  /// **'Server generation unknown'**
-  String get serverGenerationUnknown;
-
   /// No description provided for @serverSpaceId.
   ///
   /// In en, this message translates to:
@@ -15425,12 +15293,6 @@ abstract class AppLocalizations {
   /// **'Sync error'**
   String get syncError;
 
-  /// No description provided for @syncHealth.
-  ///
-  /// In en, this message translates to:
-  /// **'Sync health'**
-  String get syncHealth;
-
   /// No description provided for @syncNow.
   ///
   /// In en, this message translates to:
@@ -15448,12 +15310,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sync service error'**
   String get syncServiceError;
-
-  /// No description provided for @syncStatus.
-  ///
-  /// In en, this message translates to:
-  /// **'Sync status'**
-  String get syncStatus;
 
   /// No description provided for @syncing.
   ///
@@ -15656,12 +15512,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The default preference was confirmed after Vault sync.'**
   String get theDefaultPreferenceWasConfirmedAfter;
-
-  /// No description provided for @theExportContainsARandomReport.
-  ///
-  /// In en, this message translates to:
-  /// **'The export contains a random report ID, a fixed error code, client version, sync counts and dates rounded to UTC days. It never includes Vault records, account details, server addresses or device identifiers.'**
-  String get theExportContainsARandomReport;
 
   /// No description provided for @theFullScriptIsReviewedBefore.
   ///
@@ -16801,12 +16651,6 @@ abstract class AppLocalizations {
     int count4,
   );
 
-  /// No description provided for @countPendingReview.
-  ///
-  /// In en, this message translates to:
-  /// **'{count} pending review'**
-  String countPendingReview(int count);
-
   /// No description provided for @displaynameAndItsEncryptedPayloadsWill.
   ///
   /// In en, this message translates to:
@@ -16891,12 +16735,6 @@ abstract class AppLocalizations {
   String unavailablerecordcountEncryptedRecordSCouldNot(
     int unavailableRecordCount,
   );
-
-  /// No description provided for @unresolvedconflictcountNeedsReview.
-  ///
-  /// In en, this message translates to:
-  /// **'{unresolvedConflictCount} needs review'**
-  String unresolvedconflictcountNeedsReview(int unresolvedConflictCount);
 
   /// No description provided for @valuevalueMoreDeviceSNeedReview.
   ///
@@ -17263,12 +17101,6 @@ abstract class AppLocalizations {
   /// **'Multi-factor authentication enabled'**
   String get multiFactorAuthenticationEnabled;
 
-  /// No description provided for @processedBranchesCount.
-  ///
-  /// In en, this message translates to:
-  /// **'Processed branches · {count}'**
-  String processedBranchesCount(int count);
-
   /// No description provided for @multiFactorSignInStarted.
   ///
   /// In en, this message translates to:
@@ -17454,12 +17286,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Passwords and keys for new hosts are set in the host details.'**
   String get passwordsAndKeysForNewHosts2;
-
-  /// No description provided for @newBranchesSyncAutomaticallyWithConflict.
-  ///
-  /// In en, this message translates to:
-  /// **'New branches sync automatically with conflict notifications; you can also use Sync at the top to check the server inbox.'**
-  String get newBranchesSyncAutomaticallyWithConflict;
 
   /// No description provided for @newLabel.
   ///
@@ -17814,12 +17640,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Each group layout can connect up to 32 hosts. Split the group and try again.'**
   String get eachGroupLayoutCanConnectUp;
-
-  /// No description provided for @noPendingCrossDeviceBranches.
-  ///
-  /// In en, this message translates to:
-  /// **'No pending cross-device branches'**
-  String get noPendingCrossDeviceBranches;
 
   /// No description provided for @browseFiles.
   ///
@@ -18279,12 +18099,6 @@ abstract class AppLocalizations {
   /// **'Account deletion scheduled'**
   String get accountDeletionScheduled;
 
-  /// No description provided for @crossDeviceConflictInbox.
-  ///
-  /// In en, this message translates to:
-  /// **'Cross-device conflict inbox'**
-  String get crossDeviceConflictInbox;
-
   /// No description provided for @theCrossDeviceBranchIsntVerified.
   ///
   /// In en, this message translates to:
@@ -18296,12 +18110,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This device decrypts the verified branch, re-signs it with this device\'s identity, then performs a CAS commit against the currently cached version. The original branch ciphertext is kept; the inbox shows this conflict until the commit or server resolution is confirmed.'**
   String get thisDeviceDecryptsTheVerifiedBranch;
-
-  /// No description provided for @concurrentBranchesSubmittedToTheServer.
-  ///
-  /// In en, this message translates to:
-  /// **'Concurrent branches submitted to the server by other devices are shown here. They can be selected only after signature, Vault ownership and key generation are verified; viewing the inbox doesn\'t rewrite the current record.'**
-  String get concurrentBranchesSubmittedToTheServer;
 
   /// No description provided for @remoteDesktop2.
   ///
@@ -31039,7 +30847,7 @@ abstract class AppLocalizations {
   /// No description provided for @syncHealthAllSynced.
   ///
   /// In en, this message translates to:
-  /// **'Every change made on this device has reached the server, and the latest changes from your other devices are here.'**
+  /// **'This device is in sync with the server.'**
   String get syncHealthAllSynced;
 
   /// No description provided for @syncHealthSyncingNow.
@@ -31059,36 +30867,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 local change is waiting to upload.} other{{count} local changes are waiting to upload.}}'**
   String syncHealthChangesWaiting(int count);
-
-  /// No description provided for @syncOutboxCaption.
-  ///
-  /// In en, this message translates to:
-  /// **'Encrypted changes waiting to upload'**
-  String get syncOutboxCaption;
-
-  /// No description provided for @syncChangesReceived.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{change received in the last sync} other{changes received in the last sync}}'**
-  String syncChangesReceived(int count);
-
-  /// No description provided for @syncConflictsCaption.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose which version to keep below'**
-  String get syncConflictsCaption;
-
-  /// No description provided for @syncSavedCheckpoint.
-  ///
-  /// In en, this message translates to:
-  /// **'Saved checkpoint'**
-  String get syncSavedCheckpoint;
-
-  /// No description provided for @syncLastVerifiedServer.
-  ///
-  /// In en, this message translates to:
-  /// **'Last verified server'**
-  String get syncLastVerifiedServer;
 
   /// No description provided for @syncIssueSignInRequired.
   ///
@@ -31401,12 +31179,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Load history limit'**
   String get syncPolicyLoad;
-
-  /// App-owned UI text.
-  ///
-  /// In en, this message translates to:
-  /// **'Node ID'**
-  String get syncNodeId;
 
   /// App-owned UI text.
   ///

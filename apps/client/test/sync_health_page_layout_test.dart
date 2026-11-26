@@ -81,7 +81,7 @@ Future<void> _pumpSyncPage(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // The previous page laid its counters out in a fixed-ratio grid whose text
+  // An earlier page laid counters out in a fixed-ratio grid whose text
   // overflowed the tiles on phone widths.
   for (final lang in ['en', 'zh', 'ru']) {
     for (final width in [320.0, 390.0]) {
@@ -112,7 +112,7 @@ void main() {
     );
   });
 
-  testWidgets('a healthy Vault reads as up to date with its counters', (
+  testWidgets('a healthy Vault reads as up to date, nothing more', (
     tester,
   ) async {
     await _pumpSyncPage(
@@ -123,15 +123,24 @@ void main() {
       expectations: (_) {
         expect(find.text('Up to date'), findsOneWidget);
         expect(
-          find.text(
-            'Every change made on this device has reached the server, and '
-            'the latest changes from your other devices are here.',
-          ),
+          find.text('This device is in sync with the server.'),
           findsOneWidget,
         );
         expect(find.text('Issue category'), findsNothing);
-        expect(find.text('12'), findsOneWidget);
         expect(find.text('Sync now'), findsOneWidget);
+        // The page is the status card only: no counters, recovery details,
+        // diagnostics or empty conflict sections.
+        for (final gone in [
+          '12',
+          'Recovery details',
+          'Conflict branches',
+          'Cross-device conflict inbox',
+          'Open conflicts',
+          'Export diagnostics',
+          'Sync status',
+        ]) {
+          expect(find.text(gone), findsNothing, reason: gone);
+        }
       },
     );
   });

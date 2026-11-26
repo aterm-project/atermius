@@ -6468,10 +6468,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Измените поиск или фильтр группы, чтобы увидеть больше хостов.';
 
   @override
-  String get advanceOnlyAfterEachPageIs =>
-      'Переход только после сохранения каждой страницы';
-
-  @override
   String get afterConfirmationThisFingerprintIsSaved =>
       'После подтверждения отпечаток сохраняется как зашифрованная запись в текущем сейфе и синхронизируется на его устройства. Если ключ изменится, клиент отклонит последующие подключения.';
 
@@ -6507,13 +6503,6 @@ class AppLocalizationsRu extends AppLocalizations {
     );
     return '$_temp0 Очередь отправки хранится локально и синхронизируется после перезагрузки.';
   }
-
-  @override
-  String get anonymousDiagnostics => 'Анонимная диагностика';
-
-  @override
-  String get anonymousSyncDiagnosticsExported =>
-      'Анонимная диагностика синхронизации экспортирована.';
 
   @override
   String appliedAppliedInventoryChangeSHost(int applied) {
@@ -6848,10 +6837,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Сверьте этот открытый отпечаток с другим устройством или доверенным администратором по отдельному каналу, чтобы подтвердить идентичность экземпляра.';
 
   @override
-  String get comparedWithTheLastVerifiedServer =>
-      'Сравнивается с последними проверенными метаданными сервера; в офлайне значение может быть устаревшим.';
-
-  @override
   String get compatibilityReportNotReported =>
       'Отчёт о совместимости · не предоставлен';
 
@@ -6901,19 +6886,12 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get conflictBranches => 'Ветки конфликтов';
-
-  @override
   String get conflictResolutionSynced => 'Решение конфликта синхронизировано.';
 
   @override
   String conflictingSshKeysAreSavedFor(String join) {
     return 'Для $join сохранены конфликтующие SSH-ключи, подключения заблокированы. Отзовите все ключи, которым не собираетесь доверять; если ни один отпечаток не проверен, отзовите оба и одобряйте ключ только после проверки по отдельному каналу.';
   }
-
-  @override
-  String get conflictingBranchesArePreservedUntilYou =>
-      'Конфликтующие ветки сохраняются, пока вы не выберете версию, которую нужно оставить.';
 
   @override
   String get connect => 'Подключить';
@@ -7009,10 +6987,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get couldNotEnableVaultHistorySync =>
       'Не удалось включить синхронизацию истории с сейфом. Проверьте, что активный сейф доступен для записи, и повторите попытку.';
-
-  @override
-  String get couldNotExportAnonymousSyncDiagnostics =>
-      'Не удалось экспортировать анонимную диагностику синхронизации.';
 
   @override
   String get couldNotGrantInputControlCheck =>
@@ -7211,9 +7185,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Текущая учётная запись · действия администратора скрыты';
 
   @override
-  String get cursorPolicy => 'Политика курсора';
-
-  @override
   String get deletionScheduled => 'УДАЛЕНИЕ ЗАПЛАНИРОВАНО';
 
   @override
@@ -7330,9 +7301,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get devicesActive => 'Активные устройства';
-
-  @override
-  String get diagnosticsExportCancelled => 'Экспорт диагностики отменён.';
 
   @override
   String get direction => 'Направление';
@@ -7520,10 +7488,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get encryptedRecordsImmutableRetriesAndRecovery =>
-      'Зашифрованные записи, неизменяемые повторы и контрольные точки восстановления этого сейфа.';
-
-  @override
   String get encryptedWithTheActiveVaultKey =>
       'Шифруется ключом активного сейфа; участники с доступом могут читать. Отключение синхронизации отменяет неотправленные команды из очереди; уже отправленные или зафиксированные могут поступить и остаться в сейфе.';
 
@@ -7618,9 +7582,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get exportArchive => 'Экспорт архива';
 
   @override
-  String get exportDiagnostics => 'Экспорт диагностики';
-
-  @override
   String get exportTheFixedServerHistoryCurrent =>
       'Экспортирует зафиксированную историю сервера, текущие метки удаления, локальную очередь отправки и ветки конфликтов, а также зашифрованные блоки объектов. Отдельный пароль архива защищает файл с помощью Argon2id и XChaCha20-Poly1305.';
 
@@ -7673,15 +7634,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get generation => 'Поколение';
-
-  @override
-  String get generationCheckpoint => 'Контрольная точка поколения';
-
-  @override
-  String get generationMatches => 'Поколение совпадает';
-
-  @override
-  String get generationMismatch => 'Поколение не совпадает';
 
   @override
   String get go => 'Перейти';
@@ -7982,9 +7934,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get lastChanged => 'Последнее изменение';
 
   @override
-  String get lastPull => 'Последнее получение';
-
-  @override
   String get lastRun => 'Последний запуск';
 
   @override
@@ -8066,10 +8015,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get localDevice => 'Локальное устройство';
-
-  @override
-  String get localEditsAreEncryptedAndCommitted =>
-      'Локальные правки шифруются и фиксируются в постоянной очереди отправки до любых сетевых запросов. Повтор использует те же ID операций и шифротекст. Сервер никогда не получает учётные данные или ключ сейфа.';
 
   @override
   String get localEncryptedArchiveUnavailable =>
@@ -8254,9 +8199,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get noActiveCredential => 'Нет активных учётных данных';
 
   @override
-  String get noCheckpoint => 'Нет контрольной точки';
-
-  @override
   String get noCommandEventsReceivedYetPaste =>
       'События команд ещё не получены. Вставьте скопированную команду настройки в интерактивную оболочку Bash и нажмите Enter.';
 
@@ -8316,9 +8258,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get noNewerBundleIsAvailableAt =>
       'По этому адресу пока нет новой сборки. Обновите веб-ресурсы на своём сервере и проверьте снова.';
-
-  @override
-  String get noOpenConflicts => 'Нет открытых конфликтов';
 
   @override
   String get noOtherActiveVaultDevicesCan =>
@@ -8410,10 +8349,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Офлайн-копии на устройствах и сохранённые резервные копии удалённо не стираются.';
 
   @override
-  String get offlineFirstCiphertextOnly =>
-      'Офлайн в приоритете, только шифротекст';
-
-  @override
   String get oneTimePrometheusScrapeCredential =>
       'Одноразовые учётные данные Prometheus для сбора метрик';
 
@@ -8483,9 +8418,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get otherSyncIssue => 'Другая проблема синхронизации';
-
-  @override
-  String get outboxItems => 'Элементы очереди отправки';
 
   @override
   String get outputIsEncryptedForThisDevice =>
@@ -8786,9 +8718,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get recordsAreDecryptedOnlyOnThis =>
       'Записи расшифровываются только на этом устройстве. Если та же метка удаления всё ещё актуальна, восстановление создаёт новую подписанную версию.';
-
-  @override
-  String get recoveryDetails => 'Сведения о восстановлении';
 
   @override
   String get recoveryInProgress => 'Выполняется восстановление';
@@ -9575,9 +9504,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Настройка резервного копирования на сервере готова';
 
   @override
-  String get serverGenerationUnknown => 'Поколение сервера неизвестно';
-
-  @override
   String get serverSpaceId => 'ID пространства на сервере';
 
   @override
@@ -9856,9 +9782,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get syncError => 'Ошибка синхронизации';
 
   @override
-  String get syncHealth => 'Состояние синхронизации';
-
-  @override
   String get syncNow => 'Синхронизировать сейчас';
 
   @override
@@ -9866,9 +9789,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get syncServiceError => 'Ошибка службы синхронизации';
-
-  @override
-  String get syncStatus => 'Состояние синхронизации';
 
   @override
   String get syncing => 'Синхронизация';
@@ -10011,10 +9931,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get theDefaultPreferenceWasConfirmedAfter =>
       'Настройка по умолчанию подтверждена после синхронизации сейфа.';
-
-  @override
-  String get theExportContainsARandomReport =>
-      'Экспорт содержит случайный ID отчёта, фиксированный код ошибки, версию клиента, счётчики синхронизации и даты с точностью до дня UTC. Записи сейфа, сведения об учётной записи, адреса серверов и идентификаторы устройств никогда не включаются.';
 
   @override
   String get theFullScriptIsReviewedBefore =>
@@ -10776,11 +10692,6 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String countPendingReview(int count) {
-    return 'Ожидают проверки: $count';
-  }
-
-  @override
   String displaynameAndItsEncryptedPayloadsWill(String displayName) {
     return '$displayName и его зашифрованные данные будут удалены из активного состояния сервера. Отменить это в приложении нельзя.';
   }
@@ -10855,11 +10766,6 @@ class AppLocalizationsRu extends AppLocalizations {
     int unavailableRecordCount,
   ) {
     return 'Зашифрованных записей, которые не удалось проверить текущим ключом сейфа и каталогом устройств или декодировать как поддерживаемые: $unavailableRecordCount. Их шифротекст хранится локально и скрыт из доверенных данных.';
-  }
-
-  @override
-  String unresolvedconflictcountNeedsReview(int unresolvedConflictCount) {
-    return 'Требуют проверки: $unresolvedConflictCount';
   }
 
   @override
@@ -11091,11 +10997,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Многофакторная аутентификация включена';
 
   @override
-  String processedBranchesCount(int count) {
-    return 'Обработано веток: $count';
-  }
-
-  @override
   String get multiFactorSignInStarted => 'Начат многофакторный вход';
 
   @override
@@ -11204,10 +11105,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get passwordsAndKeysForNewHosts2 =>
       'Пароли и ключи новых хостов задаются в сведениях о хосте.';
-
-  @override
-  String get newBranchesSyncAutomaticallyWithConflict =>
-      'Новые ветки синхронизируются автоматически вместе с уведомлениями о конфликтах; можно также нажать «Синхронизировать» вверху, чтобы проверить входящие на сервере.';
 
   @override
   String get newLabel => 'Создать';
@@ -11439,10 +11336,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get eachGroupLayoutCanConnectUp =>
       'Макет группы может подключать не более 32 хостов. Разделите группу и повторите попытку.';
-
-  @override
-  String get noPendingCrossDeviceBranches =>
-      'Нет ожидающих веток с других устройств';
 
   @override
   String get browseFiles => 'Обзор файлов';
@@ -11737,20 +11630,12 @@ class AppLocalizationsRu extends AppLocalizations {
       'Удаление учётной записи запланировано';
 
   @override
-  String get crossDeviceConflictInbox =>
-      'Входящие конфликтов между устройствами';
-
-  @override
   String get theCrossDeviceBranchIsntVerified =>
       'Ветка с другого устройства ещё не проверена; сведения о действии и версии сервера скрыты.';
 
   @override
   String get thisDeviceDecryptsTheVerifiedBranch =>
       'Это устройство расшифрует проверенную ветку, заново подпишет её своей идентичностью и выполнит CAS-фиксацию относительно текущей кэшированной версии. Исходный шифротекст ветки сохраняется; конфликт отображается во входящих, пока фиксация или решение на сервере не будут подтверждены.';
-
-  @override
-  String get concurrentBranchesSubmittedToTheServer =>
-      'Здесь показаны параллельные ветки, отправленные на сервер другими устройствами. Выбрать их можно только после проверки подписи, принадлежности к сейфу и поколения ключа; просмотр входящих не меняет текущую запись.';
 
   @override
   String get remoteDesktop2 => 'Удалённый рабочий стол';
@@ -19656,7 +19541,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get syncHealthAllSynced =>
-      'Все изменения с этого устройства уже на сервере, а последние изменения с других устройств получены.';
+      'Это устройство синхронизировано с сервером.';
 
   @override
   String get syncHealthSyncingNow =>
@@ -19678,32 +19563,6 @@ class AppLocalizationsRu extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get syncOutboxCaption =>
-      'Зашифрованные изменения в очереди на отправку';
-
-  @override
-  String syncChangesReceived(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'изменения получено при последней синхронизации',
-      many: 'изменений получено при последней синхронизации',
-      few: 'изменения получено при последней синхронизации',
-      one: 'изменение получено при последней синхронизации',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get syncConflictsCaption => 'Выберите ниже, какую версию оставить';
-
-  @override
-  String get syncSavedCheckpoint => 'Сохранённая контрольная точка';
-
-  @override
-  String get syncLastVerifiedServer => 'Последний проверенный сервер';
 
   @override
   String get syncIssueSignInRequired => 'Нужно войти снова';
@@ -19917,9 +19776,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get syncPolicyLoad => 'Загрузить число версий';
-
-  @override
-  String get syncNodeId => 'ID узла';
 
   @override
   String get anAdministratorChangedTheRecordHistoryLimit =>

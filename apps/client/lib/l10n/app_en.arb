@@ -4470,8 +4470,6 @@
   "@addYourFirstHost": {},
   "adjustTheSearchOrGroupFilter": "Adjust the search or group filter to see more hosts.",
   "@adjustTheSearchOrGroupFilter": {},
-  "advanceOnlyAfterEachPageIs": "Advance only after each page is persisted",
-  "@advanceOnlyAfterEachPageIs": {},
   "afterConfirmationThisFingerprintIsSaved": "After confirmation, this fingerprint is saved as an encrypted record in the current Vault and syncs to its devices. The client rejects later connections when the key changes.",
   "@afterConfirmationThisFingerprintIsSaved": {},
   "algorithmAlgorithm": "Algorithm: {algorithm}",
@@ -4496,10 +4494,6 @@
       }
     }
   },
-  "anonymousDiagnostics": "Anonymous diagnostics",
-  "@anonymousDiagnostics": {},
-  "anonymousSyncDiagnosticsExported": "Anonymous sync diagnostics exported.",
-  "@anonymousSyncDiagnosticsExported": {},
   "appliedAppliedInventoryChangeSHost": "Applied {applied, plural, =1{1 inventory change} other{{applied} inventory changes}}; Host records are encrypted and queued to sync.",
   "@appliedAppliedInventoryChangeSHost": {
     "placeholders": {
@@ -4756,8 +4750,6 @@
   "@compareEachValueAndRecordId": {},
   "compareThisPublicFingerprintWithAnother": "Compare this public fingerprint with another device or a trusted administrator over a separate channel to confirm the instance identity.",
   "@compareThisPublicFingerprintWithAnother": {},
-  "comparedWithTheLastVerifiedServer": "Compared with the last verified server metadata; this value may be stale while offline.",
-  "@comparedWithTheLastVerifiedServer": {},
   "compatibilityReportNotReported": "Compatibility report · not reported",
   "@compatibilityReportNotReported": {},
   "compatibilityReportUnverifiedDetailsHidden": "Compatibility report · unverified; details hidden",
@@ -4792,8 +4784,6 @@
       }
     }
   },
-  "conflictBranches": "Conflict branches",
-  "@conflictBranches": {},
   "conflictResolutionSynced": "Conflict resolution synced.",
   "@conflictResolutionSynced": {},
   "conflictingSshKeysAreSavedFor": "Conflicting SSH keys are saved for {join}. Connections are blocked. Revoke every key you do not intend to trust; if neither fingerprint is verified, revoke both, then approve a key only after checking it out of band.",
@@ -4804,8 +4794,6 @@
       }
     }
   },
-  "conflictingBranchesArePreservedUntilYou": "Conflicting branches are preserved until you choose the version to keep.",
-  "@conflictingBranchesArePreservedUntilYou": {},
   "connect": "Connect",
   "@connect": {},
   "connectAnSshHostToBrowse": "Connect an SSH host to browse remote files.",
@@ -4867,8 +4855,6 @@
   "@couldNotCopyTheSetupCommand": {},
   "couldNotEnableVaultHistorySync": "Could not enable Vault history sync. Check that the active Vault is writable and try again.",
   "@couldNotEnableVaultHistorySync": {},
-  "couldNotExportAnonymousSyncDiagnostics": "Could not export anonymous sync diagnostics.",
-  "@couldNotExportAnonymousSyncDiagnostics": {},
   "couldNotGrantInputControlCheck": "Could not grant input control. Check the session and try again.",
   "@couldNotGrantInputControlCheck": {},
   "couldNotJoinCheckTheSession": "Could not join. Check the session ID and Vault access.",
@@ -5031,8 +5017,6 @@
   "@currentMasterPassword": {},
   "currentSignedInAccountAdministrativeActions": "Current signed-in account · administrative actions hidden",
   "@currentSignedInAccountAdministrativeActions": {},
-  "cursorPolicy": "Cursor policy",
-  "@cursorPolicy": {},
   "deletionScheduled": "DELETION SCHEDULED",
   "@deletionScheduled": {},
   "deadLettered": "Dead-lettered",
@@ -5127,8 +5111,6 @@
   },
   "devicesActive": "Devices active",
   "@devicesActive": {},
-  "diagnosticsExportCancelled": "Diagnostics export cancelled.",
-  "@diagnosticsExportCancelled": {},
   "direction": "Direction",
   "@direction": {},
   "directory": "Directory",
@@ -5266,8 +5248,6 @@
       }
     }
   },
-  "encryptedRecordsImmutableRetriesAndRecovery": "Encrypted records, immutable retries and recovery checkpoints for this Vault.",
-  "@encryptedRecordsImmutableRetriesAndRecovery": {},
   "encryptedWithTheActiveVaultKey": "Encrypted with the active Vault key. Members with access can read it. Turning sync off cancels unsent queued commands; sent or committed commands may still arrive and remain in the Vault.",
   "@encryptedWithTheActiveVaultKey": {},
   "encryptionKeyFingerprint": "Encryption key fingerprint",
@@ -5347,8 +5327,6 @@
   "@expires": {},
   "exportArchive": "Export archive",
   "@exportArchive": {},
-  "exportDiagnostics": "Export diagnostics",
-  "@exportDiagnostics": {},
   "exportTheFixedServerHistoryCurrent": "Export the fixed server history, current tombstones, local outbox/conflict branches and encrypted object blocks. A separate archive password protects the file with Argon2id and XChaCha20-Poly1305.",
   "@exportTheFixedServerHistoryCurrent": {},
   "failed2": "Failed",
@@ -5383,12 +5361,6 @@
   "@generatedAt": {},
   "generation": "Generation",
   "@generation": {},
-  "generationCheckpoint": "Generation checkpoint",
-  "@generationCheckpoint": {},
-  "generationMatches": "Generation matches",
-  "@generationMatches": {},
-  "generationMismatch": "Generation mismatch",
-  "@generationMismatch": {},
   "go": "Go",
   "@go": {},
   "goToPath": "Go to path",
@@ -5622,8 +5594,6 @@
   "@knownHost": {},
   "lastChanged": "Last changed",
   "@lastChanged": {},
-  "lastPull": "Last pull",
-  "@lastPull": {},
   "lastRun": "Last run",
   "@lastRun": {},
   "lastRunStatus": "Last run status",
@@ -5682,8 +5652,6 @@
   "@localArchive": {},
   "localDevice": "Local device",
   "@localDevice": {},
-  "localEditsAreEncryptedAndCommitted": "Local edits are encrypted and committed to the persistent outbox before any network request. A retry reuses the same operation IDs and ciphertext. The server never receives credentials or the Vault key.",
-  "@localEditsAreEncryptedAndCommitted": {},
   "localEncryptedArchiveUnavailable": "Local encrypted archive unavailable",
   "@localEncryptedArchiveUnavailable": {},
   "localRevisionItem": "Local revision  {item}",
@@ -5830,8 +5798,6 @@
   "@noActiveVaultDeviceReportsAre": {},
   "noActiveCredential": "No active credential",
   "@noActiveCredential": {},
-  "noCheckpoint": "No checkpoint",
-  "@noCheckpoint": {},
   "noCommandEventsReceivedYetPaste": "No command events received yet. Paste the copied setup command into an interactive Bash shell and press Enter.",
   "@noCommandEventsReceivedYetPaste": {},
   "noCredentialsSaved": "No credentials saved",
@@ -5868,8 +5834,6 @@
   "@noMembersWereReturned": {},
   "noNewerBundleIsAvailableAt": "No newer bundle is available at this address yet. Update the self-hosted Web assets, then check again.",
   "@noNewerBundleIsAvailableAt": {},
-  "noOpenConflicts": "No open conflicts",
-  "@noOpenConflicts": {},
   "noOtherActiveVaultDevicesCan": "No other active Vault devices can receive this terminal share.",
   "@noOtherActiveVaultDevicesCan": {},
   "noPushProviderSnapshotIsAvailable": "No push provider snapshot is available.",
@@ -5926,8 +5890,6 @@
   "@offlineDeviceCopiesAndExportsAre": {},
   "offlineDeviceCopiesAndRetainedBackups": "Offline device copies and retained backups are not remotely erased.",
   "@offlineDeviceCopiesAndRetainedBackups": {},
-  "offlineFirstCiphertextOnly": "Offline-first, ciphertext-only",
-  "@offlineFirstCiphertextOnly": {},
   "oneTimePrometheusScrapeCredential": "One-time Prometheus scrape credential",
   "@oneTimePrometheusScrapeCredential": {},
   "oneTimeInvitationToken": "One-time invitation token",
@@ -5974,8 +5936,6 @@
   "@organizeYourHostsIntoGroups": {},
   "otherSyncIssue": "Other sync issue",
   "@otherSyncIssue": {},
-  "outboxItems": "Outbox items",
-  "@outboxItems": {},
   "outputIsEncryptedForThisDevice": "Output is encrypted for this device. Input and resize controls stay disabled until the host explicitly grants this device control. Earlier scrollback is unavailable.",
   "@outputIsEncryptedForThisDevice": {},
   "ownerAccountId": "Owner account ID",
@@ -6204,8 +6164,6 @@
   "@recordsAndConflictsRemainEncryptedExisting": {},
   "recordsAreDecryptedOnlyOnThis": "Records are decrypted only on this device. Restore creates a new signed revision if the same tombstone is still current.",
   "@recordsAreDecryptedOnlyOnThis": {},
-  "recoveryDetails": "Recovery details",
-  "@recoveryDetails": {},
   "recoveryInProgress": "Recovery in progress",
   "@recoveryInProgress": {},
   "recoveryIsEnabledButThisCode": "Recovery is enabled, but this code was not confirmed as stored. Rotate it now to display a fresh code.",
@@ -6829,8 +6787,6 @@
   "@serverBackupConfigurationNotReady": {},
   "serverBackupConfigurationReady": "Server backup configuration ready",
   "@serverBackupConfigurationReady": {},
-  "serverGenerationUnknown": "Server generation unknown",
-  "@serverGenerationUnknown": {},
   "serverSpaceId": "Server space ID",
   "@serverSpaceId": {},
   "serverSpaceServerspaceid": "Server space: {serverSpaceId}",
@@ -7106,16 +7062,12 @@
   "@syncCommandHistoryToThisVault": {},
   "syncError": "Sync error",
   "@syncError": {},
-  "syncHealth": "Sync health",
-  "@syncHealth": {},
   "syncNow": "Sync now",
   "@syncNow": {},
   "syncPendingChanges": "Sync pending changes",
   "@syncPendingChanges": {},
   "syncServiceError": "Sync service error",
   "@syncServiceError": {},
-  "syncStatus": "Sync status",
-  "@syncStatus": {},
   "syncing": "Syncing",
   "@syncing": {},
   "thisDevice": "THIS DEVICE",
@@ -7271,8 +7223,6 @@
   "@theCurrentVaultVersionChangedWhile": {},
   "theDefaultPreferenceWasConfirmedAfter": "The default preference was confirmed after Vault sync.",
   "@theDefaultPreferenceWasConfirmedAfter": {},
-  "theExportContainsARandomReport": "The export contains a random report ID, a fixed error code, client version, sync counts and dates rounded to UTC days. It never includes Vault records, account details, server addresses or device identifiers.",
-  "@theExportContainsARandomReport": {},
   "theFullScriptIsReviewedBefore": "The full script is reviewed before sending to the active PTY.",
   "@theFullScriptIsReviewedBefore": {},
   "theLastResponseWasNotConfirmed": "The last response was not confirmed. The server may already have changed the password. Retry sends the exact same request; no password is stored for retry. Remember the new password. Signing out clears this retry request.",
@@ -7916,14 +7866,6 @@
       }
     }
   },
-  "countPendingReview": "{count} pending review",
-  "@countPendingReview": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "displaynameAndItsEncryptedPayloadsWill": "{displayName} and its encrypted payloads will be removed from active server state. This cannot be undone from the app.",
   "@displaynameAndItsEncryptedPayloadsWill": {
     "placeholders": {
@@ -8038,14 +7980,6 @@
   "@unavailablerecordcountEncryptedRecordSCouldNot": {
     "placeholders": {
       "unavailableRecordCount": {
-        "type": "int"
-      }
-    }
-  },
-  "unresolvedconflictcountNeedsReview": "{unresolvedConflictCount} needs review",
-  "@unresolvedconflictcountNeedsReview": {
-    "placeholders": {
-      "unresolvedConflictCount": {
         "type": "int"
       }
     }
@@ -8206,14 +8140,6 @@
   "@bashRecordingIsOnUpTo": {},
   "multiFactorAuthenticationEnabled": "Multi-factor authentication enabled",
   "@multiFactorAuthenticationEnabled": {},
-  "processedBranchesCount": "Processed branches · {count}",
-  "@processedBranchesCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "multiFactorSignInStarted": "Multi-factor sign-in started",
   "@multiFactorSignInStarted": {},
   "committed": "Committed",
@@ -8282,8 +8208,6 @@
   "@fileManager": {},
   "passwordsAndKeysForNewHosts2": "Passwords and keys for new hosts are set in the host details.",
   "@passwordsAndKeysForNewHosts2": {},
-  "newBranchesSyncAutomaticallyWithConflict": "New branches sync automatically with conflict notifications; you can also use Sync at the top to check the server inbox.",
-  "@newBranchesSyncAutomaticallyWithConflict": {},
   "newLabel": "New",
   "@newLabel": {},
   "newTouppercaseHost": "New {toUpperCase} host",
@@ -8480,8 +8404,6 @@
   "@thisGroupHasNoConnectableSsh": {},
   "eachGroupLayoutCanConnectUp": "Each group layout can connect up to 32 hosts. Split the group and try again.",
   "@eachGroupLayoutCanConnectUp": {},
-  "noPendingCrossDeviceBranches": "No pending cross-device branches",
-  "@noPendingCrossDeviceBranches": {},
   "browseFiles": "Browse files",
   "@browseFiles": {},
   "addGroup": "Add group",
@@ -8668,14 +8590,10 @@
   "@accountDeletionCancelled": {},
   "accountDeletionScheduled": "Account deletion scheduled",
   "@accountDeletionScheduled": {},
-  "crossDeviceConflictInbox": "Cross-device conflict inbox",
-  "@crossDeviceConflictInbox": {},
   "theCrossDeviceBranchIsntVerified": "The cross-device branch isn't verified yet; action and server version details are hidden.",
   "@theCrossDeviceBranchIsntVerified": {},
   "thisDeviceDecryptsTheVerifiedBranch": "This device decrypts the verified branch, re-signs it with this device's identity, then performs a CAS commit against the currently cached version. The original branch ciphertext is kept; the inbox shows this conflict until the commit or server resolution is confirmed.",
   "@thisDeviceDecryptsTheVerifiedBranch": {},
-  "concurrentBranchesSubmittedToTheServer": "Concurrent branches submitted to the server by other devices are shown here. They can be selected only after signature, Vault ownership and key generation are verified; viewing the inbox doesn't rewrite the current record.",
-  "@concurrentBranchesSubmittedToTheServer": {},
   "remoteDesktop2": "Remote desktop",
   "@remoteDesktop2": {},
   "connect2": "Connect",
@@ -16400,7 +16318,7 @@
   },
   "syncUpToDate": "Up to date",
   "@syncUpToDate": {},
-  "syncHealthAllSynced": "Every change made on this device has reached the server, and the latest changes from your other devices are here.",
+  "syncHealthAllSynced": "This device is in sync with the server.",
   "@syncHealthAllSynced": {},
   "syncHealthSyncingNow": "Exchanging encrypted changes with the server…",
   "@syncHealthSyncingNow": {},
@@ -16408,16 +16326,6 @@
   "@syncHealthReadOnlyHint": {},
   "syncHealthChangesWaiting": "{count, plural, =1{1 local change is waiting to upload.} other{{count} local changes are waiting to upload.}}",
   "@syncHealthChangesWaiting": {"placeholders": {"count": {"type": "int"}}},
-  "syncOutboxCaption": "Encrypted changes waiting to upload",
-  "@syncOutboxCaption": {},
-  "syncChangesReceived": "{count, plural, =1{change received in the last sync} other{changes received in the last sync}}",
-  "@syncChangesReceived": {"placeholders": {"count": {"type": "int"}}},
-  "syncConflictsCaption": "Choose which version to keep below",
-  "@syncConflictsCaption": {},
-  "syncSavedCheckpoint": "Saved checkpoint",
-  "@syncSavedCheckpoint": {},
-  "syncLastVerifiedServer": "Last verified server",
-  "@syncLastVerifiedServer": {},
   "syncIssueSignInRequired": "Sign-in required",
   "@syncIssueSignInRequired": {},
   "syncJustNow": "Just now",
@@ -16646,10 +16554,6 @@
   },
   "syncPolicyLoad": "Load history limit",
   "@syncPolicyLoad": {
-    "description": "App-owned UI text."
-  },
-  "syncNodeId": "Node ID",
-  "@syncNodeId": {
     "description": "App-owned UI text."
   },
   "anAdministratorChangedTheRecordHistoryLimit": "An administrator changed the per-record version history limit",

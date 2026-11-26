@@ -55,7 +55,6 @@ import 'package:xterm/xterm.dart';
 
 import '../app_controller.dart';
 import '../api/api_client.dart';
-import '../attachments/attachment_file_saver.dart';
 import '../archive/portable_vault_archive.dart';
 import '../crypto/vault_crypto.dart';
 import '../domain/conflict_feed.dart';
@@ -95,7 +94,6 @@ import '../ssh/ssh_service.dart';
 import '../ssh/host_operating_system_probe.dart';
 import '../ssh/host_operating_system_persistence.dart';
 import '../sync/sync_repository.dart';
-import '../sync/sync_diagnostics_export.dart';
 import '../sync/local_vault_import.dart';
 import 'local_vault_import_card.dart';
 import 'app_theme.dart';
@@ -147,10 +145,6 @@ import 'wallpaper.dart';
 import 'wallpaper_settings.dart';
 
 const _uuid = Uuid();
-const _syncDiagnosticsClientVersion =
-    '${String.fromEnvironment('FLUTTER_BUILD_NAME', defaultValue: '0.1.0')}'
-    '+${String.fromEnvironment('FLUTTER_BUILD_NUMBER', defaultValue: '1')}';
-
 // AppController records the sync status and a user-facing error before it
 // rethrows foreground failures. Button callbacks cannot propagate that Future
 // to a caller, so contain it here after the controller has updated the UI.
@@ -14777,48 +14771,6 @@ class _SyncSettingsSection extends StatelessWidget {
     insecureServerOrigin: app.insecureServerOrigin,
   );
 
-  Future<void> _exportAnonymousDiagnostics(BuildContext context) async {
-    try {
-      final checkpointGeneration = app.syncCheckpointServerGeneration;
-      final verifiedGeneration = app.instance?.generation;
-      final report = SyncDiagnosticsExport.create(
-        syncStatus: app.syncStatus,
-        generationChanged:
-            checkpointGeneration != null &&
-            checkpointGeneration.isNotEmpty &&
-            verifiedGeneration != null &&
-            verifiedGeneration.isNotEmpty &&
-            checkpointGeneration != verifiedGeneration,
-        pendingCount: app.pendingCount,
-        receivedCount: app.receivedCount,
-        conflictCount: app.unresolvedConflictCount,
-        unavailableRecordCount: app.unavailableRecordCount,
-        lastSuccessfulSyncAt: app.lastSuccessfulSyncAt,
-        clientVersion: _syncDiagnosticsClientVersion,
-      );
-      final saved = await saveAttachmentFile(
-        fileName: 'atermius-sync-diagnostics.json',
-        mediaType: 'application/json',
-        bytes: report.toBytes(),
-      );
-      if (!context.mounted) return;
-      _snack(
-        context,
-        saved
-            ? context.l10n.anonymousSyncDiagnosticsExported
-            : context.l10n.diagnosticsExportCancelled,
-      );
-    } on Object {
-      if (context.mounted) {
-        _snack(
-          context,
-          context.l10n.couldNotExportAnonymousSyncDiagnostics,
-          error: true,
-        );
-      }
-    }
-  }
-
   /// What the summary says under the status: the problem when there is one,
   /// otherwise what the healthy state means for the user's data.
   String _summary(BuildContext context) {
@@ -14925,214 +14877,35 @@ class _SyncSettingsSection extends StatelessWidget {
     ];
   }
 
-  Widget _metrics(BuildContext context) {
-    final palette = context.palette;
-    final generation = _syncGenerationState(app);
-    return MetricGrid(
-      children: [
-        MetricTile(
-          icon: Icons.upload_rounded,
-          label: context.l10n.outboxItems,
-          value: '${app.pendingCount}',
-          caption: context.l10n.syncOutboxCaption,
-          tone: app.pendingCount > 0 ? palette.lime : palette.teal,
-        ),
-        MetricTile(
-          icon: Icons.download_rounded,
-          label: context.l10n.lastPull,
-          value: '${app.receivedCount}',
-          caption: context.l10n.syncChangesReceived(app.receivedCount),
-          tone: palette.teal,
-        ),
-        MetricTile(
-          icon: Icons.compare_arrows_rounded,
-          label: context.l10n.openConflicts,
-          value: '${app.unresolvedConflictCount}',
-          caption: app.unresolvedConflictCount > 0
-              ? context.l10n.syncConflictsCaption
-              : null,
-          tone: app.unresolvedConflictCount > 0 ? palette.orange : palette.teal,
-        ),
-        MetricTile(
-          icon: Icons.dns_outlined,
-          label: context.l10n.generationCheckpoint,
-          value: _syncGenerationStatus(app),
-          textual: true,
-          tone: switch (generation) {
-            _SyncGenerationState.matches => palette.teal,
-            _SyncGenerationState.mismatch => palette.orange,
-            _ => palette.muted,
-          },
-        ),
-      ],
-    );
-  }
-
-  /// Cards of the conflict lists sit flush with the section titles.
-  Widget _flushCards(BuildContext context, List<Widget> cards) {
+  /// Concurrent edits merge on their own. The few that cannot (a host key
+  /// trust decision, a draft the server cleaned up, a branch another device
+  /// left) are listed here, and only while there are any.
+  List<Widget> _conflicts(BuildContext context) {
+    final count = app.openConflicts.length + app.openFeedConflictItems.length;
+    if (count == 0) return const [];
     final theme = Theme.of(context);
-    return Theme(
-      data: theme.copyWith(
-        cardTheme: theme.cardTheme.copyWith(
-          margin: const EdgeInsets.only(bottom: 10),
-        ),
+    return [
+      SectionHeader(
+        title: context.l10n.openConflicts,
+        trailing: CountTag(label: '$count', tone: context.palette.orange),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: cards,
-      ),
-    );
-  }
-
-  Widget _conflicts(BuildContext context) {
-    final palette = context.palette;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader(
-          title: context.l10n.conflictBranches,
-          trailing: app.unresolvedConflictCount > 0
-              ? CountTag(
-                  label: context.l10n.unresolvedconflictcountNeedsReview(
-                    app.unresolvedConflictCount,
-                  ),
-                  tone: palette.orange,
-                )
-              : null,
+      Theme(
+        data: theme.copyWith(
+          cardTheme: theme.cardTheme.copyWith(
+            margin: const EdgeInsets.only(bottom: 10),
+          ),
         ),
-        if (app.openConflicts.isEmpty)
-          EmptyRow(
-            icon: Icons.check_rounded,
-            title: context.l10n.noOpenConflicts,
-            body: context.l10n.conflictingBranchesArePreservedUntilYou,
-          )
-        else
-          _flushCards(context, [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             for (final conflict in app.openConflicts)
               _ConflictCard(app: app, conflict: conflict),
-          ]),
-        const SizedBox(height: 24),
-        SectionHeader(
-          title: context.l10n.crossDeviceConflictInbox,
-          description: context.l10n.concurrentBranchesSubmittedToTheServer,
-          trailing: app.openFeedConflictItems.isNotEmpty
-              ? CountTag(
-                  label: context.l10n.countPendingReview(
-                    app.openFeedConflictItems.length,
-                  ),
-                  tone: palette.orange,
-                )
-              : null,
-        ),
-        if (app.openFeedConflictItems.isEmpty)
-          EmptyRow(
-            icon: Icons.inbox_outlined,
-            title: context.l10n.noPendingCrossDeviceBranches,
-            body: context.l10n.newBranchesSyncAutomaticallyWithConflict,
-          )
-        else
-          _flushCards(context, [
             for (final item in app.openFeedConflictItems)
               _ConflictFeedCard(app: app, item: item),
-          ]),
-        if (app.resolvedFeedConflictItems.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          _flushCards(context, [
-            Card(
-              clipBehavior: Clip.antiAlias,
-              child: ExpansionTile(
-                shape: const Border(),
-                collapsedShape: const Border(),
-                leading: Icon(Icons.task_alt_outlined, color: palette.teal),
-                title: Text(
-                  context.l10n.processedBranchesCount(
-                    app.resolvedFeedConflictItems.length,
-                  ),
-                ),
-                children: app.resolvedFeedConflictItems
-                    .map((item) => _ConflictFeedCard(app: app, item: item))
-                    .toList(growable: false),
-              ),
-            ),
-          ]),
-        ],
-      ],
-    );
-  }
-
-  Widget _details(BuildContext context) {
-    final palette = context.palette;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        PagePanel(
-          icon: Icons.fact_check_outlined,
-          title: context.l10n.recoveryDetails,
-          subtitle: context.l10n.comparedWithTheLastVerifiedServer,
-          children: [
-            DetailRow(
-              label: context.l10n.syncSavedCheckpoint,
-              value: _shortKey(app.syncCheckpointServerGeneration),
-            ),
-            DetailRow(
-              label: context.l10n.syncLastVerifiedServer,
-              value: _shortKey(app.instance?.generation),
-            ),
-            DetailRow(
-              label: context.l10n.instance,
-              value: app.instance?.instanceId ?? '—',
-            ),
-            DetailRow(
-              label: context.l10n.generation,
-              value: app.instance?.generation ?? '—',
-            ),
-            DetailRow(
-              label: context.l10n.protocol,
-              value: 'v${app.instance?.protocolVersion ?? 1}',
-            ),
-            DetailRow(
-              label: context.l10n.currentVault2,
-              value: app.currentVaultId,
-            ),
-            if (app.identity?.deviceId case final nodeId?)
-              DetailRow(
-                key: const ValueKey('sync_node_id'),
-                label: context.l10n.syncNodeId,
-                value: nodeId,
-              ),
-            DetailRow(
-              label: context.l10n.cursorPolicy,
-              value: context.l10n.advanceOnlyAfterEachPageIs,
-              monospace: false,
-            ),
           ],
         ),
-        const SizedBox(height: 12),
-        PagePanel(
-          icon: Icons.privacy_tip_outlined,
-          title: context.l10n.anonymousDiagnostics,
-          subtitle: context.l10n.theExportContainsARandomReport,
-          children: [
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: OutlinedButton.icon(
-                onPressed: () => _exportAnonymousDiagnostics(context),
-                icon: const Icon(Icons.download_outlined),
-                label: Text(context.l10n.exportDiagnostics),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        PagePanel(
-          icon: Icons.offline_pin_outlined,
-          title: context.l10n.offlineFirstCiphertextOnly,
-          subtitle: context.l10n.localEditsAreEncryptedAndCommitted,
-          trailing: Icon(Icons.lock_outline, size: 16, color: palette.hint),
-          children: const [],
-        ),
-      ],
-    );
+      ),
+    ];
   }
 
   @override
@@ -15145,17 +14918,15 @@ class _SyncSettingsSection extends StatelessWidget {
     }
 
     final lastSync = app.lastSuccessfulSyncAt?.toLocal();
-    final notices = _notices(context);
+    final conflicts = _conflicts(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(title: context.l10n.syncHealth),
         RelativeTimeTicker(
           builder: (context, now) => StatusHero(
             icon: _syncIcon(app.syncStatus),
             tone: _syncColor(context, app.syncStatus),
             busy: app.syncing || app.snapshotRecoveryActive,
-            overline: context.l10n.syncStatus,
             title: _title(context),
             description: _summary(context),
             facts: [
@@ -15180,39 +14951,32 @@ class _SyncSettingsSection extends StatelessWidget {
             actions: _actions(context),
           ),
         ),
-        for (final notice in notices) ...[const SizedBox(height: 10), notice],
-        const SizedBox(height: 14),
-        _metrics(context),
-        if (import != null) ...[
-          const SizedBox(height: 14),
-          _localVaultImport(import),
+        for (final notice in _notices(context)) ...[
+          const SizedBox(height: 10),
+          notice,
         ],
-        const SizedBox(height: 26),
-        LayoutBuilder(
-          builder: (context, box) {
-            if (box.maxWidth < 1000) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _conflicts(context),
-                  const SizedBox(height: 26),
-                  _details(context),
-                ],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(flex: 7, child: _conflicts(context)),
-                const SizedBox(width: 20),
-                Expanded(flex: 5, child: _details(context)),
-              ],
-            );
-          },
-        ),
+        if (conflicts.isNotEmpty) ...[const SizedBox(height: 24), ...conflicts],
+        if (import != null)
+          ListenableBuilder(
+            listenable: import,
+            builder: (context, _) => _importHasWork(import)
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 14),
+                    child: _localVaultImport(import),
+                  )
+                : const SizedBox.shrink(),
+          ),
       ],
     );
   }
+
+  /// With a Vault open the import card only appears when there is a local
+  /// profile to import, an import running, or a problem to act on.
+  static bool _importHasWork(LocalVaultImport import) =>
+      import.storageRecoveryRequired ||
+      import.progress != null ||
+      import.profiles.isNotEmpty ||
+      (import.loaded && import.listFailed);
 }
 
 /// What the user can expect or do in an issue [status] (see
@@ -15228,20 +14992,6 @@ String _syncIssueHint(String status) => switch (status) {
   'epoch_update_required' => currentL10n.syncHintKeyUpdate,
   _ => currentL10n.syncHintError,
 };
-
-enum _SyncGenerationState { noCheckpoint, unknown, matches, mismatch }
-
-_SyncGenerationState _syncGenerationState(AppController app) {
-  final checkpoint = app.syncCheckpointServerGeneration;
-  final current = app.instance?.generation;
-  if (checkpoint == null || checkpoint.isEmpty) {
-    return _SyncGenerationState.noCheckpoint;
-  }
-  if (current == null || current.isEmpty) return _SyncGenerationState.unknown;
-  return checkpoint == current
-      ? _SyncGenerationState.matches
-      : _SyncGenerationState.mismatch;
-}
 
 /// "Just now", "5 minutes ago", "3 hours ago"; older times as a date.
 String _syncRelativeTime(BuildContext context, DateTime at, DateTime now) {
@@ -18914,12 +18664,9 @@ class _SettingsPage extends StatelessWidget {
         if (app.activeVault != null || localImport != null)
           SettingsSection(
             id: 'sync',
-            title: context.l10n.syncAndConflicts,
+            title: context.l10n.syncSettingsTitle,
             icon: Icons.sync_rounded,
-            description: app.activeVault == null
-                ? ''
-                : context.l10n.encryptedRecordsImmutableRetriesAndRecovery,
-            wide: true,
+            description: '',
             builder: (_) =>
                 _SyncSettingsSection(app: app, localImport: localImport),
           ),
@@ -28248,14 +27995,6 @@ String _syncIssueCategoryLabel(String status) => switch (status) {
   'error' => currentL10n.syncServiceError,
   _ => currentL10n.otherSyncIssue,
 };
-
-String _syncGenerationStatus(AppController app) =>
-    switch (_syncGenerationState(app)) {
-      _SyncGenerationState.noCheckpoint => currentL10n.noCheckpoint,
-      _SyncGenerationState.unknown => currentL10n.serverGenerationUnknown,
-      _SyncGenerationState.matches => currentL10n.generationMatches,
-      _SyncGenerationState.mismatch => currentL10n.generationMismatch,
-    };
 
 String _topBarSyncLabel(String status, int pendingCount) {
   if ((status == 'idle' || status == 'pending') && pendingCount > 0) {

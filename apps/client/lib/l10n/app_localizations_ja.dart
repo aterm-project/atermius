@@ -5998,9 +5998,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get adjustTheSearchOrGroupFilter => '検索やグループの絞り込みを調整すると、他のホストも表示されます。';
 
   @override
-  String get advanceOnlyAfterEachPageIs => '各ページの永続化後にのみ進む';
-
-  @override
   String get afterConfirmationThisFingerprintIsSaved =>
       '確定すると、このフィンガープリントは暗号化レコードとして現在の保管庫に保存され、デバイスに同期されます。後で鍵が変わると、クライアントは接続を拒否します。';
 
@@ -6023,12 +6020,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String anEncryptedVaultArchiveCoveringPendingcount(int pendingCount) {
     return '保留中の操作 $pendingCount 件を含む暗号化保管庫アーカイブを最近エクスポートしました。送信トレイはローカルに保存されたままで、再読み込み後に同期されます。';
   }
-
-  @override
-  String get anonymousDiagnostics => '匿名の診断情報';
-
-  @override
-  String get anonymousSyncDiagnosticsExported => '匿名の同期診断情報をエクスポートしました。';
 
   @override
   String appliedAppliedInventoryChangeSHost(int applied) {
@@ -6355,10 +6346,6 @@ class AppLocalizationsJa extends AppLocalizations {
       'この公開フィンガープリントを、別の経路で他のデバイスまたは信頼できる管理者と照合し、インスタンスの ID を確認してください。';
 
   @override
-  String get comparedWithTheLastVerifiedServer =>
-      '最後に検証したサーバーのメタデータとの比較です。オフライン中はこの値が古い場合があります。';
-
-  @override
   String get compatibilityReportNotReported => '互換性レポート · 未報告';
 
   @override
@@ -6398,19 +6385,12 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get conflictBranches => '競合ブランチ';
-
-  @override
   String get conflictResolutionSynced => '競合の解決を同期しました。';
 
   @override
   String conflictingSshKeysAreSavedFor(String join) {
     return '$join について競合する SSH 鍵が保存されているため、接続はブロックされています。信頼するつもりのない鍵はすべて失効させてください。どちらのフィンガープリントも未検証の場合は両方を失効させ、別の経路で確認した後でのみ鍵を承認してください。';
   }
-
-  @override
-  String get conflictingBranchesArePreservedUntilYou =>
-      '保持するバージョンを選ぶまで、競合しているブランチは保持されます。';
 
   @override
   String get connect => '接続';
@@ -6500,10 +6480,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get couldNotEnableVaultHistorySync =>
       '保管庫の履歴の同期を有効にできませんでした。アクティブな保管庫に書き込めるか確認してから再試行してください。';
-
-  @override
-  String get couldNotExportAnonymousSyncDiagnostics =>
-      '匿名の同期診断情報をエクスポートできませんでした。';
 
   @override
   String get couldNotGrantInputControlCheck =>
@@ -6700,9 +6676,6 @@ class AppLocalizationsJa extends AppLocalizations {
       '現在サインイン中のアカウント · 管理操作は非表示';
 
   @override
-  String get cursorPolicy => 'カーソルのポリシー';
-
-  @override
   String get deletionScheduled => '削除予定';
 
   @override
@@ -6814,9 +6787,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get devicesActive => 'アクティブなデバイス';
-
-  @override
-  String get diagnosticsExportCancelled => '診断情報のエクスポートをキャンセルしました。';
 
   @override
   String get direction => '方向';
@@ -6995,10 +6965,6 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String get encryptedRecordsImmutableRetriesAndRecovery =>
-      'この保管庫の暗号化レコード、変更不可の再試行、復旧チェックポイント。';
-
-  @override
   String get encryptedWithTheActiveVaultKey =>
       'アクティブな保管庫の鍵で暗号化されます。アクセス権を持つメンバーは読み取れます。同期をオフにすると未送信のキュー内コマンドはキャンセルされますが、送信済みまたは確定済みのコマンドは届いて保管庫に残る場合があります。';
 
@@ -7091,9 +7057,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get exportArchive => 'アーカイブをエクスポート';
 
   @override
-  String get exportDiagnostics => '診断情報をエクスポート';
-
-  @override
   String get exportTheFixedServerHistoryCurrent =>
       '確定済みのサーバー履歴、現在の削除マーカー、ローカルの送信トレイ／競合ブランチ、暗号化オブジェクトブロックをエクスポートします。ファイルは別のアーカイブパスワードにより Argon2id と XChaCha20-Poly1305 で保護されます。';
 
@@ -7145,15 +7108,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get generation => '世代';
-
-  @override
-  String get generationCheckpoint => '世代のチェックポイント';
-
-  @override
-  String get generationMatches => '世代が一致';
-
-  @override
-  String get generationMismatch => '世代が不一致';
 
   @override
   String get go => '移動';
@@ -7444,9 +7398,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get lastChanged => '最終変更';
 
   @override
-  String get lastPull => '前回の取得';
-
-  @override
   String get lastRun => '前回の実行';
 
   @override
@@ -7525,10 +7476,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get localDevice => 'ローカルデバイス';
-
-  @override
-  String get localEditsAreEncryptedAndCommitted =>
-      'ローカルの編集は、ネットワークリクエストの前に暗号化されて永続的な送信トレイに確定されます。再試行では同じ操作 ID と暗号文が再利用されます。サーバーが認証情報や保管庫の鍵を受け取ることはありません。';
 
   @override
   String get localEncryptedArchiveUnavailable => 'ローカルの暗号化アーカイブを利用できません';
@@ -7708,9 +7655,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get noActiveCredential => '有効な認証情報はありません';
 
   @override
-  String get noCheckpoint => 'チェックポイントなし';
-
-  @override
   String get noCommandEventsReceivedYetPaste =>
       'コマンドのイベントはまだ受信していません。コピーした設定コマンドを対話型の Bash シェルに貼り付けて Enter を押してください。';
 
@@ -7765,9 +7709,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get noNewerBundleIsAvailableAt =>
       'このアドレスにはまだ新しいバンドルがありません。セルフホストの Web アセットを更新してから、もう一度確認してください。';
-
-  @override
-  String get noOpenConflicts => '未解決の競合はありません';
 
   @override
   String get noOtherActiveVaultDevicesCan =>
@@ -7855,9 +7796,6 @@ class AppLocalizationsJa extends AppLocalizations {
       'オフラインのデバイスのコピーや保持されたバックアップがリモートで消去されることはありません。';
 
   @override
-  String get offlineFirstCiphertextOnly => 'オフラインファースト、暗号文のみ';
-
-  @override
   String get oneTimePrometheusScrapeCredential => 'ワンタイムの Prometheus スクレイプ認証情報';
 
   @override
@@ -7923,9 +7861,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get otherSyncIssue => 'その他の同期の問題';
-
-  @override
-  String get outboxItems => '送信トレイの項目';
 
   @override
   String get outputIsEncryptedForThisDevice =>
@@ -8217,9 +8152,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get recordsAreDecryptedOnlyOnThis =>
       'レコードはこのデバイス上でのみ復号されます。同じ削除マーカーがまだ最新であれば、復元すると新しい署名付きリビジョンが作成されます。';
-
-  @override
-  String get recoveryDetails => '復旧の詳細';
 
   @override
   String get recoveryInProgress => '復旧中';
@@ -8969,9 +8901,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get serverBackupConfigurationReady => 'サーバーのバックアップ設定の準備ができています';
 
   @override
-  String get serverGenerationUnknown => 'サーバーの世代は不明';
-
-  @override
   String get serverSpaceId => 'サーバースペース ID';
 
   @override
@@ -9243,9 +9172,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get syncError => '同期エラー';
 
   @override
-  String get syncHealth => '同期の状態';
-
-  @override
   String get syncNow => '今すぐ同期';
 
   @override
@@ -9253,9 +9179,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get syncServiceError => '同期サービスのエラー';
-
-  @override
-  String get syncStatus => '同期の状態';
 
   @override
   String get syncing => '同期中';
@@ -9395,10 +9318,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get theDefaultPreferenceWasConfirmedAfter => '既定の設定は保管庫の同期後に確認されました。';
-
-  @override
-  String get theExportContainsARandomReport =>
-      'エクスポートには、ランダムなレポート ID、固定のエラーコード、クライアントのバージョン、同期の件数、UTC の日単位に丸めた日付が含まれます。保管庫のレコード、アカウントの詳細、サーバーのアドレス、デバイスの識別子は決して含まれません。';
 
   @override
   String get theFullScriptIsReviewedBefore =>
@@ -10119,11 +10038,6 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String countPendingReview(int count) {
-    return '確認待ち $count 件';
-  }
-
-  @override
   String displaynameAndItsEncryptedPayloadsWill(String displayName) {
     return '$displayName とその暗号化ペイロードは、サーバーのアクティブな状態から削除されます。アプリから元に戻すことはできません。';
   }
@@ -10198,11 +10112,6 @@ class AppLocalizationsJa extends AppLocalizations {
     int unavailableRecordCount,
   ) {
     return '$unavailableRecordCount 件の暗号化レコードを、現在の保管庫の鍵／デバイスディレクトリで検証できないか、対応するレコードとしてデコードできませんでした。暗号文はローカルに保存されたまま、信頼済みデータからは非表示になっています。';
-  }
-
-  @override
-  String unresolvedconflictcountNeedsReview(int unresolvedConflictCount) {
-    return '確認が必要 $unresolvedConflictCount 件';
   }
 
   @override
@@ -10412,11 +10321,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get multiFactorAuthenticationEnabled => '多要素認証を有効にしました';
 
   @override
-  String processedBranchesCount(int count) {
-    return '処理済みのブランチ · $count';
-  }
-
-  @override
   String get multiFactorSignInStarted => '多要素サインインを開始しました';
 
   @override
@@ -10517,10 +10421,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get passwordsAndKeysForNewHosts2 => '新しいホストのパスワードと鍵はホストの詳細で設定します。';
-
-  @override
-  String get newBranchesSyncAutomaticallyWithConflict =>
-      '新しいブランチは競合の通知とともに自動で同期されます。上部の「同期」でサーバーの受信トレイを確認することもできます。';
 
   @override
   String get newLabel => '新規';
@@ -10735,9 +10635,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get eachGroupLayoutCanConnectUp =>
       '1 つのグループレイアウトで接続できるホストは最大 32 台です。グループを分けてから、もう一度お試しください。';
-
-  @override
-  String get noPendingCrossDeviceBranches => '保留中のデバイス間ブランチはありません';
 
   @override
   String get browseFiles => 'ファイルを参照';
@@ -11001,19 +10898,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get accountDeletionScheduled => 'アカウントの削除を予約しました';
 
   @override
-  String get crossDeviceConflictInbox => 'デバイス間の競合の受信トレイ';
-
-  @override
   String get theCrossDeviceBranchIsntVerified =>
       'デバイス間のブランチはまだ検証されていないため、操作とサーバーのバージョンの詳細は非表示です。';
 
   @override
   String get thisDeviceDecryptsTheVerifiedBranch =>
       'このデバイスは検証済みのブランチを復号し、このデバイスの ID で再署名してから、現在キャッシュされているバージョンに対して CAS コミットを実行します。元のブランチの暗号文は保持され、コミットまたはサーバーでの解決が確認されるまで、受信トレイにはこの競合が表示されます。';
-
-  @override
-  String get concurrentBranchesSubmittedToTheServer =>
-      '他のデバイスがサーバーに送信した同時編集のブランチがここに表示されます。署名、保管庫の所属、鍵の世代が検証された後にのみ選択できます。受信トレイを表示しても現在のレコードは書き換えられません。';
 
   @override
   String get remoteDesktop2 => 'リモートデスクトップ';
@@ -18483,8 +18373,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get syncUpToDate => '最新の状態';
 
   @override
-  String get syncHealthAllSynced =>
-      'このデバイスでの変更はすべてサーバーに届き、ほかのデバイスの最新の変更もここに同期されています。';
+  String get syncHealthAllSynced => 'このデバイスはサーバーと同期済みです。';
 
   @override
   String get syncHealthSyncingNow => 'サーバーと暗号化された変更をやり取りしています…';
@@ -18497,28 +18386,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String syncHealthChangesWaiting(int count) {
     return '$count 件のローカルの変更がアップロードを待っています。';
   }
-
-  @override
-  String get syncOutboxCaption => 'アップロード待ちの暗号化された変更';
-
-  @override
-  String syncChangesReceived(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '前回の同期で受け取った変更',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get syncConflictsCaption => '保持する版を下で選んでください';
-
-  @override
-  String get syncSavedCheckpoint => '保存済みのチェックポイント';
-
-  @override
-  String get syncLastVerifiedServer => '最後に検証したサーバー';
 
   @override
   String get syncIssueSignInRequired => '再サインインが必要';
@@ -18706,9 +18573,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get syncPolicyLoad => '履歴の保持数を読み込む';
-
-  @override
-  String get syncNodeId => 'ノード ID';
 
   @override
   String get anAdministratorChangedTheRecordHistoryLimit =>

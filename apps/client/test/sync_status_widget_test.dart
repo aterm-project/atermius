@@ -135,7 +135,7 @@ void main() {
   });
 
   testWidgets(
-    'sync health shows checkpoint time and generation with safe error labels',
+    'sync health shows the checkpoint time with safe error labels',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(1280, 900));
       final sodium = await SodiumSumoInit.init();
@@ -206,7 +206,6 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Last successful sync'), findsOneWidget);
         expect(find.text('Never'), findsNothing);
-        expect(find.text('Generation mismatch'), findsOneWidget);
         expect(find.text('Sign-in required'), findsOneWidget);
 
         app
@@ -219,18 +218,7 @@ void main() {
         expect(find.text('Sync error'), findsOneWidget);
         expect(find.textContaining(unknownErrorCode), findsNothing);
         expect(find.textContaining('PRIVATE_CURSOR_SENTINEL'), findsNothing);
-
-        app.instance = const InstanceInfo(
-          instanceId: 'instance-1',
-          serverSpaceId: 'space-1',
-          generation: checkpointGeneration,
-          protocolVersion: 1,
-          setupRequired: false,
-          capabilities: [],
-        );
-        app.notifyListeners();
-        await tester.pumpAndSettle();
-        expect(find.text('Generation matches'), findsOneWidget);
+        expect(find.textContaining(checkpointGeneration), findsNothing);
 
         app.activeVault = const VaultDescriptor(
           id: '22222222-2222-4222-8222-222222222222',
@@ -243,7 +231,6 @@ void main() {
         expect(app.lastSuccessfulSyncAt, isNull);
         expect(app.syncCheckpointServerGeneration, isNull);
         expect(find.text('Never'), findsOneWidget);
-        expect(find.text('Generation matches'), findsNothing);
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());
         app.dispose();

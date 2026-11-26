@@ -580,11 +580,12 @@ async function readHostHistory(page, name, shotName) {
   };
 }
 
-// The Sync page's "Open conflicts" tile and conflict cards.
+// The Sync page: its status card, and the "Open conflicts" list that only
+// appears while a conflict waits.
 async function syncPageEvidence(page, shotName) {
   await parkPointer(page);
-  // Sync and conflicts is a Settings section; the sidebar Settings item
-  // carries the unresolved conflict count ("Settings 2").
+  // Sync is a Settings section; the sidebar Settings item carries the
+  // unresolved conflict count ("Settings 2").
   const clickVisibleButton = async (name, what) => {
     const buttons = page.getByRole('button', { name });
     await waitUntil(async () => {
@@ -599,25 +600,19 @@ async function syncPageEvidence(page, shotName) {
     }, 15000, what);
   };
   await clickVisibleButton(/^Settings(?:\s+\d+)?$/, 'the Settings navigation item');
-  await clickVisibleButton(/^Sync and conflicts$/, 'the Sync and conflicts settings section');
+  await clickVisibleButton(/^Sync$/, 'the Sync settings section');
   let lines = [];
+  // "Up to date" means nothing is queued on this device either.
   await waitUntil(async () => {
     lines = await semanticLines(page);
-    return lines.some((line) => /Open conflicts/.test(line));
-  }, 20000, 'the Sync health tiles');
+    return lines.includes('Up to date');
+  }, 20000, 'the Sync status card reading Up to date');
   await page.waitForTimeout(500);
   lines = await semanticLines(page);
   await shot(page, shotName);
-  const text = lines.join('\n');
-  const openConflicts = /Open conflicts\s+(\d+)/.exec(text);
-  const outbox = /Outbox items\s+(\d+)/.exec(text);
   return {
-    openConflicts: openConflicts ? Number(openConflicts[1]) : null,
-    outboxItems: outbox ? Number(outbox[1]) : null,
-    noOpenConflicts: lines.includes('No open conflicts'),
-    noCrossDeviceBranches: lines.includes('No pending cross-device branches'),
+    openConflictsShown: lines.some((line) => /Open conflicts/.test(line)),
     upToDate: lines.includes('Up to date'),
-    nodeIdShown: lines.some((line) => /Node ID/.test(line)),
     lines,
   };
 }
@@ -854,15 +849,10 @@ async function main() {
     const syncSummary = ({ lines, ...rest }) => rest;
     log('sync pages', JSON.stringify({ A: syncSummary(syncA), B: syncSummary(syncB) }));
     for (const [profile, evidence] of [['A', syncA], ['B', syncB]]) {
-      assertThat(evidence.openConflicts === 0,
-        `device ${profile} Sync page shows ${evidence.openConflicts} open conflicts`);
-      assertThat(evidence.noOpenConflicts,
-        `device ${profile} Sync page lists a conflict branch instead of "No open conflicts"`);
-      assertThat(evidence.noCrossDeviceBranches,
-        `device ${profile} Sync page lists a cross-device conflict branch`);
-      assertThat(evidence.outboxItems === 0,
-        `device ${profile} Sync page shows ${evidence.outboxItems} outbox items`);
-      assertThat(evidence.nodeIdShown, `device ${profile} Sync page does not show its Node ID`);
+      assertThat(!evidence.openConflictsShown,
+        `device ${profile} Sync page lists open conflicts`);
+      assertThat(evidence.upToDate,
+        `device ${profile} Sync page is not up to date`);
     }
     assertThat(conflictUploads.length === 0,
       `a device uploaded a conflict branch: ${JSON.stringify(conflictUploads)}`);

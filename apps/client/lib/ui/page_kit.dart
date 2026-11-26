@@ -10,7 +10,7 @@ import 'app_theme.dart';
 /// counters, notices and empty rows.
 ///
 /// A page leads with a [PageHeader]; a status page can follow it with a
-/// [StatusHero] and a [MetricGrid]. The widgets only lay out what they are
+/// [StatusHero]. The widgets only lay out what they are
 /// given: every label and value comes from the page.
 
 /// The title row of a workspace page: title, one-line explanation and the
@@ -120,7 +120,6 @@ class StatusHero extends StatelessWidget {
   const StatusHero({
     required this.icon,
     required this.tone,
-    required this.overline,
     required this.title,
     required this.description,
     required this.facts,
@@ -131,7 +130,6 @@ class StatusHero extends StatelessWidget {
 
   final IconData icon;
   final Color tone;
-  final String overline;
   final String title;
   final String description;
   final List<HeroFact> facts;
@@ -177,15 +175,6 @@ class StatusHero extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              overline,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: palette.muted,
-              ),
-            ),
-            const SizedBox(height: 2),
             Text(
               title,
               style: TextStyle(
@@ -332,174 +321,6 @@ class _HeroFactChip extends StatelessWidget {
     if (tooltip == null || tooltip.isEmpty) return chip;
     return Tooltip(message: tooltip, child: chip);
   }
-}
-
-/// One counter on the page: an icon, what is counted, and the count.
-class MetricTile extends StatelessWidget {
-  const MetricTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.tone,
-    this.caption,
-    this.textual = false,
-    this.showIcon = true,
-    super.key,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final String? caption;
-  final Color tone;
-
-  /// [value] is a word rather than a count: smaller, and it may wrap.
-  final bool textual;
-
-  /// [MetricGrid] turns the icon off when a tile is so narrow (about
-  /// 170 px) that it would squeeze the label into broken words.
-  final bool showIcon;
-
-  MetricTile _withIcon(bool show) => show == showIcon
-      ? this
-      : MetricTile(
-          icon: icon,
-          label: label,
-          value: value,
-          tone: tone,
-          caption: caption,
-          textual: textual,
-          showIcon: show,
-          key: key,
-        );
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Semantics(
-      container: true,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: palette.surface,
-          borderRadius: BorderRadius.circular(_radius(context) - 2),
-          border: Border.all(color: palette.line),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
-          child: Builder(
-            builder: (context) {
-              final valueStyle = TextStyle(
-                fontSize: textual ? 16 : 22,
-                height: textual ? 1.3 : 1.15,
-                fontWeight: FontWeight.w700,
-                letterSpacing: textual ? -.1 : -.3,
-                color: textual ? tone : palette.text,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              );
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          label,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.3,
-                            color: palette.muted,
-                          ),
-                        ),
-                      ),
-                      if (showIcon) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            color: tone.withValues(alpha: .12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(icon, size: 16, color: tone),
-                        ),
-                      ],
-                    ],
-                  ),
-                  SizedBox(height: textual ? 10 : 8),
-                  if (textual)
-                    Text(value, maxLines: 2, style: valueStyle)
-                  else
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(value, maxLines: 1, style: valueStyle),
-                    ),
-                  if (caption != null) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      caption!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: palette.hint),
-                    ),
-                  ],
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Lays [children] out in equal columns; every tile of a row is as tall as
-/// the tallest one, so labels of different lengths never overflow.
-class MetricGrid extends StatelessWidget {
-  const MetricGrid({required this.children, super.key});
-  final List<MetricTile> children;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, box) {
-      final columns = box.maxWidth >= 760
-          ? children.length.clamp(1, 4)
-          : box.maxWidth >= 250
-          ? 2
-          : 1;
-      const gap = 10.0;
-      final tileWidth = (box.maxWidth - gap * (columns - 1)) / columns;
-      final showIcons = tileWidth >= 170;
-      final rows = <Widget>[];
-      for (var start = 0; start < children.length; start += columns) {
-        final row = <Widget>[];
-        for (var i = 0; i < columns; i++) {
-          if (i > 0) row.add(const SizedBox(width: gap));
-          final index = start + i;
-          row.add(
-            Expanded(
-              child: index < children.length
-                  ? children[index]._withIcon(showIcons)
-                  : const SizedBox.shrink(),
-            ),
-          );
-        }
-        if (rows.isNotEmpty) rows.add(const SizedBox(height: gap));
-        rows.add(
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: row,
-            ),
-          ),
-        );
-      }
-      return Column(children: rows);
-    },
-  );
 }
 
 /// A coloured notice for a state that needs attention.
@@ -757,71 +578,6 @@ class PagePanel extends StatelessWidget {
             if (children.isNotEmpty) const SizedBox(height: 12),
             ...children,
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A label/value row of a [PagePanel]; the value is selectable monospace
-/// text so identifiers can be copied into a support request.
-class DetailRow extends StatelessWidget {
-  const DetailRow({
-    required this.label,
-    required this.value,
-    this.monospace = true,
-    super.key,
-  });
-  final String label;
-  final String value;
-
-  /// False for a value that is a sentence rather than an identifier.
-  final bool monospace;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    final labelText = Text(
-      label,
-      style: TextStyle(fontSize: 12, color: palette.muted),
-    );
-    final valueText = Semantics(
-      label: value,
-      child: SelectableText(
-        value,
-        style: TextStyle(
-          fontSize: monospace ? 11.5 : 12,
-          height: 1.45,
-          fontFamily: monospace ? 'monospace' : null,
-          color: palette.text,
-        ),
-      ),
-    );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: palette.line.withValues(alpha: .6)),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: LayoutBuilder(
-          builder: (context, box) {
-            if (box.maxWidth < 340) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [labelText, const SizedBox(height: 3), valueText],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(width: 116, child: labelText),
-                const SizedBox(width: 10),
-                Expanded(child: valueText),
-              ],
-            );
-          },
         ),
       ),
     );

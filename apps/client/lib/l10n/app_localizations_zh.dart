@@ -5487,9 +5487,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get adjustTheSearchOrGroupFilter => '调整搜索或分组筛选以查看更多主机。';
 
   @override
-  String get advanceOnlyAfterEachPageIs => '每页持久化后才前进';
-
-  @override
   String get afterConfirmationThisFingerprintIsSaved =>
       '确认后，此指纹将作为加密记录保存在当前保险库中并同步到其设备。之后如果密钥变化，客户端会拒绝连接。';
 
@@ -5511,12 +5508,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String anEncryptedVaultArchiveCoveringPendingcount(int pendingCount) {
     return '最近导出了一个涵盖 $pendingCount 项待处理操作的加密保险库归档。发件箱仍保存在本地，重新加载后会同步。';
   }
-
-  @override
-  String get anonymousDiagnostics => '匿名诊断';
-
-  @override
-  String get anonymousSyncDiagnosticsExported => '已导出匿名同步诊断信息。';
 
   @override
   String appliedAppliedInventoryChangeSHost(int applied) {
@@ -5835,9 +5826,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '请通过独立渠道将此公开指纹与另一台设备或可信管理员进行比对，以确认实例身份。';
 
   @override
-  String get comparedWithTheLastVerifiedServer => '与上次验证的服务器元数据比较；离线时此值可能已过时。';
-
-  @override
   String get compatibilityReportNotReported => '兼容性报告 · 未报告';
 
   @override
@@ -5876,19 +5864,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get conflictBranches => '冲突分支';
-
-  @override
   String get conflictResolutionSynced => '冲突解决已同步。';
 
   @override
   String conflictingSshKeysAreSavedFor(String join) {
     return '$join 保存了相互冲突的 SSH 密钥，连接已被阻止。请撤销所有你不打算信任的密钥；如果两个指纹都未验证，请全部撤销，并仅在通过独立渠道核对后再批准密钥。';
   }
-
-  @override
-  String get conflictingBranchesArePreservedUntilYou =>
-      '在你选择要保留的版本之前，冲突分支会被保留。';
 
   @override
   String get connect => '连接';
@@ -5976,9 +5957,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get couldNotEnableVaultHistorySync => '无法启用保险库历史同步。请检查当前保险库是否可写后重试。';
-
-  @override
-  String get couldNotExportAnonymousSyncDiagnostics => '无法导出匿名同步诊断信息。';
 
   @override
   String get couldNotGrantInputControlCheck => '无法授予输入控制。请检查会话后重试。';
@@ -6161,9 +6139,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get currentSignedInAccountAdministrativeActions => '当前登录账户 · 管理操作已隐藏';
 
   @override
-  String get cursorPolicy => '游标策略';
-
-  @override
   String get deletionScheduled => '已安排删除';
 
   @override
@@ -6274,9 +6249,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get devicesActive => '活动设备';
-
-  @override
-  String get diagnosticsExportCancelled => '已取消导出诊断信息。';
 
   @override
   String get direction => '方向';
@@ -6453,10 +6425,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get encryptedRecordsImmutableRetriesAndRecovery =>
-      '此保险库的加密记录、不可变重试和恢复检查点。';
-
-  @override
   String get encryptedWithTheActiveVaultKey =>
       '使用当前保险库密钥加密。有访问权限的成员可以读取。关闭同步会取消未发送的排队命令；已发送或已提交的命令仍可能到达并保留在保险库中。';
 
@@ -6548,9 +6516,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get exportArchive => '导出归档';
 
   @override
-  String get exportDiagnostics => '导出诊断信息';
-
-  @override
   String get exportTheFixedServerHistoryCurrent =>
       '导出固定的服务器历史、当前删除标记、本地发件箱/冲突分支和加密对象块。单独的归档密码会使用 Argon2id 和 XChaCha20-Poly1305 保护文件。';
 
@@ -6602,15 +6567,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get generation => '代次';
-
-  @override
-  String get generationCheckpoint => '代次检查点';
-
-  @override
-  String get generationMatches => '代次一致';
-
-  @override
-  String get generationMismatch => '代次不一致';
 
   @override
   String get go => '转到';
@@ -6896,9 +6852,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lastChanged => '上次更改';
 
   @override
-  String get lastPull => '上次拉取';
-
-  @override
   String get lastRun => '上次运行';
 
   @override
@@ -6977,10 +6930,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get localDevice => '本机设备';
-
-  @override
-  String get localEditsAreEncryptedAndCommitted =>
-      '本地编辑在任何网络请求之前就会被加密并提交到持久化发件箱。重试会复用相同的操作 ID 和密文。服务器永远不会收到凭据或保险库密钥。';
 
   @override
   String get localEncryptedArchiveUnavailable => '本地加密归档不可用';
@@ -7160,9 +7109,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noActiveCredential => '没有活动的凭据';
 
   @override
-  String get noCheckpoint => '无检查点';
-
-  @override
   String get noCommandEventsReceivedYetPaste =>
       '尚未收到命令事件。请将复制的设置命令粘贴到交互式 Bash Shell 并按 Enter。';
 
@@ -7216,9 +7162,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get noNewerBundleIsAvailableAt => '此地址尚无更新的包。请更新自托管 Web 资源后再检查。';
-
-  @override
-  String get noOpenConflicts => '没有未解决的冲突';
 
   @override
   String get noOtherActiveVaultDevicesCan => '没有其他活动保险库设备可以接收此终端共享。';
@@ -7302,9 +7245,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get offlineDeviceCopiesAndRetainedBackups => '离线设备副本和保留的备份不会被远程擦除。';
 
   @override
-  String get offlineFirstCiphertextOnly => '离线优先，仅存密文';
-
-  @override
   String get oneTimePrometheusScrapeCredential => '一次性 Prometheus 抓取凭据';
 
   @override
@@ -7369,9 +7309,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get otherSyncIssue => '其他同步问题';
-
-  @override
-  String get outboxItems => '发件箱条目';
 
   @override
   String get outputIsEncryptedForThisDevice =>
@@ -7656,9 +7593,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get recordsAreDecryptedOnlyOnThis =>
       '记录只在此设备上解密。如果同一删除标记仍为当前状态，恢复会创建一个新的签名修订版本。';
-
-  @override
-  String get recoveryDetails => '恢复详情';
 
   @override
   String get recoveryInProgress => '正在恢复';
@@ -8401,9 +8335,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get serverBackupConfigurationReady => '服务器备份配置已就绪';
 
   @override
-  String get serverGenerationUnknown => '服务器代次未知';
-
-  @override
   String get serverSpaceId => '服务器空间 ID';
 
   @override
@@ -8674,9 +8605,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get syncError => '同步错误';
 
   @override
-  String get syncHealth => '同步健康状况';
-
-  @override
   String get syncNow => '立即同步';
 
   @override
@@ -8684,9 +8612,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get syncServiceError => '同步服务错误';
-
-  @override
-  String get syncStatus => '同步状态';
 
   @override
   String get syncing => '正在同步';
@@ -8822,10 +8747,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get theDefaultPreferenceWasConfirmedAfter => '默认偏好已在保险库同步后确认。';
-
-  @override
-  String get theExportContainsARandomReport =>
-      '导出内容包含随机报告 ID、固定错误代码、客户端版本、同步计数以及取整到 UTC 日的日期。绝不包含保险库记录、账户详情、服务器地址或设备标识符。';
 
   @override
   String get theFullScriptIsReviewedBefore => '完整脚本会在发送到活动 PTY 之前接受检查。';
@@ -9522,11 +9443,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String countPendingReview(int count) {
-    return '$count 待审阅';
-  }
-
-  @override
   String displaynameAndItsEncryptedPayloadsWill(String displayName) {
     return '$displayName 及其加密载荷将从服务器的活动状态中移除。此操作无法在应用中撤销。';
   }
@@ -9601,11 +9517,6 @@ class AppLocalizationsZh extends AppLocalizations {
     int unavailableRecordCount,
   ) {
     return '有 $unavailableRecordCount 条加密记录无法使用当前保险库密钥/设备目录验证，或无法解码为受支持的记录。它们的密文仍保存在本地，并已从受信任数据中隐藏。';
-  }
-
-  @override
-  String unresolvedconflictcountNeedsReview(int unresolvedConflictCount) {
-    return '$unresolvedConflictCount 项待检查';
   }
 
   @override
@@ -9809,11 +9720,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get multiFactorAuthenticationEnabled => '已启用多重身份验证';
 
   @override
-  String processedBranchesCount(int count) {
-    return '已处理分支 · $count';
-  }
-
-  @override
   String get multiFactorSignInStarted => '已开始多重身份验证登录';
 
   @override
@@ -9909,10 +9815,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get passwordsAndKeysForNewHosts2 => '新主机的密码和密钥在主机详情内设置。';
-
-  @override
-  String get newBranchesSyncAutomaticallyWithConflict =>
-      '新分支会随冲突通知自动同步；也可以使用顶部“同步”操作检查服务端收件箱。';
 
   @override
   String get newLabel => '新建';
@@ -10120,9 +10022,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get eachGroupLayoutCanConnectUp => '每组布局最多连接 32 台主机，请拆分分组后重试。';
-
-  @override
-  String get noPendingCrossDeviceBranches => '没有待处理的跨设备分支';
 
   @override
   String get browseFiles => '浏览文件';
@@ -10370,18 +10269,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accountDeletionScheduled => '账户注销已安排';
 
   @override
-  String get crossDeviceConflictInbox => '跨设备冲突收件箱';
-
-  @override
   String get theCrossDeviceBranchIsntVerified => '跨设备分支尚未通过验证；操作和服务端版本详情已隐藏。';
 
   @override
   String get thisDeviceDecryptsTheVerifiedBranch =>
       '这台设备会解密已验证分支，并以当前设备身份重新签名，再针对目前已缓存版本执行 CAS 提交。原分支密文会保留；提交或服务端解决确认前，收件箱仍显示此冲突。';
-
-  @override
-  String get concurrentBranchesSubmittedToTheServer =>
-      '这里显示其他设备提交到服务端的并发分支。只有签名、Vault 归属和密钥代次验证通过后才能选择；查看收件箱不会改写当前记录。';
 
   @override
   String get remoteDesktop2 => '远程桌面';
@@ -17573,7 +17465,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get syncUpToDate => '已是最新';
 
   @override
-  String get syncHealthAllSynced => '此设备上的所有更改都已到达服务器，其他设备的最新更改也已同步到这里。';
+  String get syncHealthAllSynced => '本设备已与服务器同步。';
 
   @override
   String get syncHealthSyncingNow => '正在与服务器交换加密更改…';
@@ -17585,28 +17477,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String syncHealthChangesWaiting(int count) {
     return '$count 项本地更改正在等待上传。';
   }
-
-  @override
-  String get syncOutboxCaption => '等待上传的加密更改';
-
-  @override
-  String syncChangesReceived(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '上次同步收到的更改',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get syncConflictsCaption => '请在下方选择要保留的版本';
-
-  @override
-  String get syncSavedCheckpoint => '已保存的检查点';
-
-  @override
-  String get syncLastVerifiedServer => '上次验证的服务器';
 
   @override
   String get syncIssueSignInRequired => '需要重新登录';
@@ -17784,9 +17654,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get syncPolicyLoad => '读取历史版本数';
-
-  @override
-  String get syncNodeId => '节点 ID';
 
   @override
   String get anAdministratorChangedTheRecordHistoryLimit =>

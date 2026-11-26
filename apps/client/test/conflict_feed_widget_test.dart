@@ -140,7 +140,7 @@ void main() {
         expect(find.text('Change'), findsOneWidget);
         expect(find.text('Current server version'), findsOneWidget);
         expect(find.text('Deleted'), findsOneWidget);
-        expect(find.text('No pending cross-device branches'), findsOneWidget);
+        expect(find.text('Open conflicts'), findsOneWidget);
         expect(find.text('Keep this device version'), findsOneWidget);
         expect(find.text('Use synced version'), findsOneWidget);
 
@@ -264,7 +264,7 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.text('Cross-device conflict inbox'), findsOneWidget);
+        expect(find.text('Open conflicts'), findsOneWidget);
         await tester.ensureVisible(find.text('Source device'));
         await tester.pump();
         expect(find.text('Source device'), findsOneWidget);
@@ -365,7 +365,7 @@ void main() {
         );
         await tester.ensureVisible(retain);
         await tester.pump();
-        expect(find.text('Cross-device conflict inbox'), findsOneWidget);
+        expect(find.text('Open conflicts'), findsOneWidget);
         expect(find.text('Adopt this branch'), findsOneWidget);
         expect(find.text('Keep current version'), findsOneWidget);
         expect(tester.widget<OutlinedButton>(retain).onPressed, isNotNull);
@@ -592,7 +592,7 @@ void main() {
     }
   });
 
-  testWidgets('resolved inbox events stay available as read-only history', (
+  testWidgets('resolved inbox events leave the sync page', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 1000);
@@ -625,29 +625,15 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.ensureVisible(find.text('Processed branches · 1'));
-      await tester.pump();
-      expect(find.text('Processed branches · 1'), findsOneWidget);
+      // A handled branch needs nothing more from the user: the page shows
+      // only the sync status, without an empty or a history section.
+      expect(find.text('Last successful sync'), findsOneWidget);
+      expect(find.text('Open conflicts'), findsNothing);
+      expect(find.textContaining('Processed branches'), findsNothing);
       expect(
         find.byKey(const ValueKey('conflict-feed-$_conflictId')),
         findsNothing,
       );
-
-      await tester.tap(find.text('Processed branches · 1'));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('conflict-feed-$_conflictId')),
-        findsOneWidget,
-      );
-      expect(find.text('Resolved'), findsNWidgets(2));
-      expect(find.text('Adopt this branch'), findsOneWidget);
-      final adopt = tester.widget<OutlinedButton>(
-        find.ancestor(
-          of: find.text('Adopt this branch'),
-          matching: find.byType(OutlinedButton),
-        ),
-      );
-      expect(adopt.onPressed, isNull);
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());
       app.dispose();
@@ -657,8 +643,7 @@ void main() {
     }
   });
   // Settings keeps each page's scroll offset under a PageStorageKey; the
-  // widgets inside must not share that slot (an expansion tile's bool, the
-  // cards' text offsets).
+  // widgets inside must not share that slot (the cards' text offsets).
   testWidgets('the sync page keeps working after scrolling, leaving and '
       'coming back', (tester) async {
     tester.view.physicalSize = const Size(1200, 1000);
@@ -679,17 +664,14 @@ void main() {
             activeKeyEpoch: '2',
             membershipVersion: '3',
           )
-          ..feedConflictItems = [
-            _item(resolved: true, resolutionState: 'resolved'),
-          ];
+          ..feedConflictItems = [_item()];
     try {
       await tester.pumpWidget(
         MaterialApp(theme: buildAppTheme(), home: AppShell(controller: app)),
       );
       await tester.pump();
-      await tester.ensureVisible(find.text('Processed branches · 1'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Processed branches · 1'));
+      final card = find.byKey(const ValueKey('conflict-feed-$_conflictId'));
+      await tester.ensureVisible(card);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       app.showWorkspacePage(WorkspacePage.hosts);
@@ -697,10 +679,10 @@ void main() {
       app.showWorkspacePage(WorkspacePage.sync);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.text('Processed branches · 1'));
+      await tester.ensureVisible(card);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.text('Processed branches · 1'), findsOneWidget);
+      expect(card, findsOneWidget);
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());
       app.dispose();

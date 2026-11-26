@@ -6477,10 +6477,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Adjust the search or group filter to see more hosts.';
 
   @override
-  String get advanceOnlyAfterEachPageIs =>
-      'Advance only after each page is persisted';
-
-  @override
   String get afterConfirmationThisFingerprintIsSaved =>
       'After confirmation, this fingerprint is saved as an encrypted record in the current Vault and syncs to its devices. The client rejects later connections when the key changes.';
 
@@ -6509,13 +6505,6 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return 'An encrypted Vault archive covering $_temp0 was exported recently. The outbox remains stored locally and will sync after reload.';
   }
-
-  @override
-  String get anonymousDiagnostics => 'Anonymous diagnostics';
-
-  @override
-  String get anonymousSyncDiagnosticsExported =>
-      'Anonymous sync diagnostics exported.';
 
   @override
   String appliedAppliedInventoryChangeSHost(int applied) {
@@ -6852,10 +6841,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Compare this public fingerprint with another device or a trusted administrator over a separate channel to confirm the instance identity.';
 
   @override
-  String get comparedWithTheLastVerifiedServer =>
-      'Compared with the last verified server metadata; this value may be stale while offline.';
-
-  @override
   String get compatibilityReportNotReported =>
       'Compatibility report · not reported';
 
@@ -6902,19 +6887,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get conflictBranches => 'Conflict branches';
-
-  @override
   String get conflictResolutionSynced => 'Conflict resolution synced.';
 
   @override
   String conflictingSshKeysAreSavedFor(String join) {
     return 'Conflicting SSH keys are saved for $join. Connections are blocked. Revoke every key you do not intend to trust; if neither fingerprint is verified, revoke both, then approve a key only after checking it out of band.';
   }
-
-  @override
-  String get conflictingBranchesArePreservedUntilYou =>
-      'Conflicting branches are preserved until you choose the version to keep.';
 
   @override
   String get connect => 'Connect';
@@ -7008,10 +6986,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get couldNotEnableVaultHistorySync =>
       'Could not enable Vault history sync. Check that the active Vault is writable and try again.';
-
-  @override
-  String get couldNotExportAnonymousSyncDiagnostics =>
-      'Could not export anonymous sync diagnostics.';
 
   @override
   String get couldNotGrantInputControlCheck =>
@@ -7210,9 +7184,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Current signed-in account · administrative actions hidden';
 
   @override
-  String get cursorPolicy => 'Cursor policy';
-
-  @override
   String get deletionScheduled => 'DELETION SCHEDULED';
 
   @override
@@ -7328,9 +7299,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get devicesActive => 'Devices active';
-
-  @override
-  String get diagnosticsExportCancelled => 'Diagnostics export cancelled.';
 
   @override
   String get direction => 'Direction';
@@ -7517,10 +7485,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get encryptedRecordsImmutableRetriesAndRecovery =>
-      'Encrypted records, immutable retries and recovery checkpoints for this Vault.';
-
-  @override
   String get encryptedWithTheActiveVaultKey =>
       'Encrypted with the active Vault key. Members with access can read it. Turning sync off cancels unsent queued commands; sent or committed commands may still arrive and remain in the Vault.';
 
@@ -7615,9 +7579,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportArchive => 'Export archive';
 
   @override
-  String get exportDiagnostics => 'Export diagnostics';
-
-  @override
   String get exportTheFixedServerHistoryCurrent =>
       'Export the fixed server history, current tombstones, local outbox/conflict branches and encrypted object blocks. A separate archive password protects the file with Argon2id and XChaCha20-Poly1305.';
 
@@ -7670,15 +7631,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get generation => 'Generation';
-
-  @override
-  String get generationCheckpoint => 'Generation checkpoint';
-
-  @override
-  String get generationMatches => 'Generation matches';
-
-  @override
-  String get generationMismatch => 'Generation mismatch';
 
   @override
   String get go => 'Go';
@@ -7981,9 +7933,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lastChanged => 'Last changed';
 
   @override
-  String get lastPull => 'Last pull';
-
-  @override
   String get lastRun => 'Last run';
 
   @override
@@ -8063,10 +8012,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get localDevice => 'Local device';
-
-  @override
-  String get localEditsAreEncryptedAndCommitted =>
-      'Local edits are encrypted and committed to the persistent outbox before any network request. A retry reuses the same operation IDs and ciphertext. The server never receives credentials or the Vault key.';
 
   @override
   String get localEncryptedArchiveUnavailable =>
@@ -8262,9 +8207,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noActiveCredential => 'No active credential';
 
   @override
-  String get noCheckpoint => 'No checkpoint';
-
-  @override
   String get noCommandEventsReceivedYetPaste =>
       'No command events received yet. Paste the copied setup command into an interactive Bash shell and press Enter.';
 
@@ -8322,9 +8264,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get noNewerBundleIsAvailableAt =>
       'No newer bundle is available at this address yet. Update the self-hosted Web assets, then check again.';
-
-  @override
-  String get noOpenConflicts => 'No open conflicts';
 
   @override
   String get noOtherActiveVaultDevicesCan =>
@@ -8415,9 +8354,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Offline device copies and retained backups are not remotely erased.';
 
   @override
-  String get offlineFirstCiphertextOnly => 'Offline-first, ciphertext-only';
-
-  @override
   String get oneTimePrometheusScrapeCredential =>
       'One-time Prometheus scrape credential';
 
@@ -8487,9 +8423,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get otherSyncIssue => 'Other sync issue';
-
-  @override
-  String get outboxItems => 'Outbox items';
 
   @override
   String get outputIsEncryptedForThisDevice =>
@@ -8784,9 +8717,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get recordsAreDecryptedOnlyOnThis =>
       'Records are decrypted only on this device. Restore creates a new signed revision if the same tombstone is still current.';
-
-  @override
-  String get recoveryDetails => 'Recovery details';
 
   @override
   String get recoveryInProgress => 'Recovery in progress';
@@ -9557,9 +9487,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Server backup configuration ready';
 
   @override
-  String get serverGenerationUnknown => 'Server generation unknown';
-
-  @override
   String get serverSpaceId => 'Server space ID';
 
   @override
@@ -9848,9 +9775,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncError => 'Sync error';
 
   @override
-  String get syncHealth => 'Sync health';
-
-  @override
   String get syncNow => 'Sync now';
 
   @override
@@ -9858,9 +9782,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncServiceError => 'Sync service error';
-
-  @override
-  String get syncStatus => 'Sync status';
 
   @override
   String get syncing => 'Syncing';
@@ -10003,10 +9924,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get theDefaultPreferenceWasConfirmedAfter =>
       'The default preference was confirmed after Vault sync.';
-
-  @override
-  String get theExportContainsARandomReport =>
-      'The export contains a random report ID, a fixed error code, client version, sync counts and dates rounded to UTC days. It never includes Vault records, account details, server addresses or device identifiers.';
 
   @override
   String get theFullScriptIsReviewedBefore =>
@@ -10776,11 +10693,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String countPendingReview(int count) {
-    return '$count pending review';
-  }
-
-  @override
   String displaynameAndItsEncryptedPayloadsWill(String displayName) {
     return '$displayName and its encrypted payloads will be removed from active server state. This cannot be undone from the app.';
   }
@@ -10867,11 +10779,6 @@ class AppLocalizationsEn extends AppLocalizations {
       one: '1 encrypted record',
     );
     return '$_temp0 could not be verified with the current Vault key/device directory or decoded as a supported record. Their ciphertext remains stored locally and is hidden from trusted data.';
-  }
-
-  @override
-  String unresolvedconflictcountNeedsReview(int unresolvedConflictCount) {
-    return '$unresolvedConflictCount needs review';
   }
 
   @override
@@ -11099,11 +11006,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Multi-factor authentication enabled';
 
   @override
-  String processedBranchesCount(int count) {
-    return 'Processed branches · $count';
-  }
-
-  @override
   String get multiFactorSignInStarted => 'Multi-factor sign-in started';
 
   @override
@@ -11212,10 +11114,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get passwordsAndKeysForNewHosts2 =>
       'Passwords and keys for new hosts are set in the host details.';
-
-  @override
-  String get newBranchesSyncAutomaticallyWithConflict =>
-      'New branches sync automatically with conflict notifications; you can also use Sync at the top to check the server inbox.';
 
   @override
   String get newLabel => 'New';
@@ -11449,9 +11347,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get eachGroupLayoutCanConnectUp =>
       'Each group layout can connect up to 32 hosts. Split the group and try again.';
-
-  @override
-  String get noPendingCrossDeviceBranches => 'No pending cross-device branches';
 
   @override
   String get browseFiles => 'Browse files';
@@ -11734,19 +11629,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountDeletionScheduled => 'Account deletion scheduled';
 
   @override
-  String get crossDeviceConflictInbox => 'Cross-device conflict inbox';
-
-  @override
   String get theCrossDeviceBranchIsntVerified =>
       'The cross-device branch isn\'t verified yet; action and server version details are hidden.';
 
   @override
   String get thisDeviceDecryptsTheVerifiedBranch =>
       'This device decrypts the verified branch, re-signs it with this device\'s identity, then performs a CAS commit against the currently cached version. The original branch ciphertext is kept; the inbox shows this conflict until the commit or server resolution is confirmed.';
-
-  @override
-  String get concurrentBranchesSubmittedToTheServer =>
-      'Concurrent branches submitted to the server by other devices are shown here. They can be selected only after signature, Vault ownership and key generation are verified; viewing the inbox doesn\'t rewrite the current record.';
 
   @override
   String get remoteDesktop2 => 'Remote desktop';
@@ -19606,8 +19494,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncUpToDate => 'Up to date';
 
   @override
-  String get syncHealthAllSynced =>
-      'Every change made on this device has reached the server, and the latest changes from your other devices are here.';
+  String get syncHealthAllSynced => 'This device is in sync with the server.';
 
   @override
   String get syncHealthSyncingNow =>
@@ -19627,29 +19514,6 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get syncOutboxCaption => 'Encrypted changes waiting to upload';
-
-  @override
-  String syncChangesReceived(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'changes received in the last sync',
-      one: 'change received in the last sync',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get syncConflictsCaption => 'Choose which version to keep below';
-
-  @override
-  String get syncSavedCheckpoint => 'Saved checkpoint';
-
-  @override
-  String get syncLastVerifiedServer => 'Last verified server';
 
   @override
   String get syncIssueSignInRequired => 'Sign-in required';
@@ -19856,9 +19720,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncPolicyLoad => 'Load history limit';
-
-  @override
-  String get syncNodeId => 'Node ID';
 
   @override
   String get anAdministratorChangedTheRecordHistoryLimit =>

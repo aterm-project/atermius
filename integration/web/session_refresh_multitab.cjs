@@ -145,10 +145,10 @@ async function waitWorkspace(page, notice) {
 }
 
 // The sync status in the status bar is no longer a button; a manual sync is
-// requested with "Sync now" in Settings → Sync and conflicts.
+// requested with "Sync now" in Settings → Sync.
 async function requestManualSync(page) {
   await click(page, 'Settings');
-  await click(page, 'Sync and conflicts');
+  await click(page, 'Sync');
   const locator = page.getByRole('button', { name: 'Sync now', exact: true }).first();
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {

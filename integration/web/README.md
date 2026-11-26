@@ -54,7 +54,7 @@ Scripts and what was done to them (status as of 2026-11-21):
 
 | Script | State |
 | --- | --- |
-| `test:sync-latest-wins` (`sync_latest_wins.cjs`, new) | Follows the current UI and runs to its end. Fails at the end on one product defect it records: Version history names another device only as `Node <ID prefix>` until the Devices page has been opened in the session. Everything else it asserts holds. |
+| `test:sync-latest-wins` (`sync_latest_wins.cjs`, new) | Follows the current UI and passes end to end (2026-11-26, after the Sync page was reduced to its status card: it now checks that both devices read "Up to date" with no "Open conflicts" list). |
 | `test:multi-vault-switch` | Its concurrent-edit stage was converted to latest-version-wins. Passes on the current bundle. |
 | `test:delete-edit-conflict` | Expectations from A's reconnect onwards rewritten (restore on B's tombstone, no conflict branch). Not run: the script still starts with the pre-hosted entry flow and stops at its first step. |
 | `test:credential-conflicts`, `test:host-security-conflicts` | Assert the replaced conflict-branch flow. Not rewritten; the modes refuse to start with a message saying so. |

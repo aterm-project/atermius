@@ -209,14 +209,14 @@ void main() {
         await tester.pumpAndSettle();
         await openSettingsCategory(tester, 'sync');
         final import = find.byKey(const ValueKey('local_to_sync_migration_open'));
-        expect(find.text('Sync health'), findsOneWidget);
+        expect(find.text('Last successful sync'), findsOneWidget);
         expect(find.text('Import to server'), findsOneWidget);
         await tester.ensureVisible(import);
         await tester.tap(import);
         await tester.pumpAndSettle();
         expect(localImport.imports, 1);
         // The import runs in the background: no page was pushed.
-        expect(find.text('Sync health'), findsOneWidget);
+        expect(find.text('Last successful sync'), findsOneWidget);
 
         await openSettingsCategory(tester, 'data');
         expect(import, findsNothing);

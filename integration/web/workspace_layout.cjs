@@ -2047,7 +2047,7 @@ async function clickNestedSidebarConnectAction(page, action) {
 
 async function clickConflictInbox(page) {
   await openWorkspaceNavigation(page, /^(Settings|设置)$/);
-  await openWorkspaceNavigation(page, /^(Sync and conflicts|同步与冲突)$/);
+  await openWorkspaceNavigation(page, /^(Sync|同步)$/);
 }
 
 async function field(page, label) {
@@ -8857,7 +8857,7 @@ async function main() {
       } catch (_) {}
       try {
         await clickConflictInbox(pageA);
-        await waitForText(pageA, 'Offline-first, ciphertext-only', 5000);
+        await waitForText(pageA, 'Last successful sync', 5000);
         syncPageOpened = true;
         unsupportedRecordVisible = await pageA.getByText(
           /encrypted record\(s\) could not be verified/i,
@@ -9091,17 +9091,17 @@ async function main() {
 
     stage = 'Profile A receives opaque Workspace conflict feed';
     await syncNow(pageA, 'Profile A pulls Workspace conflict feed', { forcePull: true });
-    stage = 'Profile A opens Sync and conflicts in Settings';
+    stage = 'Profile A opens Sync in Settings';
     await clickConflictInbox(pageA);
-    stage = 'Profile A sees Workspace conflict inbox';
-    await waitForText(pageA, '跨设备冲突收件箱');
+    stage = 'Profile A sees the Workspace conflict';
+    await waitForText(pageA, '未解决的冲突');
     await waitForWorkspaceCapture(() => workspaceConflictFeedEvents.find((item) =>
       item.profile === 'A' && item.type === 'created' &&
       item.conflictId === conflictId && item.recordId === workspaceRecordId),
     'A conflict-created event', pageA);
     stage = 'Profile B opens Workspace conflict inbox';
     await clickConflictInbox(pageB);
-    await waitForText(pageB, '跨设备冲突收件箱');
+    await waitForText(pageB, '未解决的冲突');
     stage = 'Profile B locates the local Workspace conflict copy action';
     let copyBranchButton;
     try {
@@ -9121,8 +9121,7 @@ async function main() {
           saveCopyAction: labels.some((label) => label.includes('Save local layout as named copy')),
           localKeepAction: labels.some((label) => label.includes('Keep this device version')),
           localUseSyncedAction: labels.some((label) => label.includes('Use synced version')),
-          conflictBranchesHeading: body.includes('Conflict branches'),
-          noOpenLocalConflicts: body.includes('No open conflicts'),
+          openConflictsHeading: body.includes('Open conflicts') || body.includes('未解决的冲突'),
           workspaceRecordVisible: body.includes(workspaceName),
           actionLabelCount: labels.filter((label) => /conflict|layout|version/i.test(label)).length,
         };
@@ -9221,7 +9220,7 @@ async function main() {
     assertThat(profileBCopySurvivedReload,
       'Profile B did not retain its decrypted named Workspace copy after reload');
     await clickConflictInbox(pageB);
-    await waitForText(pageB, '跨设备冲突收件箱');
+    await waitForText(pageB, '未解决的冲突');
     const reloadedConflictCopyAction = pageB.getByRole('button', {
       name: 'Save local layout as named copy', exact: true,
     });
