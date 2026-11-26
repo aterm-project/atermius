@@ -8,6 +8,7 @@ import '../l10n/l10n.dart';
 import '../mcp/mcp_call_summary.dart';
 import '../mcp/mcp_notices.dart';
 import '../mcp/mcp_service.dart';
+import 'app_density.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import 'responsive_layout.dart';
@@ -308,7 +309,7 @@ class _McpActivityButtonState extends State<McpActivityButton> {
         : palette.muted;
 
     if (current != null && widget.showLabel) {
-      final radius = BorderRadius.circular(8);
+      final radius = BorderRadius.circular(AppDensity.of(context).radiusMd);
       return Padding(
         padding: EdgeInsets.symmetric(
           horizontal: 4,
@@ -491,8 +492,9 @@ class McpActivityPanel extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(10, 2, 2, 2),
                     decoration: BoxDecoration(
                       color: palette.codeBackground,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: palette.line),
+                      borderRadius: BorderRadius.circular(
+                        AppDensity.of(context).radiusMd,
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -531,7 +533,7 @@ class McpActivityPanel extends StatelessWidget {
                     ),
                   ),
           ),
-          Divider(height: 1, color: palette.line),
+          const SizedBox(height: 1),
           if (entries.isEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
@@ -562,7 +564,7 @@ class McpActivityPanel extends StatelessWidget {
                 },
               ),
             ),
-          Divider(height: 1, color: palette.line),
+          const SizedBox(height: 1),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: Text(
@@ -675,7 +677,9 @@ class McpCallTile extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: palette.codeBackground,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(
+                        AppDensity.of(context).radiusSm,
+                      ),
                     ),
                     child: Text(
                       entry.summary,
@@ -718,7 +722,7 @@ class McpCallTile extends StatelessWidget {
     );
     if (onTap == null) return content;
     return InkWell(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       onTap: onTap,
       child: content,
     );
