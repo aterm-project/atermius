@@ -13,6 +13,7 @@ import 'app_density.dart';
 import 'app_theme.dart';
 import 'ios_native/ios_native.dart';
 import 'surfaces.dart';
+import 'app_motion.dart';
 
 /// 四语在线 SSH 诊断小工具菜单文案。
 String sshLiveToolsMenuLabel(BuildContext context) => switch (
@@ -43,7 +44,7 @@ Future<void> showSshLiveToolsSheet(
       ),
     );
   }
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
     builder: (dialogContext) {
       final size = MediaQuery.sizeOf(dialogContext);

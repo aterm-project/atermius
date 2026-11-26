@@ -6,6 +6,7 @@ import 'app_density.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'surfaces.dart';
+import 'app_motion.dart';
 
 /// 在向终端粘贴高危命令或未受括号粘贴保护的多行文本前弹出安全确认弹窗。
 ///
@@ -25,7 +26,7 @@ Future<String?> confirmTerminalPaste(
   if (analysis.isSafe) return text;
 
   AppleHaptics.light(context);
-  return showDialog<String>(
+  return showAppDialog<String>(
     context: context,
     barrierDismissible: true,
     requestFocus: true,

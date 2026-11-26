@@ -72,7 +72,8 @@ class _SftpTextEditorDialogState extends State<SftpTextEditorDialog> {
     _closingForDisconnect = true;
     _content.clear();
     _clearConflictDocument();
-    final navigator = Navigator.of(context, rootNavigator: true);
+    // The editor's own navigator: a frame's, in a workspace.
+    final navigator = Navigator.of(context);
     final editorRoute = ModalRoute.of(context);
     final closeEditorAfterChild =
         _nestedDialogOpen && editorRoute?.isCurrent != true;

@@ -11,6 +11,7 @@ import 'host_search_field.dart';
 import 'surfaces.dart';
 import '../l10n/l10n.dart';
 import '../telnet/telnet_ui.dart';
+import 'dialog_frames.dart';
 
 /// Keep duplicate leaf names distinguishable in nested group filters.
 Map<String, String> hostSearchGroupLabels(Iterable<GroupRecord> groups) {
@@ -90,7 +91,9 @@ Future<HostSearchSelection?> showHostSearchPalette(
   Listenable? changes,
   void Function(VoidCallback?)? onDismissChanged,
 }) async {
-  final navigator = Navigator.of(context);
+  // Window-level like every dialog: over the current frame.
+  final navigator = await DialogFrames.navigatorFor(context);
+  if (navigator == null || !context.mounted) return null;
   late final DialogRoute<HostSearchSelection> route;
   void dismiss() {
     if (route.isActive) navigator.removeRoute(route);

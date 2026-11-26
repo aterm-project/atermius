@@ -6,6 +6,7 @@ import '../console/usb_serial_console.dart';
 import '../domain/quick_connect.dart';
 import '../l10n/l10n.dart';
 import 'app_theme.dart';
+import 'app_motion.dart';
 
 /// Android serial Console picker: the attached USB-to-serial adapters (with
 /// refresh, empty and no-USB-host states), the baud rate field of the
@@ -21,7 +22,7 @@ import 'app_theme.dart';
 Future<QuickConnectRequest?> showUsbSerialConsoleDialog(
   BuildContext context, {
   required UsbSerialAccess access,
-}) => showDialog<QuickConnectRequest>(
+}) => showAppDialog<QuickConnectRequest>(
   context: context,
   builder: (_) => UsbSerialConsoleDialog(access: access),
 );

@@ -307,9 +307,19 @@ void main() {
         const ValueKey('admin_account_drawer_$_memberId'),
       );
       expect(drawer, findsOneWidget);
-      // It floats over the right edge of the window, full height; the table
-      // is still there behind it.
-      final window = tester.getRect(find.byType(MaterialApp));
+      // It floats over the right edge of the admin site (dialogs are
+      // window-level: below the tab row, which an installed app keeps as its
+      // title bar), full height; the table is still there behind it.
+      final app = tester.getRect(find.byType(MaterialApp));
+      final tabRow = find.byType(WorkspaceTabBar);
+      final window = tabRow.evaluate().isEmpty
+          ? app
+          : Rect.fromLTRB(
+              app.left,
+              tester.getRect(tabRow).bottom,
+              app.right,
+              app.bottom,
+            );
       final panel = tester.getRect(
         find.ancestor(of: drawer, matching: find.byType(Dialog)),
       );

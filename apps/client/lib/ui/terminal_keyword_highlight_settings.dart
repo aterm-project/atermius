@@ -11,6 +11,7 @@ import 'app_menu.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
 import 'terminal_palette.dart';
+import 'app_motion.dart';
 
 /// The localized name of a highlight group: built-in groups are named here,
 /// custom groups carry the name the user gave them.
@@ -72,7 +73,7 @@ class _TerminalKeywordHighlightSettingsState
       setState(() => _limitHit = true);
       return;
     }
-    final name = await showDialog<String>(
+    final name = await showAppDialog<String>(
       context: context,
       builder: (_) => const _GroupNameDialog(),
     );
@@ -83,7 +84,7 @@ class _TerminalKeywordHighlightSettingsState
 
   Future<void> _restoreDefaults() async {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.keywordHighlightRestoreDefaults),

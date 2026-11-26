@@ -386,7 +386,6 @@ class _HostAttachmentsDialogState extends State<_HostAttachmentsDialog> {
   Future<void> _remove(HostAttachmentSummary attachment) async {
     final confirmed = await showAppDialog<bool>(
       context: context,
-      useRootNavigator: true,
       builder: (dialogContext) => AlertDialog(
         title: Text(context.l10n.removeAttachmentFromThisHost),
         content: Text(

@@ -17,6 +17,12 @@
 | Temporary guest SSH/RDP / 临时访客访问 | Open its URL in a supported browser / 在支持的浏览器打开链接 | Separate account-free trusted-gateway flow / 独立免账户受信网关流程 |
 | External MCP / 外部 MCP | Opt-in listener on desktop, Android and iOS. iOS revokes the token on backgrounding. / 桌面、Android 和 iOS 可显式启用监听。iOS 进入后台时撤销令牌。 | No OS listener / 不监听系统端口 |
 
+## Dialogs stay in their pane / 弹窗只盖住所在窗格
+
+Dialogs, side sheets (the Host editor, Host properties), confirmations and prompts open over the pane they belong to, not over the whole window. In a split, the Host editor of one pane fills only that pane, and the tab row and the other panes stay usable. On Home a dialog covers the Home area below the tab row. A dialog that belongs to a tab stays with it: selecting another tab hides it with everything typed so far, and it is back when the tab is selected again. Closing the tab cancels it. Dialogs opened from the tab row or the ☰ menu use the pane that is selected (or Home). Android Back closes the dialog on screen first. On iPhone, sheets and alerts keep the full-screen system style.
+
+弹窗、侧边面板（主机编辑、主机属性）、确认框和提示都只盖住所属的窗格，不再覆盖整个窗口。分屏时，某个窗格的主机编辑器只占这个窗格，顶部标签栏和其他窗格照常可用；在 Home 上，弹窗只盖住标签栏下方的 Home 区域。属于某个标签的弹窗跟着这个标签：切到别的标签时它连同已输入的内容一起隐藏，切回来时还在；关闭标签则取消这个弹窗。从标签栏或 ☰ 菜单打开的弹窗出现在当前选中的窗格（或 Home）。Android 返回键先关闭屏幕上的弹窗。iPhone 上的表单和提示仍是系统的全屏样式。
+
 ## Terminal scrollback / 终端回滚缓冲
 
 A terminal keeps up to **100,000 lines** of earlier output by default. Settings → Theme → **Scrollback** (both the account workspace and the local profile) offers 10,000, 50,000, 100,000, 500,000, 1,000,000 and 5,000,000 lines. The choice is stored on this device only and applies to terminals opened afterwards; open terminals, detached terminal windows included, keep the limit they were created with.

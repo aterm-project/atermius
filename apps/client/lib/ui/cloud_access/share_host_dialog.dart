@@ -15,12 +15,13 @@ import '../app_theme.dart';
 import '../credential_visibility/credential_visibility_widgets.dart';
 import 'cloud_access_common.dart';
 import 'organizations_page.dart';
+import '../app_motion.dart';
 
 Future<void> showCloudShareDialog(
   BuildContext context, {
   required AppController app,
   required HostRecord host,
-}) => showDialog<void>(
+}) => showAppDialog<void>(
   context: context,
   builder: (context) => CloudDialogSurface(
     child: Dialog(
@@ -469,8 +470,10 @@ class _LinkEditorState extends State<_LinkEditor> {
   }
 
   Future<DateTime?> _pick(DateTime initial) async {
+    // Pickers stay in the share dialog's frame (window-level).
     final date = await showDatePicker(
       context: context,
+      useRootNavigator: false,
       initialDate: initial,
       firstDate: DateTime.now().subtract(const Duration(minutes: 1)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
@@ -478,6 +481,7 @@ class _LinkEditorState extends State<_LinkEditor> {
     if (date == null || !mounted) return null;
     final time = await showTimePicker(
       context: context,
+      useRootNavigator: false,
       initialTime: TimeOfDay.fromDateTime(initial),
     );
     if (time == null) return null;

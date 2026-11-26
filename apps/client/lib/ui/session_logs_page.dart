@@ -10,6 +10,7 @@ import 'app_theme.dart';
 import 'ios_native/ios_native.dart';
 import 'page_kit.dart';
 import 'surfaces.dart';
+import 'app_motion.dart';
 
 enum _LogFilter { all, active, failed, closed }
 
@@ -111,7 +112,7 @@ class _SessionLogsPageState extends State<SessionLogsPage> {
       if (confirmed) await widget.book.clear();
       return;
     }
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.r7NavLogClearTitle),
@@ -392,7 +393,7 @@ class _SessionLogsPageState extends State<SessionLogsPage> {
                     key: ValueKey('session_log_${entry.id}'),
                     entry: entry,
                     live: book.isActive(entry.id),
-                    onOpen: () => showDialog<void>(
+                    onOpen: () => showAppDialog<void>(
                       context: context,
                       builder: (_) =>
                           _SessionLogDetailDialog(book: book, entry: entry),

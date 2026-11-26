@@ -1,4 +1,5 @@
 import '../domain/host_sort.dart';
+import 'dialog_frames.dart';
 import 'host_sort_menu.dart';
 import 'terminal_font_zoom.dart';
 import 'cloud_access/organizations_page.dart' show CloudAccessAccountCard;
@@ -210,8 +211,46 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with DialogFrameOwner<AppShell> {
   PageAddressBinding? _pageAddress;
+
+  /// Window-level dialogs: each pane and the Home area is a frame of its own.
+  @override
+  late final DialogFrameController dialogFrames = DialogFrameController(
+    currentFrame: _currentDialogFrame,
+  );
+
+  /// Whether the session area (panes, file tabs) is shown rather than Home.
+  bool get _sessionAreaShown =>
+      app.page == WorkspacePage.terminal || _selectedFileId != null;
+
+  /// The frame of the Home area: one per page, so a dialog stays with the
+  /// page it was opened on.
+  String? get _homeDialogFrame {
+    if (_adminSiteShown) return 'admin';
+    if (_sessionAreaShown) return null;
+    final page = app.page == WorkspacePage.admin
+        ? WorkspacePage.hosts
+        : app.page;
+    return 'home:${page.name}';
+  }
+
+  /// Where a dialog opened from outside every frame (tab row, ☰ menu,
+  /// controller prompts) goes: the selected pane, else the Home area.
+  String? _currentDialogFrame() {
+    if (!mounted) return null;
+    if (_homeDialogFrame case final home?) return home;
+    return _selectedFileId ?? _sessionWorkspace.selectedId;
+  }
+
+  /// Frames of tabs that are gone end with their dialogs; Home's stay. Open
+  /// tabs get their host right away.
+  void _retainDialogFrames(Set<String> liveTabs) {
+    dialogFrames.retain(
+      (id) => id == 'admin' || id.startsWith('home:') || liveTabs.contains(id),
+    );
+    dialogFrames.ensure(liveTabs);
+  }
 
   /// Browser client: remembers the open tabs and brings them back.
   OpenWorkspaceKeeper? _openWorkspace;
@@ -420,6 +459,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    dialogFrames.dispose();
     _unregisterTrackedFileProvider?.call();
     TrackedFilesWindows.instance.removeListener(_onTrackedFilesChanged);
     unawaited(TrackedFilesWindows.instance.releaseOwner(app));
@@ -645,6 +685,7 @@ class _AppShellState extends State<AppShell> {
     }.toList()) {
       if (!liveIds.contains(id)) _sessionWorkspace.remove(id);
     }
+    _retainDialogFrames(liveIds);
     if (_fileTabs.find(_selectedFileId ?? '') == null) {
       _selectedFileId = _fileTabs.find(_sessionWorkspace.selectedId ?? '')?.id;
       if (hadSelectedFile &&
@@ -813,6 +854,7 @@ class _AppShellState extends State<AppShell> {
     }.toList()) {
       if (!visible.contains(id)) _sessionWorkspace.remove(id);
     }
+    _retainDialogFrames(visible);
     final active = _selectedFileId ?? app.activeTerminalTabId;
     if (active != null &&
         visible.contains(active) &&
@@ -2079,6 +2121,8 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
         // to refract (skipped under a wallpaper).
         body: AmbientCanvas(
           child: SafeArea(
+          child: DialogFrameLayer(
+          controller: dialogFrames,
           child: Column(
             children: [
               if (!(adminSite && serverHostedClient))
@@ -2402,6 +2446,10 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
                   ),
                 ),
               Expanded(
+                // Home (each page) and the admin site are frames; on the
+                // session area every pane is one (SessionWorkspaceView).
+                child: DialogFrame(
+                id: _homeDialogFrame,
                 child: adminSite
                     ? AdminPanel(
                         app: app,
@@ -2492,9 +2540,11 @@ _snack(context, context.l10n.couldntOpenANewWindow, error: true);
                     ),
                   ],
                 ),
+                ),
               ),
               if (!adminSite) _statusBar(),
             ],
+          ),
           ),
         ),
         ),
@@ -2802,9 +2852,10 @@ Future<bool> _confirmSshHostKey(
   bool previouslyRevoked = false,
   bool offlineTransportUnavailable = false,
 }) async {
+  // Window-level like every dialog: the current pane or Home if one is on
+  // screen, else the whole window.
   final result = await showAppDialog<bool>(
     context: context,
-    useRootNavigator: true,
     builder: (dialogContext) => _sshHostKeyReview(
       context,
       endpoint: endpoint,
@@ -4344,7 +4395,7 @@ class _HostsPageState extends State<_HostsPage> {
     SshTransferDirection? scpDirection,
   }) async {
     if (!_connectingHosts.add(host.id)) return;
-    final routeContext = Navigator.of(context, rootNavigator: true).context;
+    final routeContext = DialogFrames.stableContextOf(context);
     try {
       if (kIsWeb && scpDirection != null) {
         final tab = await resolveHostFileSession<TerminalTabSession>(
@@ -12441,7 +12492,10 @@ return DesktopView(
       );
     }
 
-    return Container(
+    // Each live split pane is a frame of its own, like a session pane.
+    return DialogFrame(
+      id: tab.id,
+      child: Container(
       key: ValueKey(
         'workspace-live-split-pane-${workspace.panes[index].paneId}',
       ),
@@ -12531,6 +12585,7 @@ return DesktopView(
         ],
         ),
       ),
+      ),
     );
   }
 
@@ -12554,7 +12609,9 @@ return DesktopView(
               ),
             ),
           );
-    return Container(
+    return DialogFrame(
+      id: tab?.id,
+      child: Container(
       key: ValueKey('workspace-live-split-pane-${pane.paneId}'),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -12569,6 +12626,7 @@ return DesktopView(
           ),
           ?menu,
         ],
+      ),
       ),
     );
   }
@@ -27278,7 +27336,6 @@ class _VaultMembersDialogState extends State<_VaultMembersDialog> {
     final username = _label(member);
     final confirmed = await showAppDialog<bool>(
       context: context,
-      useRootNavigator: true,
       builder: (dialogContext) => AlertDialog(
         icon: Icon(Icons.key_outlined, color: context.palette.lime),
         title: Text(context.l10n.rotateKeyAndChangeRole),
@@ -27321,7 +27378,6 @@ class _VaultMembersDialogState extends State<_VaultMembersDialog> {
     final pending = member['state'] == 'invited';
     final confirmed = await showAppDialog<bool>(
       context: context,
-      useRootNavigator: true,
       builder: (dialogContext) => AlertDialog(
         icon: Icon(
           Icons.person_remove_alt_1_outlined,
@@ -27366,7 +27422,6 @@ class _VaultMembersDialogState extends State<_VaultMembersDialog> {
     final username = _label(member);
     final confirmed = await showAppDialog<bool>(
       context: context,
-      useRootNavigator: true,
       builder: (dialogContext) => AlertDialog(
         icon: Icon(
           Icons.admin_panel_settings_outlined,
@@ -27405,7 +27460,8 @@ class _VaultMembersDialogState extends State<_VaultMembersDialog> {
       userId,
       () => app.transferVaultOwnership(newOwnerUserId: userId),
     );
-    if (completed && mounted) Navigator.of(context, rootNavigator: true).pop();
+    // The members dialog is in this window's frame, not the root.
+    if (completed && mounted) Navigator.of(context).pop();
   }
 
   Future<bool> _runChange(String userId, Future<void> Function() change) async {

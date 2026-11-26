@@ -10,6 +10,7 @@ import 'rdp_permissions.dart';
 import 'rdp_settings.dart';
 import 'rdp_storage.dart';
 import '../l10n/l10n.dart';
+import '../ui/dialog_frames.dart';
 
 typedef RdpFolderPicker = Future<String?> Function();
 
@@ -350,7 +351,9 @@ class _RdpSettingsEditorState extends State<RdpSettingsEditor>
         ),
       ),
     );
-    final name = await Navigator.of(context, rootNavigator: true).push(route);
+    // The editor's frame (window-level), or the window outside a workspace.
+    final name = await DialogFrames.navigatorNow(context)
+        .push(route);
     // Dispose after the route actually releases its TextField.
     await route.completed;
     controller.dispose();

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../l10n/l10n.dart';
 import 'rdp_storage.dart';
 import 'rdp_storage_stub.dart' if (dart.library.io) 'rdp_storage_io.dart';
+import '../ui/app_motion.dart';
 
 /// Folder chooser for RDP drive redirection; unavailable on the web.
 Future<String?> pickRdpRedirectFolder() async {
@@ -34,7 +35,7 @@ Future<String?> pickRdpRedirectDisk(BuildContext context) async {
   if (roots.isEmpty) {
     throw const RdpStorageException(RdpStorageIssue.unavailable);
   }
-  return showDialog<String>(
+  return showAppDialog<String>(
     context: context,
     builder: (context) => SimpleDialog(
       title: Text(context.l10n.rdpChooseDisk),

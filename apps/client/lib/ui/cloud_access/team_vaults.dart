@@ -18,6 +18,7 @@ import '../app_theme.dart';
 import '../credential_visibility/credential_visibility_widgets.dart';
 import 'cloud_access_common.dart';
 import 'share_host_dialog.dart' show VaultGrantsPanel;
+import '../app_motion.dart';
 
 /// "Team · Org / Name" for a team Vault, the plain name otherwise.
 String teamVaultDisplayName(AppController app, String vaultId) {
@@ -79,7 +80,7 @@ Future<bool> showPutHostsInVaultDialog(
   required AppController app,
   required List<HostRecord> hosts,
 }) async {
-  final done = await showDialog<bool>(
+  final done = await showAppDialog<bool>(
     context: context,
     builder: (context) => CloudDialogSurface(
       child: Dialog(
@@ -408,7 +409,7 @@ Future<String?> showCreateTeamVaultDialog(
   BuildContext context, {
   required CloudAccessService service,
   String? orgId,
-}) => showDialog<String>(
+}) => showAppDialog<String>(
   context: context,
   barrierDismissible: false,
   builder: (context) => CloudDialogSurface(
@@ -758,7 +759,7 @@ Future<void> showVaultAccessDialog(
   BuildContext context, {
   required CloudAccessService service,
   required String vaultId,
-}) => showDialog<void>(
+}) => showAppDialog<void>(
   context: context,
   builder: (context) => CloudDialogSurface(
     child: Dialog(

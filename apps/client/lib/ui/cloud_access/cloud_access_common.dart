@@ -7,6 +7,7 @@ import '../../l10n/l10n.dart';
 import '../app_density.dart';
 import '../app_theme.dart';
 import '../surfaces.dart';
+import '../app_motion.dart';
 
 /// Maps stable error codes (never translated strings) to localized text.
 String cloudAccessErrorText(BuildContext context, Object error) {
@@ -175,7 +176,7 @@ Future<bool> confirmCloudAction(
   required String action,
   bool destructive = true,
 }) async {
-  final result = await showDialog<bool>(
+  final result = await showAppDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(title),

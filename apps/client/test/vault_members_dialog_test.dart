@@ -285,6 +285,8 @@ void main() {
       );
       expect(find.text('Revoke invitation'), findsOneWidget);
       await _scrollMembersToTop(tester);
+      await tester.ensureVisible(find.text('Make viewer'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('Make viewer'));
       await tester.pumpAndSettle();
@@ -304,8 +306,10 @@ void main() {
         )['role'],
         'viewer',
       );
-      expect(find.textContaining('VIEWER · Active'), findsOneWidget);
-      expect(find.text('Make editor'), findsOneWidget);
+      // Two viewers now; how many rows show at once depends on the room of
+      // the dialog's frame.
+      expect(find.textContaining('VIEWER · Active'), findsWidgets);
+      expect(find.text('Make editor'), findsWidgets);
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());
       controller.dispose();
@@ -419,6 +423,8 @@ void main() {
       await _openMembers(tester, controller);
       final transfer = find.text('Transfer ownership');
       expect(transfer, findsOneWidget);
+      await tester.ensureVisible(transfer);
+      await tester.pumpAndSettle();
       await tester.tap(transfer);
       await tester.pumpAndSettle();
       expect(find.text('Transfer Vault ownership?'), findsOneWidget);
@@ -498,6 +504,8 @@ void main() {
       controller.vaultMembers = controller.rows;
       controller.failTransfer = true;
       await _openMembers(tester, controller);
+      await tester.ensureVisible(find.text('Transfer ownership'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Transfer ownership'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Transfer and rotate key'));
@@ -522,6 +530,9 @@ void main() {
 }
 
 Future<void> _ensureMemberVisible(WidgetTester tester, String username) async {
+  // The dialog only has the room of its frame (the Home area), so earlier
+  // rows may have scrolled out above: search from the top.
+  await _scrollMembersToTop(tester);
   final list = find.byType(ListView).last;
   final scrollable = find.descendant(
     of: list,

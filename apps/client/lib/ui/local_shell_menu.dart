@@ -6,6 +6,7 @@ import '../console/local_console.dart';
 import '../console/local_shell_l10n.dart';
 import '../l10n/l10n.dart';
 import 'workspace_controls.dart';
+import 'app_motion.dart';
 
 /// Plus-menu entries for embedded local shells, shared by the account
 /// workspace and the local Profile. On desktop: the system default shell
@@ -68,7 +69,7 @@ List<WorkspaceAction> localShellWorkspaceActions(
 }
 
 Future<void> showLocalShellUnavailable(BuildContext context) =>
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         key: const ValueKey('local_shell_unavailable_dialog'),
@@ -89,7 +90,7 @@ Future<LocalShellLaunch?> showLocalShellOptionsDialog(
   BuildContext context, {
   required List<LocalShellKind> kinds,
   LocalShellLaunch initial = LocalShellLaunch.systemDefault,
-}) => showDialog<LocalShellLaunch>(
+}) => showAppDialog<LocalShellLaunch>(
   context: context,
   builder: (_) => _LocalShellOptionsDialog(kinds: kinds, initial: initial),
 );

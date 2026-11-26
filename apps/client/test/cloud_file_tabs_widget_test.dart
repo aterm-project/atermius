@@ -14,6 +14,9 @@ import 'package:aterm_client/storage/secure_store.dart';
 import 'package:aterm_client/sync/local_vault_import.dart';
 import 'package:aterm_client/ui/app_shell.dart';
 import 'package:aterm_client/ui/app_theme.dart';
+import 'package:aterm_client/ui/app_motion.dart';
+import 'package:aterm_client/ui/dialog_frames.dart';
+import 'package:aterm_client/ui/host_editor_panel.dart';
 import 'package:aterm_client/ui/remote_file_workspace.dart';
 import 'package:aterm_client/ui/group_session_layout.dart';
 import 'package:aterm_client/ui/session_workspace.dart';
@@ -162,6 +165,210 @@ void main() {
       }
     },
   );
+
+  testWidgets(
+    'the Host editor of a split pane covers only that pane and stays with its tab',
+    (tester) async {
+      final fixture = await _fixture();
+      try {
+        await tester.binding.setSurfaceSize(const Size(1400, 900));
+        await tester.runAsync(() => fixture.app.openTerminalTab(_a));
+        await tester.runAsync(() => fixture.app.openTerminalTab(_b));
+        await tester.pumpWidget(_shell(fixture.app));
+        await tester.pumpAndSettle();
+        final layout = tester
+            .widget<SessionWorkspaceView>(find.byType(SessionWorkspaceView))
+            .controller;
+        final ids = fixture.app.terminalTabs.map((tab) => tab.id).toList();
+        layout.split(ids.first, ids.last, SessionSplitEdge.right);
+        tester
+            .widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar))
+            .onSelect(ids.first);
+        await tester.pumpAndSettle();
+        Finder frame(String id) => find.byWidgetPredicate(
+          (widget) => widget is DialogFrame && widget.id == id,
+        );
+        // ids.first was dropped on the right edge of ids.last.
+        final pane = tester.getRect(frame(ids.first));
+        final other = tester.getRect(frame(ids.last));
+        expect(other.right, lessThanOrEqualTo(pane.left));
+
+        final saved = showHostEditorPanel(
+          tester.element(
+            find.descendant(
+              of: frame(ids.first),
+              matching: find.byType(TerminalView),
+            ),
+          ),
+          existing: _a,
+          groups: const [],
+          hosts: const [_a, _b],
+        );
+        await tester.pumpAndSettle();
+        final editor = find.byType(HostEditorPanel);
+        expect(editor, findsOneWidget);
+        final sheet = tester.getRect(editor);
+        expect(pane.inflate(0.5).contains(sheet.topLeft), isTrue,
+            reason: 'editor $sheet inside its pane $pane');
+        expect(pane.inflate(0.5).contains(sheet.bottomRight), isTrue,
+            reason: 'editor $sheet inside its pane $pane');
+        // The side sheet keeps to the pane's right edge, full pane height.
+        expect(sheet.right, closeTo(pane.right, 1));
+        expect(sheet.height, closeTo(pane.height, 1));
+        // The tab row and the other pane stay usable.
+        expect(find.byType(WorkspaceTabBar).hitTestable(), findsOneWidget);
+        expect(
+          find
+              .descendant(of: frame(ids.last), matching: find.byType(TerminalView))
+              .hitTestable(),
+          findsOneWidget,
+        );
+
+        // Home and back: the editor waits with its tab.
+        tester.widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar)).onSelect('hosts');
+        await tester.pumpAndSettle();
+        expect(editor.hitTestable(), findsNothing);
+        tester
+            .widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar))
+            .onSelect(ids.first);
+        await tester.pumpAndSettle();
+        expect(editor.hitTestable(), findsOneWidget);
+
+        Navigator.of(tester.element(editor)).pop();
+        await tester.pumpAndSettle();
+        expect(await saved, isNull);
+        expect(editor, findsNothing);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await _cleanup(tester, fixture);
+      }
+    },
+  );
+
+  testWidgets('a pane menu opens its dialog in that pane, not the selected one', (
+    tester,
+  ) async {
+    final fixture = await _fixture();
+    try {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      await tester.runAsync(() => fixture.app.openTerminalTab(_a));
+      await tester.runAsync(() => fixture.app.openTerminalTab(_b));
+      await tester.pumpWidget(_shell(fixture.app));
+      await tester.pumpAndSettle();
+      final layout = tester
+          .widget<SessionWorkspaceView>(find.byType(SessionWorkspaceView))
+          .controller;
+      final ids = fixture.app.terminalTabs.map((tab) => tab.id).toList();
+      layout.split(ids.first, ids.last, SessionSplitEdge.right);
+      tester.widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar)).onSelect(ids.first);
+      await tester.pumpAndSettle();
+      final owner = tester.state(find.byType(AppShell)) as DialogFrameOwner;
+      Finder frame(String id) => find.byWidgetPredicate(
+        (widget) => widget is DialogFrame && widget.id == id,
+      );
+      // Reveal the other pane's handle actions with a mouse and open its
+      // terminal menu.
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(
+        tester.getCenter(find.byKey(ValueKey('pane-handle-${ids.last}'))),
+      );
+      await tester.pumpAndSettle();
+      final menu = find.descendant(
+        of: frame(ids.last),
+        matching: find.byKey(const ValueKey('terminal_function_menu')),
+      );
+      expect(menu, findsOneWidget);
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Properties').last);
+      await tester.pumpAndSettle();
+      expect(owner.dialogFrames.hasDialogs(ids.last), isTrue);
+      expect(owner.dialogFrames.hasDialogs(ids.first), isFalse);
+    } finally {
+      await _cleanup(tester, fixture);
+    }
+  });
+
+  testWidgets('the other pane takes typing while a pane shows a dialog', (
+    tester,
+  ) async {
+    final fixture = await _fixture();
+    try {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      await tester.runAsync(() => fixture.app.openTerminalTab(_a));
+      await tester.runAsync(() => fixture.app.openTerminalTab(_b));
+      await tester.pumpWidget(_shell(fixture.app));
+      await tester.pumpAndSettle();
+      final layout = tester
+          .widget<SessionWorkspaceView>(find.byType(SessionWorkspaceView))
+          .controller;
+      final ids = fixture.app.terminalTabs.map((tab) => tab.id).toList();
+      layout.split(ids.first, ids.last, SessionSplitEdge.right);
+      tester.widget<WorkspaceTabBar>(find.byType(WorkspaceTabBar)).onSelect(ids.first);
+      await tester.pumpAndSettle();
+      Finder frame(String id) => find.byWidgetPredicate(
+        (widget) => widget is DialogFrame && widget.id == id,
+      );
+      unawaited(
+        showAppDialog<void>(
+          context: tester.element(
+            find.descendant(of: frame(ids.first), matching: find.byType(TerminalView)),
+          ),
+          builder: (_) => const AlertDialog(
+            content: TextField(key: ValueKey('dialog-field'), autofocus: true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('dialog-field')), 'in dialog');
+      await tester.pump();
+      // Into the other pane's terminal.
+      await tester.tap(
+        find.descendant(of: frame(ids.last), matching: find.byType(TerminalView)),
+      );
+      await tester.pumpAndSettle();
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(text: 'typed'),
+      );
+      await tester.pump();
+      final other = fixture.app.terminalTabFor(ids.last)!.connection! as _Connection;
+      final mine = fixture.app.terminalTabFor(ids.first)!.connection! as _Connection;
+      expect(other.inputs.join(), contains('typed'));
+      expect(mine.inputs.join(), isNot(contains('typed')));
+    } finally {
+      await _cleanup(tester, fixture);
+    }
+  });
+
+  testWidgets('a dialog from the tab row covers the Home area, not the tab row', (
+    tester,
+  ) async {
+    final fixture = await _fixture();
+    try {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      await tester.pumpWidget(_shell(fixture.app));
+      await tester.pumpAndSettle();
+      final tabs = find.byType(WorkspaceTabBar);
+      unawaited(
+        showHostEditorPanel(
+          tester.element(tabs),
+          groups: const [],
+          hosts: const [_a, _b],
+        ),
+      );
+      await tester.pumpAndSettle();
+      final sheet = tester.getRect(find.byType(HostEditorPanel));
+      final tabRow = tester.getRect(tabs);
+      expect(sheet.top, greaterThanOrEqualTo(tabRow.bottom - 0.5));
+      expect(tabs.hitTestable(), findsOneWidget);
+      Navigator.of(tester.element(find.byType(HostEditorPanel))).pop();
+      await tester.pumpAndSettle();
+    } finally {
+      await _cleanup(tester, fixture);
+    }
+  });
 
   testWidgets(
     'cloud functions stay in top tabs without duplicate page header',

@@ -5,14 +5,16 @@ import '../domain/models.dart';
 import '../l10n/l10n.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
+import 'dialog_frames.dart';
 import 'password_field.dart';
 
 Future<List<String>?> showSshUserInfo(
   BuildContext context,
   HostRecord host,
   SSHUserInfoRequest request,
-  Future<void> cancelled,
-) async {
+  Future<void> cancelled, {
+  String? frameId,
+}) async {
   if (!context.mounted) return null;
   const maxPrompts = 8;
   const maxPromptRunes = 512;
@@ -47,10 +49,12 @@ Future<List<String>?> showSshUserInfo(
       safeInstruction.isEmpty) {
     return const <String>[];
   }
-  final navigator = Navigator.of(context, rootNavigator: true);
+  // Window-level: over the frame (pane) [frameId] names, or the current one.
+  final navigator = await DialogFrames.navigatorFor(context, frameId: frameId);
+  if (navigator == null || !context.mounted) return null;
   final route = DialogRoute<List<String>?>(
     context: context,
-    themes: InheritedTheme.capture(from: context, to: navigator.context),
+    themes: DialogFrames.captureThemes(context, navigator),
     barrierDismissible: false,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     builder: (_) => _SshUserInfoDialog(

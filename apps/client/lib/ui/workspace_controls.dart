@@ -10,6 +10,7 @@ import 'app_motion.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'surfaces.dart';
+import 'dialog_frames.dart';
 
 /// Shape of the workspace menus: a floating block with the block radius
 /// (a squircle on Apple platforms) and no outline; the menu's shadow sets it
@@ -127,6 +128,9 @@ class WorkspaceOverflowMenu extends StatelessWidget {
       platform: platform,
     );
     final customTrigger = child;
+    // Looked up now: the menu closes (and a pane handle may drop this button)
+    // before the chosen action runs.
+    final frame = DialogFrames.frameIdOf(context);
     return PopupMenuButton<String>(
       popUpAnimationStyle: AppMotion.menuStyle(context),
       // Fill, elevation and soft shadow come from the menu theme on every
@@ -163,7 +167,8 @@ class WorkspaceOverflowMenu extends StatelessWidget {
         if (action == null || !action.enabled) return;
         AppleHaptics.light(context);
         try {
-          await action.run();
+          // Dialogs of a pane's own menu open in that pane.
+          await DialogFrames.runInFrame(frame, action.run);
         } on Object {
           if (context.mounted) {
             ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -201,6 +206,7 @@ Future<void> showWorkspaceContextMenu(
   List<WorkspaceAction> actions,
 ) async {
   AppleHaptics.selection(context);
+  final frame = DialogFrames.frameIdOf(context);
   final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
   final localPosition = overlay.globalToLocal(position);
   final id = await showMenu<String>(
@@ -234,7 +240,7 @@ Future<void> showWorkspaceContextMenu(
   if (action != null && action.enabled) {
     AppleHaptics.light(context);
     try {
-      await action.run();
+      await DialogFrames.runInFrame(frame, action.run);
     } on Object {
       if (context.mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(

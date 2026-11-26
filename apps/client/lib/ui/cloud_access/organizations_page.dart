@@ -13,6 +13,7 @@ import '../../l10n/l10n.dart';
 import '../app_theme.dart';
 import 'cloud_access_common.dart';
 import 'team_vaults.dart';
+import '../app_motion.dart';
 
 /// Extracts a join token from a pasted `…/join#o1.<token>` link or raw token.
 String? parseOrgJoinToken(String input) {
@@ -300,7 +301,7 @@ String _orgRole(BuildContext context, String role) => switch (role) {
 
 Future<String?> _askText(BuildContext context, String title, String label) {
   final controller = TextEditingController();
-  return showDialog<String>(
+  return showAppDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(title),
@@ -389,7 +390,7 @@ class _OrganizationDetailPageState extends State<OrganizationDetailPage> {
     var role = 'member';
     String? teamId;
     final teams = (org?['teams'] as List? ?? const []).cast<Map>();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialog) => AlertDialog(
@@ -480,7 +481,7 @@ class _OrganizationDetailPageState extends State<OrganizationDetailPage> {
     final selected = Set<String>.from(
       (team['member_user_ids'] as List).cast<String>(),
     );
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialog) => AlertDialog(

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
 import 'surfaces.dart';
+import 'dialog_frames.dart';
 import 'ios_native/ios_native.dart';
 
 /// Shared motion language for Atermius.
@@ -364,6 +365,13 @@ class AppDialogMotionFrame extends StatelessWidget {
 /// scope, focus traversal, barrier semantics); only the timing and a
 /// paint-only scale / slide are added. Duration is zero when animations are
 /// disabled so the dialog appears and disappears in its final state.
+///
+/// Inside a workspace the dialog is window-level (see [DialogFrames]): it
+/// covers only the frame it belongs to — the pane or Home area [context] is
+/// in, the frame [frameId] names, or else the current frame — and stays with
+/// that tab when another tab is selected. `useRootNavigator: true` covers
+/// the whole application window as before; outside a workspace (sign-in,
+/// lock screen, tests without a shell) the root navigator is used anyway.
 Future<T?> showAppDialog<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -371,7 +379,8 @@ Future<T?> showAppDialog<T>({
   Color? barrierColor,
   String? barrierLabel,
   bool useSafeArea = true,
-  bool useRootNavigator = true,
+  bool? useRootNavigator,
+  String? frameId,
   RouteSettings? routeSettings,
   Offset? anchorPoint,
   TraversalEdgeBehavior? traversalEdgeBehavior,
@@ -379,8 +388,53 @@ Future<T?> showAppDialog<T>({
   bool? requestFocus,
   AppDialogMotion motion = AppDialogMotion.center,
 }) {
-  final navigator = Navigator.of(context, rootNavigator: useRootNavigator);
-  final themes = InheritedTheme.capture(from: context, to: navigator.context);
+  final iosPhone = isIosPhone(context);
+  Future<T?> push(NavigatorState navigator) => _pushAppDialog<T>(
+    context: context,
+    navigator: navigator,
+    builder: builder,
+    barrierDismissible: barrierDismissible,
+    barrierColor: barrierColor,
+    barrierLabel: barrierLabel,
+    useSafeArea: useSafeArea,
+    routeSettings: routeSettings,
+    anchorPoint: anchorPoint,
+    traversalEdgeBehavior: traversalEdgeBehavior,
+    fullscreenDialog: fullscreenDialog,
+    requestFocus: requestFocus,
+    motion: motion,
+  );
+  // iPhone keeps the platform's full-window sheets and alerts.
+  if (useRootNavigator == null && !iosPhone) {
+    final placement = DialogFrames.placementOf(context, frameId: frameId);
+    if (placement.now case final navigator?) return push(navigator);
+    // A frame seen for the first time gets its host on the next frame.
+    if (placement.later case final later?) {
+      return later.then(
+        (navigator) =>
+            navigator == null || !context.mounted ? null : push(navigator),
+      );
+    }
+  }
+  return push(Navigator.of(context, rootNavigator: useRootNavigator ?? true));
+}
+
+Future<T?> _pushAppDialog<T>({
+  required BuildContext context,
+  required NavigatorState navigator,
+  required WidgetBuilder builder,
+  required bool barrierDismissible,
+  required Color? barrierColor,
+  required String? barrierLabel,
+  required bool useSafeArea,
+  required RouteSettings? routeSettings,
+  required Offset? anchorPoint,
+  required TraversalEdgeBehavior? traversalEdgeBehavior,
+  required bool fullscreenDialog,
+  required bool? requestFocus,
+  required AppDialogMotion motion,
+}) {
+  final themes = DialogFrames.captureThemes(context, navigator);
   final iosPhone = isIosPhone(context);
   final forcedIosScope = IosNativeScope.maybeOf(context);
   Widget wrapCaptured(Widget child) {

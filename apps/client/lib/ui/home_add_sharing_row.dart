@@ -17,6 +17,7 @@ import 'apple_hig.dart';
 import 'local_shell_menu.dart';
 import 'usb_serial_console_dialog.dart';
 import 'workspace_controls.dart';
+import 'app_motion.dart';
 
 /// Server presence leases expire after this long (`VaultPresenceSnapshot`
 /// only accepts `ttl_seconds == 90`). A device is shown online only while its
@@ -259,7 +260,7 @@ class HomeAddSharingRow extends StatelessWidget {
 }
 
 Future<void> showHomeSerialConsoleUnavailable(BuildContext context) =>
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         key: const ValueKey('home_serial_console_unavailable_dialog'),
@@ -284,7 +285,7 @@ Future<QuickConnectRequest?> showHomeSerialConsoleDialog(
   UsbSerialAccess? usb,
 }) => usb != null
     ? showUsbSerialConsoleDialog(context, access: usb)
-    : showDialog<QuickConnectRequest>(
+    : showAppDialog<QuickConnectRequest>(
         context: context,
         builder: (_) => const _HomeSerialConsoleDialog(),
       );
@@ -1001,7 +1002,7 @@ class _Avatar extends StatelessWidget {
 
 /// Truthful read-only detail for a local Profile: nothing is shared.
 Future<void> showHomeLocalSharingDetails(BuildContext context) =>
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         key: const ValueKey('home_local_sharing_dialog'),

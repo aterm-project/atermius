@@ -40,6 +40,7 @@ import '../l10n/l10n.dart';
 import '../ui/app_density.dart';
 import '../ui/app_theme.dart';
 import '../ui/surfaces.dart';
+import '../ui/dialog_frames.dart';
 
 class DesktopView extends StatefulWidget {
   const DesktopView({
@@ -369,7 +370,9 @@ class DesktopViewState extends State<DesktopView>
     _permissionDialog = route;
     reviewedSession.addListener(attemptEnded);
     try {
-      return await Navigator.of(context, rootNavigator: true).push(route);
+      // Window-level: over this pane only.
+      return await DialogFrames.navigatorNow(context)
+          .push(route);
     } finally {
       reviewedSession.removeListener(attemptEnded);
       if (identical(_permissionDialog, route)) _permissionDialog = null;
@@ -438,7 +441,9 @@ class DesktopViewState extends State<DesktopView>
       final reviewedSession = session;
       final request = reviewedSession.certificateRequest;
       if (request == null) return;
-      final navigator = Navigator.of(context, rootNavigator: true);
+      // Window-level: over this pane only.
+      final navigator =
+          DialogFrames.navigatorNow(context);
       final route = AppDialogRoute<void>(
         context: context,
         barrierDismissible: false,

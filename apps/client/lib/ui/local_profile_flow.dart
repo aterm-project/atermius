@@ -1,4 +1,5 @@
 import '../domain/host_sort.dart';
+import 'dialog_frames.dart';
 import 'host_sort_menu.dart';
 import 'terminal_font_zoom.dart';
 import 'app_menu.dart';
@@ -235,7 +236,34 @@ class LocalProfileFlow extends StatefulWidget {
 }
 
 class _LocalProfileFlowState extends State<LocalProfileFlow>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, DialogFrameOwner<LocalProfileFlow> {
+  /// Window-level dialogs: each pane and the Home area is a frame of its own.
+  @override
+  late final DialogFrameController dialogFrames = DialogFrameController(
+    currentFrame: _currentDialogFrame,
+  );
+
+  /// The frame of the Home area, one per page.
+  String get _homeDialogFrame => 'home:${_workspace.name}';
+
+  /// Where a dialog opened from outside every frame (tab row, ☰ menu,
+  /// prompts) goes: the selected pane, else the Home area.
+  String? _currentDialogFrame() {
+    if (!mounted) return null;
+    if (_selectedTabId == 'hosts') return _homeDialogFrame;
+    return _layout.selectedId ?? _selectedTabId;
+  }
+
+  /// Frames of tabs that are gone end with their dialogs; Home's stay.
+  void _retainDialogFrames() {
+    final live = {
+      for (final session in _sessions) session.id,
+      for (final entry in _files.entries) entry.id,
+    };
+    dialogFrames.retain((id) => id.startsWith('home:') || live.contains(id));
+    dialogFrames.ensure(live);
+  }
+
   final _toolsWorkspace = TerminalToolsWorkspace();
   final _homeSearch = TextEditingController();
   late final McpWorkspace _mcpWorkspace;
@@ -494,6 +522,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
 
   @override
   void dispose() {
+    dialogFrames.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _unregisterTrackedFileProvider?.call();
     TrackedFilesWindows.instance.removeListener(_onTrackedFilesChanged);
@@ -3163,6 +3192,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
         _selectedTabId = _layout.selectedId ?? liveIds.lastOrNull ?? 'hosts';
         if (_selectedTabId != 'hosts') _layout.activate(_selectedTabId);
       }
+      _retainDialogFrames();
     }
     if (mounted && !_disposing) setState(() {});
   }
@@ -3182,6 +3212,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
       session.connected.removeListener(_onSessionChanged);
       if (!_disposing) _layout.remove(session.id);
     }
+    if (!_disposing) _retainDialogFrames();
     await Future.wait(closing.map((session) => session.close()));
   }
 
@@ -3215,6 +3246,7 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
           if (_selectedTabId != 'hosts') _layout.activate(_selectedTabId);
         }
       });
+      _retainDialogFrames();
     } else {
       _sessions.remove(session);
       _detached.remove(id);
@@ -5445,7 +5477,9 @@ _showMessage(
                 enabled: !_busy,
               ),
           ];
-    final Widget homeSurface = SafeArea(
+    final Widget homeSurface = DialogFrame(
+      id: _homeDialogFrame,
+      child: SafeArea(
       top: !iosPhone,
       bottom: !iosPhone,
       left: !iosPhone,
@@ -5519,6 +5553,7 @@ _showMessage(
                 ),
               ),
             ),
+      ),
     );
     final toolsSession = activeSession?.viewKey.currentState != null ? activeSession :
         _sessions.where((session) => _layout.sessionIds.contains(session.id) &&
@@ -5694,6 +5729,8 @@ _showMessage(
           bottom: !iosPhone,
           left: !iosPhone,
           right: !iosPhone,
+          child: DialogFrameLayer(
+          controller: dialogFrames,
           child: Column(
             children: [
               if (!iosPhone)
@@ -5862,6 +5899,7 @@ _showMessage(
               if (!iosPhone && terminalTouchKeyboardOnDemand)
                 _sharedTerminalKeybar(activeSession, body.maxHeight),
             ],
+          ),
           ),
         ),
       ),

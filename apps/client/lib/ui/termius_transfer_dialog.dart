@@ -195,7 +195,6 @@ Future<TermiusTransferOutcome?> runOneClickTermiusImport(
   if (!target.canWrite) return null;
   final l10n = context.l10n;
   final iosPhone = isIosPhone(context);
-  final navigator = Navigator.of(context, rootNavigator: true);
   final messenger = ScaffoldMessenger.maybeOf(context);
 
   void showImportNotice(String msg, {bool isError = false}) {
@@ -216,11 +215,26 @@ Future<TermiusTransferOutcome?> runOneClickTermiusImport(
   // Present lightweight non-dismissible progress modal while OS keychain
   // authorization and in-memory decryption run.
   var progressOpen = true;
+  // The progress dialog's own route (in a workspace it is in a frame's
+  // navigator, not the root one).
+  ModalRoute<dynamic>? progressRoute;
   final progressText = l10n.termiusLocalProgress;
   showAppDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (dialogContext) => PopScope(
+    builder: (dialogContext) {
+      progressRoute ??= ModalRoute.of(dialogContext);
+      if (!progressOpen) {
+        // The import ended before the dialog was built: take this route
+        // away, not whatever dialog came after it.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final route = progressRoute;
+          if (route != null && route.isActive) {
+            route.navigator?.removeRoute(route);
+          }
+        });
+      }
+      return PopScope(
       canPop: false,
       child: isIosPhone(dialogContext)
           ? CupertinoAlertDialog(
@@ -252,13 +266,19 @@ Future<TermiusTransferOutcome?> runOneClickTermiusImport(
                 ],
               ),
             ),
-    ),
+    );
+    },
   ).whenComplete(() => progressOpen = false);
 
   void closeProgress() {
-    if (progressOpen && navigator.mounted) {
-      navigator.pop();
-      progressOpen = false;
+    if (!progressOpen) return;
+    progressOpen = false;
+    final route = progressRoute;
+    if (route == null || !route.isActive) return;
+    if (route.isCurrent) {
+      route.navigator?.pop();
+    } else {
+      route.navigator?.removeRoute(route);
     }
   }
 

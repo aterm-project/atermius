@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'app_motion.dart';
 import 'app_density.dart';
 import 'app_theme.dart';
+import 'dialog_frames.dart';
 import 'wallpaper.dart';
 import '../l10n/l10n.dart';
 import '../platform/fullscreen.dart';
@@ -390,6 +391,10 @@ class _SessionWorkspaceViewState extends State<SessionWorkspaceView> {
           canPop: !immersive,
           onPopInvokedWithResult: (didPop, _) {
             if (didPop || !immersive) return;
+            // Back closes a pane's dialog first (DialogFrameLayer).
+            if (DialogFrames.controllerOf(context)?.hasVisibleDialog == true) {
+              return;
+            }
             // Back first retracts a dropped-down strip, then leaves fullscreen.
             peek.visible ? peek.hide() : toggleAppFullscreen(context);
           },
@@ -403,6 +408,9 @@ class _SessionWorkspaceViewState extends State<SessionWorkspaceView> {
                   child: Offstage(
                     offstage:
                         immersive && widget.controller.selectedId != pane.id,
+                    // Each pane is a frame: its dialogs cover only the pane.
+                    child: DialogFrame(
+                    id: pane.id,
                     child: _SessionPaneDropTarget(
                       key: _paneKeys.putIfAbsent(pane.id, () => GlobalKey()),
                       sessionId: pane.id,
@@ -486,6 +494,7 @@ class _SessionWorkspaceViewState extends State<SessionWorkspaceView> {
                         widget.onSelect?.call(source);
                       },
                       child: widget.terminalBuilder(context, pane.id),
+                    ),
                     ),
                   ),
                 ),
