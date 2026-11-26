@@ -198,15 +198,9 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
       _copied = false;
     });
     try {
-      await service.start(port: port, bind: bind);
-      // Remembered for the next time; a failed save changes nothing now.
-      try {
-        await _listenStore.write(
-          McpListenSettings(port: port, bind: bind).encode(),
-        );
-      } on Object {
-        /* Device preference only. */
-      }
+      // Also remembered on this device: MCP starts again by itself after a
+      // lock or restart until it is stopped here.
+      await service.enable(port: port, bind: bind);
     } catch (_) {
       if (mounted) {
         setState(() => _error = context.l10n.couldntStartMcpMakeSureThe);
@@ -617,7 +611,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                       if (next) {
                         _start();
                       } else {
-                        service.stop();
+                        service.disable();
                       }
                     },
             ),
@@ -800,11 +794,27 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 ],
                 const SizedBox(height: 6),
                 Text(
+                  l10n.mcpAutoStartNote,
+                  key: const ValueKey('mcp_auto_start_note'),
+                  style: IosType.footnote.copyWith(
+                    color: colors.secondaryLabel,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
                   l10n.mcpAndroidForegroundOnly,
                   style: IosType.footnote.copyWith(
                     color: colors.secondaryLabel,
                   ),
                 ),
+                if (service.autoStartFailed && !service.running) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.mcpAutoStartFailed,
+                    key: const ValueKey('mcp_auto_start_failed'),
+                    style: IosType.footnote.copyWith(color: colors.destructive),
+                  ),
+                ],
                 if (_error != null) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -1350,6 +1360,15 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                     : context.palette.muted,
               ),
             ),
+            if (service.autoStartFailed && !service.running)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  l10n.mcpAutoStartFailed,
+                  key: const ValueKey('mcp_auto_start_failed'),
+                  style: TextStyle(color: context.palette.red),
+                ),
+              ),
             if (McpListenerLifecycle.installed case final lifecycle?
                 when service.running &&
                     identical(service, McpService.instance) &&
@@ -1456,7 +1475,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                           (!service.running && !service.workspaceReady)
                       ? null
                       : service.running
-                      ? () => service.stop()
+                      ? () => service.disable()
                       : _start,
                   icon: Icon(
                     service.running
@@ -1514,6 +1533,18 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                   ? l10n.listensOn127001
                   : l10n.mcpListenTokenNote,
               key: const ValueKey('mcp_listen_note'),
+              style: TextStyle(
+                color: context.palette.muted,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              Theme.of(context).platform == TargetPlatform.windows
+                  ? '${l10n.mcpAutoStartNote} ${l10n.mcpWindowsBackgroundNote}'
+                  : l10n.mcpAutoStartNote,
+              key: const ValueKey('mcp_auto_start_note'),
               style: TextStyle(
                 color: context.palette.muted,
                 fontSize: 12,

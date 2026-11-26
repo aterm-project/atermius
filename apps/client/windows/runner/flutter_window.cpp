@@ -6,6 +6,34 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+namespace {
+
+std::wstring Utf16FromUtf8(const std::string &utf8) {
+  if (utf8.empty())
+    return std::wstring();
+  const int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                         utf8.data(),
+                                         static_cast<int>(utf8.size()),
+                                         nullptr, 0);
+  if (length <= 0)
+    return std::wstring();
+  std::wstring utf16(length, L'\0');
+  MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.data(),
+                      static_cast<int>(utf8.size()), utf16.data(), length);
+  return utf16;
+}
+
+// A string argument of the "showTray" call, empty when absent.
+std::wstring TrayText(const flutter::EncodableMap &map, const char *name) {
+  const auto item = map.find(flutter::EncodableValue(name));
+  if (item == map.end())
+    return std::wstring();
+  const auto value = std::get_if<std::string>(&item->second);
+  return value ? Utf16FromUtf8(*value) : std::wstring();
+}
+
+} // namespace
+
 FlutterWindow::FlutterWindow(const flutter::DartProject &project,
                              WindowKind kind)
     : taskbar_identity_(kind), project_(project) {}
@@ -103,6 +131,35 @@ bool FlutterWindow::OnCreate() {
           }
           close_guard_enabled_ = std::get<bool>(item->second);
           result->Success();
+        } else if (method == "showTray") {
+          const auto args = call.arguments();
+          const auto map =
+              args ? std::get_if<flutter::EncodableMap>(args) : nullptr;
+          if (!map) {
+            result->Error("invalid_arguments", "Expected tray texts");
+            return;
+          }
+          if (!tray_icon_) {
+            tray_icon_ = std::make_unique<TrayIcon>(
+                window, [this](TrayIcon::Action action) {
+                  if (chrome_channel_) {
+                    chrome_channel_->InvokeMethod(
+                        action == TrayIcon::Action::kOpen ? "trayOpen"
+                                                          : "trayQuit",
+                        nullptr);
+                  }
+                });
+          }
+          const bool shown = tray_icon_->Show(
+              TrayText(*map, "tooltip"), TrayText(*map, "open"),
+              TrayText(*map, "quit"), TrayText(*map, "noticeTitle"),
+              TrayText(*map, "notice"));
+          if (!shown)
+            tray_icon_.reset();
+          result->Success(flutter::EncodableValue(shown));
+        } else if (method == "hideTray") {
+          tray_icon_.reset();
+          result->Success();
         } else if (method == "hide") {
           ShowWindow(window, SW_HIDE);
           result->Success();
@@ -155,6 +212,7 @@ bool FlutterWindow::OnCreate() {
 
 void FlutterWindow::OnDestroy() {
   ReleaseWindowResources(GetHandle());
+  tray_icon_.reset();
   geometry_channel_.reset();
   keyboard_capture_.reset();
   touchpad_gestures_.reset();
@@ -174,6 +232,9 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   // Once enabled, every close route (including Alt+F4 / SC_CLOSE) reaches Dart.
   if (message == WM_CLOSE && close_guard_enabled_ && chrome_channel_) {
     chrome_channel_->InvokeMethod("closeRequested", nullptr);
+    return 0;
+  }
+  if (tray_icon_ && tray_icon_->HandleMessage(message, wparam, lparam)) {
     return 0;
   }
   if (message == WM_DESTROY) {
@@ -283,6 +344,8 @@ flutter::EncodableValue FlutterWindow::ChromeState() {
 }
 
 void FlutterWindow::ReleaseWindowResources(HWND window) {
+  // The notification-area icon belongs to this window's handle.
+  tray_icon_.reset();
   // Forwarded keys are released to Dart while the engine can still hear it.
   if (keyboard_capture_) {
     keyboard_capture_->Shutdown();

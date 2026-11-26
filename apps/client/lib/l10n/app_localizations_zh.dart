@@ -15955,6 +15955,35 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mcpResetTokenFailed => '无法重置令牌，当前令牌仍然有效。';
 
   @override
+  String get mcpAutoStartNote =>
+      'MCP 启用后会在本设备上保持开启：解锁工作区或重新打开 Atermius 时会自动启动，直到你在这里停止它。';
+
+  @override
+  String get mcpAutoStartFailed => 'MCP 已启用，但没能自动启动。端口可能被其他窗口占用。';
+
+  @override
+  String get mcpWindowsBackgroundNote =>
+      '关闭窗口后，MCP 和已打开的会话会继续在后台运行；从通知区域（托盘）的 Atermius 图标可以重新打开或退出。';
+
+  @override
+  String mcpTrayTooltip(int port) {
+    return 'Atermius — MCP 正在端口 $port 上运行';
+  }
+
+  @override
+  String get mcpTrayOpen => '打开 Atermius';
+
+  @override
+  String get mcpTrayQuit => '退出 Atermius';
+
+  @override
+  String get mcpTrayNoticeTitle => 'Atermius 仍在后台运行';
+
+  @override
+  String get mcpTrayNoticeBody =>
+      '外部 AI 仍可通过 MCP 使用。点击这里的 Atermius 图标可重新打开窗口，右键可退出。';
+
+  @override
   String get mcpAndroidStarting => '正在启动 Android 后台保护…';
 
   @override

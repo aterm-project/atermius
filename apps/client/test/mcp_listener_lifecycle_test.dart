@@ -42,6 +42,14 @@ class _Target extends ChangeNotifier implements McpLifecycleTarget {
     notifyListeners();
   }
 
+  int disables = 0;
+
+  @override
+  Future<void> disable() async {
+    disables++;
+    await stop();
+  }
+
   @override
   Future<void> resume() async {
     resumes++;
@@ -253,6 +261,8 @@ void main() {
       await fromNative('revoked', {'leaseId': lease, 'reason': 'user_stop'});
       expect(target.running, isFalse);
       expect(target.stops, 1);
+      // The notification's Stop turns MCP off, not just this run.
+      expect(target.disables, 1);
       expect(lifecycle.mode, McpBackgroundMode.inactive);
       expect(lifecycle.lastRevocation, 'user_stop');
       // Native already ended the lease; no redundant stop round-trip needed.
@@ -269,6 +279,7 @@ void main() {
     });
     expect(target.running, isFalse);
     expect(lifecycle.lastRevocation, 'task_removed');
+    expect(target.disables, 0);
 
     target.startListening();
     await settle();

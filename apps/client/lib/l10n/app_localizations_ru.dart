@@ -17905,6 +17905,36 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось сбросить токен. Текущий токен по-прежнему действует.';
 
   @override
+  String get mcpAutoStartNote =>
+      'MCP остаётся включённым на этом устройстве: он сам запускается при каждой разблокировке рабочего пространства или запуске Atermius, пока вы не остановите его здесь.';
+
+  @override
+  String get mcpAutoStartFailed =>
+      'MCP включён, но не смог запуститься сам. Возможно, порт занят другим окном.';
+
+  @override
+  String get mcpWindowsBackgroundNote =>
+      'После закрытия окна MCP и открытые сеансы продолжают работать в фоне; снова открыть Atermius или выйти можно через его значок в области уведомлений.';
+
+  @override
+  String mcpTrayTooltip(int port) {
+    return 'Atermius — MCP работает на порту $port';
+  }
+
+  @override
+  String get mcpTrayOpen => 'Открыть Atermius';
+
+  @override
+  String get mcpTrayQuit => 'Выйти из Atermius';
+
+  @override
+  String get mcpTrayNoticeTitle => 'Atermius продолжает работать';
+
+  @override
+  String get mcpTrayNoticeBody =>
+      'Внешний ИИ может и дальше использовать MCP. Нажмите значок Atermius здесь, чтобы снова открыть окно, или щёлкните правой кнопкой, чтобы выйти.';
+
+  @override
   String get mcpAndroidStarting => 'Запускается фоновая защита Android…';
 
   @override

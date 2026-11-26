@@ -17874,6 +17874,36 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t reset the token. The current token still works.';
 
   @override
+  String get mcpAutoStartNote =>
+      'MCP stays enabled on this device: it starts again by itself whenever a workspace is unlocked or Atermius starts, until you stop it here.';
+
+  @override
+  String get mcpAutoStartFailed =>
+      'MCP is enabled but couldn\'t start by itself. Another window may be using the port.';
+
+  @override
+  String get mcpWindowsBackgroundNote =>
+      'Closing the window keeps MCP and your sessions running in the background; open Atermius again or quit it from its icon in the notification area.';
+
+  @override
+  String mcpTrayTooltip(int port) {
+    return 'Atermius — MCP running on port $port';
+  }
+
+  @override
+  String get mcpTrayOpen => 'Open Atermius';
+
+  @override
+  String get mcpTrayQuit => 'Quit Atermius';
+
+  @override
+  String get mcpTrayNoticeTitle => 'Atermius is still running';
+
+  @override
+  String get mcpTrayNoticeBody =>
+      'External AI can keep using MCP. Click the Atermius icon here to open the window again; right-click it to quit.';
+
+  @override
   String get mcpAndroidStarting => 'Starting Android background protection…';
 
   @override

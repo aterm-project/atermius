@@ -37,6 +37,8 @@ class _FakeMcpService extends ChangeNotifier implements McpService {
   final defaultCalls = <McpAccessMode>[];
   final hostCalls = <(String, McpAccessMode?)>[];
   var stopCalls = 0;
+  McpListenSettingsStore? listenStore;
+  bool autoFailed = false;
   String? currentToken = 'A' * 43;
   bool saved = true;
   bool failReset = false;
@@ -127,6 +129,28 @@ class _FakeMcpService extends ChangeNotifier implements McpService {
   }
 
   @override
+  bool get autoStartFailed => autoFailed;
+
+  @override
+  Future<void> enable({
+    int port = 8765,
+    McpBind bind = const McpBind.loopback(),
+  }) async {
+    await start(port: port, bind: bind);
+    autoFailed = false;
+    await listenStore?.write(
+      McpListenSettings(port: port, bind: bind, enabled: true).encode(),
+    );
+  }
+
+  @override
+  Future<void> disable() async {
+    await stop();
+    final saved = McpListenSettings.parse(await listenStore?.read());
+    await listenStore?.write(saved.copyWith(enabled: false).encode());
+  }
+
+  @override
   String? get token => currentToken;
   @override
   bool get tokenSaved => saved;
@@ -168,6 +192,8 @@ Future<void> _pump(
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  final store = listenStore ?? MemoryMcpListenSettingsStore();
+  service.listenStore = store;
   await tester.pumpWidget(
     MaterialApp(
       locale: locale,
@@ -186,10 +212,8 @@ Future<void> _pump(
               title: 'AI / MCP',
               icon: Icons.hub_outlined,
               description: 'MCP',
-              builder: (_) => McpSettingsPanel(
-                service: service,
-                listenStore: listenStore ?? MemoryMcpListenSettingsStore(),
-              ),
+              builder: (_) =>
+                  McpSettingsPanel(service: service, listenStore: store),
             ),
           ],
         ),
@@ -923,6 +947,51 @@ void main() {
       expect(_hostField('host-0'), findsOneWidget);
     },
   );
+
+  group('background service', () {
+    testWidgets('enabling is remembered and Stop turns it off', (tester) async {
+      final service = _FakeMcpService()..isRunning = false;
+      final store = MemoryMcpListenSettingsStore();
+      await _pump(
+        tester,
+        service,
+        size: const Size(900, 1400),
+        platform: TargetPlatform.windows,
+        listenStore: store,
+      );
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      // Windows explains both the auto start and the tray.
+      expect(
+        find.text('${l10n.mcpAutoStartNote} ${l10n.mcpWindowsBackgroundNote}'),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.byKey(const ValueKey('mcp_toggle')));
+      await tester.tap(find.byKey(const ValueKey('mcp_toggle')));
+      await tester.pumpAndSettle();
+      expect(McpListenSettings.parse(store.value).enabled, isTrue);
+      await tester.ensureVisible(find.byKey(const ValueKey('mcp_toggle')));
+      await tester.tap(find.byKey(const ValueKey('mcp_toggle')));
+      await tester.pumpAndSettle();
+      expect(service.stopCalls, 1);
+      expect(McpListenSettings.parse(store.value).enabled, isFalse);
+    });
+
+    testWidgets('a failed automatic start is shown', (tester) async {
+      final service = _FakeMcpService()
+        ..isRunning = false
+        ..autoFailed = true;
+      await _pump(
+        tester,
+        service,
+        size: const Size(900, 1400),
+        platform: TargetPlatform.android,
+      );
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      expect(find.text(l10n.mcpAutoStartFailed), findsOneWidget);
+      expect(find.text(l10n.mcpAutoStartNote), findsOneWidget);
+      expect(find.textContaining(l10n.mcpWindowsBackgroundNote), findsNothing);
+    });
+  });
 
   group('access token', () {
     Future<void> tapKey(WidgetTester tester, String key) async {

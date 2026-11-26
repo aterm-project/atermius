@@ -11,6 +11,7 @@ add_executable(${BINARY_NAME} WIN32
   "keyboard_capture.cpp"
   "main.cpp"
   "touchpad_gestures.cpp"
+  "tray_icon.cpp"
   "clipboard_bridge.cpp"
   "utils.cpp"
   "win32_window.cpp"

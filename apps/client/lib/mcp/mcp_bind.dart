@@ -106,10 +106,21 @@ class McpListenSettings {
   const McpListenSettings({
     this.port = mcpDefaultPort,
     this.bind = const McpBind.loopback(),
+    this.enabled = false,
   });
 
   final int port;
   final McpBind bind;
+
+  /// The user enabled MCP and has not stopped it: it starts again by itself
+  /// whenever the workspace is unlocked or Atermius starts on this device.
+  final bool enabled;
+
+  McpListenSettings copyWith({bool? enabled}) => McpListenSettings(
+    port: port,
+    bind: bind,
+    enabled: enabled ?? this.enabled,
+  );
 
   /// Strict parse; anything invalid falls back to the loopback default.
   static McpListenSettings parse(String? raw) {
@@ -140,6 +151,7 @@ class McpListenSettings {
               ? const McpBind.loopback()
               : McpBind.custom(normalized),
       },
+      enabled: decoded['enabled'] == true,
     );
   }
 
@@ -148,6 +160,7 @@ class McpListenSettings {
     'port': port,
     'bind': bind.mode.code,
     'address': ?bind.address,
+    if (enabled) 'enabled': true,
   });
 }
 

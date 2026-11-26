@@ -134,6 +134,10 @@ class WindowChromeController extends ChangeNotifier {
   WindowChromeState get state => _state;
   Future<void>? _starting;
   bool _disposed = false;
+  final _trayEvents = StreamController<WindowTrayEvent>.broadcast();
+
+  /// Clicks on the notification-area icon shown by [showTray].
+  Stream<WindowTrayEvent> get trayEvents => _trayEvents.stream;
   Future<void> Function()? _closeGuard;
   bool _closeRequestInFlight = false;
 
@@ -143,6 +147,14 @@ class WindowChromeController extends ChangeNotifier {
     if (!supported || _disposed) return;
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'stateChanged') _accept(call.arguments);
+      if (!_disposed) {
+        switch (call.method) {
+          case 'trayOpen':
+            _trayEvents.add(WindowTrayEvent.open);
+          case 'trayQuit':
+            _trayEvents.add(WindowTrayEvent.quit);
+        }
+      }
       if (call.method == 'closeRequested' &&
           !_disposed &&
           !_closeRequestInFlight) {
@@ -274,6 +286,35 @@ class WindowChromeController extends ChangeNotifier {
     }
   }
 
+  /// Puts this window's icon in the Windows notification area (or updates
+  /// its texts), with Open and Quit in its menu. [notice] is shown once as a
+  /// notification when not empty. False when no icon could be shown: the
+  /// caller must then not hide the window.
+  Future<bool> showTray({
+    required String tooltip,
+    required String open,
+    required String quit,
+    String noticeTitle = '',
+    String notice = '',
+  }) async {
+    if (!supported || _disposed || !_state.enabled) return false;
+    try {
+      return await _channel.invokeMethod<bool>('showTray', {
+            'tooltip': tooltip,
+            'open': open,
+            'quit': quit,
+            'noticeTitle': noticeTitle,
+            'notice': notice,
+          }) ==
+          true;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  Future<void> hideTray() => _command('hideTray');
   Future<void> hide() => _command('hide');
   Future<void> show() => _command('show');
   Future<void> closeNow() => _command('closeNow');
@@ -294,6 +335,7 @@ class WindowChromeController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    unawaited(_trayEvents.close());
     if (supported && _starting != null) {
       if (_closeGuard != null) unawaited(_disableGuard());
       _channel.setMethodCallHandler(null);
@@ -301,3 +343,6 @@ class WindowChromeController extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/// What the user chose on the notification-area icon.
+enum WindowTrayEvent { open, quit }

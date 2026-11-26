@@ -22,8 +22,10 @@ import 'package:xterm/xterm.dart' show TerminalClipboard;
 import 'app_controller.dart';
 import 'app_update/app_update_controller.dart';
 import 'app_update/app_update_platform.dart';
+import 'mcp/mcp_bind.dart' show mcpDefaultPort;
 import 'mcp/mcp_listener_lifecycle.dart';
 import 'mcp/mcp_service.dart';
+import 'platform/mcp_background_host.dart';
 import 'platform/mcp_foreground.dart';
 import 'desktop/window/desktop_window.dart';
 import 'desktop/window/desktop_window_page.dart';
@@ -198,6 +200,25 @@ Future<void> main(List<String> arguments) async {
     terminalChild: terminalLaunch != null,
     desktopChild: desktopLaunch != null,
   );
+  // The main window owns MCP on this device: MCP the user left enabled starts
+  // again by itself once a workspace is unlocked, and on Windows it keeps
+  // running in the background after the window is closed. File and detached
+  // windows are separate processes and never compete for the port.
+  if (terminalLaunch == null && desktopLaunch == null && filesLaunch == null) {
+    McpService.instance.autoStart = true;
+    McpBackgroundHost.install(
+      McpService.instance,
+      texts: () => McpBackgroundTexts(
+        tooltip: currentL10n.mcpTrayTooltip(
+          McpService.instance.endpoint?.port ?? mcpDefaultPort,
+        ),
+        open: currentL10n.mcpTrayOpen,
+        quit: currentL10n.mcpTrayQuit,
+        noticeTitle: currentL10n.mcpTrayNoticeTitle,
+        notice: currentL10n.mcpTrayNoticeBody,
+      ),
+    );
+  }
   // Geometry-only file tracking is ready before any authentication/UI startup.
   await startFileWindowTracking(arguments, filesLaunch);
   await DesktopKeyboardController.instance.load(createDesktopKeyboardStore());

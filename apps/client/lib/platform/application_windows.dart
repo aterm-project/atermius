@@ -389,8 +389,25 @@ class ApplicationWindows extends ChangeNotifier {
     await _chrome.show();
   }
 
-  Future<void> requestParentClose() async {
+  /// Asked first when the main window is closed: a background service (MCP
+  /// on Windows) returns true after it hid the window to keep this process,
+  /// its sessions and its listener running. [requestParentClose] with
+  /// `quit: true` skips it.
+  Future<bool> Function()? keepRunningOnClose;
+
+  Future<void> requestParentClose({bool quit = false}) async {
     if (_handlingClose || _exiting) return;
+    final keep = keepRunningOnClose;
+    if (!quit && keep != null) {
+      _handlingClose = true;
+      try {
+        if (await keep()) return;
+      } on Object {
+        // Fall through to a normal close.
+      } finally {
+        _handlingClose = false;
+      }
+    }
     _handlingClose = true;
     _parentClosing = true;
     try {

@@ -28222,6 +28222,54 @@ abstract class AppLocalizations {
   /// **'Couldn\'t reset the token. The current token still works.'**
   String get mcpResetTokenFailed;
 
+  /// Settings › AI / MCP: MCP as a background service that stays enabled.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP stays enabled on this device: it starts again by itself whenever a workspace is unlocked or Atermius starts, until you stop it here.'**
+  String get mcpAutoStartNote;
+
+  /// Settings › AI / MCP: MCP as a background service that stays enabled.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP is enabled but couldn\'t start by itself. Another window may be using the port.'**
+  String get mcpAutoStartFailed;
+
+  /// Settings › AI / MCP: MCP as a background service that stays enabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Closing the window keeps MCP and your sessions running in the background; open Atermius again or quit it from its icon in the notification area.'**
+  String get mcpWindowsBackgroundNote;
+
+  /// Windows notification-area icon while MCP runs with the window closed.
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius — MCP running on port {port}'**
+  String mcpTrayTooltip(int port);
+
+  /// Windows notification-area icon while MCP runs with the window closed.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Atermius'**
+  String get mcpTrayOpen;
+
+  /// Windows notification-area icon while MCP runs with the window closed.
+  ///
+  /// In en, this message translates to:
+  /// **'Quit Atermius'**
+  String get mcpTrayQuit;
+
+  /// Windows notification-area icon while MCP runs with the window closed.
+  ///
+  /// In en, this message translates to:
+  /// **'Atermius is still running'**
+  String get mcpTrayNoticeTitle;
+
+  /// Windows notification-area icon while MCP runs with the window closed.
+  ///
+  /// In en, this message translates to:
+  /// **'External AI can keep using MCP. Click the Atermius icon here to open the window again; right-click it to quit.'**
+  String get mcpTrayNoticeBody;
+
   /// No description provided for @mcpAndroidStarting.
   ///
   /// In en, this message translates to:

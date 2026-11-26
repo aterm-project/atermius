@@ -11,6 +11,7 @@
 #include "keyboard_capture.h"
 #include "touchpad_gestures.h"
 #include "clipboard_bridge.h"
+#include "tray_icon.h"
 #include "win32_window.h"
 #include "window_geometry.h"
 #include "window_identity.h"
@@ -44,6 +45,8 @@ private:
   std::unique_ptr<KeyboardCapture> keyboard_capture_;
   std::unique_ptr<TouchpadGestures> touchpad_gestures_;
   std::unique_ptr<ClipboardBridge> clipboard_bridge_;
+  // Only while the window is hidden with MCP running in the background.
+  std::unique_ptr<TrayIcon> tray_icon_;
   TaskbarIdentity taskbar_identity_;
 
   bool close_guard_enabled_ = false;

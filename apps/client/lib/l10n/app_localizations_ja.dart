@@ -16818,6 +16818,36 @@ class AppLocalizationsJa extends AppLocalizations {
   String get mcpResetTokenFailed => 'トークンをリセットできませんでした。現在のトークンは引き続き有効です。';
 
   @override
+  String get mcpAutoStartNote =>
+      'MCP はこのデバイスで有効のままになります。ワークスペースのロック解除や Atermius の起動のたびに自動で開始し、ここで停止するまで続きます。';
+
+  @override
+  String get mcpAutoStartFailed =>
+      'MCP は有効ですが、自動で開始できませんでした。別のウィンドウがポートを使用している可能性があります。';
+
+  @override
+  String get mcpWindowsBackgroundNote =>
+      'ウィンドウを閉じても MCP と開いているセッションはバックグラウンドで動作し続けます。通知領域の Atermius アイコンから再表示または終了できます。';
+
+  @override
+  String mcpTrayTooltip(int port) {
+    return 'Atermius — MCP がポート $port で実行中';
+  }
+
+  @override
+  String get mcpTrayOpen => 'Atermius を開く';
+
+  @override
+  String get mcpTrayQuit => 'Atermius を終了';
+
+  @override
+  String get mcpTrayNoticeTitle => 'Atermius はバックグラウンドで実行中です';
+
+  @override
+  String get mcpTrayNoticeBody =>
+      '外部 AI は引き続き MCP を使用できます。ここの Atermius アイコンをクリックするとウィンドウを再表示し、右クリックで終了できます。';
+
+  @override
   String get mcpAndroidStarting => 'Android のバックグラウンド保護を開始しています…';
 
   @override

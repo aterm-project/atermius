@@ -16,6 +16,10 @@ abstract interface class McpLifecycleTarget implements Listenable {
   /// Stops listening; the saved token stops being accepted with it.
   Future<void> stop();
 
+  /// Stops listening and turns MCP off on this device: the user stopped it
+  /// (notification Stop), so it must not start again by itself.
+  Future<void> disable();
+
   /// Listens again where the user last enabled MCP, after [stop] paused it
   /// because the app was hidden. Does nothing when that no longer applies.
   Future<void> resume();
@@ -33,6 +37,8 @@ class McpServiceLifecycleTarget implements McpLifecycleTarget {
   Uri? get endpoint => service.endpoint;
   @override
   Future<void> stop() => service.stop();
+  @override
+  Future<void> disable() => service.disable();
   @override
   Future<void> resume() => service.resume();
   @override
@@ -266,7 +272,9 @@ class McpListenerLifecycle extends ChangeNotifier with WidgetsBindingObserver {
     if (native && id != null) unawaited(_stopNative(id));
     // Stop even without a lease: a running listener must never outlive the
     // reason for revocation.
-    if (target.running || target.starting) await target.stop();
+    if (target.running || target.starting) {
+      await (reason == 'user_stop' ? target.disable() : target.stop());
+    }
   }
 
   void _onEvent(McpForegroundEvent event) {

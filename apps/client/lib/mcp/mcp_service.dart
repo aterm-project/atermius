@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../domain/models.dart';
 import 'mcp_access_policy.dart';
 import 'mcp_access_policy_store.dart';
+import 'mcp_listen_settings_store.dart';
 import 'mcp_listener.dart';
 import 'mcp_native_bridge.dart';
 import 'mcp_protocol.dart';
@@ -32,9 +33,13 @@ class McpPermissionsUnavailable implements Exception {
 }
 
 class McpService extends ChangeNotifier {
-  McpService({McpAccessPolicyStore? policyStore, McpTokenStore? tokenStore})
-    : _store = policyStore ?? createMcpAccessPolicyStore(),
-      _tokens = tokenStore ?? createMcpTokenStore();
+  McpService({
+    McpAccessPolicyStore? policyStore,
+    McpTokenStore? tokenStore,
+    McpListenSettingsStore? listenStore,
+  }) : _store = policyStore ?? createMcpAccessPolicyStore(),
+       _tokens = tokenStore ?? createMcpTokenStore(),
+       _listen = listenStore ?? createMcpListenSettingsStore();
 
   static final instance = McpService();
 
@@ -45,7 +50,19 @@ class McpService extends ChangeNotifier {
 
   final McpAccessPolicyStore _store;
   final McpTokenStore _tokens;
+  final McpListenSettingsStore _listen;
   McpWorkspace? _workspace;
+
+  /// Start MCP by itself when a workspace is unlocked and the user left it
+  /// enabled on this device ([enable] without a later [disable]). Only the
+  /// main window turns this on: file and detached windows are separate
+  /// processes that must not compete for the port.
+  bool autoStart = false;
+  bool _autoStartFailed = false;
+
+  /// MCP is enabled on this device but could not start by itself (for
+  /// example the port is taken by another window). Cleared by any start.
+  bool get autoStartFailed => _autoStartFailed;
   McpListener? _listener;
   McpProtocol? _protocol;
 
@@ -150,7 +167,71 @@ class McpService extends ChangeNotifier {
     _tokenSaved = saved;
     _recompute();
     notifyListeners();
+    if (policy != null) unawaited(_autoStartFor(scope, epoch));
   });
+
+  /// After [scope]'s policy loaded: listen again if the user left MCP
+  /// enabled. Runs outside the store chain that [start] waits for.
+  Future<void> _autoStartFor(String scope, int epoch) async {
+    if (!autoStart || !supported) return;
+    final settings = await savedListenSettings();
+    if (!settings.enabled ||
+        _disposed ||
+        epoch != _policyEpoch ||
+        running ||
+        _starting ||
+        _workspace?.scope() != scope) {
+      return;
+    }
+    try {
+      await start(port: settings.port, bind: settings.bind);
+    } catch (_) {
+      if (_disposed || epoch != _policyEpoch) return;
+      _autoStartFailed = true;
+      notifyListeners();
+    }
+  }
+
+  /// Port, bind address and whether MCP is enabled, as saved on this device.
+  Future<McpListenSettings> savedListenSettings() async {
+    try {
+      return McpListenSettings.parse(
+        await _listen.read().timeout(const Duration(seconds: 2)),
+      );
+    } catch (_) {
+      return const McpListenSettings();
+    }
+  }
+
+  Future<void> _saveListenSettings(McpListenSettings settings) async {
+    try {
+      await _listen.write(settings.encode());
+    } catch (_) {
+      // A device preference: MCP itself is unaffected.
+    }
+  }
+
+  /// Starts MCP and keeps it enabled on this device: from now on it starts
+  /// by itself whenever this or another workspace is unlocked and whenever
+  /// Atermius starts, until [disable].
+  Future<void> enable({
+    int port = mcpDefaultPort,
+    McpBind bind = const McpBind.loopback(),
+  }) async {
+    await start(port: port, bind: bind);
+    await _saveListenSettings(
+      McpListenSettings(port: port, bind: bind, enabled: true),
+    );
+  }
+
+  /// Stops MCP and turns it off on this device until the next [enable].
+  Future<void> disable() async {
+    await stop();
+    final saved = await savedListenSettings();
+    if (saved.enabled) {
+      await _saveListenSettings(saved.copyWith(enabled: false));
+    }
+  }
 
   /// The saved token of [scope], creating and saving one the first time.
   /// When the store cannot be read, this run uses a token of its own and
@@ -603,6 +684,7 @@ class McpService extends ChangeNotifier {
         return;
       }
       _listener = listener;
+      _autoStartFailed = false;
       _resumable = (
         port: port == 0 ? listener.endpoint.port : port,
         bind: bind,
