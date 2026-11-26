@@ -329,16 +329,20 @@ abstract final class McpDocs {
 - **Focus**: `session_focus` selects a tab in the application; it does not change what the tools can reach.
 
 ## Two ways to run a command
-- `terminal_run` types the command into the interactive terminal, presses Enter and waits for output. The user sees the command and its output in their terminal, it runs in the shell's current directory and environment, and there is no exit status. Prefer it for anything the user should see or that depends on shell state.
+- `terminal_run` types the command into the interactive terminal, presses Enter and waits for output. The user sees the command and its output in their terminal, it runs in the shell's current directory and environment, and there is no exit status. `output` starts with the echoed command line and usually ends with the next prompt. Prefer it for anything the user should see or that depends on shell state. Commands must be one line without control characters; send multi-line input with `terminal_write` and keys with `terminal_send_keys`.
 - `ssh_exec` runs the command on a separate SSH channel: exit code, separate stdout/stderr, no effect on the interactive shell (no `cd` carry-over). Its command and a bounded copy of its output are echoed into the terminal as `[MCP]` lines.
 
 ## Reading terminal output
-- `terminal_read` returns the most recent retained lines. Pass `since_cursor` (from a previous result's `cursor`) to get only what came after; the line holding the cursor is always included again because it may still be growing.
-- `terminal_wait` blocks until a pattern appears or output goes quiet; `terminal_screen` returns only the visible screen (use it for full-screen programs such as vim, top, less); `terminal_search` finds lines in the whole retained scrollback.
-- Lines that start with `[MCP]` were written locally by Atermius to show your actions; they were not produced by the remote host.
+- Every retained line has a **line number** that stays the same while the line exists (results report `first_line` and `cursor`). The normal screen and the alternate screen of full-screen programs are numbered separately (`alternate_screen` tells you which one you got). After the user resizes the window recent lines may be re-wrapped and renumbered slightly.
+- Text comes back as the user sees it: a long line the terminal wrapped is joined back into one line, empty cells are spaces, empty rows below the cursor are left out, and at most the newest 64 KiB are returned (`truncated: true` otherwise).
+- `terminal_read` returns the most recent lines (`lines`, default 200). Pass `since_cursor` (a previous result's `cursor`) to get only what came after; the line holding the cursor is returned again because it may still be growing. A `since_cursor` older than the oldest retained line starts at the oldest one and sets `truncated: true`.
+- `terminal_wait` blocks until a pattern appears or output has been quiet for `idle_ms`; reaching `timeout_seconds` returns `timed_out: true` (not an error). Without `since_cursor` only text written after the call started counts, so the prompt already on screen does not match; with `since_cursor` whole lines from that line count.
+- `terminal_screen` returns only the visible screen (use it for full-screen programs such as vim, top, less) with the cursor position; `terminal_search` searches the retained scrollback (newest 20 000 lines) and returns line numbers with optional context.
+- **Patterns** (`terminal_search`, `terminal_wait`, `terminal_run until`) are literal substrings by default, a regular expression with `regex: true`, case-insensitive unless `case_sensitive: true`, at most 256 characters, matched line by line. A regular expression that runs longer than 3 s is stopped (`pattern_timeout`).
+- Lines that start with `[MCP]` were written locally by Atermius to show your actions; they were not produced by the remote host. Searches and waits are announced without their pattern, so they never match their own announcement.
 
 ## What the user sees
-- Every call that reaches a session is announced in it first (`[MCP] tool arguments`), shown with control characters escaped. Reads are announced after the text was taken, at most once per 10 s per session for polling reads, so a read never contains its own line.
+- Every call that reaches a session is announced in it first (`[MCP] tool arguments`), shown with control characters escaped. Reads, searches and waits are announced after the text was taken (polling reads and waits at most once per 10 s per session), so a read never contains its own line. `terminal_run` is announced only before typing, so nothing is written below the user's new prompt.
 - While a full-screen program runs, announcements are queued and written when it exits.
 - The top bar shows an AI activity indicator with every call (tool, target, arguments summary, outcome). `ui_notify` shows a short message to the user — use it to explain what you are about to do before a long or risky step, or to report a result that is not visible in a terminal.
 
@@ -360,8 +364,8 @@ abstract final class McpDocs {
 ## Run a command where the user can see it
 1. `sessions_list` → pick a connected `ssh`/`telnet`/`console` session (or `hosts_list {query}` → `host_connect {host_id}` and use the returned session).
 2. `terminal_run {session_id, command: "systemctl status nginx --no-pager"}`.
-   - Returns when output has been quiet for `idle_ms` (default 1500) or `until` matched. For slow commands pass `until` (a substring, or `regex: true`) that matches the end of the output, for example the shell prompt. The echoed command line itself is part of the output, so make `until` match something only the result contains.
-   - `timed_out: true` means the command may still be running: check with `terminal_screen`, stop it with `terminal_send_keys {keys: ["ctrl_c"]}` if appropriate.
+   - Returns when output has been quiet for `idle_ms` (default 1500) or `until` matched (`timeout_seconds` default 30, at most 120). For slow commands pass `until` (a substring, or `regex: true`) that matches the end of the output, for example a final line the command prints or the shell prompt. `until` never matches the echoed command line itself.
+   - `timed_out: true` means the command may still be running: check with `terminal_screen` or `terminal_wait {since_cursor: <cursor>}`, stop it with `terminal_send_keys {keys: ["ctrl_c"]}` if appropriate. Do not type the command again.
 3. Need the exit status? Use `ssh_exec {session_id, command}` instead.
 
 ## Follow output incrementally
@@ -382,7 +386,7 @@ abstract final class McpDocs {
 
 ## Manage remote files
 - `sftp_list {path}` (paged), `sftp_stat {path}` (`exists: false` when missing).
-- `sftp_mkdir {path}`, `sftp_rename {from, to}` (never overwrites), `sftp_remove {path, type: "file" | "directory"}` (empty directories only). Confirm destructive steps with the user (`ui_notify` can tell them what you are doing).
+- `sftp_mkdir {path}`, `sftp_rename {from, to}` (never overwrites), `sftp_remove {path, type: "file" | "directory"}` (empty directories only; `file` covers anything that is not a directory, and a symlink itself is removed, never its target). `sftp_stat` reports `modified_at` as Unix seconds like `sftp_list`. Confirm destructive steps with the user (`ui_notify` can tell them what you are doing).
 
 ## Diagnose a host (read-only)
 1. `ssh_system_overview` — OS, kernel, uptime, load, CPU, memory, root disk.
@@ -392,11 +396,11 @@ abstract final class McpDocs {
 All of these work with read_only access.
 
 ## Find things
-- `hosts_list {query, protocol, tag, group_id, favorites_only}`, `groups_list`, `host_get {host_id}` (port forwards and open sessions of one host).
+- `hosts_list {query, protocol, tag, group_id, favorites_only}` (query matches name, address, username and tags; `group_id` includes subgroups), `groups_list`, `host_get {host_id}` (port forwards and open sessions of one host), `sessions_list {host_id}` (which tab is `focused`, terminal size, `alternate_screen`).
 - `terminal_search {session_id, pattern, context_lines}` across the scrollback.
 
 ## Talk to the user
-- `ui_notify {message, level: info | success | warning | error, session_id?}` shows a short message in Atermius (rate limited to one every 2 s). Use it before long or risky steps and to report results.
+- `ui_notify {message, level: info | success | warning | error, session_id?}` shows a short plain-text message in Atermius (one every 2 s across all clients). With `session_id` it is also written into that terminal. `shown: false` means no Atermius window is showing activity right now. Use it before long or risky steps and to report results.
 ''';
 
   static const _access = '''# Per-machine access
@@ -439,7 +443,11 @@ Tool failures come back as a normal result with `isError: true`, `structuredCont
 | `rate_limited` | `ui_notify` called too often | Wait 2 s |
 | `file_too_large` | Over the 64 KiB text limit | Read in another way (`ssh_service_logs`, `terminal_run` with `head`/`tail`) |
 | `baseline_required` / `file_changed` | `replace` without/with a stale `expected_sha256` | `sftp_read_text` again and redo the change |
-| `already_exists` / `type_mismatch` / `not_found` | Rename target exists; `sftp_remove` type differs; path missing | `sftp_stat` and decide |
+| `invalid_arguments` (pattern) / `pattern_timeout` / `pattern_failed` | Bad regular expression; it ran over 3 s (catastrophic backtracking); it could not be evaluated | Use a literal pattern or a simpler expression |
+| `already_exists` / `type_mismatch` / `not_found` | `sftp_mkdir`/`sftp_rename` target exists; `sftp_remove` type differs; path missing | `sftp_stat` and decide |
+| `directory_not_empty` | `sftp_remove` only removes empty directories | Ask the user; remove the contents deliberately or leave it |
+| `permission_denied` | The remote user may not do this | Ask the user; do not try to escalate privileges on your own |
+| `sftp_failed` | The SFTP server refused the operation for another reason | `sftp_stat` the paths and tell the user |
 | `unsupported_sftp` | The server's SFTP version cannot create files safely | Use another method with the user's agreement |
 | `operation_failed` | Anything else; details are not returned | Look at the session in Atermius |
 | `invalid_response` | (In-process gateways only) the reply could not be decoded | Report it; do not retry side effects |

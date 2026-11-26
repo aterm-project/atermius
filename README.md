@@ -33,7 +33,7 @@ The client is one Flutter app:
 - RDP and VNC through direct engines where the platform build has them, or through the server's gateway.
 - Local encrypted profiles or a self-hosted synchronized Vault.
 - Organizations, member sharing and temporary links when enabled by the server.
-- Optional MCP access for external AI tools on desktop, Android and iOS. The iOS listener runs in the foreground.
+- Optional MCP access for external AI tools on desktop, Android and iOS: hosts, sessions, terminals (run commands visibly, incremental reads, search, wait, keys), SFTP and read-only diagnostics, with built-in documentation as MCP resources and prompts. Every AI action is shown in the terminal it touches and in a top-bar activity panel. The iOS listener runs in the foreground.
 - Chinese, Japanese, English and Russian UI; application accents and terminal palettes are separate settings.
 - Terminal keyword highlighting: errors, warnings, successes, IP/MAC addresses and links stand out in plain output; groups, colors and word lists are editable per device.
 

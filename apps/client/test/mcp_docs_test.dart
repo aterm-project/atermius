@@ -140,7 +140,23 @@ void main() {
   });
 
   test('prose only mentions tools that exist', () {
-    final names = {for (final t in mcpTools) t.name};
+    // Error codes share the prefixes (`workspace_changed`); they are checked
+    // against the errors page instead.
+    final codes = {
+      for (final m in RegExp(
+        r'`([a-z_]+)`',
+      ).allMatches(McpDocs.topicText('errors')))
+        m.group(1)!,
+    };
+    // Argument and result field names that share the prefixes.
+    const fields = {
+      'host_id',
+      'session_id',
+      'ssh_exec_available',
+      'sftp_available',
+      'terminal_available',
+    };
+    final names = {for (final t in mcpTools) t.name, ...codes, ...fields};
     for (final topic in McpDocs.topics) {
       final text = McpDocs.topicText(topic);
       for (final match in _toolMention.allMatches(text)) {

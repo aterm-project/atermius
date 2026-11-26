@@ -8,21 +8,32 @@ Android 使用带“停止 MCP”按钮的前台通知；切换到其他应用�
 
 客户端还提供**进程内原生 MCP 接口**（Dart 侧 `McpService.createNativeGateway`、`McpNativeBridge` 和 `atermius/mcp_native`，iOS Swift 侧 `AtermiusNativeMcpBridge.shared`），供内置 AI 或系统助手复用工作区授权和逐机权限。MCP 服务与当前已解锁的本地 Profile 或云端 Vault 绑定。
 
-| 工具 | 用途 | 需要操作权限 |
+| 工具 | 用途 | 需要读写权限 |
 | --- | --- | --- |
+| `docs_read` | 读取内置文档（同下文「内置文档」，给只会调用工具的客户端用） | 否 |
 | `workspace_status` | 工作区状态 | 否 |
-| `hosts_list` / `sessions_list` | 分页列出主机 / 会话 | 否 |
+| `hosts_list` | 分页列出主机，可按 `query`（名称/地址/用户名/标签）、`protocol`、`group_id`（含子分组）、`tag`、`favorites_only` 筛选；返回标签、收藏、跳板机、最近连接时间、识别出的系统 | 否 |
+| `host_get` | 单台主机详情：端口转发配置和它当前打开的会话 | 否 |
+| `groups_list` | 分组（只列含可见主机的分组，`host_count` 只计可见主机） | 否 |
+| `sessions_list` | 分页列出会话，可按 `host_id` 筛选；返回是否为当前标签、终端行列数、是否处于全屏程序 | 否 |
 | `host_connect` / `console_open` | 连接已保存的主机 / 打开 Console | 是 |
 | `session_focus` / `session_close` | 切换 / 关闭标签 | 是 |
-| `terminal_read` | 读取保留的终端文本 | 否 |
+| `terminal_read` | 读取保留的终端文本；`since_cursor` 增量读取，只返回上次之后的新内容 | 否 |
+| `terminal_screen` | 只读当前可见屏幕、光标位置、行列数（适合 vim、top 等全屏程序） | 否 |
+| `terminal_search` | 在滚动记录里搜索（字面或正则，可带上下文行），返回行号 | 否 |
+| `terminal_wait` | 等到出现某段文字，或输出静止一段时间，最长 120 秒 | 否 |
 | `terminal_write` | 向交互终端输入文本（换行可能执行命令） | 是 |
-| `ssh_exec` | 在已有 SSH 连接的独立通道执行命令 | 是 |
+| `terminal_send_keys` | 发送命名按键：回车、方向键、F1–F12、Ctrl+C 等，跟随终端的光标键模式 | 是 |
+| `terminal_run` | 在用户看得见的交互终端里输入一行命令并回车，等输出结束后返回输出（没有退出码） | 是 |
+| `ssh_exec` | 在已有 SSH 连接的独立通道执行命令，返回退出码和 stdout/stderr | 是 |
 | `ssh_system_overview` | 只读采集远端主机 OS、内核、负载、CPU、内存与根分区概览 | 否 |
 | `ssh_network_probe` | 只读检查远端监听端口（`listening_ports`）或 TCP 连通性（`tcp_check`） | 否 |
 | `ssh_process_snapshot` | 只读快照远端 CPU / 内存占用 Top 进程列表 | 否 |
 | `ssh_service_logs` | 只读查看 `journalctl` 或绝对路径日志尾行（本地过滤关键字） | 否 |
-| `sftp_list` / `sftp_read_text` | 列目录 / 读取 UTF-8 文本和 SHA-256 | 否 |
+| `sftp_list` / `sftp_stat` / `sftp_read_text` | 列目录 / 查看路径属性（不存在时 `exists: false`）/ 读取 UTF-8 文本和 SHA-256 | 否 |
 | `sftp_write_text` | 独占创建或核对摘要后替换文本文件 | 是 |
+| `sftp_mkdir` / `sftp_rename` / `sftp_remove` | 建目录 / 改名（不覆盖已有文件）/ 删除文件或空目录（须写明 `type`） | 是 |
+| `ui_notify` | 在 Atermius 界面上给用户显示一条消息（每 2 秒最多一条） | 否 |
 
 权限按本机的本地 Profile 或服务器实例、账户和 Vault 隔离保存，不参与同步，Android 备份和设备迁移也排除这些授权。禁止访问的机器不会出现在主机、会话列表及计数中，直接使用其 ID 也无法访问；只读仅允许读取已打开的终端和 SFTP 内容，不允许连接、切换或关闭会话。
 
@@ -57,19 +68,44 @@ MCP 启用后会在本设备上保持开启，像一个后台服务：
 - Windows 首次监听非回环地址时，系统防火墙可能询问是否允许 Atermius 接受连接；不允许的话其他设备连不上。
 - `integration/mcp/stdio_bridge.py` 也接受私有网段的 IP 地址作为 `ATERMIUS_MCP_URL`，主机名（除 `localhost`）不接受。
 
-## 操作在终端里的显式记录
+## AI 的操作在界面上的显示
 
-外部 AI 通过 MCP 做的每一步，都会显示在它操作的那个会话里，不会有看不见的操作：
+外部 AI 通过 MCP 做的每一步都看得见，不会有看不见的操作。
 
-- SSH、Telnet、Console：在该终端的滚动记录里插入一行暗青色的 `[MCP] 工具名 参数`。这是本地显示，不会发送到远端。`ssh_exec` 先显示命令，结束后显示退出码和命令输出（最多 60 行或 4 KiB，更多内容只返回给客户端）；`sftp_list`、`sftp_read_text`、`sftp_write_text` 显示路径和结果；`terminal_write` 显示写入的文本；`session_focus`、`session_close`、`host_connect`、`console_open` 各显示一行；失败的调用显示 `→ failed: 错误码`。
-- `terminal_read` 每个会话每 10 秒最多显示一行，避免轮询刷屏；读取结果不包含它自己的那一行。
+### 顶栏的 AI 活动按钮
+
+MCP 正在监听、有调用正在执行，或最近 2 分钟内有过调用时，顶栏（搜索按钮左边）会出现一个 AI 图标。调用执行期间图标上有进度圈；窗口足够宽时显示「AI · 工具名」，鼠标悬停可看到工具和目标会话。点开是 AI 活动面板（宽窗口是下拉面板，触屏和窄窗口是底部弹出）：
+
+- 最近的调用按时间倒序列出：状态、工具名、目标（会话或主机名）、参数摘要（等宽字体，命令、路径、按键、搜索词等；文件内容只显示字节数）、时间、耗时，以及结果（如 `exit 0`、`12 items`、`matched`）或错误码。
+- 点一条调用会切到它操作的会话；`host_connect` 会切到它打开的会话。
+- 顶部显示监听地址和「停止 MCP」按钮，还有到「设置 → AI / MCP」的链接。
+- AI 用 `ui_notify` 发来的消息以「AI: 消息」的提示条显示，按级别着色，点「查看」打开面板。消息只按纯文本显示，控制字符和方向控制字符会被去掉。
+
+「设置 → AI / MCP → 最近调用」显示同样的内容。这些记录只在内存里保留最近 50 条，停止服务后清空。iPhone 布局没有顶栏，看设置页即可。
+
+### 终端里的 `[MCP]` 行
+
+- SSH、Telnet、Console：在该终端的滚动记录里插入一行暗青色的 `[MCP] 工具名 参数`。这是本地显示，不会发送到远端。`ssh_exec` 先显示命令，结束后显示退出码和命令输出（最多 60 行或 4 KiB，更多内容只返回给客户端）；`terminal_run` 在输入命令前显示一行，命令和输出本身就在终端里；`terminal_send_keys` 显示按键名；`sftp_*` 显示路径和结果（修改类在动手前显示）；`terminal_write` 显示写入的文本；`session_focus`、`session_close`、`host_connect`、`console_open` 各显示一行；失败的调用显示 `→ failed: 错误码`。
+- `terminal_read`、`terminal_screen`、`terminal_wait` 每个会话每 10 秒最多显示一行，避免轮询刷屏；读取结果不包含它自己的那一行。`terminal_search` 和 `terminal_wait` 只显示结果（匹配数、等了多久），不显示搜索词，免得下一次搜索匹配到这一行。
 - RDP、VNC 没有终端，改为在远程桌面画面上弹出同样内容的提示。
 - 参数里的控制字符显示为 `\n`、`\e` 这类转义，不能借此操纵终端。全屏程序（vim、htop 等）运行期间不在其画面上写字，等它退出后补写。
 - 这些行属于终端文本，之后的 `terminal_read` 会读到它们。被权限拒绝的调用没有到达会话，因此不显示。
 
-调用顺序示例：`hosts_list` → `host_connect {host_id}` → `sessions_list` → `ssh_exec {session_id,command,timeout_seconds}`。文件替换先 `sftp_read_text`，再以返回的 `sha256` 作为 `sftp_write_text` 的 `expected_sha256`，`mode` 设为 `replace`；新建使用 `create`。文件路径必须绝对路径。超时后的远程结果可能不确定，不自动重试有副作用的调用。
+调用顺序示例：`sessions_list`（没有合适的会话时 `hosts_list {query}` → `host_connect {host_id}`）→ `terminal_run {session_id,command}`（用户能看到）或 `ssh_exec {session_id,command,timeout_seconds}`（需要退出码时）。跟踪输出用 `terminal_read` 返回的 `cursor` 作为下一次的 `since_cursor`，或用 `terminal_wait` 等待。文件替换先 `sftp_read_text`，再以返回的 `sha256` 作为 `sftp_write_text` 的 `expected_sha256`，`mode` 设为 `replace`；新建使用 `create`。文件路径必须绝对路径。超时后的远程结果可能不确定，不自动重试有副作用的调用。
 
-每次仅执行一个工具请求；命令超时最多 120 秒，工具总截止时间 130 秒。文本文件和命令输出上限 64 KiB，终端读取最多 2000 行，列表一页最多 200 项。工具日志只在内存保留最近 50 条名称和成功状态，停止服务后清空。
+每次仅执行一个工具请求；命令、`terminal_wait`、`terminal_run` 最长 120 秒，工具总截止时间 130 秒。文本文件和命令输出上限 64 KiB，终端读取最多 2000 行，搜索覆盖最新 20 000 行，列表一页最多 200 项。搜索和等待默认按字面、不区分大小写匹配；`regex: true` 时用正则，超过 3 秒的正则会被中止（在独立的 isolate 里执行，不会卡住应用）。
+
+## 内置文档（给 AI 读）
+
+服务按 MCP 标准方式自带文档，AI 不需要事先知道本页内容：
+
+- **初始化说明**：`initialize` / `server/discover` 返回的 `instructions` 概括规则，并指向下面的文档。
+- **资源（resources）**：`resources/list` 列出 `atermius://docs/index`（入口）、`guide`（概念、显示方式、限制）、`tools`（工具参考，由正在运行的工具定义自动生成，参数、范围、默认值和所需权限与实际一致）、`workflows`（常见流程）、`access`（逐机权限）、`errors`（错误码及应对）；`resources/templates/list` 提供 `atermius://docs/tools/{name}`，读单个工具。`resources/read` 返回 Markdown。
+- **提示词（prompts）**：`prompts/list` / `prompts/get` 提供 `run_command`（在用户终端里可见地执行命令）、`diagnose_host`（只读体检）、`edit_remote_file`（带 SHA-256 校验的安全改文件）、`investigate_service`（排查服务）。
+- **工具**：只支持工具调用的客户端用 `docs_read {topic}` 或 `docs_read {tool}` 读同样的内容。
+- 每个工具带 `title` 和 `annotations`（`readOnlyHint`、`destructiveHint`、`idempotentHint`），客户端可据此决定是否需要用户确认。
+
+文档内容与工作区无关，不含任何主机、会话或凭据信息，但读取同样需要令牌和已授权的工作区。
 
 ## HTTP 客户端配置
 
