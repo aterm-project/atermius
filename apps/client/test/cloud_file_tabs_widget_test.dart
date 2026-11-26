@@ -111,6 +111,59 @@ void main() {
   );
 
   testWidgets(
+    'a split stays split while the selected Vault changes and comes back',
+    (tester) async {
+      final fixture = await _fixture();
+      try {
+        await tester.binding.setSurfaceSize(const Size(1400, 900));
+        await tester.runAsync(() => fixture.app.openTerminalTab(_a));
+        await tester.runAsync(() => fixture.app.openTerminalTab(_b));
+        await tester.pumpWidget(_shell(fixture.app));
+        await tester.pumpAndSettle();
+        final layout = tester
+            .widget<SessionWorkspaceView>(find.byType(SessionWorkspaceView))
+            .controller;
+        final ids = fixture.app.terminalTabs.map((tab) => tab.id).toList();
+        layout.split(ids.first, ids.last, SessionSplitEdge.right);
+        await tester.pumpAndSettle();
+        expect(layout.root, isA<SessionWorkspaceSplit>());
+        expect(layout.groupedSessionIds, [
+          [ids.last, ids.first],
+        ]);
+        expect(find.byType(TerminalView), findsNWidgets(2));
+
+        // Another Vault is selected for a moment (a membership refresh used
+        // to do this), then the one before. The open tabs stay, and so does
+        // their split.
+        const other = VaultDescriptor(
+          id: '22222222-2222-4222-8222-222222222222',
+          role: 'owner',
+          activeKeyEpoch: '1',
+          membershipVersion: '1',
+        );
+        final original = fixture.app.activeVault;
+        fixture.app.activeVault = other;
+        fixture.app.notifyListeners();
+        await tester.pumpAndSettle();
+        expect(fixture.app.terminalTabs.map((tab) => tab.id), ids);
+        expect(layout.root, isA<SessionWorkspaceSplit>());
+        fixture.app.activeVault = original;
+        fixture.app.notifyListeners();
+        await tester.pumpAndSettle();
+
+        expect(layout.root, isA<SessionWorkspaceSplit>());
+        expect(layout.groupedSessionIds, [
+          [ids.last, ids.first],
+        ]);
+        expect(find.byType(TerminalView), findsNWidgets(2));
+        expect(tester.takeException(), isNull);
+      } finally {
+        await _cleanup(tester, fixture);
+      }
+    },
+  );
+
+  testWidgets(
     'cloud functions stay in top tabs without duplicate page header',
     (tester) async {
       final fixture = await _fixture();

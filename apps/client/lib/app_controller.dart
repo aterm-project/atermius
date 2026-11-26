@@ -15654,7 +15654,12 @@ class AppController extends ChangeNotifier {
     };
     try {
       _traceSafeTeamLifecycle('reload.load.start');
-      await _loadVaults(auth);
+      // The selected Vault stays selected while the list loads. Without the
+      // preference the load selected the first listed Vault until this
+      // method put the previous one back, and everything that follows the
+      // selection (open tabs' splits, file tabs, a reconnect finishing
+      // meanwhile) saw a Vault change in between.
+      await _loadVaults(auth, preferredVaultId: previousActive?.id);
       _traceSafeTeamLifecycle('reload.load.done');
       if (!loadScopeIsCurrent()) return;
     } on _VaultLoadSuperseded {

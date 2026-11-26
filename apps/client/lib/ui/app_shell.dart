@@ -790,7 +790,10 @@ class _AppShellState extends State<AppShell> {
       _scopeGeneration++;
       _filesScope = scope;
       unawaited(TrackedFilesWindows.instance.releaseOwner(app));
-      _sessionWorkspace.restore(null);
+      // Terminal tabs outlive a Vault change, and so do their splits: only
+      // the user takes a pane out of a split (or closes its tab). Panes of
+      // tabs that are gone, the file tabs closed here included, leave the
+      // layout below.
       _selectedFileId = null;
       unawaited(_fileTabs.closeAll());
     }
