@@ -8,6 +8,7 @@ import '../l10n/l10n.dart';
 import '../platform/server_hosted.dart';
 import 'credential_visibility/credential_visibility_widgets.dart';
 import '../storage/workspace_mode.dart';
+import 'app_density.dart';
 import 'app_motion.dart';
 import 'insecure_server_widgets.dart';
 import 'ios_native/ios_native.dart';
@@ -885,7 +886,7 @@ class _AccountBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusSm),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

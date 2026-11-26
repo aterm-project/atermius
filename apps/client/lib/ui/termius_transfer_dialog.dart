@@ -19,8 +19,21 @@ import '../import/termius_seed_sync.dart';
 import '../import/termius_transfer.dart';
 import '../import/termius_transfer_target.dart';
 import '../l10n/l10n.dart';
+import 'app_density.dart';
 import 'app_motion.dart';
 import 'ios_native/ios_native.dart';
+import 'surfaces.dart';
+
+/// Corner radius of a filled box in the dialog: concentric with the dialog
+/// (or the block around it), no outline.
+double _boxRadius(BuildContext context) {
+  final density = AppDensity.of(context);
+  return SurfaceScope.concentric(
+    context,
+    fallback: density.radiusMd,
+    floor: density.radiusMd,
+  );
+}
 
 enum TermiusTransferMode { importData, exportData }
 
@@ -1015,11 +1028,8 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: theme.colorScheme.primary.withValues(alpha: 0.45),
-            ),
+            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(_boxRadius(context)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1149,8 +1159,7 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: theme.dividerColor),
+            borderRadius: BorderRadius.circular(_boxRadius(context)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1395,7 +1404,7 @@ class _TermiusTransferDialogState extends State<TermiusTransferDialog> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(_boxRadius(context)),
             ),
             child: Text(
               l10n.r7ImportExportSecretWarning,
@@ -2197,7 +2206,7 @@ class _IssuePanel extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: blocking ? scheme.errorContainer : scheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(_boxRadius(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

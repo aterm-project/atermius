@@ -13,6 +13,7 @@ import '../mcp/mcp_listener.dart'
 import '../mcp/mcp_listener_lifecycle.dart';
 import '../mcp/mcp_service.dart';
 import '../mcp/mcp_tools.dart';
+import 'app_density.dart';
 import 'app_motion.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
@@ -20,6 +21,7 @@ import 'ios_native/ios_native.dart';
 import 'mcp_activity_panel.dart';
 import 'responsive_layout.dart';
 import 'settings_scaffold.dart';
+import 'surfaces.dart';
 
 /// Localized name of an MCP access level, shared by every MCP surface.
 String mcpAccessModeLabel(AppLocalizations l10n, McpAccessMode mode) =>
@@ -338,7 +340,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: context.palette.codeBackground,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(_wellRadius(context)),
           ),
           child: SelectableText(
             token,
@@ -1749,9 +1751,8 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             ),
           ),
           if (ready) ...[
-            const SizedBox(height: 12),
-            Divider(height: 1, color: context.palette.line),
-            const SizedBox(height: 16),
+            // A gap, not a rule, opens the per-machine section.
+            const SizedBox(height: 28),
             Text(
               l10n.mcpPerMachineTitle,
               style: const TextStyle(fontWeight: FontWeight.w600),
@@ -2019,7 +2020,7 @@ class _AndroidForwardingHint extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: context.palette.codeBackground,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(_wellRadius(context)),
           ),
           child: SelectableText(
             'adb forward tcp:$port tcp:$port',
@@ -2088,7 +2089,7 @@ class _Tag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
         color: context.palette.accentText.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusSm),
       ),
       child: Text(
         text,
@@ -2096,4 +2097,15 @@ class _Tag extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Corner radius of a code well inside a settings card: concentric with the
+/// card, never below the control radius.
+double _wellRadius(BuildContext context) {
+  final density = AppDensity.of(context);
+  return SurfaceScope.concentric(
+    context,
+    fallback: density.radiusMd,
+    floor: density.radiusMd,
+  );
 }

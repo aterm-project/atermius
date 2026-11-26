@@ -268,10 +268,18 @@ class ConnectProgressPane extends StatelessWidget {
     final edit = onEdit;
     final controls = compact
         ? <Widget>[
+            // Tonal like the theme's outlined buttons: a fill, no ring.
             IconButton.outlined(
               key: const ValueKey('connect_progress_stop'),
               tooltip: l10n.connectProgressStop,
               onPressed: stop,
+              style: IconButton.styleFrom(
+                side: BorderSide.none,
+                backgroundColor: palette.fill,
+                disabledBackgroundColor: palette.fill.withValues(
+                  alpha: palette.fill.a * .6,
+                ),
+              ),
               icon: const Icon(Icons.stop_rounded),
             ),
             IconButton.filled(

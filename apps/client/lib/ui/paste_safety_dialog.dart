@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../terminal/paste_safety.dart';
+import 'app_density.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
+import 'surfaces.dart';
 
 /// 在向终端粘贴高危命令或未受括号粘贴保护的多行文本前弹出安全确认弹窗。
 ///
@@ -176,21 +178,23 @@ class _PasteSafetyDialog extends StatelessWidget {
         ),
     ].join('\n');
 
-    final focusStyle = ButtonStyle(
-      side: WidgetStateProperty.resolveWith((states) {
-        if (!states.contains(WidgetState.focused)) return null;
-        return BorderSide(
-          color: Theme.of(context).colorScheme.primary,
-          width: 2,
+    // Arrow keys move focus between the buttons; the focused one shows a
+    // stronger fill instead of a ring.
+    WidgetStateProperty<Color?> focusFill(Color color) =>
+        WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.focused) ? color : null,
         );
-      }),
+    final focusStyle = ButtonStyle(
+      overlayColor: focusFill(
+        Theme.of(context).colorScheme.primary.withValues(alpha: .22),
+      ),
     );
+    final filledFocusStyle = ButtonStyle(
+      overlayColor: focusFill(Colors.white.withValues(alpha: .24)),
+    );
+    final density = AppDensity.of(context);
     final dialog = AlertDialog(
       key: const ValueKey('paste_safety_dialog'),
-      shape: appleSquircleBorder(
-        BorderRadius.circular(16),
-        platform: Theme.of(context).platform,
-      ),
       title: Row(
         children: [
           Icon(
@@ -240,11 +244,8 @@ class _PasteSafetyDialog extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: accent.withValues(alpha: 0.35),
-                          ),
+                          color: accent.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(density.radiusMd),
                         ),
                         child: Text(
                           _riskChipLabel(context, risk),
@@ -264,8 +265,13 @@ class _PasteSafetyDialog extends StatelessWidget {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: palette.line),
+                  borderRadius: BorderRadius.circular(
+                    SurfaceScope.concentric(
+                      context,
+                      fallback: density.radiusMd,
+                      floor: density.radiusMd,
+                    ),
+                  ),
                 ),
                 child: Text(
                   previewText,
@@ -309,7 +315,7 @@ class _PasteSafetyDialog extends StatelessWidget {
           ),
         FilledButton(
           key: const ValueKey('paste_safety_confirm'),
-          style: focusStyle.merge(
+          style: filledFocusStyle.merge(
             destructive
                 ? FilledButton.styleFrom(
                     backgroundColor: palette.red,

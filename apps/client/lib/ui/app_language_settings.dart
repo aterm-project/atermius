@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
+import 'app_density.dart';
 import 'app_menu.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
@@ -238,7 +239,9 @@ class _LanguageOption extends StatelessWidget {
       key: ValueKey('app_language_${language.code}'),
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
+      ),
       selected: selected,
       selectedTileColor: context.palette.accent.withValues(alpha: 0.16),
       leading: Icon(

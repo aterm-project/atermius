@@ -7,6 +7,7 @@ import 'app_density.dart';
 import 'app_theme.dart';
 import 'ios_native/ios_native.dart';
 import 'settings_scaffold.dart';
+import 'surfaces.dart';
 
 /// One section of the admin console.
 ///
@@ -255,7 +256,7 @@ class _AdminSiteBrand extends StatelessWidget {
             height: 34,
             decoration: BoxDecoration(
               color: palette.lime,
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(density.radiusMd),
             ),
             child: Icon(
               Icons.admin_panel_settings_outlined,
@@ -324,7 +325,7 @@ class _AdminSiteFooter extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Divider(height: 1, color: palette.line),
+          // A gap, not a rule, sets the footer apart from the sections.
           SizedBox(height: density.space4),
           if (identity.isNotEmpty)
             Padding(
@@ -380,12 +381,13 @@ class _AdminSiteBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    return Material(
-      color: palette.surface,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: palette.line)),
-        ),
+    // A glass bar in the canvas color, like the workspace bar; the section
+    // picker below is a block of its own, so no rule underlines the bar.
+    return GlassSurface(
+      tint: palette.background,
+      opacity: .82,
+      sigma: 24,
+      child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
         child: Row(
           children: [

@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
+import '../app_density.dart';
 import '../app_theme.dart';
+import '../surfaces.dart';
 
 /// The offline command that encrypts an existing plaintext database. Not
 /// localized: it is typed as is.
@@ -81,8 +83,13 @@ class DatabaseEncryptionStatus extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: context.palette.warningContainer,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: .5)),
+            borderRadius: BorderRadius.circular(
+              SurfaceScope.concentric(
+                context,
+                fallback: AppDensity.of(context).radiusMd,
+                floor: AppDensity.of(context).radiusMd,
+              ),
+            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

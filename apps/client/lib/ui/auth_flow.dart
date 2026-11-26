@@ -301,7 +301,9 @@ class _AuthFlowState extends State<AuthFlow> {
             height: 46,
             decoration: BoxDecoration(
               color: context.palette.accent,
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusLg,
+              ),
             ),
             child: Icon(
               Icons.terminal_rounded,
@@ -431,8 +433,8 @@ class _AuthFlowState extends State<AuthFlow> {
             child: const AppLanguageMenuButton(),
           )
         else ...[
-          const Divider(height: 1),
-          const SizedBox(height: 16),
+          // A gap, not a rule, sets the footer apart from the form.
+          const SizedBox(height: 17),
           Row(
             children: [
               Icon(
@@ -477,11 +479,8 @@ class _AuthFlowState extends State<AuthFlow> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: context.palette.lime.withValues(alpha: .10),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: context.palette.lime.withValues(alpha: .28),
-                      ),
+                      color: context.palette.lime.withValues(alpha: .14),
+                      borderRadius: BorderRadius.circular(999),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1565,8 +1564,8 @@ class _FeatureRow extends StatelessWidget {
         width: 38,
         height: 38,
         decoration: BoxDecoration(
-          color: context.palette.lime.withValues(alpha: .11),
-          borderRadius: BorderRadius.circular(11),
+          color: context.palette.lime.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
         ),
         child: Icon(icon, size: 20, color: context.palette.lime),
       ),
@@ -1596,9 +1595,8 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
     decoration: BoxDecoration(
-      color: context.palette.lime.withValues(alpha: .11),
-      borderRadius: BorderRadius.circular(30),
-      border: Border.all(color: context.palette.lime.withValues(alpha: .25)),
+      color: context.palette.lime.withValues(alpha: .14),
+      borderRadius: BorderRadius.circular(999),
     ),
     child: Text(
       label,
@@ -1623,9 +1621,8 @@ class _MessageBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .08),
-        border: Border.all(color: color.withValues(alpha: .26)),
-        borderRadius: BorderRadius.circular(12),
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

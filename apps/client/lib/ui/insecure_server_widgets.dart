@@ -30,14 +30,11 @@ class AllowInsecureServerOption extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final warning = palette.orange;
+    // A filled row; switched on it turns into a warning block, no outline.
     return Material(
-      color: value ? palette.warningContainer : Colors.transparent,
+      color: value ? palette.warningContainer : palette.fill,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: value ? warning : palette.line,
-          width: value ? 1.4 : 1,
-        ),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       clipBehavior: Clip.antiAlias,
       child: SwitchListTile(
@@ -152,7 +149,9 @@ class InsecureServerIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final warning = palette.orange;
-    final radius = strip ? BorderRadius.zero : BorderRadius.circular(12);
+    final radius = strip
+        ? BorderRadius.zero
+        : BorderRadius.circular(AppDensity.of(context).radiusMd);
     final label = context.l10n.insecureServerIndicator;
     return Semantics(
       container: true,
@@ -160,10 +159,7 @@ class InsecureServerIndicator extends StatelessWidget {
       label: '$label. ${context.l10n.insecureServerAppliesTo(origin)}',
       child: Material(
         color: palette.warningContainer,
-        shape: RoundedRectangleBorder(
-          borderRadius: radius,
-          side: strip ? BorderSide.none : BorderSide(color: warning),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: radius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => showInsecureServerDetails(context, origin: origin),

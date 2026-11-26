@@ -587,7 +587,9 @@ class _RecordHistoryRow extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: context.palette.teal.withValues(alpha: .12),
-                      borderRadius: BorderRadius.circular(7),
+                      borderRadius: BorderRadius.circular(
+                        AppDensity.of(context).radiusSm,
+                      ),
                     ),
                     child: Text(
                       context.l10n.recordHistoryCurrent,

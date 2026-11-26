@@ -81,12 +81,13 @@ Future<bool> showPutHostsInVaultDialog(
 }) async {
   final done = await showDialog<bool>(
     context: context,
-    builder: (context) => Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 680),
-        child: _PutInVaultPanel(app: app, hosts: hosts),
+    builder: (context) => CloudDialogSurface(
+      child: Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 680),
+          child: _PutInVaultPanel(app: app, hosts: hosts),
+        ),
       ),
     ),
   );
@@ -410,12 +411,13 @@ Future<String?> showCreateTeamVaultDialog(
 }) => showDialog<String>(
   context: context,
   barrierDismissible: false,
-  builder: (context) => Dialog(
-    insetPadding: const EdgeInsets.all(16),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 520, maxHeight: 700),
-      child: _CreateTeamVaultPanel(service: service, orgId: orgId),
+  builder: (context) => CloudDialogSurface(
+    child: Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 700),
+        child: _CreateTeamVaultPanel(service: service, orgId: orgId),
+      ),
     ),
   ),
 );
@@ -758,53 +760,54 @@ Future<void> showVaultAccessDialog(
   required String vaultId,
 }) => showDialog<void>(
   context: context,
-  builder: (context) => Dialog(
-    insetPadding: const EdgeInsets.all(16),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 520, maxHeight: 700),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.groups_outlined, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    context.l10n.teamVaultAccessTitle(
-                      service.app.vaultNameFor(vaultId),
-                    ),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  tooltip: context.l10n.cloudAccessClose,
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
+  builder: (context) => CloudDialogSurface(
+    child: Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 700),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
-                  CredentialVisibilitySharedVaultNotice(
-                    app: service.app,
-                    vaultId: vaultId,
+                  const Icon(Icons.groups_outlined, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      context.l10n.teamVaultAccessTitle(
+                        service.app.vaultNameFor(vaultId),
+                      ),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  VaultGrantsPanel(service: service, vaultId: vaultId),
+                  IconButton(
+                    tooltip: context.l10n.cloudAccessClose,
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
                 ],
               ),
-            ),
-          ],
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    CredentialVisibilitySharedVaultNotice(
+                      app: service.app,
+                      vaultId: vaultId,
+                    ),
+                    VaultGrantsPanel(service: service, vaultId: vaultId),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     ),

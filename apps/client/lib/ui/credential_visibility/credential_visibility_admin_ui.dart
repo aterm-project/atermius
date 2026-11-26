@@ -21,6 +21,7 @@ import '../app_motion.dart';
 import '../app_theme.dart';
 import '../password_field.dart';
 import '../settings_scaffold.dart';
+import '../surfaces.dart';
 import 'credential_visibility_widgets.dart';
 import 'database_encryption_status.dart';
 
@@ -94,10 +95,7 @@ Future<String?> promptCredentialEscrowPassword(BuildContext context) async {
                   fieldKey: const ValueKey('credential_escrow_password'),
                   controller: controller,
                   autofocus: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.cvMasterPassword,
-                    border: const OutlineInputBorder(),
-                  ),
+                  decoration: InputDecoration(labelText: l10n.cvMasterPassword),
                   onSubmitted: (_) => submit(),
                 ),
               ],
@@ -309,7 +307,6 @@ class _CredentialVisibilityAdminCardState
               initialValue: overview.defaultMode,
               decoration: InputDecoration(
                 labelText: l10n.cvAdminDefaultMode,
-                border: const OutlineInputBorder(),
                 isDense: true,
               ),
               items: [
@@ -463,7 +460,13 @@ class _CredentialEscrowRecoveryCodeDialogState
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: context.palette.codeBackground,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(
+                  SurfaceScope.concentric(
+                    context,
+                    fallback: AppDensity.of(context).radiusMd,
+                    floor: AppDensity.of(context).radiusMd,
+                  ),
+                ),
               ),
               child: SelectableText(
                 code,
@@ -547,10 +550,7 @@ class _RecoveryCodeEntryDialogState extends State<_RecoveryCodeEntryDialog> {
           autofocus: true,
           autocorrect: false,
           enableSuggestions: false,
-          decoration: InputDecoration(
-            labelText: l10n.cvAdminRecoveryCodeLabel,
-            border: const OutlineInputBorder(),
-          ),
+          decoration: InputDecoration(labelText: l10n.cvAdminRecoveryCodeLabel),
         ),
       ),
       actions: [
@@ -608,7 +608,7 @@ class _ResetEscrowDialogState extends State<_ResetEscrowDialog> {
               controller: _controller,
               autocorrect: false,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(border: OutlineInputBorder()),
+              decoration: const InputDecoration(),
             ),
           ],
         ),
@@ -844,7 +844,6 @@ class CredentialVisibilityInvitationField extends StatelessWidget {
         initialValue: value,
         decoration: InputDecoration(
           labelText: l10n.cvSectionTitle,
-          border: const OutlineInputBorder(),
           isDense: true,
         ),
         items: [
@@ -1056,7 +1055,13 @@ class _CredentialEscrowViewerDialogState
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: context.palette.warningContainer,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(
+                  SurfaceScope.concentric(
+                    context,
+                    fallback: AppDensity.of(context).radiusMd,
+                    floor: AppDensity.of(context).radiusMd,
+                  ),
+                ),
               ),
               child: Row(
                 children: [

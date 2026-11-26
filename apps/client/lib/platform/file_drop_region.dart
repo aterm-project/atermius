@@ -299,11 +299,11 @@ class _FileDropRegionState extends State<FileDropRegion> {
             if (_hovering)
               Positioned.fill(
                 child: IgnorePointer(
+                  // The drop target is tinted toward the accent; no frame.
                   child: DecoratedBox(
                     key: const ValueKey('file_drop_highlight'),
                     decoration: BoxDecoration(
-                      color: primary.withValues(alpha: .06),
-                      border: Border.all(color: primary, width: 2),
+                      color: primary.withValues(alpha: .14),
                     ),
                   ),
                 ),

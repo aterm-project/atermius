@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import '../storage/app_theme_store.dart';
+import 'app_density.dart';
 import 'app_theme.dart';
 import 'apple_hig.dart';
 import 'ios_native/ios_native.dart';
@@ -459,7 +460,9 @@ class _ThemeOption extends StatelessWidget {
         key: ValueKey('app_theme_${preference.code}'),
         dense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
+        ),
         selected: selected,
         selectedColor: palette.accentText,
         selectedTileColor: palette.accent.withValues(alpha: 0.12),
@@ -498,22 +501,15 @@ class _AccentOption extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final scheme = AppPalette.resolve(accent, palette.brightness);
-    final radius = BorderRadius.circular(10);
+    final radius = BorderRadius.circular(AppDensity.of(context).radiusMd);
+    // A filled option; the chosen one is an accent block, never a ring.
     return Semantics(
       inMutuallyExclusiveGroup: true,
       checked: selected,
       button: true,
       child: Material(
-        color: selected
-            ? palette.accent.withValues(alpha: 0.12)
-            : Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: radius,
-          side: BorderSide(
-            color: selected ? palette.accentText : palette.line,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
+        color: selected ? palette.accent.withValues(alpha: 0.18) : palette.fill,
+        shape: RoundedRectangleBorder(borderRadius: radius),
         child: InkWell(
           key: ValueKey('app_accent_${accent.code}'),
           borderRadius: radius,

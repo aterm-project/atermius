@@ -10,8 +10,10 @@ import 'package:uuid/uuid.dart';
 import '../app_controller.dart';
 import '../import/ansible_inventory_import.dart';
 import '../import/ansible_inventory_refresh.dart';
+import 'app_density.dart';
 import 'app_motion.dart';
 import 'ios_native/ios_native.dart';
+import 'surfaces.dart';
 import '../l10n/l10n.dart';
 
 const _uuid = Uuid();
@@ -440,7 +442,6 @@ class _AnsibleInventoryImportDialogState
               key: const ValueKey('ansible_inventory_source_selector'),
               initialValue: _selectedSourceId,
               decoration: InputDecoration(
-                border: const OutlineInputBorder(),
                 labelText: context.l10n.inventorySource,
               ),
               items: [
@@ -465,7 +466,6 @@ class _AnsibleInventoryImportDialogState
               enabled: !_busy,
               maxLength: 128,
               decoration: InputDecoration(
-                border: const OutlineInputBorder(),
                 labelText: context.l10n.sourceLabel,
                 helperText: context.l10n.savedInEncryptedHostMetadataFile,
               ),
@@ -495,7 +495,6 @@ class _AnsibleInventoryImportDialogState
                 }
               },
               decoration: InputDecoration(
-                border: const OutlineInputBorder(),
                 hintText:
                     '[web]\nweb-01 ansible_host=192.0.2.10 ansible_user=deploy',
                 labelText: context.l10n.staticInventoryText,
@@ -1157,7 +1156,7 @@ class _AnsibleIssuesPanel extends StatelessWidget {
     padding: const EdgeInsets.all(8),
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.errorContainer,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(_boxRadius(context)),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1173,5 +1172,16 @@ class _AnsibleIssuesPanel extends StatelessWidget {
           ),
       ],
     ),
+  );
+}
+
+/// Corner radius of a filled box in the dialog: concentric with the dialog
+/// (or the block around it), no outline.
+double _boxRadius(BuildContext context) {
+  final density = AppDensity.of(context);
+  return SurfaceScope.concentric(
+    context,
+    fallback: density.radiusMd,
+    floor: density.radiusMd,
   );
 }

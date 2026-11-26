@@ -56,6 +56,7 @@ import 'storage/insecure_web_storage_stub.dart'
     if (dart.library.js_interop) 'storage/insecure_web_storage_web.dart'
     as insecure_web_storage;
 import 'ui/app_shell.dart';
+import 'ui/app_density.dart';
 import 'ui/app_theme.dart';
 import 'ui/apple_hig.dart';
 import 'ui/ios_native/ios_native.dart';
@@ -533,7 +534,9 @@ class _StartupRecovery extends StatelessWidget {
                       CupertinoButton(
                         key: const ValueKey('startup_retry'),
                         color: c.tint,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(
+                          AppDensity.of(context).radiusMd,
+                        ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 24,
                           vertical: 12,
@@ -1196,7 +1199,9 @@ class _ProfileModeChooser extends StatelessWidget {
                         decoration: ShapeDecoration(
                           color: context.palette.lime,
                           shape: appleSquircleBorder(
-                            BorderRadius.circular(14),
+                            BorderRadius.circular(
+                              AppDensity.of(context).radiusLg,
+                            ),
                             platform: Theme.of(context).platform,
                           ),
                         ),

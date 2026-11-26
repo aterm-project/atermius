@@ -15,9 +15,11 @@ import '../../credential_visibility/credential_visibility_models.dart';
 import '../../credential_visibility/credential_visibility_service.dart';
 import '../../l10n/l10n.dart';
 import '../account_settings.dart' show accountSettingsSectionId;
+import '../app_density.dart';
 import '../app_motion.dart';
 import '../app_theme.dart';
 import '../settings_scaffold.dart';
+import '../surfaces.dart';
 
 String formatCredentialVisibilityTime(DateTime value) =>
     DateFormat.yMMMd().add_jm().format(value.toLocal());
@@ -181,8 +183,7 @@ class CredentialVisibilityStatusView extends StatelessWidget {
             color: mode == CredentialVisibilityMode.adminVisible
                 ? context.palette.warningContainer
                 : context.palette.accentContainer.withValues(alpha: .35),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: .45)),
+            borderRadius: BorderRadius.circular(_statusBoxRadius(context)),
           ),
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -383,7 +384,9 @@ class CredentialVisibilityIndicator extends StatelessWidget {
             label: l10n.cvModeAdminVisibleShort,
             child: InkWell(
               key: const ValueKey('credential_visibility_indicator'),
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusMd,
+              ),
               onTap: () => openCredentialVisibilitySettings(context, app),
               // Falls back to the icon alone when the slot is too narrow for
               // the label (phone status bars), so it never overflows.
@@ -405,8 +408,9 @@ class CredentialVisibilityIndicator extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: context.palette.warningContainer,
-                      borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: color.withValues(alpha: .5)),
+                      borderRadius: BorderRadius.circular(
+                        AppDensity.of(context).radiusMd,
+                      ),
                     ),
                     child: iconOnly
                         ? icon
@@ -695,8 +699,7 @@ class CredentialVisibilityRegistrationNotice extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: context.palette.warningContainer,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: .45)),
+        borderRadius: BorderRadius.circular(_statusBoxRadius(context)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -748,8 +751,9 @@ class CredentialVisibilityVaultBadge extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: context.palette.warningContainer,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: color.withValues(alpha: .5)),
+            borderRadius: BorderRadius.circular(
+              AppDensity.of(context).radiusSm,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -879,8 +883,7 @@ class _CredentialVisibilitySharedVaultNoticeState
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: context.palette.warningContainer,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: .45)),
+        borderRadius: BorderRadius.circular(_statusBoxRadius(context)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1051,8 +1054,7 @@ class _CredentialVisibilityShareRecipientGateState
           padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
           decoration: BoxDecoration(
             color: context.palette.warningContainer,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: .45)),
+            borderRadius: BorderRadius.circular(_statusBoxRadius(context)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1200,3 +1202,14 @@ Widget? credentialVisibilityAccountControls(AppController app) =>
     credentialVisibilitySupported(app)
     ? CredentialVisibilitySettingsCard(app: app)
     : null;
+
+/// Corner radius of a status box: a block one level into whatever it sits
+/// in (concentric with an enclosing card or dialog), no outline.
+double _statusBoxRadius(BuildContext context) {
+  final density = AppDensity.of(context);
+  return SurfaceScope.concentric(
+    context,
+    fallback: density.radiusMd,
+    floor: density.radiusMd,
+  );
+}

@@ -22,12 +22,13 @@ Future<void> showCloudShareDialog(
   required HostRecord host,
 }) => showDialog<void>(
   context: context,
-  builder: (context) => Dialog(
-    insetPadding: const EdgeInsets.all(16),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 560, maxHeight: 720),
-      child: CloudShareHostPanel(app: app, host: host),
+  builder: (context) => CloudDialogSurface(
+    child: Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 720),
+        child: CloudShareHostPanel(app: app, host: host),
+      ),
     ),
   ),
 );

@@ -8,8 +8,10 @@ import '../app_controller.dart';
 import '../domain/models.dart';
 import '../import/openssh_config_import.dart';
 import '../import/termius_import_picker.dart';
+import 'app_density.dart';
 import 'app_motion.dart';
 import 'ios_native/ios_native.dart';
+import 'surfaces.dart';
 import '../l10n/l10n.dart';
 
 const _uuid = Uuid();
@@ -718,7 +720,7 @@ class _IssuesPanel extends StatelessWidget {
     padding: const EdgeInsets.all(8),
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.errorContainer,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(_boxRadius(context)),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -734,5 +736,16 @@ class _IssuesPanel extends StatelessWidget {
           ),
       ],
     ),
+  );
+}
+
+/// Corner radius of a filled box in the dialog: concentric with the dialog
+/// (or the block around it), no outline.
+double _boxRadius(BuildContext context) {
+  final density = AppDensity.of(context);
+  return SurfaceScope.concentric(
+    context,
+    fallback: density.radiusMd,
+    floor: density.radiusMd,
   );
 }

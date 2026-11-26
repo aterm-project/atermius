@@ -736,7 +736,6 @@ class _Preview extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: palette.surfaceSoft,
-            border: Border.all(color: palette.line),
             borderRadius: BorderRadius.circular(radius),
           ),
           child: ClipRRect(
@@ -783,7 +782,9 @@ class _ModeOption extends StatelessWidget {
         key: ValueKey('wallpaper_mode_${mode.code}'),
         dense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
+        ),
         selected: selected,
         selectedColor: palette.accentText,
         selectedTileColor: palette.accent.withValues(alpha: 0.12),

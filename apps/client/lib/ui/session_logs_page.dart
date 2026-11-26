@@ -9,6 +9,7 @@ import 'app_density.dart';
 import 'app_theme.dart';
 import 'ios_native/ios_native.dart';
 import 'page_kit.dart';
+import 'surfaces.dart';
 
 enum _LogFilter { all, active, failed, closed }
 
@@ -557,15 +558,8 @@ class _LimitChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: tone == null
-            ? palette.surfaceRaised.withValues(alpha: .7)
-            : tone!.withValues(alpha: .1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: tone == null
-              ? palette.line.withValues(alpha: .7)
-              : tone!.withValues(alpha: .28),
-        ),
+        color: tone == null ? palette.fill : tone!.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -610,18 +604,12 @@ class _FilterPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final foreground = selected ? palette.onAccentContainer : palette.text;
-    final shape = StadiumBorder(
-      side: BorderSide(
-        color: selected
-            ? palette.accentText.withValues(alpha: .45)
-            : palette.line,
-      ),
-    );
+    const shape = StadiumBorder();
     return Semantics(
       button: true,
       selected: selected,
       child: Material(
-        color: selected ? palette.accentContainer : palette.surfaceRaised,
+        color: selected ? palette.accentContainer : palette.fill,
         shape: shape,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -702,9 +690,8 @@ class _LogsEmptyState extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: palette.teal.withValues(alpha: .12),
+              color: palette.teal.withValues(alpha: .14),
               shape: BoxShape.circle,
-              border: Border.all(color: palette.teal.withValues(alpha: .25)),
             ),
             child: Icon(
               Icons.receipt_long_outlined,
@@ -744,11 +731,14 @@ class _LogsNoMatches extends StatelessWidget {
     final palette = context.palette;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: palette.surface,
+        color: palette.blockFill(SurfaceScope.depthOf(context) + 1),
         borderRadius: BorderRadius.circular(
-          AppDensity.of(context).radiusLg + 2,
+          SurfaceScope.concentric(
+            context,
+            fallback: AppDensity.of(context).radiusLg,
+            floor: AppDensity.of(context).radiusMd,
+          ),
         ),
-        border: Border.all(color: palette.line),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
@@ -783,7 +773,8 @@ class _LogsNoMatches extends StatelessWidget {
   }
 }
 
-/// The rows of the journal in one bordered list.
+/// The rows of the journal in one filled block; soft separators inset from
+/// its edges tell the rows apart.
 class _SessionLogList extends StatelessWidget {
   const _SessionLogList({required this.children});
 
@@ -792,21 +783,24 @@ class _SessionLogList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final density = AppDensity.of(context);
     return Material(
-      color: palette.surface,
+      color: palette.blockFill(SurfaceScope.depthOf(context) + 1),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(
-          AppDensity.of(context).radiusLg + 2,
+          SurfaceScope.concentric(
+            context,
+            fallback: density.radiusLg,
+            floor: density.radiusMd,
+          ),
         ),
-        side: BorderSide(color: palette.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < children.length; i++) ...[
-            if (i > 0)
-              Divider(height: 1, color: palette.line.withValues(alpha: .6)),
+            if (i > 0) const Divider(height: 1, indent: 14, endIndent: 12),
             children[i],
           ],
         ],
@@ -864,8 +858,8 @@ class _SessionLogRow extends StatelessWidget {
       width: 34,
       height: 34,
       decoration: BoxDecoration(
-        color: tone.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(10),
+        color: tone.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       child: Icon(icon, size: 18, color: tone),
     );
@@ -1065,9 +1059,8 @@ class _Tag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: palette.surfaceRaised,
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: palette.line.withValues(alpha: .7)),
+        color: palette.fill,
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusSm),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1109,7 +1102,7 @@ class _StatusPill extends StatelessWidget {
     decoration: BoxDecoration(
       color: tone.withValues(alpha: .12),
       // Round as a pill on one line; a wrapped label keeps soft corners.
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -1249,10 +1242,16 @@ class _SessionLogDetailDialogState extends State<_SessionLogDetailDialog> {
                         constraints: const BoxConstraints(maxHeight: 320),
                         width: double.infinity,
                         padding: const EdgeInsets.all(8),
+                        // A sunken well in the dialog; no outline.
                         decoration: BoxDecoration(
                           color: context.palette.background,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: context.palette.line),
+                          borderRadius: BorderRadius.circular(
+                            SurfaceScope.concentric(
+                              context,
+                              fallback: AppDensity.of(context).radiusMd,
+                              floor: AppDensity.of(context).radiusMd,
+                            ),
+                          ),
                         ),
                         child: SingleChildScrollView(
                           child: SelectableText(

@@ -12,6 +12,7 @@ import 'app_motion.dart';
 import 'app_theme.dart';
 import '../l10n/l10n.dart';
 import 'app_density.dart';
+import 'surfaces.dart';
 
 Future<void> showHostAttachmentsDialog(
   BuildContext context, {
@@ -589,11 +590,14 @@ class _AttachmentMessage extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(11),
     decoration: BoxDecoration(
-      color: (isError ? context.palette.red : context.palette.teal).withValues(alpha: .08),
-      borderRadius: BorderRadius.circular(9),
-      border: Border.all(
-        color: (isError ? context.palette.red : context.palette.teal).withValues(
-          alpha: .24,
+      color: (isError ? context.palette.red : context.palette.teal).withValues(
+        alpha: .12,
+      ),
+      borderRadius: BorderRadius.circular(
+        SurfaceScope.concentric(
+          context,
+          fallback: AppDensity.of(context).radiusMd,
+          floor: AppDensity.of(context).radiusMd,
         ),
       ),
     ),

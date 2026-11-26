@@ -19,6 +19,7 @@ import 'app_theme.dart';
 import 'ios_native/ios_native.dart';
 import 'page_kit.dart';
 import 'ssh_port_forwarding_dialog.dart';
+import 'surfaces.dart';
 import 'workspace_controls.dart' show WorkspaceAction;
 
 /// Connection phase of one SSH session (terminal tab) as seen by the
@@ -1070,15 +1071,8 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
     final counts = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: running
-            ? palette.teal.withValues(alpha: .1)
-            : palette.surfaceRaised.withValues(alpha: .7),
+        color: running ? palette.teal.withValues(alpha: .16) : palette.fill,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: running
-              ? palette.teal.withValues(alpha: .3)
-              : palette.line.withValues(alpha: .7),
-        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1138,33 +1132,42 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
     );
   }
 
-  /// A bordered card; [highlight] tints the border (a connected host).
+  /// A filled block; [highlight] tints the fill (a connected host). Rows
+  /// inside it keep soft separators inset from the block's edges.
   Widget _card({
     required Key key,
     required List<Widget> children,
     Color? highlight,
   }) {
     final palette = context.palette;
+    final density = AppDensity.of(context);
+    final fill = palette.blockFill(SurfaceScope.depthOf(context) + 1);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
         key: key,
-        color: palette.surface,
+        color: highlight == null
+            ? fill
+            : palette.tinted(
+                highlight,
+                base: fill,
+                strength: palette.isDark ? .08 : .06,
+              ),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(
-            AppDensity.of(context).radiusLg + 2,
-          ),
-          side: BorderSide(
-            color: highlight?.withValues(alpha: .38) ?? palette.line,
+            SurfaceScope.concentric(
+              context,
+              fallback: density.radiusLg,
+              floor: density.radiusMd,
+            ),
           ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             for (var i = 0; i < children.length; i++) ...[
-              if (i > 0)
-                Divider(height: 1, color: palette.line.withValues(alpha: .6)),
+              if (i > 0) const Divider(height: 1, indent: 14, endIndent: 14),
               children[i],
             ],
           ],
@@ -1213,8 +1216,8 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        color: avatarTone.withValues(alpha: .13),
-        borderRadius: BorderRadius.circular(10),
+        color: avatarTone.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
       ),
       child: Icon(Icons.dns_outlined, size: 18, color: avatarTone),
     );
@@ -1256,9 +1259,10 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
             decoration: BoxDecoration(
-              color: palette.surfaceRaised,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: palette.line),
+              color: palette.fill,
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusMd,
+              ),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
@@ -1266,7 +1270,9 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
                 value: target?.id,
                 isDense: true,
                 isExpanded: true,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(
+                  AppDensity.of(context).radiusLg,
+                ),
                 icon: const Icon(Icons.expand_more_rounded, size: 18),
                 hint: Text(
                   l10n.r7ForwardChooseSession,
@@ -1522,7 +1528,7 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
               foregroundColor: tone,
               backgroundColor: tone.withValues(alpha: .12),
               disabledForegroundColor: palette.hint,
-              disabledBackgroundColor: palette.surfaceRaised,
+              disabledBackgroundColor: palette.fill,
             ),
             icon: Icon(icon, size: 20),
           ),
@@ -1675,7 +1681,9 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: palette.orange.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(
+                AppDensity.of(context).radiusSm,
+              ),
             ),
             child: Icon(Icons.public, size: 13, color: palette.orange),
           ),
@@ -1829,7 +1837,7 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
               foregroundColor: palette.red,
               backgroundColor: palette.red.withValues(alpha: .12),
               disabledForegroundColor: palette.hint,
-              disabledBackgroundColor: palette.surfaceRaised,
+              disabledBackgroundColor: palette.fill,
             ),
             onPressed: status.state == SshPortForwardState.stopping
                 ? null
@@ -1856,8 +1864,10 @@ class _SshForwardingPageState extends State<SshForwardingPage> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: palette.orange.withValues(alpha: .13),
-                  borderRadius: BorderRadius.circular(10),
+                  color: palette.orange.withValues(alpha: .14),
+                  borderRadius: BorderRadius.circular(
+                    AppDensity.of(context).radiusMd,
+                  ),
                 ),
                 child: Icon(
                   Icons.warning_amber_rounded,
@@ -2697,9 +2707,8 @@ class _TypeBadge extends StatelessWidget {
         height: 32,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: tone.withValues(alpha: .13),
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: tone.withValues(alpha: .3)),
+          color: tone.withValues(alpha: .16),
+          borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
         ),
         child: Text(
           letter,
@@ -2728,7 +2737,7 @@ class _TypeTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: .1),
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusSm),
       ),
       child: Text(
         _typeLabel(context, type),
@@ -2797,7 +2806,7 @@ class _Pill extends StatelessWidget {
     decoration: BoxDecoration(
       color: tone.withValues(alpha: .12),
       // Round as a pill on one line; a wrapped label keeps soft corners.
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -2843,18 +2852,12 @@ class _TogglePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final foreground = selected ? palette.onAccentContainer : palette.text;
-    final shape = StadiumBorder(
-      side: BorderSide(
-        color: selected
-            ? palette.accentText.withValues(alpha: .45)
-            : palette.line,
-      ),
-    );
+    const shape = StadiumBorder();
     return Semantics(
       button: true,
       selected: selected,
       child: Material(
-        color: selected ? palette.accentContainer : palette.surfaceRaised,
+        color: selected ? palette.accentContainer : palette.fill,
         shape: shape,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -2912,9 +2915,8 @@ class _ForwardingEmpty extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: palette.teal.withValues(alpha: .12),
+              color: palette.teal.withValues(alpha: .14),
               shape: BoxShape.circle,
-              border: Border.all(color: palette.teal.withValues(alpha: .25)),
             ),
             child: Icon(icon, size: 24, color: palette.teal),
           ),
@@ -2951,11 +2953,14 @@ class _ForwardingNoMatches extends StatelessWidget {
     final palette = context.palette;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: palette.surface,
+        color: palette.blockFill(SurfaceScope.depthOf(context) + 1),
         borderRadius: BorderRadius.circular(
-          AppDensity.of(context).radiusLg + 2,
+          SurfaceScope.concentric(
+            context,
+            fallback: AppDensity.of(context).radiusLg,
+            floor: AppDensity.of(context).radiusMd,
+          ),
         ),
-        border: Border.all(color: palette.line),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),

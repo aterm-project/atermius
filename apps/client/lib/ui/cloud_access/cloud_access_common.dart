@@ -4,7 +4,9 @@ import '../../api/api_client.dart';
 import '../../app_controller.dart';
 import '../../cloud/cloud_access_service.dart';
 import '../../l10n/l10n.dart';
+import '../app_density.dart';
 import '../app_theme.dart';
+import '../surfaces.dart';
 
 /// Maps stable error codes (never translated strings) to localized text.
 String cloudAccessErrorText(BuildContext context, Object error) {
@@ -63,6 +65,31 @@ String cloudAccessErrorText(BuildContext context, Object error) {
   };
 }
 
+/// Content of a cloud-access [Dialog] opened with [showDialog]: the dialog
+/// is the first block level, so cards in it take the next fill (as in
+/// `showAppDialog`) and stay visible without an outline.
+class CloudDialogSurface extends StatelessWidget {
+  const CloudDialogSurface({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    return SurfaceScope(
+      depth: 1,
+      innerRadius: AppDensity.of(context).radiusMd,
+      child: Theme(
+        data: theme.copyWith(
+          cardTheme: theme.cardTheme.copyWith(color: palette.blockFill(2)),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
 /// Plain statement of the trusted-gateway model, shown wherever an owner
 /// creates gateway access.
 class CloudAccessTrustNotice extends StatelessWidget {
@@ -71,11 +98,18 @@ class CloudAccessTrustNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final density = AppDensity.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: palette.warningContainer,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(
+          SurfaceScope.concentric(
+            context,
+            fallback: density.radiusMd,
+            floor: density.radiusMd,
+          ),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
