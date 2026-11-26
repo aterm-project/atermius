@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../domain/models.dart';
 import '../l10n/l10n.dart';
@@ -10,6 +11,10 @@ import 'app_theme.dart';
 /// three controls (stop loading / retry / close) covers [child]; [child] stays
 /// mounted at the same position so desktop/terminal state is not rebuilt when
 /// the attempt succeeds.
+///
+/// A question the connection waits on ([ConnectProgress.question], such as an
+/// SSH host key review) is shown by [questionBuilder] over this pane only:
+/// the rest of the window, other tabs and split panes stay usable.
 class ConnectProgressView extends StatelessWidget {
   const ConnectProgressView({
     super.key,
@@ -24,7 +29,17 @@ class ConnectProgressView extends StatelessWidget {
     this.onEdit,
     this.onTemporaryJump,
     this.temporaryJumpName,
+    this.questionBuilder,
   });
+
+  /// Builds the open [ConnectProgress.question] of this tab; [answer] answers
+  /// it. Null when the owner never asks inside the pane.
+  final Widget Function(
+    BuildContext context,
+    Object request,
+    ValueChanged<bool> answer,
+  )?
+  questionBuilder;
 
   /// Opens the editor of the target Host; shown in every phase. Null when the
   /// tab has no editable saved Host (console, read-only Vault).
@@ -58,29 +73,108 @@ class ConnectProgressView extends StatelessWidget {
     child: child,
     builder: (context, child) {
       final visible = progress.isVisible;
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          IgnorePointer(
-            ignoring: visible,
-            child: ExcludeSemantics(excluding: visible, child: child),
-          ),
-          if (visible)
-            ConnectProgressPane(
-              progress: progress,
-              title: title,
-              detail: detail,
-              canRetry: canRetry?.call() ?? true,
-              onEdit: onEdit?.call(),
-              onTemporaryJump: onTemporaryJump?.call(),
-              temporaryJumpName: temporaryJumpName?.call(),
-              onStop: onStop,
-              onRetry: onRetry,
-              onClose: onClose,
+      final question = questionBuilder == null ? null : progress.question;
+      final covered = visible || question != null;
+      // Lets a question tell whether the keyboard is in this pane.
+      return Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            IgnorePointer(
+              ignoring: covered,
+              child: ExcludeSemantics(excluding: covered, child: child),
             ),
-        ],
+            if (visible)
+              ConnectProgressPane(
+                progress: progress,
+                title: title,
+                detail: detail,
+                canRetry: canRetry?.call() ?? true,
+                onEdit: onEdit?.call(),
+                onTemporaryJump: onTemporaryJump?.call(),
+                temporaryJumpName: temporaryJumpName?.call(),
+                onStop: onStop,
+                onRetry: onRetry,
+                onClose: onClose,
+              ),
+            if (question != null)
+              _PaneQuestion(
+                key: ObjectKey(question),
+                answer: (approved) => progress.answer(question, approved),
+                child: Builder(
+                  builder: (context) => questionBuilder!(
+                    context,
+                    question.request,
+                    (approved) => progress.answer(question, approved),
+                  ),
+                ),
+              ),
+          ],
+        ),
       );
     },
+  );
+}
+
+/// A question shown over one pane: a scrim that covers only this pane, the
+/// question in front of it, and the keyboard focus while the pane may take
+/// it. Escape answers no, as it does for a dialog.
+class _PaneQuestion extends StatefulWidget {
+  const _PaneQuestion({super.key, required this.answer, required this.child});
+
+  final ValueChanged<bool> answer;
+  final Widget child;
+
+  @override
+  State<_PaneQuestion> createState() => _PaneQuestionState();
+}
+
+class _PaneQuestionState extends State<_PaneQuestion> {
+  final _focus = FocusScopeNode(debugLabel: 'Pane question');
+
+  @override
+  void initState() {
+    super.initState();
+    // The question takes the keyboard only from its own pane (or when
+    // nothing has it), never from another tab or split pane the user is
+    // typing in. Hidden tabs cannot take it at all.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_focus.canRequestFocus) return;
+      final pane = Focus.maybeOf(context, createDependency: false);
+      final primary = FocusManager.instance.primaryFocus;
+      if (pane?.hasFocus == true ||
+          primary == null ||
+          primary is FocusScopeNode) {
+        _focus.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Positioned.fill(
+    child: ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const ModalBarrier(dismissible: false, color: Colors.black38),
+          CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.escape): () =>
+                  widget.answer(false),
+            },
+            child: FocusScope(node: _focus, child: widget.child),
+          ),
+        ],
+      ),
+    ),
   );
 }
 

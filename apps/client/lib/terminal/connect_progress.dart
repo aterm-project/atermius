@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 /// A step an owner has actually reached while opening a session. Stages are
@@ -28,6 +30,17 @@ enum ConnectStage {
 /// has no pending/failed initial attempt (it connected, or was never tracked).
 enum ConnectPhase { idle, loading, failed, cancelled }
 
+/// A yes/no question a tab's connection waits on, such as an SSH host key
+/// review. It is answered inside the tab's own pane, never over the whole
+/// window, and the tab bar marks the tab while it is open. [request] is the
+/// owner's description of what is asked; the pane decides how to show it.
+class ConnectQuestion {
+  ConnectQuestion._(this.request);
+
+  final Object request;
+  final Completer<bool> _answer = Completer<bool>();
+}
+
 /// Per-tab connection-attempt state shared by the cloud workspace and local
 /// profiles. Every attempt gets a monotonically increasing token from [begin];
 /// stale tokens (after [cancel], a newer [begin] or [retire]) are ignored, so a
@@ -41,6 +54,7 @@ class ConnectProgress extends ChangeNotifier {
   String? _error;
   int _attempt = 0;
   bool _retired = false;
+  ConnectQuestion? _question;
 
   ConnectPhase get phase => _phase;
   ConnectStage get stage => _stage;
@@ -52,9 +66,42 @@ class ConnectProgress extends ChangeNotifier {
   bool get isVisible => !_retired && _phase != ConnectPhase.idle;
   bool get isLoading => !_retired && _phase == ConnectPhase.loading;
 
+  /// The question this tab waits on, if any. Its pane shows it and the tab
+  /// bar marks the tab until it is answered.
+  ConnectQuestion? get question => _question;
+
+  /// Asks [request] inside this tab and completes with the answer. Asking
+  /// does not select the tab. Stop loading, disconnect, closing the tab, a
+  /// failure and a new attempt answer no, so the connection never waits on
+  /// a question nobody can see any more.
+  Future<bool> ask(Object request) {
+    if (_retired) return Future<bool>.value(false);
+    _dropQuestion();
+    final question = _question = ConnectQuestion._(request);
+    notifyListeners();
+    return question._answer.future;
+  }
+
+  /// Answers [question] when it is still the open one.
+  void answer(ConnectQuestion question, bool approved) {
+    if (!identical(_question, question)) return;
+    _question = null;
+    question._answer.complete(approved);
+    notifyListeners();
+  }
+
+  bool _dropQuestion() {
+    final question = _question;
+    if (question == null) return false;
+    _question = null;
+    question._answer.complete(false);
+    return true;
+  }
+
   /// Starts a new attempt and returns its token. Any earlier token is stale.
   int begin([ConnectStage stage = ConnectStage.preparing]) {
     if (_retired) return ++_attempt;
+    _dropQuestion();
     _attempt++;
     _phase = ConnectPhase.loading;
     _stage = stage;
@@ -84,6 +131,7 @@ class ConnectProgress extends ChangeNotifier {
 
   bool fail(int attempt, String message) {
     if (!isCurrent(attempt)) return false;
+    _dropQuestion();
     _phase = ConnectPhase.failed;
     _error = message;
     notifyListeners();
@@ -91,9 +139,15 @@ class ConnectProgress extends ChangeNotifier {
   }
 
   /// User stopped loading. Returns false when nothing was loading. The
-  /// cancelled attempt's token becomes stale immediately.
+  /// cancelled attempt's token becomes stale immediately. An open question
+  /// is answered no either way (a reconnect of a once-connected tab asks
+  /// without a loading attempt).
   bool cancel() {
-    if (!isLoading) return false;
+    final dropped = _dropQuestion();
+    if (!isLoading) {
+      if (dropped) notifyListeners();
+      return false;
+    }
     _attempt++;
     _phase = ConnectPhase.cancelled;
     _error = null;
@@ -105,6 +159,7 @@ class ConnectProgress extends ChangeNotifier {
   void retire() {
     if (_retired) return;
     _retired = true;
+    _dropQuestion();
     _attempt++;
     _phase = ConnectPhase.idle;
     _error = null;

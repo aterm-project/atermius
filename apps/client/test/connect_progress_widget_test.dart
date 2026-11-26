@@ -13,8 +13,10 @@ import 'package:aterm_client/ui/app_theme.dart';
 import 'package:aterm_client/l10n/app_localizations.dart';
 import 'package:aterm_client/ui/connect_progress_view.dart';
 import 'package:aterm_client/ui/temporary_jump_host_picker.dart';
+import 'package:aterm_client/ui/workspace_tab_bar.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sodium/sodium_sumo.dart';
 import 'package:xterm/xterm.dart';
@@ -335,6 +337,103 @@ void main() {
     await tester.pump();
     expect((stops, retries, closes), (1, 1, 1));
     _expectNoOverflow(tester);
+  });
+  testWidgets('a host key review waits inside its own tab: the tab is not '
+      'selected for it, shows a yellow dot, and only its pane is covered', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    final fixture = await _Fixture.create();
+    try {
+      await tester.pumpWidget(_shell(fixture.app));
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('host_connect_host-progress')),
+      );
+      await tester.pump();
+      final tab = fixture.app.activeTerminalTab!;
+      await fixture.pumpUntilAttempts(tester, 1);
+      final attention = find.byKey(
+        ValueKey('workspace-tab-attention-${tab.id}'),
+      );
+      final title = find.text('Verify SSH host key');
+      Future<bool> ask() => fixture.app.askTrustHostApproval!(
+        KnownHostApprovalRequest(
+          host: 'progress.example.test',
+          port: 22,
+          algorithm: 'ssh-ed25519',
+          fingerprint: 'SHA256:progress-fingerprint',
+          previouslyRevoked: false,
+          tabId: tab.id,
+        ),
+      );
+
+      // The user went back to Home before the server presented its key.
+      await tester.tap(find.byKey(const ValueKey('workspace-tab-hosts')));
+      await tester.pump();
+      expect(fixture.app.page, WorkspacePage.hosts);
+      final approved = ask();
+      await tester.pump();
+      await tester.pump();
+      expect(fixture.app.page, WorkspacePage.hosts);
+      expect(title, findsNothing);
+      expect(
+        find.byKey(const ValueKey('host_connect_host-progress')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(attention, findsOneWidget);
+      expect(
+        (tester.widget<Container>(attention).decoration! as BoxDecoration)
+            .color,
+        workspaceTabAttentionColor,
+      );
+
+      // Opening the tab shows the review inside its pane; the tab bar stays
+      // usable.
+      await tester.tap(find.byKey(ValueKey('workspace-tab-${tab.id}')));
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('connect_progress_${tab.id}')),
+          matching: find.byType(AlertDialog),
+        ),
+        findsOneWidget,
+      );
+      expect(title, findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('workspace-tab-hosts')).hitTestable(),
+        findsOneWidget,
+      );
+      _expectNoOverflow(tester);
+      await tester.tap(find.byKey(const ValueKey('ssh-host-key-trust')));
+      await tester.pump();
+      expect(await approved, isTrue);
+      expect(title, findsNothing);
+      expect(attention, findsNothing);
+
+      // Escape answers no, as for a dialog.
+      final escaped = ask();
+      await tester.pump();
+      await tester.pump();
+      expect(title, findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(await escaped, isFalse);
+      expect(attention, findsNothing);
+
+      // Stopping the attempt answers no and removes the review.
+      final stopped = ask();
+      await tester.pump();
+      expect(attention, findsOneWidget);
+      await tester.runAsync(() => fixture.app.cancelTerminalConnect(tab.id));
+      await tester.pump();
+      expect(await stopped, isFalse);
+      expect(title, findsNothing);
+      expect(attention, findsNothing);
+    } finally {
+      await fixture.cleanup(tester);
+    }
   });
 }
 

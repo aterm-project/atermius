@@ -434,7 +434,7 @@ void main() {
   });
 
   testWidgets('unknown host keys of members are reviewed one at a time, each '
-      'over its own pane', (tester) async {
+      'inside its own pane', (tester) async {
     final fixture = await open(tester, reviewHostKeys: true);
     try {
       await tester.tap(find.byKey(_groupButton));
@@ -460,13 +460,29 @@ void main() {
       );
 
       final order = <String>[];
+      // The pane in front: the first one, then the one last clicked in.
+      var selected = tabBar(tester).selectedId;
       for (var review = 0; review < 3; review++) {
-        // One review, over the pane that asks.
+        // One review, inside the pane that asks. No pane is selected for
+        // it; only the asking member is marked.
         expect(find.byType(AlertDialog), findsOneWidget);
         final name = reviewed();
         order.add(name);
-        expect(tabBar(tester).selectedId, tabFor(name).id);
+        expect(
+          inPane(tabFor(name), find.byType(AlertDialog)).evaluate(),
+          isNotEmpty,
+        );
+        expect(tabBar(tester).selectedId, selected);
+        expect(
+          [
+            for (final tab in tabBar(tester).tabs)
+              if (tab.needsAttention) tab.id,
+          ],
+          [tabFor(name).id],
+        );
         await tester.tap(find.widgetWithText(TextButton, 'Reject'));
+        // Clicking in a pane selects it.
+        selected = tabFor(name).id;
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
         // The rejected member says so in its pane, with retry.

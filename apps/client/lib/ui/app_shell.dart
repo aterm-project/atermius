@@ -585,17 +585,21 @@ class _AppShellState extends State<AppShell> {
       _confirmSshHostKey(context, endpoint: endpoint, fingerprint: fingerprint);
 
   Future<bool> _askTrustHostApproval(KnownHostApprovalRequest request) {
-    // Reviews arrive one at a time; each is shown over the tab (or split
-    // pane) that asks for it.
+    // Reviews arrive one at a time. Each is shown inside the pane of the tab
+    // that asks for it, never over the whole window, and the tab is not
+    // selected for it: its tab shows a yellow dot until it is answered.
     final tabId = request.tabId;
-    if (tabId != null &&
-        mounted &&
-        app.visibleTerminalTabs.any((tab) => tab.id == tabId) &&
-        (app.page != WorkspacePage.terminal ||
-            _selectedFileId != null ||
-            app.activeTerminalTabId != tabId)) {
-      _selectWorkspaceTab(tabId);
+    final tab = tabId == null || !mounted
+        ? null
+        : app.visibleTerminalTabs.where((tab) => tab.id == tabId).firstOrNull;
+    if (tab != null) {
+      final answer = tab.connectProgress.ask(request);
+      setState(() {});
+      return answer.whenComplete(() {
+        if (mounted) setState(() {});
+      });
     }
+    // A tab shown in another window (or no tab at all) asks here instead.
     return _confirmSshHostKey(
       context,
       endpoint: request.endpoint,
@@ -2299,12 +2303,15 @@ _snack(context, context.l10n.theNewWindowWasntReadyThe, error: true);
                                       .firstOrNull ??
                                   tab.host,
                         isConnected: tab.state == 'connected',
+                        needsAttention: tab.connectProgress.question != null,
                         canDisconnect: tab.host?.protocol.isTerminal == true && tab.console == null &&
                             (tab.state == 'connected' || tab.state == 'connecting' || tab.recovery?.automaticEnabled == true),
                         canOpenFiles:
                             tab.host?.protocol == HostProtocol.ssh &&
                             (kIsWeb || tab.connection != null),
-                        status: terminalStateLabel(context.l10n, tab.state),
+                        status: tab.connectProgress.question != null
+                            ? context.l10n.connectProgressStageAwaitingUser
+                            : terminalStateLabel(context.l10n, tab.state),
                         canDetach:
                             (tab.connection != null || tab.console != null) &&
                             ApplicationWindows.instance.supported,
@@ -2794,7 +2801,32 @@ Future<bool> _confirmSshHostKey(
   final result = await showAppDialog<bool>(
     context: context,
     useRootNavigator: true,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => _sshHostKeyReview(
+      context,
+      endpoint: endpoint,
+      fingerprint: fingerprint,
+      algorithm: algorithm,
+      previouslyRevoked: previouslyRevoked,
+      offlineTransportUnavailable: offlineTransportUnavailable,
+      answer: (approved) => Navigator.pop(dialogContext, approved),
+    ),
+  );
+  return result == true;
+}
+
+/// The SSH host key review, shown in the pane of the tab that asks
+/// ([ConnectProgressView.questionBuilder]) or, for a tab in another window,
+/// as a dialog ([_confirmSshHostKey]).
+Widget _sshHostKeyReview(
+  BuildContext context, {
+  required String endpoint,
+  required String fingerprint,
+  required ValueChanged<bool> answer,
+  String? algorithm,
+  bool previouslyRevoked = false,
+  bool offlineTransportUnavailable = false,
+}) => AlertDialog(
+      scrollable: true,
       icon: Icon(Icons.gpp_maybe_outlined, color: context.palette.orange),
       title: Text(context.l10n.verifySshHostKey),
       content: SizedBox(
@@ -2840,11 +2872,13 @@ Future<bool> _confirmSshHostKey(
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(dialogContext, false),
+          key: const ValueKey('ssh-host-key-reject'),
+          onPressed: () => answer(false),
           child: Text(context.l10n.reject2),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(dialogContext, true),
+          key: const ValueKey('ssh-host-key-trust'),
+          onPressed: () => answer(true),
           child: Text(
             offlineTransportUnavailable
                 ? context.l10n.queueApprovalAndStop
@@ -2852,10 +2886,7 @@ Future<bool> _confirmSshHostKey(
           ),
         ),
       ],
-    ),
-  );
-  return result == true;
-}
+    );
 
 class _SideNavigation extends StatelessWidget {
   const _SideNavigation({
@@ -12070,6 +12101,18 @@ class _TerminalPageState extends State<_TerminalPage> {
       onStop: () => unawaited(app.cancelTerminalConnect(id)),
       onRetry: () => unawaited(app.retryTerminalConnect(id)),
       onClose: () => widget.onWorkspaceClose(id),
+      questionBuilder: (context, request, answer) =>
+          request is KnownHostApprovalRequest
+          ? _sshHostKeyReview(
+              context,
+              endpoint: request.endpoint,
+              fingerprint: request.fingerprint,
+              algorithm: request.algorithm,
+              previouslyRevoked: request.previouslyRevoked,
+              offlineTransportUnavailable: request.offlineTransportUnavailable,
+              answer: answer,
+            )
+          : const SizedBox.shrink(),
       child: child,
     );
   }

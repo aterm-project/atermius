@@ -7,7 +7,8 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import '../../l10n/l10n.dart';
 import '../../ssh/ssh_connection_health.dart';
 import '../workspace_controls.dart' show WorkspaceAction;
-import '../workspace_tab_bar.dart' show WorkspaceTab;
+import '../workspace_tab_bar.dart'
+    show WorkspaceTab, workspaceTabAttentionColor;
 import 'ios_glass.dart';
 import 'ios_icons.dart';
 import 'ios_large_title_page.dart';
@@ -384,7 +385,11 @@ class _SessionTitleSwitcherState extends State<_SessionTitleSwitcher> {
     required SshConnectionHealth? health,
     required double maxWidth,
   }) {
-    final dotColor = !current.isConnected
+    // A connection that waits on the user (a host key review in its pane)
+    // shows yellow where a connected session shows green.
+    final dotColor = current.needsAttention
+        ? workspaceTabAttentionColor
+        : !current.isConnected
         ? c.tertiaryLabel
         : switch (health?.state) {
             SshHealthState.degraded => c.warning,

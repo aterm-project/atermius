@@ -896,9 +896,8 @@ class KnownHostApprovalRequest {
   final bool previouslyRevoked;
   final bool offlineTransportUnavailable;
 
-  /// The tab whose new connection (or retry) asks, so the review can be
-  /// shown over it. Null for a background reconnect, which never brings its
-  /// tab forward.
+  /// The tab whose connection asks: the review is shown inside that tab's
+  /// pane, which is never selected for it (its tab shows a yellow dot).
   final String? tabId;
 
   String get endpoint => endpointKey(host: host, port: port);
@@ -21662,7 +21661,7 @@ class AppController extends ChangeNotifier {
     try {
       final connection = await _connectWithVerifiedHostKeys<SshConnection>(
         tab: tab,
-        reviewTabId: progressAttempt == null ? null : id,
+        reviewTabId: id,
         hostCount: jumpRoute.length + 1,
         attemptCurrent: attemptCurrent,
         advance: advance,
@@ -21847,7 +21846,7 @@ class AppController extends ChangeNotifier {
 
   Future<T> _connectWithVerifiedHostKeys<T extends Object>({
     required TerminalTabSession tab,
-    required String? reviewTabId,
+    required String reviewTabId,
     required int hostCount,
     required bool Function() attemptCurrent,
     required void Function(ConnectStage) advance,
@@ -22119,7 +22118,7 @@ class AppController extends ChangeNotifier {
               previouslyRevoked:
                   decision.status == KnownHostTrustStatus.revoked,
               offlineTransportUnavailable: decision.offlineTransportUnavailable,
-              // A new tab or a retry is reviewed over its own tab.
+              // Reviewed inside its own tab, also for a background reconnect.
               tabId: reviewTabId,
             );
             final confirmDetailed = askTrustHostApproval;

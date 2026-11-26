@@ -473,7 +473,9 @@ void main() {
   });
 
   testWidgets('tabs that connect at the same time review their host keys one '
-      'at a time, each over its own tab', (tester) async {
+      'at a time, each inside its own tab, which is never selected for it', (
+    tester,
+  ) async {
     await openProfile(tester);
     ssh.hold = true;
     await tester.tap(find.byKey(ValueKey('local_host_$alphaId')));
@@ -486,17 +488,39 @@ void main() {
     // Both servers present an unknown key while the Beta tab is in front.
     ssh.hold = false;
     ssh.pending[0].complete(_Socket());
-    await pumpFor(tester, () => find.byKey(_approve).evaluate().isNotEmpty);
+    await pumpFor(tester, () => tabOf(tester, 'Alpha host').needsAttention);
     ssh.pending[1].complete(_Socket());
     await pumpFor(tester, () => ssh.clients.length == 2);
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
     await tester.pump();
-    expect(find.byType(AlertDialog), findsOneWidget);
-    expect(selected(tester, 'Alpha host'), isTrue);
+    // Alpha's review waits in Alpha's own pane: Beta stays in front and
+    // usable, and Alpha's tab shows a yellow dot where green would be.
+    expect(selected(tester, 'Beta host'), isTrue);
+    expect(find.byType(AlertDialog), findsNothing);
+    final alpha = tabOf(tester, 'Alpha host');
+    expect(tabOf(tester, 'Beta host').needsAttention, isFalse);
+    final dot = tester.widget<Container>(
+      find.byKey(ValueKey('workspace-tab-attention-${alpha.id}')),
+    );
+    expect(
+      (dot.decoration! as BoxDecoration).color,
+      workspaceTabAttentionColor,
+    );
+
+    await tester.tap(find.byKey(ValueKey('workspace-tab-${alpha.id}')));
+    await tester.pump();
     await approveHostKey(tester, 'alpha.example.test');
 
+    // Beta asks next, in Beta's pane; Alpha stays in front.
+    await pumpFor(tester, () => tabOf(tester, 'Beta host').needsAttention);
+    expect(selected(tester, 'Alpha host'), isTrue);
+    expect(tabOf(tester, 'Alpha host').needsAttention, isFalse);
+    await tester.tap(
+      find.byKey(ValueKey('workspace-tab-${tabOf(tester, 'Beta host').id}')),
+    );
+    await tester.pump();
     await approveHostKey(tester, 'beta.example.test');
     await pumpFor(
       tester,
@@ -508,6 +532,7 @@ void main() {
     expect(ssh.authenticated, 2);
     expect(find.byType(AlertDialog), findsNothing);
     expect(selected(tester, 'Beta host'), isTrue);
+    expect(tabBar(tester).tabs.where((tab) => tab.needsAttention), isEmpty);
     expect(_pane, findsNothing);
 
     await closeFlow(tester);

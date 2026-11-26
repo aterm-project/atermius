@@ -351,8 +351,26 @@ void main() {
     );
   }
 
-  /// Approves the host-key review for [address] once it is the only dialog.
+  /// Approves the host-key review for [address] once it is the only one. It
+  /// waits inside the pane of the tab that asks, which shows a yellow dot and
+  /// is never selected for it: that tab is opened first when it is hidden.
   Future<void> approveHostKey(WidgetTester tester, String address) async {
+    await pumpFor(
+      tester,
+      () => tabBar(tester).tabs.any((tab) => tab.needsAttention),
+    );
+    if (find.byKey(_approve).hitTestable().evaluate().isEmpty) {
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget.key is ValueKey<String> &&
+              (widget.key! as ValueKey<String>).value.startsWith(
+                'workspace-tab-attention-',
+              ),
+        ),
+      );
+      await tester.pump();
+    }
     await pumpFor(tester, () {
       final reviews = tester.widgetList<SelectableText>(
         find.descendant(
@@ -648,13 +666,14 @@ void main() {
   });
 
   testWidgets('unknown host keys of members are reviewed one at a time, each '
-      'over its own pane; a Host shown in two panes is reviewed once', (
+      'inside its own pane; a Host shown in two panes is reviewed once', (
     tester,
   ) async {
     await openProfile(tester);
     await openGroup(tester);
     for (final name in ['Alpha', 'Beta', 'Gamma']) {
       final address = '${name.toLowerCase()}.example.test';
+      final selectedBefore = tabBar(tester).selectedId;
       await pumpFor(
         tester,
         () => find.byKey(_approve).hitTestable().evaluate().isNotEmpty,
@@ -662,14 +681,24 @@ void main() {
       // Let every member reach its own review before answering this one.
       await pumpFor(tester, () => ssh.clients.length >= 3);
       expect(find.byType(AlertDialog), findsOneWidget);
-      expect(tabBar(tester).selectedId, tabOf(tester, '$name host').id);
+      // Only the asking member is marked, and no pane is selected for it.
+      expect(
+        [
+          for (final tab in tabBar(tester).tabs)
+            if (tab.needsAttention) tab.title,
+        ],
+        ['$name host'],
+      );
+      expect(tabBar(tester).selectedId, selectedBefore);
       await approveHostKey(tester, address);
     }
     await pumpFor(
       tester,
-      () => ['Alpha host', 'Beta host', 'Gamma host'].every(
-        (name) => tabOf(tester, name).isConnected,
-      ),
+      () => [
+        'Alpha host',
+        'Beta host',
+        'Gamma host',
+      ].every((name) => tabOf(tester, name).isConnected),
     );
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);

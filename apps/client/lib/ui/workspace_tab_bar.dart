@@ -29,6 +29,7 @@ class WorkspaceTab {
     required this.title,
     this.isHome = false,
     this.isConnected = false,
+    this.needsAttention = false,
     this.status,
     this.isFile = false,
     this.fileController,
@@ -41,6 +42,11 @@ class WorkspaceTab {
   });
   final String id, title;
   final bool isHome, isConnected;
+
+  /// The tab's connection waits on the user (an SSH host key review shown in
+  /// its own pane). The tab is not selected for it; the dot where a connected
+  /// tab shows green turns yellow instead.
+  final bool needsAttention;
   final String? status;
   final bool isFile, canDetach, canOpenFiles;
   final FileWorkspaceController? fileController;
@@ -53,6 +59,12 @@ class WorkspaceTab {
   final HostRecord? host;
   final List<WorkspaceTab> members;
 }
+
+/// The dot of a connected tab.
+const workspaceTabConnectedColor = Color(0xFF34C759);
+
+/// The same dot while the tab's connection waits on the user.
+const workspaceTabAttentionColor = Color(0xFFFFCC00);
 
 /// The icon in front of a tab's title. A session of a Host shows the Host's
 /// home page icon: the operating system mark keeps its own colours and is
@@ -186,6 +198,7 @@ class WorkspaceTabBar extends StatelessWidget {
               title: '${members.first.title} +${members.length - 1}',
               icon: Icons.space_dashboard_outlined,
               isConnected: members.every((member) => member.isConnected),
+              needsAttention: members.any((member) => member.needsAttention),
               status: currentL10n.countCount2Connected(
                 members.where((member) => member.isConnected).length,
                 members.length,
@@ -1465,13 +1478,20 @@ class _TabSurfaceChipState extends State<_TabSurfaceChip> {
                       ? palette.accentText
                       : (selected ? palette.text : palette.muted),
                 ),
-                if (!tab.isHome && tab.isConnected) ...[
+                if (!tab.isHome && (tab.isConnected || tab.needsAttention)) ...[
                   const SizedBox(width: 4),
                   Container(
+                    key: ValueKey(
+                      tab.needsAttention
+                          ? 'workspace-tab-attention-${tab.id}'
+                          : 'workspace-tab-connected-${tab.id}',
+                    ),
                     width: 6,
                     height: 6,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF34C759),
+                    decoration: BoxDecoration(
+                      color: tab.needsAttention
+                          ? workspaceTabAttentionColor
+                          : workspaceTabConnectedColor,
                       shape: BoxShape.circle,
                     ),
                   ),

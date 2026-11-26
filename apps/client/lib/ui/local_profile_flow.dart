@@ -2116,6 +2116,10 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
     onStop: () => unawaited(_stopLocalConnect(session)),
     onRetry: () => unawaited(_retryLocalSession(session)),
     onClose: () => _closeTerminalTab(session.id),
+    questionBuilder: (context, request, answer) =>
+        request is LocalKnownHostApprovalRequest
+        ? _localHostKeyReview(context, request, answer)
+        : const SizedBox.shrink(),
     child: child,
   );
 
@@ -2579,9 +2583,8 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
             request,
             isCurrent: attemptCurrent,
             repository: repository,
-            // A new tab or a retry brings its tab forward for the review; a
-            // background reconnect never changes the selected tab.
-            session: attempt == null ? null : session,
+            // Reviewed inside its own tab, also for a background reconnect.
+            session: session,
             stored: stored.future,
           );
           if (approved) advance(ConnectStage.verifyingHost);
@@ -2695,8 +2698,10 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
   int _hostKeyApprovalsStored = 0;
 
   /// SSH tabs connect independently, so several can reach an unknown host key
-  /// at once. Their reviews are shown one at a time, each over its own tab,
-  /// and one whose attempt ended while it waited is never shown. The next
+  /// at once. Their reviews are shown one at a time, each inside the pane of
+  /// its own tab (never over the whole window, and the tab is not selected
+  /// for it: it shows a yellow dot), and one whose attempt ended while it
+  /// waited is never shown. The next
   /// review starts when a key trusted in this one is stored ([stored]):
   /// panes that connect to the same new Host ask about the same key, and the
   /// ones that waited then find it trusted instead of asking again. Storing
@@ -2722,11 +2727,16 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
         return approved = isCurrent();
       }
       if (!isCurrent()) return false;
-      if (session != null &&
-          _selectedTabId != session.id &&
-          _visibleSessions.contains(session)) {
-        _selectTerminalTab(session.id);
+      if (session != null && mounted && _visibleSessions.contains(session)) {
+        final answer = session.progress.ask(request);
+        setState(() {});
+        try {
+          return approved = await answer;
+        } finally {
+          if (mounted) setState(() {});
+        }
       }
+      // A tab shown in another window asks here instead.
       return approved = await _confirmLocalHostKey(request);
     } finally {
       if (approved && stored != null) {
@@ -2791,27 +2801,73 @@ class _LocalProfileFlowState extends State<LocalProfileFlow>
       : await showAppDialog<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(
-            request.previouslyRevoked ? context.l10n.thisHostKeyWasRevokedBefore : context.l10n.firstConnectionUnknownSshHostKey,
-          ),
-          content: SelectableText(
-            context.l10n.targetHostPortAlgorithmAlgorithmFingerprint(request.host, request.port, request.algorithm, request.fingerprint, request.previouslyRevoked ? context.l10n.thisKeyWasRevokedBeforeOnly : context.l10n.verifyThisFingerprintOverATrusted),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(context.l10n.reject),
-            ),
-            FilledButton(
-              key: const ValueKey('local_ssh_host_key_approve'),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(context.l10n.verifyAndTrustThisKey),
-            ),
-          ],
+        builder: (dialogContext) => _localHostKeyReview(
+          context,
+          request,
+          (approved) => Navigator.pop(dialogContext, approved),
         ),
       ) ??
       false;
+
+  /// The SSH host key review, shown in the pane of the tab that asks
+  /// ([ConnectProgressView.questionBuilder]) or, for a tab in another window,
+  /// as a dialog ([_confirmLocalHostKey]).
+  Widget _localHostKeyReview(
+    BuildContext context,
+    LocalKnownHostApprovalRequest request,
+    ValueChanged<bool> answer,
+  ) {
+    final l10n = context.l10n;
+    final title = request.previouslyRevoked
+        ? l10n.thisHostKeyWasRevokedBefore
+        : l10n.firstConnectionUnknownSshHostKey;
+    final message = l10n.targetHostPortAlgorithmAlgorithmFingerprint(
+      request.host,
+      request.port,
+      request.algorithm,
+      request.fingerprint,
+      request.previouslyRevoked
+          ? l10n.thisKeyWasRevokedBeforeOnly
+          : l10n.verifyThisFingerprintOverATrusted,
+    );
+    if (isIosPhone(context)) {
+      return CupertinoAlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          CupertinoDialogAction(
+            key: const ValueKey('local_ssh_host_key_reject'),
+            onPressed: () => answer(false),
+            child: Text(l10n.reject),
+          ),
+          CupertinoDialogAction(
+            key: const ValueKey('local_ssh_host_key_approve'),
+            isDefaultAction: !request.previouslyRevoked,
+            isDestructiveAction: request.previouslyRevoked,
+            onPressed: () => answer(true),
+            child: Text(l10n.verifyAndTrustThisKey),
+          ),
+        ],
+      );
+    }
+    return AlertDialog(
+      title: Text(title),
+      scrollable: true,
+      content: SelectableText(message),
+      actions: [
+        TextButton(
+          key: const ValueKey('local_ssh_host_key_reject'),
+          onPressed: () => answer(false),
+          child: Text(l10n.reject),
+        ),
+        FilledButton(
+          key: const ValueKey('local_ssh_host_key_approve'),
+          onPressed: () => answer(true),
+          child: Text(l10n.verifyAndTrustThisKey),
+        ),
+      ],
+    );
+  }
 
   Future<void> _manageLocalKnownHosts() async {
     if (isIosPhone(context)) return _manageLocalKnownHostsIos();
@@ -5681,7 +5737,10 @@ _showMessage(
                                         .firstOrNull ??
                                     session.host,
                           isConnected: session.connected.value,
-                          status: session.progress.isLoading
+                          needsAttention: session.progress.question != null,
+                          status: session.progress.question != null
+                              ? context.l10n.connectProgressStageAwaitingUser
+                              : session.progress.isLoading
                               ? context.l10n.terminalStateConnecting
                               : null,
                           canDisconnect:

@@ -32,6 +32,7 @@ extension _LocalProfileFlowIos on _LocalProfileFlowState {
             id: session.id,
             title: session.host.name,
             isConnected: session.connected.value,
+            needsAttention: session.progress.question != null,
             canDisconnect:
                 session.console == null &&
                 session.desktop == null &&
