@@ -18732,7 +18732,7 @@ class _SettingsPage extends StatelessWidget {
           id: 'mcp',
           title: 'AI / MCP',
           icon: Icons.hub_outlined,
-          description: context.l10n.letExternalAiAccessTheCurrent2,
+          description: '',
           builder: (_) => const McpSettingsPanel(),
         ),
         // SETTINGS worker: Theme (UI mode + terminal font/colors) and

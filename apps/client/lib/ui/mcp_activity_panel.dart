@@ -3,7 +3,9 @@ import 'dart:math' as math;
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../credential_visibility/sensitive_clipboard.dart';
 import '../l10n/l10n.dart';
 import '../mcp/mcp_call_summary.dart';
 import '../mcp/mcp_notices.dart';
@@ -533,6 +535,12 @@ class McpActivityPanel extends StatelessWidget {
                     ),
                   ),
           ),
+          if (endpoint != null)
+            if (service.token case final token?)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: _McpTokenRow(token: token),
+              ),
           const SizedBox(height: 1),
           if (entries.isEmpty)
             Padding(
@@ -564,18 +572,78 @@ class McpActivityPanel extends StatelessWidget {
                 },
               ),
             ),
-          const SizedBox(height: 1),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: Text(
-              l10n.onlyTheLast50ToolNames,
-              style: TextStyle(color: palette.hint, fontSize: 11, height: 1.35),
-            ),
-          ),
+          const SizedBox(height: 8),
         ],
       );
     },
   );
+}
+
+/// The bearer token in plain text, with a copy button.
+class _McpTokenRow extends StatefulWidget {
+  const _McpTokenRow({required this.token});
+  final String token;
+
+  @override
+  State<_McpTokenRow> createState() => _McpTokenRowState();
+}
+
+class _McpTokenRowState extends State<_McpTokenRow> {
+  bool _copied = false;
+
+  @override
+  void didUpdateWidget(_McpTokenRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.token != widget.token) _copied = false;
+  }
+
+  Future<void> _copy() async {
+    SensitiveClipboard.markSecret(widget.token);
+    try {
+      await Clipboard.setData(ClipboardData(text: widget.token));
+    } catch (_) {
+      return;
+    }
+    if (mounted) setState(() => _copied = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final palette = context.palette;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 2, 2, 2),
+      decoration: BoxDecoration(
+        color: palette.codeBackground,
+        borderRadius: BorderRadius.circular(AppDensity.of(context).radiusMd),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.key_outlined, size: 14, color: palette.muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SelectableText(
+              widget.token,
+              key: const ValueKey('mcp_activity_token'),
+              maxLines: 1,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: palette.codeText,
+              ),
+            ),
+          ),
+          IconButton(
+            key: const ValueKey('mcp_activity_copy_token'),
+            tooltip: _copied ? l10n.mcpTokenCopied : l10n.copyToken,
+            visualDensity: VisualDensity.compact,
+            onPressed: _copy,
+            icon: Icon(_copied ? Icons.check : Icons.copy, size: 16),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// One MCP call: status, tool title and target, the argument summary in

@@ -8526,8 +8526,6 @@
   "@maintenanceJobs": {},
   "editGroup": "Edit group",
   "@editGroup": {},
-  "letExternalAiAccessTheCurrent2": "Let external AI access the current workspace.",
-  "@letExternalAiAccessTheCurrent2": {},
   "theRecordChangedAgainDuringCommit": "The record changed again during commit. Check the current version and choose again.",
   "@theRecordChangedAgainDuringCommit": {},
   "theRecordChangedCheckTheCurrent": "The record changed. Check the current version and choose again.",
@@ -9839,8 +9837,6 @@
   "@unlockLocalProfile": {},
   "authenticationType": "Authentication type",
   "@authenticationType": {},
-  "letExternalAiAccessTheCurrent": "Let external AI access the current local workspace.",
-  "@letExternalAiAccessTheCurrent": {},
   "setLocalArchivePassphrase": "Set local archive passphrase",
   "@setLocalArchivePassphrase": {},
   "thisPreferenceAlreadyExistsAndThe": "This preference already exists and the current value was reloaded. Review it before saving.",
@@ -10006,12 +10002,6 @@
   "@workspaceLocked": {},
   "yourAccountStaysSignedInWhile": "Your account stays signed in. While locked, this device can receive and store signed ciphertext, but it cannot decrypt records or create or upload changes.",
   "@yourAccountStaysSignedInWhile": {},
-  "sshConsoleSupportReadingTextAnd": "SSH / Console support reading text and input; SSH also supports standalone command execution and SFTP text file read/write. RDP / VNC support connections and tab management; screen recognition and mouse control aren't available yet.",
-  "@sshConsoleSupportReadingTextAnd": {},
-  "onlyTheLast50ToolNames": "Only the last 50 calls are kept, in memory only, and they're cleared when MCP stops: the tool, its target, a one-line summary of the arguments (such as commands, paths or keys) and the outcome. File contents and tokens aren't recorded.",
-  "@onlyTheLast50ToolNames": {},
-  "listensOn127001": "Listens on 127.0.0.1 only. The token is kept on this device for this workspace and stays the same when MCP is stopped, enabled again or the app restarts. Locking, signing out or switching Vaults stops MCP. Different windows can use different ports. Stopping MCP doesn't close sessions you've opened.",
-  "@listensOn127001": {},
   "allowExternalAiToPerformActions": "Allow external AI to perform actions",
   "@allowExternalAiToPerformActions": {},
   "actionsAllowed": "Actions allowed",
@@ -10020,14 +10010,10 @@
   "@allowsConnectingClosingSessionsTerminalInput": {},
   "readOnly": "Read-only",
   "@readOnly": {},
-  "readOnlyModeCanStillRead": "Read-only mode can still read terminal output and file contents, which may contain sensitive information. Only give the connection configuration to AI you trust. Saved passwords, private keys and unlock keys are never provided as MCP fields.",
-  "@readOnlyModeCanStillRead": {},
   "availableTools": "Available tools",
   "@availableTools": {},
   "enableMcp": "Enable MCP",
   "@enableMcp": {},
-  "copyConnectionConfigIncludesToken": "Copy connection config (includes token)",
-  "@copyConnectionConfigIncludesToken": {},
   "externalAiAccess": "External AI access",
   "@externalAiAccess": {},
   "failed": "Failed",
@@ -10036,8 +10022,6 @@
   "@done": {},
   "off": "Off",
   "@off": {},
-  "copiedIncludesAccessToken": "Copied (includes access token)",
-  "@copiedIncludesAccessToken": {},
   "couldntStartMcpMakeSureThe": "Couldn't start MCP. Make sure the workspace is unlocked and the port isn't used by another window.",
   "@couldntStartMcpMakeSureThe": {},
   "couldntCopyTheConfigurationCheckClipboard": "Couldn't copy the configuration. Check clipboard permissions.",
@@ -10050,7 +10034,7 @@
   "@localListeningPort": {},
   "starting": "Starting…",
   "@starting": {},
-  "theBrowserAndMobileAppsDont": "This version of Atermius doesn't provide a local MCP listener. Open the workspace in the Windows, Linux, macOS, Android or iOS app to enable it.",
+  "theBrowserAndMobileAppsDont": "MCP isn't available in this version. Use the Windows, Linux, macOS, Android or iOS app.",
   "@theBrowserAndMobileAppsDont": {},
   "portMustBe102465535": "Port must be 1024–65535.",
   "@portMustBe102465535": {},
@@ -10062,8 +10046,6 @@
       }
     }
   },
-  "letExternalAiUseTheHosts": "Let external AI use the hosts, sessions, terminals and remote files in the current workspace through MCP. No model API needs to be configured in Atermius.",
-  "@letExternalAiUseTheHosts": {},
   "rdpRemoteDesktop": "RDP remote desktop",
   "@rdpRemoteDesktop": {},
   "sshHost": "SSH host",
@@ -14437,32 +14419,12 @@
   "@mcpAccessModeReadWrite": {
     "description": "Settings › AI / MCP machine access (external AI permission UI)."
   },
-  "mcpAccessModeDeniedDescription": "External AI can't see or use the machine. It's left out of host and session lists.",
-  "@mcpAccessModeDeniedDescription": {
-    "description": "Settings › AI / MCP machine access (external AI permission UI)."
-  },
-  "mcpAccessModeReadOnlyDescription": "External AI can list the machine and read output and files of sessions that are already open. It can't connect, type, run commands or change files.",
-  "@mcpAccessModeReadOnlyDescription": {
-    "description": "Settings › AI / MCP machine access (external AI permission UI)."
-  },
-  "mcpAccessModeReadWriteDescription": "External AI can also connect, focus and close sessions, send terminal input, run commands and write files. Host key and sign-in prompts still appear.",
-  "@mcpAccessModeReadWriteDescription": {
-    "description": "Settings › AI / MCP machine access (external AI permission UI)."
-  },
   "mcpMachineAccessTitle": "Machine access",
   "@mcpMachineAccessTitle": {
     "description": "Settings › AI / MCP machine access (external AI permission UI)."
   },
-  "mcpMachineAccessDescription": "Choose what external AI may do on each machine. These settings are kept on this device for the current workspace and aren't synced. Stopping MCP revokes all access, whatever is chosen here.",
-  "@mcpMachineAccessDescription": {
-    "description": "Settings › AI / MCP machine access (external AI permission UI)."
-  },
   "mcpDefaultAccessTitle": "Default for all machines",
   "@mcpDefaultAccessTitle": {
-    "description": "Settings › AI / MCP machine access (external AI permission UI)."
-  },
-  "mcpDefaultAccessDescription": "Applies to every machine without its own setting, including machines added later.",
-  "@mcpDefaultAccessDescription": {
     "description": "Settings › AI / MCP machine access (external AI permission UI)."
   },
   "mcpPerMachineTitle": "Per-machine settings",
@@ -14480,10 +14442,6 @@
   },
   "mcpLocalDeviceName": "This device (local console)",
   "@mcpLocalDeviceName": {
-    "description": "Settings › AI / MCP machine access (external AI permission UI)."
-  },
-  "mcpLocalDeviceDetail": "Local terminal sessions that aren't tied to a saved host",
-  "@mcpLocalDeviceDetail": {
     "description": "Settings › AI / MCP machine access (external AI permission UI)."
   },
   "mcpHostUseDefault": "Default ({mode})",
@@ -14567,12 +14525,8 @@
       }
     }
   },
-  "mcpAndroidForwardingHint": "MCP listens only on this device's loopback address. To use it from AI on a computer connected with USB debugging, run this on the computer, then use the copied configuration there:",
+  "mcpAndroidForwardingHint": "From a computer over USB debugging, run:",
   "@mcpAndroidForwardingHint": {
-    "description": "Settings › AI / MCP machine access (external AI permission UI)."
-  },
-  "mcpAndroidBackgroundHint": "MCP keeps listening after you switch apps or press Back, so external AI can keep using it. Atermius shows a notification with a Stop button while it runs. Stopping it, locking or signing out ends access; the token stays the same.",
-  "@mcpAndroidBackgroundHint": {
     "description": "Settings › AI / MCP machine access (external AI permission UI)."
   },
   "mcpForegroundNotificationTitle": "External AI access is on",
@@ -14592,19 +14546,18 @@
   "@mcpForegroundNotificationStop": {
     "description": "Android MCP foreground-service notification (passed to the native service by the Dart lifecycle binder)."
   },
-  "mcpAndroidProtected": "MCP keeps running in the background. Stop it here or from the notification.",
-  "mcpAndroidForegroundOnly": "MCP listens only while this app is visible. It pauses when you leave and resumes with the same token when you come back.",
-  "mcpAndroidProtectedNoNotification": "MCP keeps running in the background, but Android can't show its notification. Stop it here or from Android's active apps.",
+  "mcpAndroidForegroundOnly": "Listens only while the app is visible and resumes when you return.",
+  "mcpAndroidProtectedNoNotification": "Running in the background, but its notification can't be shown.",
   "@mcpAndroidProtectedNoNotification": {"description": "Settings › AI / MCP on Android: the foreground service runs but its notification is hidden."},
   "mcpStop": "Stop MCP",
   "@mcpStop": {"description": "Settings › AI / MCP: button that stops listening (the token is kept)."},
   "mcpAccessToken": "Access token (Bearer)",
   "@mcpAccessToken": {"description": "Settings › AI / MCP: the persistent bearer token."},
-  "mcpAccessTokenHint": "AI clients connect with this token. It stays the same until you reset it.",
-  "@mcpAccessTokenHint": {"description": "Settings › AI / MCP: the persistent bearer token."},
-  "mcpAccessTokenNotSaved": "This token couldn't be saved to the system's secure storage. It works until the app closes; a new one is used next time.",
+  "mcpAccessTokenNotSaved": "The token couldn't be saved; it changes when the app restarts.",
   "@mcpAccessTokenNotSaved": {"description": "Settings › AI / MCP: the persistent bearer token."},
   "mcpTokenCopied": "Token copied",
+  "mcpCopyConfig": "Copy connection config",
+  "@mcpCopyConfig": {"description": "Settings › AI / MCP: copies the client configuration (URL and bearer token)."},
   "@mcpTokenCopied": {"description": "Settings › AI / MCP: the persistent bearer token."},
   "mcpResetToken": "Reset token",
   "@mcpResetToken": {"description": "Settings › AI / MCP: the persistent bearer token."},
@@ -14614,12 +14567,8 @@
   "@mcpResetTokenBody": {"description": "Settings › AI / MCP: the persistent bearer token."},
   "mcpResetTokenFailed": "Couldn't reset the token. The current token still works.",
   "@mcpResetTokenFailed": {"description": "Settings › AI / MCP: the persistent bearer token."},
-  "mcpAutoStartNote": "MCP stays enabled on this device: it starts again by itself whenever a workspace is unlocked or Atermius starts, until you stop it here.",
-  "@mcpAutoStartNote": {"description": "Settings › AI / MCP: MCP as a background service that stays enabled."},
   "mcpAutoStartFailed": "MCP is enabled but couldn't start by itself. Another window may be using the port.",
   "@mcpAutoStartFailed": {"description": "Settings › AI / MCP: MCP as a background service that stays enabled."},
-  "mcpWindowsBackgroundNote": "Closing the window keeps MCP and your sessions running in the background; open Atermius again or quit it from its icon in the notification area.",
-  "@mcpWindowsBackgroundNote": {"description": "Settings › AI / MCP: MCP as a background service that stays enabled."},
   "mcpTrayTooltip": "Atermius — MCP running on port {port}",
   "@mcpTrayTooltip": {"description": "Windows notification-area icon while MCP runs with the window closed.", "placeholders": {"port": {"type": "int"}}},
   "mcpTrayOpen": "Open Atermius",
@@ -14630,7 +14579,6 @@
   "@mcpTrayNoticeTitle": {"description": "Windows notification-area icon while MCP runs with the window closed."},
   "mcpTrayNoticeBody": "External AI can keep using MCP. Click the Atermius icon here to open the window again; right-click it to quit.",
   "@mcpTrayNoticeBody": {"description": "Windows notification-area icon while MCP runs with the window closed."},
-  "mcpAndroidStarting": "Starting Android background protection…",
   "desktopKeyboardShow": "Open keyboard and special keys",
   "@desktopKeyboardShow": {},
   "desktopKeyboardHide": "Hide keyboard and special keys",
@@ -15449,16 +15397,8 @@
   "@mcpListenAddressInvalid": {
     "description": "MCP settings: where the listener accepts connections."
   },
-  "mcpListenExposedWarning": "Other devices on the network can reach this port. Anyone who has the token can use your hosts within the machine permissions below. The connection is plain HTTP, so devices on the same network may read the token and everything sent. Use it on trusted networks only. Connections from public addresses are refused.",
+  "mcpListenExposedWarning": "Other devices on the network can reach this port over plain HTTP. Use trusted networks only; public addresses are refused.",
   "@mcpListenExposedWarning": {
-    "description": "MCP settings: where the listener accepts connections."
-  },
-  "mcpListenTokenNote": "The token is kept on this device for this workspace and stays the same when MCP is stopped, enabled again or the app restarts. Locking, signing out or switching Vaults stops MCP. Different windows can use different ports. Stopping MCP doesn't close sessions you've opened.",
-  "@mcpListenTokenNote": {
-    "description": "MCP settings: where the listener accepts connections."
-  },
-  "mcpEndpointsTitle": "Clients can connect to any of these addresses:",
-  "@mcpEndpointsTitle": {
     "description": "MCP settings: where the listener accepts connections."
   },
   "passwordRevealShow": "Show password",
@@ -17150,11 +17090,11 @@
   "@mcpActivityRunning": {"description": "Top bar › AI activity (MCP tool calls an AI client makes).", "placeholders": {"tool": {"type": "String"}}},
   "mcpActivityRunningOn": "AI is running {tool} · {target}",
   "@mcpActivityRunningOn": {"description": "Top bar › AI activity (MCP tool calls an AI client makes).", "placeholders": {"tool": {"type": "String"}, "target": {"type": "String"}}},
-  "mcpActivityEmpty": "No AI activity yet. Each tool call an AI client makes through MCP appears here while it runs.",
+  "mcpActivityEmpty": "No AI activity yet.",
   "@mcpActivityEmpty": {"description": "Top bar › AI activity (MCP tool calls an AI client makes)."},
   "mcpActivityListening": "Listening on {endpoint}",
   "@mcpActivityListening": {"description": "Top bar › AI activity (MCP tool calls an AI client makes).", "placeholders": {"endpoint": {"type": "String"}}},
-  "mcpActivityNotListening": "The MCP server is off; external AI clients can't connect.",
+  "mcpActivityNotListening": "MCP is off.",
   "@mcpActivityNotListening": {"description": "Top bar › AI activity (MCP tool calls an AI client makes)."},
   "mcpActivityStop": "Stop MCP",
   "@mcpActivityStop": {"description": "Top bar › AI activity (MCP tool calls an AI client makes)."},

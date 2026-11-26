@@ -535,10 +535,9 @@ void main() {
           expect(field.right, lessThanOrEqualTo(card.right));
           expect(field.height, greaterThanOrEqualTo(40), reason: 'touch');
         }
-        // Each mode description is readable (wraps instead of clipping).
         for (final mode in McpAccessMode.values) {
           expect(
-            find.text(mcpAccessModeDescription(l10n, mode)),
+            find.byKey(ValueKey('mcp_default_access_${mode.name}')),
             findsOneWidget,
           );
         }
@@ -547,7 +546,6 @@ void main() {
           find.byKey(const ValueKey('mcp_android_forward_command')),
         );
         expect(find.text('adb forward tcp:8765 tcp:8765'), findsOneWidget);
-        expect(find.text(l10n.mcpAndroidBackgroundHint), findsOneWidget);
         expect(
           find.text(l10n.mcpRunningDefaultAccess(l10n.mcpAccessModeReadOnly)),
           findsOneWidget,
@@ -587,10 +585,14 @@ void main() {
           find.byKey(const ValueKey('mcp_android_forward_command')),
           platform == TargetPlatform.android ? findsOneWidget : findsNothing,
         );
-        expect(
-          find.byKey(const ValueKey('mcp_android_background_hint')),
-          platform == TargetPlatform.android ? findsOneWidget : findsNothing,
-        );
+        // No explanatory notes under the controls.
+        for (final key in [
+          'mcp_android_background_hint',
+          'mcp_listen_note',
+          'mcp_auto_start_note',
+        ]) {
+          expect(find.byKey(ValueKey(key)), findsNothing, reason: key);
+        }
       },
     );
   }
@@ -813,13 +815,9 @@ void main() {
         // Text from elsewhere in the same cards must not leak into a field.
         final unrelated = [
           l10n.externalAiAccess,
-          l10n.letExternalAiUseTheHosts,
           l10n.off,
-          l10n.readOnlyModeCanStillRead,
-          l10n.listensOn127001,
-          l10n.mcpAndroidBackgroundHint,
+          l10n.mcpAccessToken,
           l10n.mcpMachineAccessTitle,
-          l10n.mcpMachineAccessDescription,
           l10n.mcpDefaultAccessTitle,
         ];
 
@@ -920,7 +918,7 @@ void main() {
               )
               .getSemanticsData();
           expect(data.label, contains(mcpAccessModeLabel(l10n, mode)));
-          expect(data.label, isNot(contains(l10n.mcpMachineAccessDescription)));
+          expect(data.label, isNot(contains(l10n.mcpDefaultAccessTitle)));
         }
         semantics.dispose();
       },
@@ -960,12 +958,6 @@ void main() {
         platform: TargetPlatform.windows,
         listenStore: store,
       );
-      final l10n = lookupAppLocalizations(const Locale('en'));
-      // Windows explains both the auto start and the tray.
-      expect(
-        find.text('${l10n.mcpAutoStartNote} ${l10n.mcpWindowsBackgroundNote}'),
-        findsOneWidget,
-      );
       await tester.ensureVisible(find.byKey(const ValueKey('mcp_toggle')));
       await tester.tap(find.byKey(const ValueKey('mcp_toggle')));
       await tester.pumpAndSettle();
@@ -989,8 +981,6 @@ void main() {
       );
       final l10n = lookupAppLocalizations(const Locale('en'));
       expect(find.text(l10n.mcpAutoStartFailed), findsOneWidget);
-      expect(find.text(l10n.mcpAutoStartNote), findsOneWidget);
-      expect(find.textContaining(l10n.mcpWindowsBackgroundNote), findsNothing);
     });
   });
 
@@ -1037,7 +1027,8 @@ void main() {
             .data,
         'A' * 43,
       );
-      expect(find.text(l10n.mcpAccessTokenHint), findsOneWidget);
+      // A saved token needs no explanation under it.
+      expect(find.byKey(const ValueKey('mcp_token_hint')), findsNothing);
 
       await tapKey(tester, 'mcp_copy_token');
       expect(clipboard, 'A' * 43);

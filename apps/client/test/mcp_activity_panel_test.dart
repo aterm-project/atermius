@@ -10,6 +10,7 @@ import 'package:aterm_client/ui/mcp_activity_panel.dart';
 import 'package:aterm_client/ui/workspace_controls.dart';
 import 'package:aterm_client/ui/workspace_tab_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// A service that reports a running listener without opening a port.
@@ -184,6 +185,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('mcp_activity_popover')), findsOneWidget);
     expect(find.text('Listening on http://127.0.0.1:8765/mcp'), findsOneWidget);
+    // The bearer token is shown in plain text next to the endpoint.
+    final token = service.token;
+    expect(token, isNotNull);
+    expect(
+      tester
+          .widget<SelectableText>(
+            find.byKey(const ValueKey('mcp_activity_token')),
+          )
+          .data,
+      token,
+    );
+    String? clipboard;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          clipboard = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('mcp_activity_copy_token')));
+    await tester.pump();
+    expect(clipboard, token);
     expect(find.text('systemctl restart nginx'), findsOneWidget);
     expect(find.text('/etc/motd · 10 bytes · mode=create'), findsOneWidget);
     expect(find.textContaining('top secret'), findsNothing);

@@ -31,13 +31,6 @@ String mcpAccessModeLabel(AppLocalizations l10n, McpAccessMode mode) =>
       McpAccessMode.readWrite => l10n.mcpAccessModeReadWrite,
     };
 
-String mcpAccessModeDescription(AppLocalizations l10n, McpAccessMode mode) =>
-    switch (mode) {
-      McpAccessMode.denied => l10n.mcpAccessModeDeniedDescription,
-      McpAccessMode.readOnly => l10n.mcpAccessModeReadOnlyDescription,
-      McpAccessMode.readWrite => l10n.mcpAccessModeReadWriteDescription,
-    };
-
 IconData mcpAccessModeIcon(McpAccessMode mode) => switch (mode) {
   McpAccessMode.denied => Icons.block_outlined,
   McpAccessMode.readOnly => Icons.visibility_outlined,
@@ -371,20 +364,19 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             ),
           ],
         ),
-        const SizedBox(height: 6),
-        Text(
-          service.tokenSaved
-              ? l10n.mcpAccessTokenHint
-              : l10n.mcpAccessTokenNotSaved,
-          key: const ValueKey('mcp_token_hint'),
-          style: TextStyle(
-            color: service.tokenSaved
-                ? context.palette.muted
-                : context.palette.orange,
-            fontSize: 12,
-            height: 1.5,
+        if (!service.tokenSaved)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              l10n.mcpAccessTokenNotSaved,
+              key: const ValueKey('mcp_token_hint'),
+              style: TextStyle(
+                color: context.palette.orange,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
           ),
-        ),
         if (_tokenError != null)
           Padding(
             padding: const EdgeInsets.only(top: 6),
@@ -563,11 +555,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.letExternalAiUseTheHosts,
-              style: IosType.footnote.copyWith(color: colors.secondaryLabel),
-            ),
             const SizedBox(height: 10),
             Text(
               l10n.theBrowserAndMobileAppsDont,
@@ -699,18 +686,16 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                     key: const ValueKey('mcp_token'),
                     style: IosType.mono.copyWith(color: colors.label),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    service.tokenSaved
-                        ? l10n.mcpAccessTokenHint
-                        : l10n.mcpAccessTokenNotSaved,
-                    key: const ValueKey('mcp_token_hint'),
-                    style: IosType.footnote.copyWith(
-                      color: service.tokenSaved
-                          ? colors.secondaryLabel
-                          : colors.destructive,
+                  if (!service.tokenSaved) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.mcpAccessTokenNotSaved,
+                      key: const ValueKey('mcp_token_hint'),
+                      style: IosType.footnote.copyWith(
+                        color: colors.destructive,
+                      ),
                     ),
-                  ),
+                  ],
                   if (_tokenError != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
@@ -745,9 +730,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             separator(),
             IosListActionRow(
               key: const ValueKey('mcp_copy_configuration'),
-              label: _copied
-                  ? l10n.copiedIncludesAccessToken
-                  : l10n.copyConnectionConfigIncludesToken,
+              label: _copied ? l10n.copied : l10n.mcpCopyConfig,
               icon: IosIcons.copy,
               onTap: _copy,
             ),
@@ -763,49 +746,15 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  l10n.letExternalAiUseTheHosts,
-                  style: IosType.footnote.copyWith(
-                    color: colors.secondaryLabel,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  l10n.readOnlyModeCanStillRead,
-                  style: IosType.footnote.copyWith(
-                    color: colors.secondaryLabel,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  (service.running ? service.bind.mode : _bindMode) ==
-                          McpBindMode.loopback
-                      ? l10n.listensOn127001
-                      : l10n.mcpListenTokenNote,
-                  style: IosType.footnote.copyWith(
-                    color: colors.secondaryLabel,
-                  ),
-                ),
                 if ((service.running ? service.bind : _chosenBind)?.exposed ??
                     _bindMode != McpBindMode.loopback) ...[
-                  const SizedBox(height: 6),
                   Text(
                     l10n.mcpListenExposedWarning,
                     key: const ValueKey('mcp_bind_warning'),
-                    style: IosType.footnote.copyWith(
-                      color: colors.secondaryLabel,
-                    ),
+                    style: IosType.footnote.copyWith(color: colors.warning),
                   ),
+                  const SizedBox(height: 6),
                 ],
-                const SizedBox(height: 6),
-                Text(
-                  l10n.mcpAutoStartNote,
-                  key: const ValueKey('mcp_auto_start_note'),
-                  style: IosType.footnote.copyWith(
-                    color: colors.secondaryLabel,
-                  ),
-                ),
-                const SizedBox(height: 6),
                 Text(
                   l10n.mcpAndroidForegroundOnly,
                   style: IosType.footnote.copyWith(
@@ -894,13 +843,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                   l10n.mcpMachineAccessTitle,
                   style: IosType.headline.copyWith(color: colors.label),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  l10n.mcpMachineAccessDescription,
-                  style: IosType.footnote.copyWith(
-                    color: colors.secondaryLabel,
-                  ),
-                ),
                 if (loading)
                   Padding(
                     key: const ValueKey('mcp_access_loading'),
@@ -948,13 +890,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  l10n.mcpDefaultAccessDescription,
-                  style: IosType.footnote.copyWith(
-                    color: colors.secondaryLabel,
-                  ),
-                ),
               ],
             ),
           ),
@@ -978,8 +913,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                       color: selected ? colors.tint : colors.secondaryLabel,
                     ),
                     title: Text(mcpAccessModeLabel(l10n, mode)),
-                    subtitle: Text(mcpAccessModeDescription(l10n, mode)),
-                    minHeight: 56,
                     accessory: selected
                         ? IosRowAccessory.checkmark
                         : IosRowAccessory.none,
@@ -1067,7 +1000,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 context,
                 id: mcpLocalDeviceHostId,
                 name: l10n.mcpLocalDeviceName,
-                detail: l10n.mcpLocalDeviceDetail,
                 icon: Icons.phone_iphone_rounded,
               ),
             ],
@@ -1102,7 +1034,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
     BuildContext context, {
     required String id,
     required String name,
-    required String detail,
+    String? detail,
     required IconData icon,
   }) {
     final l10n = context.l10n;
@@ -1152,23 +1084,24 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              IosMetrics.rowPaddingH + 26,
-              2,
-              IosMetrics.rowPaddingH,
-              0,
-            ),
-            child: Text(
-              detail,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: IosType.mono.copyWith(
-                fontSize: 12,
-                color: colors.secondaryLabel,
+          if (detail != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                IosMetrics.rowPaddingH + 26,
+                2,
+                IosMetrics.rowPaddingH,
+                0,
+              ),
+              child: Text(
+                detail,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: IosType.mono.copyWith(
+                  fontSize: 12,
+                  color: colors.secondaryLabel,
+                ),
               ),
             ),
-          ),
           KeyedSubtree(
             key: ValueKey(
               'mcp_host_choice_${id}_${override?.name}_$_resetEpoch',
@@ -1210,11 +1143,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
           Text(
             context.l10n.availableTools,
             style: IosType.headline.copyWith(color: colors.label),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            context.l10n.sshConsoleSupportReadingTextAnd,
-            style: IosType.footnote.copyWith(color: colors.secondaryLabel),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -1274,13 +1202,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 Text(
                   context.l10n.recentCalls,
                   style: IosType.headline.copyWith(color: colors.label),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  context.l10n.onlyTheLast50ToolNames,
-                  style: IosType.footnote.copyWith(
-                    color: colors.secondaryLabel,
-                  ),
                 ),
                 if (entries.isEmpty) ...[
                   const SizedBox(height: 10),
@@ -1385,11 +1306,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
           ),
           const SizedBox(height: 8),
-          Text(
-            l10n.letExternalAiUseTheHosts,
-            style: TextStyle(color: context.palette.muted, height: 1.5),
-          ),
-          const SizedBox(height: 12),
           if (!service.supported)
             Text(
               l10n.theBrowserAndMobileAppsDont,
@@ -1418,26 +1334,29 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                   style: TextStyle(color: context.palette.red),
                 ),
               ),
+            // Only the Android states that differ from "keeps running in the
+            // background" are worth a line.
             if (McpListenerLifecycle.installed case final lifecycle?
                 when service.running &&
                     identical(service, McpService.instance) &&
                     Theme.of(context).platform == TargetPlatform.android)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  switch (lifecycle.mode) {
+              if (switch (lifecycle.mode) {
                     McpBackgroundMode.protected
                         when !lifecycle.notificationsVisible =>
                       l10n.mcpAndroidProtectedNoNotification,
-                    McpBackgroundMode.protected => l10n.mcpAndroidProtected,
                     McpBackgroundMode.foregroundOnly =>
                       l10n.mcpAndroidForegroundOnly,
-                    _ => l10n.mcpAndroidStarting,
-                  },
-                  key: const ValueKey('mcp_android_lifecycle_status'),
-                  style: TextStyle(color: context.palette.muted),
+                    _ => null,
+                  }
+                  case final status?)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    status,
+                    key: const ValueKey('mcp_android_lifecycle_status'),
+                    style: TextStyle(color: context.palette.orange),
+                  ),
                 ),
-              ),
             const SizedBox(height: 12),
             Text(
               l10n.mcpListenScope,
@@ -1504,15 +1423,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             ),
             _tokenSection(context),
             const SizedBox(height: 12),
-            Text(
-              l10n.readOnlyModeCanStillRead,
-              style: TextStyle(
-                color: context.palette.muted,
-                fontSize: 12,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 12),
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -1544,23 +1454,11 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                     key: const ValueKey('mcp_copy_configuration'),
                     onPressed: _copy,
                     icon: const Icon(Icons.copy),
-                    label: Text(
-                      _copied
-                          ? l10n.copiedIncludesAccessToken
-                          : l10n.copyConnectionConfigIncludesToken,
-                    ),
+                    label: Text(_copied ? l10n.copied : l10n.mcpCopyConfig),
                   ),
               ],
             ),
             if (endpoint != null) ...[
-              if (service.endpoints.length > 1)
-                Padding(
-                  padding: const EdgeInsets.only(top: 14),
-                  child: Text(
-                    l10n.mcpEndpointsTitle,
-                    style: TextStyle(color: context.palette.muted),
-                  ),
-                ),
               for (final (index, url) in service.endpoints.indexed)
                 Padding(
                   padding: EdgeInsets.only(top: index == 0 ? 14 : 4),
@@ -1574,43 +1472,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
               if (Theme.of(context).platform == TargetPlatform.android &&
                   service.bind.mode == McpBindMode.loopback)
                 _AndroidForwardingHint(port: endpoint.port),
-            ],
-            const SizedBox(height: 10),
-            Text(
-              (service.running ? service.bind.mode : _bindMode) ==
-                      McpBindMode.loopback
-                  ? l10n.listensOn127001
-                  : l10n.mcpListenTokenNote,
-              key: const ValueKey('mcp_listen_note'),
-              style: TextStyle(
-                color: context.palette.muted,
-                fontSize: 12,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              Theme.of(context).platform == TargetPlatform.windows
-                  ? '${l10n.mcpAutoStartNote} ${l10n.mcpWindowsBackgroundNote}'
-                  : l10n.mcpAutoStartNote,
-              key: const ValueKey('mcp_auto_start_note'),
-              style: TextStyle(
-                color: context.palette.muted,
-                fontSize: 12,
-                height: 1.5,
-              ),
-            ),
-            if (Theme.of(context).platform == TargetPlatform.android) ...[
-              const SizedBox(height: 8),
-              Text(
-                l10n.mcpAndroidBackgroundHint,
-                key: const ValueKey('mcp_android_background_hint'),
-                style: TextStyle(
-                  color: context.palette.muted,
-                  fontSize: 12,
-                  height: 1.5,
-                ),
-              ),
             ],
             if (Theme.of(context).platform == TargetPlatform.iOS) ...[
               const SizedBox(height: 8),
@@ -1678,11 +1539,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             l10n.mcpMachineAccessTitle,
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
           ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.mcpMachineAccessDescription,
-            style: TextStyle(color: context.palette.muted, height: 1.5),
-          ),
           if (loading)
             Padding(
               key: const ValueKey('mcp_access_loading'),
@@ -1725,8 +1581,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
-          Text(l10n.mcpDefaultAccessDescription, style: muted),
-          const SizedBox(height: 4),
           RadioGroup<McpAccessMode>(
             groupValue: ready ? defaultMode : null,
             onChanged: (mode) {
@@ -1742,10 +1596,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                     contentPadding: EdgeInsets.zero,
                     secondary: Icon(mcpAccessModeIcon(mode)),
                     title: Text(mcpAccessModeLabel(l10n, mode)),
-                    subtitle: Text(
-                      mcpAccessModeDescription(l10n, mode),
-                      style: muted,
-                    ),
                   ),
               ],
             ),
@@ -1769,7 +1619,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 context,
                 id: mcpLocalDeviceHostId,
                 name: l10n.mcpLocalDeviceName,
-                detail: l10n.mcpLocalDeviceDetail,
                 icon: switch (Theme.of(context).platform) {
                   TargetPlatform.android => Icons.phone_android_outlined,
                   TargetPlatform.iOS => Icons.phone_iphone_outlined,
@@ -1841,7 +1690,7 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
     BuildContext context, {
     required String id,
     required String name,
-    required String detail,
+    String? detail,
     required IconData icon,
   }) {
     final l10n = context.l10n;
@@ -1914,12 +1763,13 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
                 ],
               ],
             ),
-            Text(
-              detail,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: context.palette.muted, fontSize: 12),
-            ),
+            if (detail != null)
+              Text(
+                detail,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: context.palette.muted, fontSize: 12),
+              ),
           ],
         ),
         // Keyed by the stored override (and failed-save epoch) so an
@@ -1940,11 +1790,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
         Text(
           context.l10n.availableTools,
           style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          context.l10n.sshConsoleSupportReadingTextAnd,
-          style: TextStyle(color: context.palette.muted, height: 1.5),
         ),
         const SizedBox(height: 10),
         Wrap(
@@ -1973,11 +1818,6 @@ class _McpSettingsPanelState extends State<McpSettingsPanel> {
         Text(
           context.l10n.recentCalls,
           style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          context.l10n.onlyTheLast50ToolNames,
-          style: TextStyle(color: context.palette.muted, fontSize: 12),
         ),
         if (service.audit.isEmpty)
           Padding(

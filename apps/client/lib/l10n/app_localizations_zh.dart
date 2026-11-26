@@ -10191,9 +10191,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get editGroup => '编辑分组';
 
   @override
-  String get letExternalAiAccessTheCurrent2 => '让外部 AI 接入当前工作区。';
-
-  @override
   String get theRecordChangedAgainDuringCommit => '记录在提交期间再次变化，请检查当前版本后重新选择。';
 
   @override
@@ -11845,9 +11842,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authenticationType => '认证类型';
 
   @override
-  String get letExternalAiAccessTheCurrent => '让外部 AI 接入当前本地工作区。';
-
-  @override
   String get setLocalArchivePassphrase => '设置本地归档口令';
 
   @override
@@ -12091,18 +12085,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '你的账户保持登录。锁定期间，此设备可以接收并保存已签名的密文，但无法解密记录，也无法创建或上传更改。';
 
   @override
-  String get sshConsoleSupportReadingTextAnd =>
-      'SSH / Console 支持文本读取与输入；SSH 支持独立命令执行和 SFTP 文本文件读写。RDP / VNC 支持连接和标签管理，暂不提供画面识别或鼠标控制。';
-
-  @override
-  String get onlyTheLast50ToolNames =>
-      '仅在内存中保留最近 50 次调用，MCP 停止时清空：包括工具、目标、参数的单行摘要（如命令、路径或按键）和结果。不记录文件内容和令牌。';
-
-  @override
-  String get listensOn127001 =>
-      '仅监听 127.0.0.1。令牌按工作区保存在本设备，停止、重新启用或重启应用后都不变；锁定、退出或切换保险库会停止 MCP。不同窗口可使用不同端口。停止 MCP 不会关闭你已打开的会话。';
-
-  @override
   String get allowExternalAiToPerformActions => '允许外部 AI 执行操作';
 
   @override
@@ -12116,17 +12098,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readOnly => '只读';
 
   @override
-  String get readOnlyModeCanStillRead =>
-      '只读模式仍可读取终端输出和文件内容，其中可能包含敏感信息。仅将连接配置交给你信任的 AI。已保存的密码、私钥和解锁密钥不会作为 MCP 字段提供。';
-
-  @override
   String get availableTools => '可用工具';
 
   @override
   String get enableMcp => '启用 MCP';
-
-  @override
-  String get copyConnectionConfigIncludesToken => '复制连接配置（含令牌）';
 
   @override
   String get externalAiAccess => '外部 AI 接入';
@@ -12139,9 +12114,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get off => '已关闭';
-
-  @override
-  String get copiedIncludesAccessToken => '已复制（含访问令牌）';
 
   @override
   String get couldntStartMcpMakeSureThe => '无法启动 MCP。请确认工作区已解锁，并检查端口是否被其他窗口占用。';
@@ -12163,7 +12135,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get theBrowserAndMobileAppsDont =>
-      '此版本的 Atermius 不提供本机 MCP 监听。请在 Windows、Linux、macOS、Android 或 iOS 应用中打开工作区后启用。';
+      '此版本不支持 MCP，请使用 Windows、Linux、macOS、Android 或 iOS 应用。';
 
   @override
   String get portMustBe102465535 => '端口范围为 1024–65535。';
@@ -12172,10 +12144,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String runningValuevalue(String valueValue) {
     return '运行中 · $valueValue';
   }
-
-  @override
-  String get letExternalAiUseTheHosts =>
-      '通过 MCP 让外部 AI 使用当前工作区的主机、会话、终端和远程文件。无需在 Atermius 内配置模型 API。';
 
   @override
   String get rdpRemoteDesktop => 'RDP 远程桌面';
@@ -15699,29 +15667,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mcpAccessModeReadWrite => '读写';
 
   @override
-  String get mcpAccessModeDeniedDescription =>
-      '外部 AI 无法看到或使用该机器，主机和会话列表中也不会出现。';
-
-  @override
-  String get mcpAccessModeReadOnlyDescription =>
-      '外部 AI 可以列出该机器，并读取已打开会话的输出和文件，但不能连接、输入、执行命令或修改文件。';
-
-  @override
-  String get mcpAccessModeReadWriteDescription =>
-      '外部 AI 还可以连接、切换和关闭会话，发送终端输入，执行命令和写入文件。主机密钥和登录提示仍会照常出现。';
-
-  @override
   String get mcpMachineAccessTitle => '机器访问权限';
 
   @override
-  String get mcpMachineAccessDescription =>
-      '选择外部 AI 在每台机器上可以执行的操作。这些设置按当前工作区保存在本设备上，不会同步。停止 MCP 会撤销所有访问，与此处的选择无关。';
-
-  @override
   String get mcpDefaultAccessTitle => '所有机器的默认权限';
-
-  @override
-  String get mcpDefaultAccessDescription => '适用于所有未单独设置的机器，包括之后添加的机器。';
 
   @override
   String get mcpPerMachineTitle => '单独设置';
@@ -15733,9 +15682,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mcpLocalDeviceName => '本设备（本地控制台）';
-
-  @override
-  String get mcpLocalDeviceDetail => '未关联已保存主机的本地终端会话';
 
   @override
   String mcpHostUseDefault(String mode) {
@@ -15791,12 +15737,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get mcpAndroidForwardingHint =>
-      'MCP 仅监听本设备的回环地址。要让通过 USB 调试连接的电脑上的 AI 使用它，请在电脑上运行以下命令，然后在电脑上使用复制的配置：';
-
-  @override
-  String get mcpAndroidBackgroundHint =>
-      '切换到其他应用或按返回键离开后，MCP 会继续监听，外部 AI 仍可使用。运行期间 Atermius 会显示一条带「停止」按钮的通知。停止、锁定或退出登录会结束访问，令牌保持不变。';
+  String get mcpAndroidForwardingHint => '电脑通过 USB 调试连接时，在电脑上运行：';
 
   @override
   String get mcpForegroundNotificationTitle => '外部 AI 接入已开启';
@@ -15810,15 +15751,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mcpForegroundNotificationStop => '停止 MCP';
 
   @override
-  String get mcpAndroidProtected => 'MCP 会在后台继续运行，可在这里或通知中停止。';
+  String get mcpAndroidForegroundOnly => '仅在应用可见时监听，回到应用后自动恢复。';
 
   @override
-  String get mcpAndroidForegroundOnly =>
-      'MCP 仅在本应用可见时监听。离开应用时暂停，回来后用同一个令牌自动恢复。';
-
-  @override
-  String get mcpAndroidProtectedNoNotification =>
-      'MCP 会在后台继续运行，但系统无法显示它的通知。可在这里或系统的「使用中的应用」中停止。';
+  String get mcpAndroidProtectedNoNotification => '后台运行中，但无法显示通知。';
 
   @override
   String get mcpStop => '停止 MCP';
@@ -15827,13 +15763,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mcpAccessToken => '访问令牌（Bearer）';
 
   @override
-  String get mcpAccessTokenHint => 'AI 客户端使用此令牌连接。重置前它始终不变。';
-
-  @override
-  String get mcpAccessTokenNotSaved => '无法将令牌保存到系统安全存储。它在应用关闭前有效，下次启动会使用新令牌。';
+  String get mcpAccessTokenNotSaved => '令牌未能保存，重启应用后会变。';
 
   @override
   String get mcpTokenCopied => '令牌已复制';
+
+  @override
+  String get mcpCopyConfig => '复制连接配置';
 
   @override
   String get mcpResetToken => '重置令牌';
@@ -15848,15 +15784,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mcpResetTokenFailed => '无法重置令牌，当前令牌仍然有效。';
 
   @override
-  String get mcpAutoStartNote =>
-      'MCP 启用后会在本设备上保持开启：解锁工作区或重新打开 Atermius 时会自动启动，直到你在这里停止它。';
-
-  @override
   String get mcpAutoStartFailed => 'MCP 已启用，但没能自动启动。端口可能被其他窗口占用。';
-
-  @override
-  String get mcpWindowsBackgroundNote =>
-      '关闭窗口后，MCP 和已打开的会话会继续在后台运行；从通知区域（托盘）的 Atermius 图标可以重新打开或退出。';
 
   @override
   String mcpTrayTooltip(int port) {
@@ -15875,9 +15803,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get mcpTrayNoticeBody =>
       '外部 AI 仍可通过 MCP 使用。点击这里的 Atermius 图标可重新打开窗口，右键可退出。';
-
-  @override
-  String get mcpAndroidStarting => '正在启动 Android 后台保护…';
 
   @override
   String get desktopKeyboardShow => '打开键盘与特殊键';
@@ -16610,14 +16535,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mcpListenExposedWarning =>
-      '网络上的其他设备可以访问这个端口。拿到令牌的人可以在下方机器权限范围内操作你的主机。连接是明文 HTTP，同一网络上的设备可能截获令牌和传输内容。只在可信网络使用。来自公网地址的连接会被拒绝。';
-
-  @override
-  String get mcpListenTokenNote =>
-      '令牌按工作区保存在本设备，停止、重新启用或重启应用后都不变；锁定、退出或切换保险库会停止 MCP。不同窗口可使用不同端口。停止 MCP 不会关闭你已打开的会话。';
-
-  @override
-  String get mcpEndpointsTitle => '客户端可以使用以下任一地址连接：';
+      '网络上的其他设备可通过明文 HTTP 访问此端口。只在可信网络使用；公网地址的连接会被拒绝。';
 
   @override
   String get passwordRevealShow => '显示密码';
@@ -18320,7 +18238,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get mcpActivityEmpty => '暂无 AI 活动。AI 客户端通过 MCP 发起的每次工具调用都会在执行时显示在这里。';
+  String get mcpActivityEmpty => '暂无 AI 活动。';
 
   @override
   String mcpActivityListening(String endpoint) {
@@ -18328,7 +18246,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get mcpActivityNotListening => 'MCP 服务器已关闭，外部 AI 客户端无法连接。';
+  String get mcpActivityNotListening => 'MCP 已关闭。';
 
   @override
   String get mcpActivityStop => '停止 MCP';

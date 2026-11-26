@@ -17957,12 +17957,6 @@ abstract class AppLocalizations {
   /// **'Edit group'**
   String get editGroup;
 
-  /// No description provided for @letExternalAiAccessTheCurrent2.
-  ///
-  /// In en, this message translates to:
-  /// **'Let external AI access the current workspace.'**
-  String get letExternalAiAccessTheCurrent2;
-
   /// No description provided for @theRecordChangedAgainDuringCommit.
   ///
   /// In en, this message translates to:
@@ -20971,12 +20965,6 @@ abstract class AppLocalizations {
   /// **'Authentication type'**
   String get authenticationType;
 
-  /// No description provided for @letExternalAiAccessTheCurrent.
-  ///
-  /// In en, this message translates to:
-  /// **'Let external AI access the current local workspace.'**
-  String get letExternalAiAccessTheCurrent;
-
   /// No description provided for @setLocalArchivePassphrase.
   ///
   /// In en, this message translates to:
@@ -21439,24 +21427,6 @@ abstract class AppLocalizations {
   /// **'Your account stays signed in. While locked, this device can receive and store signed ciphertext, but it cannot decrypt records or create or upload changes.'**
   String get yourAccountStaysSignedInWhile;
 
-  /// No description provided for @sshConsoleSupportReadingTextAnd.
-  ///
-  /// In en, this message translates to:
-  /// **'SSH / Console support reading text and input; SSH also supports standalone command execution and SFTP text file read/write. RDP / VNC support connections and tab management; screen recognition and mouse control aren\'t available yet.'**
-  String get sshConsoleSupportReadingTextAnd;
-
-  /// No description provided for @onlyTheLast50ToolNames.
-  ///
-  /// In en, this message translates to:
-  /// **'Only the last 50 calls are kept, in memory only, and they\'re cleared when MCP stops: the tool, its target, a one-line summary of the arguments (such as commands, paths or keys) and the outcome. File contents and tokens aren\'t recorded.'**
-  String get onlyTheLast50ToolNames;
-
-  /// No description provided for @listensOn127001.
-  ///
-  /// In en, this message translates to:
-  /// **'Listens on 127.0.0.1 only. The token is kept on this device for this workspace and stays the same when MCP is stopped, enabled again or the app restarts. Locking, signing out or switching Vaults stops MCP. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.'**
-  String get listensOn127001;
-
   /// No description provided for @allowExternalAiToPerformActions.
   ///
   /// In en, this message translates to:
@@ -21481,12 +21451,6 @@ abstract class AppLocalizations {
   /// **'Read-only'**
   String get readOnly;
 
-  /// No description provided for @readOnlyModeCanStillRead.
-  ///
-  /// In en, this message translates to:
-  /// **'Read-only mode can still read terminal output and file contents, which may contain sensitive information. Only give the connection configuration to AI you trust. Saved passwords, private keys and unlock keys are never provided as MCP fields.'**
-  String get readOnlyModeCanStillRead;
-
   /// No description provided for @availableTools.
   ///
   /// In en, this message translates to:
@@ -21498,12 +21462,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enable MCP'**
   String get enableMcp;
-
-  /// No description provided for @copyConnectionConfigIncludesToken.
-  ///
-  /// In en, this message translates to:
-  /// **'Copy connection config (includes token)'**
-  String get copyConnectionConfigIncludesToken;
 
   /// No description provided for @externalAiAccess.
   ///
@@ -21528,12 +21486,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Off'**
   String get off;
-
-  /// No description provided for @copiedIncludesAccessToken.
-  ///
-  /// In en, this message translates to:
-  /// **'Copied (includes access token)'**
-  String get copiedIncludesAccessToken;
 
   /// No description provided for @couldntStartMcpMakeSureThe.
   ///
@@ -21574,7 +21526,7 @@ abstract class AppLocalizations {
   /// No description provided for @theBrowserAndMobileAppsDont.
   ///
   /// In en, this message translates to:
-  /// **'This version of Atermius doesn\'t provide a local MCP listener. Open the workspace in the Windows, Linux, macOS, Android or iOS app to enable it.'**
+  /// **'MCP isn\'t available in this version. Use the Windows, Linux, macOS, Android or iOS app.'**
   String get theBrowserAndMobileAppsDont;
 
   /// No description provided for @portMustBe102465535.
@@ -21588,12 +21540,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Running · {valueValue}'**
   String runningValuevalue(String valueValue);
-
-  /// No description provided for @letExternalAiUseTheHosts.
-  ///
-  /// In en, this message translates to:
-  /// **'Let external AI use the hosts, sessions, terminals and remote files in the current workspace through MCP. No model API needs to be configured in Atermius.'**
-  String get letExternalAiUseTheHosts;
 
   /// No description provided for @rdpRemoteDesktop.
   ///
@@ -27781,44 +27727,14 @@ abstract class AppLocalizations {
   /// Settings › AI / MCP machine access (external AI permission UI).
   ///
   /// In en, this message translates to:
-  /// **'External AI can\'t see or use the machine. It\'s left out of host and session lists.'**
-  String get mcpAccessModeDeniedDescription;
-
-  /// Settings › AI / MCP machine access (external AI permission UI).
-  ///
-  /// In en, this message translates to:
-  /// **'External AI can list the machine and read output and files of sessions that are already open. It can\'t connect, type, run commands or change files.'**
-  String get mcpAccessModeReadOnlyDescription;
-
-  /// Settings › AI / MCP machine access (external AI permission UI).
-  ///
-  /// In en, this message translates to:
-  /// **'External AI can also connect, focus and close sessions, send terminal input, run commands and write files. Host key and sign-in prompts still appear.'**
-  String get mcpAccessModeReadWriteDescription;
-
-  /// Settings › AI / MCP machine access (external AI permission UI).
-  ///
-  /// In en, this message translates to:
   /// **'Machine access'**
   String get mcpMachineAccessTitle;
 
   /// Settings › AI / MCP machine access (external AI permission UI).
   ///
   /// In en, this message translates to:
-  /// **'Choose what external AI may do on each machine. These settings are kept on this device for the current workspace and aren\'t synced. Stopping MCP revokes all access, whatever is chosen here.'**
-  String get mcpMachineAccessDescription;
-
-  /// Settings › AI / MCP machine access (external AI permission UI).
-  ///
-  /// In en, this message translates to:
   /// **'Default for all machines'**
   String get mcpDefaultAccessTitle;
-
-  /// Settings › AI / MCP machine access (external AI permission UI).
-  ///
-  /// In en, this message translates to:
-  /// **'Applies to every machine without its own setting, including machines added later.'**
-  String get mcpDefaultAccessDescription;
 
   /// Settings › AI / MCP machine access (external AI permission UI).
   ///
@@ -27837,12 +27753,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This device (local console)'**
   String get mcpLocalDeviceName;
-
-  /// Settings › AI / MCP machine access (external AI permission UI).
-  ///
-  /// In en, this message translates to:
-  /// **'Local terminal sessions that aren\'t tied to a saved host'**
-  String get mcpLocalDeviceDetail;
 
   /// Settings › AI / MCP machine access (external AI permission UI).
   ///
@@ -27931,14 +27841,8 @@ abstract class AppLocalizations {
   /// Settings › AI / MCP machine access (external AI permission UI).
   ///
   /// In en, this message translates to:
-  /// **'MCP listens only on this device\'s loopback address. To use it from AI on a computer connected with USB debugging, run this on the computer, then use the copied configuration there:'**
+  /// **'From a computer over USB debugging, run:'**
   String get mcpAndroidForwardingHint;
-
-  /// Settings › AI / MCP machine access (external AI permission UI).
-  ///
-  /// In en, this message translates to:
-  /// **'MCP keeps listening after you switch apps or press Back, so external AI can keep using it. Atermius shows a notification with a Stop button while it runs. Stopping it, locking or signing out ends access; the token stays the same.'**
-  String get mcpAndroidBackgroundHint;
 
   /// Android MCP foreground-service notification (passed to the native service by the Dart lifecycle binder).
   ///
@@ -27958,22 +27862,16 @@ abstract class AppLocalizations {
   /// **'Stop MCP'**
   String get mcpForegroundNotificationStop;
 
-  /// No description provided for @mcpAndroidProtected.
-  ///
-  /// In en, this message translates to:
-  /// **'MCP keeps running in the background. Stop it here or from the notification.'**
-  String get mcpAndroidProtected;
-
   /// No description provided for @mcpAndroidForegroundOnly.
   ///
   /// In en, this message translates to:
-  /// **'MCP listens only while this app is visible. It pauses when you leave and resumes with the same token when you come back.'**
+  /// **'Listens only while the app is visible and resumes when you return.'**
   String get mcpAndroidForegroundOnly;
 
   /// Settings › AI / MCP on Android: the foreground service runs but its notification is hidden.
   ///
   /// In en, this message translates to:
-  /// **'MCP keeps running in the background, but Android can\'t show its notification. Stop it here or from Android\'s active apps.'**
+  /// **'Running in the background, but its notification can\'t be shown.'**
   String get mcpAndroidProtectedNoNotification;
 
   /// Settings › AI / MCP: button that stops listening (the token is kept).
@@ -27991,13 +27889,7 @@ abstract class AppLocalizations {
   /// Settings › AI / MCP: the persistent bearer token.
   ///
   /// In en, this message translates to:
-  /// **'AI clients connect with this token. It stays the same until you reset it.'**
-  String get mcpAccessTokenHint;
-
-  /// Settings › AI / MCP: the persistent bearer token.
-  ///
-  /// In en, this message translates to:
-  /// **'This token couldn\'t be saved to the system\'s secure storage. It works until the app closes; a new one is used next time.'**
+  /// **'The token couldn\'t be saved; it changes when the app restarts.'**
   String get mcpAccessTokenNotSaved;
 
   /// Settings › AI / MCP: the persistent bearer token.
@@ -28005,6 +27897,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Token copied'**
   String get mcpTokenCopied;
+
+  /// Settings › AI / MCP: copies the client configuration (URL and bearer token).
+  ///
+  /// In en, this message translates to:
+  /// **'Copy connection config'**
+  String get mcpCopyConfig;
 
   /// Settings › AI / MCP: the persistent bearer token.
   ///
@@ -28033,20 +27931,8 @@ abstract class AppLocalizations {
   /// Settings › AI / MCP: MCP as a background service that stays enabled.
   ///
   /// In en, this message translates to:
-  /// **'MCP stays enabled on this device: it starts again by itself whenever a workspace is unlocked or Atermius starts, until you stop it here.'**
-  String get mcpAutoStartNote;
-
-  /// Settings › AI / MCP: MCP as a background service that stays enabled.
-  ///
-  /// In en, this message translates to:
   /// **'MCP is enabled but couldn\'t start by itself. Another window may be using the port.'**
   String get mcpAutoStartFailed;
-
-  /// Settings › AI / MCP: MCP as a background service that stays enabled.
-  ///
-  /// In en, this message translates to:
-  /// **'Closing the window keeps MCP and your sessions running in the background; open Atermius again or quit it from its icon in the notification area.'**
-  String get mcpWindowsBackgroundNote;
 
   /// Windows notification-area icon while MCP runs with the window closed.
   ///
@@ -28077,12 +27963,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'External AI can keep using MCP. Click the Atermius icon here to open the window again; right-click it to quit.'**
   String get mcpTrayNoticeBody;
-
-  /// No description provided for @mcpAndroidStarting.
-  ///
-  /// In en, this message translates to:
-  /// **'Starting Android background protection…'**
-  String get mcpAndroidStarting;
 
   /// No description provided for @desktopKeyboardShow.
   ///
@@ -29365,20 +29245,8 @@ abstract class AppLocalizations {
   /// MCP settings: where the listener accepts connections.
   ///
   /// In en, this message translates to:
-  /// **'Other devices on the network can reach this port. Anyone who has the token can use your hosts within the machine permissions below. The connection is plain HTTP, so devices on the same network may read the token and everything sent. Use it on trusted networks only. Connections from public addresses are refused.'**
+  /// **'Other devices on the network can reach this port over plain HTTP. Use trusted networks only; public addresses are refused.'**
   String get mcpListenExposedWarning;
-
-  /// MCP settings: where the listener accepts connections.
-  ///
-  /// In en, this message translates to:
-  /// **'The token is kept on this device for this workspace and stays the same when MCP is stopped, enabled again or the app restarts. Locking, signing out or switching Vaults stops MCP. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.'**
-  String get mcpListenTokenNote;
-
-  /// MCP settings: where the listener accepts connections.
-  ///
-  /// In en, this message translates to:
-  /// **'Clients can connect to any of these addresses:'**
-  String get mcpEndpointsTitle;
 
   /// Tooltip of the show/hide (eye) button inside a password or passphrase field.
   ///
@@ -32203,7 +32071,7 @@ abstract class AppLocalizations {
   /// Top bar › AI activity (MCP tool calls an AI client makes).
   ///
   /// In en, this message translates to:
-  /// **'No AI activity yet. Each tool call an AI client makes through MCP appears here while it runs.'**
+  /// **'No AI activity yet.'**
   String get mcpActivityEmpty;
 
   /// Top bar › AI activity (MCP tool calls an AI client makes).
@@ -32215,7 +32083,7 @@ abstract class AppLocalizations {
   /// Top bar › AI activity (MCP tool calls an AI client makes).
   ///
   /// In en, this message translates to:
-  /// **'The MCP server is off; external AI clients can\'t connect.'**
+  /// **'MCP is off.'**
   String get mcpActivityNotListening;
 
   /// Top bar › AI activity (MCP tool calls an AI client makes).

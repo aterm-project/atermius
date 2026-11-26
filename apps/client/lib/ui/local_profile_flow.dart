@@ -7016,7 +7016,7 @@ _showMessage(
         id: 'mcp',
         title: 'AI / MCP',
         icon: Icons.hub_outlined,
-        description: context.l10n.letExternalAiAccessTheCurrent,
+        description: '',
         builder: (_) => const McpSettingsPanel(),
       ),
       if (AppUpdateController.instance case final appUpdate?)

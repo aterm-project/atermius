@@ -11547,10 +11547,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editGroup => 'Edit group';
 
   @override
-  String get letExternalAiAccessTheCurrent2 =>
-      'Let external AI access the current workspace.';
-
-  @override
   String get theRecordChangedAgainDuringCommit =>
       'The record changed again during commit. Check the current version and choose again.';
 
@@ -13418,10 +13414,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authenticationType => 'Authentication type';
 
   @override
-  String get letExternalAiAccessTheCurrent =>
-      'Let external AI access the current local workspace.';
-
-  @override
   String get setLocalArchivePassphrase => 'Set local archive passphrase';
 
   @override
@@ -13690,18 +13682,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your account stays signed in. While locked, this device can receive and store signed ciphertext, but it cannot decrypt records or create or upload changes.';
 
   @override
-  String get sshConsoleSupportReadingTextAnd =>
-      'SSH / Console support reading text and input; SSH also supports standalone command execution and SFTP text file read/write. RDP / VNC support connections and tab management; screen recognition and mouse control aren\'t available yet.';
-
-  @override
-  String get onlyTheLast50ToolNames =>
-      'Only the last 50 calls are kept, in memory only, and they\'re cleared when MCP stops: the tool, its target, a one-line summary of the arguments (such as commands, paths or keys) and the outcome. File contents and tokens aren\'t recorded.';
-
-  @override
-  String get listensOn127001 =>
-      'Listens on 127.0.0.1 only. The token is kept on this device for this workspace and stays the same when MCP is stopped, enabled again or the app restarts. Locking, signing out or switching Vaults stops MCP. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.';
-
-  @override
   String get allowExternalAiToPerformActions =>
       'Allow external AI to perform actions';
 
@@ -13716,18 +13696,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get readOnly => 'Read-only';
 
   @override
-  String get readOnlyModeCanStillRead =>
-      'Read-only mode can still read terminal output and file contents, which may contain sensitive information. Only give the connection configuration to AI you trust. Saved passwords, private keys and unlock keys are never provided as MCP fields.';
-
-  @override
   String get availableTools => 'Available tools';
 
   @override
   String get enableMcp => 'Enable MCP';
-
-  @override
-  String get copyConnectionConfigIncludesToken =>
-      'Copy connection config (includes token)';
 
   @override
   String get externalAiAccess => 'External AI access';
@@ -13740,9 +13712,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get off => 'Off';
-
-  @override
-  String get copiedIncludesAccessToken => 'Copied (includes access token)';
 
   @override
   String get couldntStartMcpMakeSureThe =>
@@ -13766,7 +13735,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get theBrowserAndMobileAppsDont =>
-      'This version of Atermius doesn\'t provide a local MCP listener. Open the workspace in the Windows, Linux, macOS, Android or iOS app to enable it.';
+      'MCP isn\'t available in this version. Use the Windows, Linux, macOS, Android or iOS app.';
 
   @override
   String get portMustBe102465535 => 'Port must be 1024–65535.';
@@ -13775,10 +13744,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String runningValuevalue(String valueValue) {
     return 'Running · $valueValue';
   }
-
-  @override
-  String get letExternalAiUseTheHosts =>
-      'Let external AI use the hosts, sessions, terminals and remote files in the current workspace through MCP. No model API needs to be configured in Atermius.';
 
   @override
   String get rdpRemoteDesktop => 'RDP remote desktop';
@@ -17603,30 +17568,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mcpAccessModeReadWrite => 'Read & write';
 
   @override
-  String get mcpAccessModeDeniedDescription =>
-      'External AI can\'t see or use the machine. It\'s left out of host and session lists.';
-
-  @override
-  String get mcpAccessModeReadOnlyDescription =>
-      'External AI can list the machine and read output and files of sessions that are already open. It can\'t connect, type, run commands or change files.';
-
-  @override
-  String get mcpAccessModeReadWriteDescription =>
-      'External AI can also connect, focus and close sessions, send terminal input, run commands and write files. Host key and sign-in prompts still appear.';
-
-  @override
   String get mcpMachineAccessTitle => 'Machine access';
 
   @override
-  String get mcpMachineAccessDescription =>
-      'Choose what external AI may do on each machine. These settings are kept on this device for the current workspace and aren\'t synced. Stopping MCP revokes all access, whatever is chosen here.';
-
-  @override
   String get mcpDefaultAccessTitle => 'Default for all machines';
-
-  @override
-  String get mcpDefaultAccessDescription =>
-      'Applies to every machine without its own setting, including machines added later.';
 
   @override
   String get mcpPerMachineTitle => 'Per-machine settings';
@@ -17638,10 +17583,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mcpLocalDeviceName => 'This device (local console)';
-
-  @override
-  String get mcpLocalDeviceDetail =>
-      'Local terminal sessions that aren\'t tied to a saved host';
 
   @override
   String mcpHostUseDefault(String mode) {
@@ -17701,11 +17642,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mcpAndroidForwardingHint =>
-      'MCP listens only on this device\'s loopback address. To use it from AI on a computer connected with USB debugging, run this on the computer, then use the copied configuration there:';
-
-  @override
-  String get mcpAndroidBackgroundHint =>
-      'MCP keeps listening after you switch apps or press Back, so external AI can keep using it. Atermius shows a notification with a Stop button while it runs. Stopping it, locking or signing out ends access; the token stays the same.';
+      'From a computer over USB debugging, run:';
 
   @override
   String get mcpForegroundNotificationTitle => 'External AI access is on';
@@ -17719,16 +17656,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mcpForegroundNotificationStop => 'Stop MCP';
 
   @override
-  String get mcpAndroidProtected =>
-      'MCP keeps running in the background. Stop it here or from the notification.';
-
-  @override
   String get mcpAndroidForegroundOnly =>
-      'MCP listens only while this app is visible. It pauses when you leave and resumes with the same token when you come back.';
+      'Listens only while the app is visible and resumes when you return.';
 
   @override
   String get mcpAndroidProtectedNoNotification =>
-      'MCP keeps running in the background, but Android can\'t show its notification. Stop it here or from Android\'s active apps.';
+      'Running in the background, but its notification can\'t be shown.';
 
   @override
   String get mcpStop => 'Stop MCP';
@@ -17737,15 +17670,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mcpAccessToken => 'Access token (Bearer)';
 
   @override
-  String get mcpAccessTokenHint =>
-      'AI clients connect with this token. It stays the same until you reset it.';
-
-  @override
   String get mcpAccessTokenNotSaved =>
-      'This token couldn\'t be saved to the system\'s secure storage. It works until the app closes; a new one is used next time.';
+      'The token couldn\'t be saved; it changes when the app restarts.';
 
   @override
   String get mcpTokenCopied => 'Token copied';
+
+  @override
+  String get mcpCopyConfig => 'Copy connection config';
 
   @override
   String get mcpResetToken => 'Reset token';
@@ -17762,16 +17694,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t reset the token. The current token still works.';
 
   @override
-  String get mcpAutoStartNote =>
-      'MCP stays enabled on this device: it starts again by itself whenever a workspace is unlocked or Atermius starts, until you stop it here.';
-
-  @override
   String get mcpAutoStartFailed =>
       'MCP is enabled but couldn\'t start by itself. Another window may be using the port.';
-
-  @override
-  String get mcpWindowsBackgroundNote =>
-      'Closing the window keeps MCP and your sessions running in the background; open Atermius again or quit it from its icon in the notification area.';
 
   @override
   String mcpTrayTooltip(int port) {
@@ -17790,9 +17714,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mcpTrayNoticeBody =>
       'External AI can keep using MCP. Click the Atermius icon here to open the window again; right-click it to quit.';
-
-  @override
-  String get mcpAndroidStarting => 'Starting Android background protection…';
 
   @override
   String get desktopKeyboardShow => 'Open keyboard and special keys';
@@ -18571,15 +18492,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mcpListenExposedWarning =>
-      'Other devices on the network can reach this port. Anyone who has the token can use your hosts within the machine permissions below. The connection is plain HTTP, so devices on the same network may read the token and everything sent. Use it on trusted networks only. Connections from public addresses are refused.';
-
-  @override
-  String get mcpListenTokenNote =>
-      'The token is kept on this device for this workspace and stays the same when MCP is stopped, enabled again or the app restarts. Locking, signing out or switching Vaults stops MCP. Different windows can use different ports. Stopping MCP doesn\'t close sessions you\'ve opened.';
-
-  @override
-  String get mcpEndpointsTitle =>
-      'Clients can connect to any of these addresses:';
+      'Other devices on the network can reach this port over plain HTTP. Use trusted networks only; public addresses are refused.';
 
   @override
   String get passwordRevealShow => 'Show password';
@@ -20436,8 +20349,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get mcpActivityEmpty =>
-      'No AI activity yet. Each tool call an AI client makes through MCP appears here while it runs.';
+  String get mcpActivityEmpty => 'No AI activity yet.';
 
   @override
   String mcpActivityListening(String endpoint) {
@@ -20445,8 +20357,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get mcpActivityNotListening =>
-      'The MCP server is off; external AI clients can\'t connect.';
+  String get mcpActivityNotListening => 'MCP is off.';
 
   @override
   String get mcpActivityStop => 'Stop MCP';

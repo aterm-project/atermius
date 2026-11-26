@@ -11543,10 +11543,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get editGroup => 'Изменить группу';
 
   @override
-  String get letExternalAiAccessTheCurrent2 =>
-      'Подключите внешний ИИ к текущему рабочему пространству.';
-
-  @override
   String get theRecordChangedAgainDuringCommit =>
       'Запись снова изменилась во время фиксации. Проверьте текущую версию и выберите заново.';
 
@@ -13417,10 +13413,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get authenticationType => 'Тип аутентификации';
 
   @override
-  String get letExternalAiAccessTheCurrent =>
-      'Подключите внешний ИИ к текущему локальному рабочему пространству.';
-
-  @override
   String get setLocalArchivePassphrase =>
       'Задать парольную фразу локального архива';
 
@@ -13695,18 +13687,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Вы остаётесь в учётной записи. Пока пространство заблокировано, устройство может получать и сохранять подписанный шифротекст, но не может расшифровывать записи, а также создавать или отправлять изменения.';
 
   @override
-  String get sshConsoleSupportReadingTextAnd =>
-      'SSH и консоль поддерживают чтение текста и ввод; SSH также поддерживает отдельное выполнение команд и чтение/запись текстовых файлов по SFTP. RDP и VNC поддерживают подключение и управление вкладками; распознавание экрана и управление мышью пока недоступны.';
-
-  @override
-  String get onlyTheLast50ToolNames =>
-      'Хранятся только последние 50 вызовов, только в памяти, и они удаляются при остановке MCP: инструмент, цель, однострочная сводка аргументов (например, команды, пути или клавиши) и результат. Содержимое файлов и токены не записываются.';
-
-  @override
-  String get listensOn127001 =>
-      'Прослушивается только 127.0.0.1. Токен хранится на этом устройстве для каждого рабочего пространства и не меняется после остановки, повторного включения или перезапуска приложения. Блокировка, выход или смена сейфа останавливают MCP. Разные окна могут использовать разные порты. Остановка MCP не закрывает открытые вами сеансы.';
-
-  @override
   String get allowExternalAiToPerformActions =>
       'Разрешить внешнему ИИ выполнять действия';
 
@@ -13721,18 +13701,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get readOnly => 'Только чтение';
 
   @override
-  String get readOnlyModeCanStillRead =>
-      'Даже в режиме только чтения доступны вывод терминала и содержимое файлов, которые могут содержать конфиденциальные данные. Передавайте конфигурацию подключения только доверенному ИИ. Сохранённые пароли, закрытые ключи и ключи разблокировки никогда не передаются в полях MCP.';
-
-  @override
   String get availableTools => 'Доступные инструменты';
 
   @override
   String get enableMcp => 'Включить MCP';
-
-  @override
-  String get copyConnectionConfigIncludesToken =>
-      'Копировать конфигурацию подключения (с токеном)';
 
   @override
   String get externalAiAccess => 'Доступ внешнего ИИ';
@@ -13745,9 +13717,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get off => 'Выключено';
-
-  @override
-  String get copiedIncludesAccessToken => 'Скопировано (включая токен доступа)';
 
   @override
   String get couldntStartMcpMakeSureThe =>
@@ -13771,7 +13740,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get theBrowserAndMobileAppsDont =>
-      'В этой версии Atermius локальный MCP-слушатель недоступен. Включите его, открыв рабочее пространство в приложении для Windows, Linux, macOS, Android или iOS.';
+      'В этой версии MCP недоступен. Используйте приложение для Windows, Linux, macOS, Android или iOS.';
 
   @override
   String get portMustBe102465535 => 'Порт должен быть в диапазоне 1024–65535.';
@@ -13780,10 +13749,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String runningValuevalue(String valueValue) {
     return 'Работает · $valueValue';
   }
-
-  @override
-  String get letExternalAiUseTheHosts =>
-      'Позвольте внешнему ИИ использовать хосты, сеансы, терминалы и удалённые файлы текущего рабочего пространства через MCP. Настраивать API модели в Atermius не нужно.';
 
   @override
   String get rdpRemoteDesktop => 'Удалённый рабочий стол RDP';
@@ -17630,30 +17595,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get mcpAccessModeReadWrite => 'Чтение и запись';
 
   @override
-  String get mcpAccessModeDeniedDescription =>
-      'Внешний ИИ не видит и не может использовать машину. Она не попадает в списки хостов и сеансов.';
-
-  @override
-  String get mcpAccessModeReadOnlyDescription =>
-      'Внешний ИИ видит машину и может читать вывод и файлы уже открытых сеансов. Подключаться, вводить текст, выполнять команды и изменять файлы он не может.';
-
-  @override
-  String get mcpAccessModeReadWriteDescription =>
-      'Внешний ИИ также может подключать, переключать и закрывать сеансы, вводить текст в терминал, выполнять команды и записывать файлы. Запросы ключа хоста и входа по-прежнему появляются.';
-
-  @override
   String get mcpMachineAccessTitle => 'Доступ к машинам';
 
   @override
-  String get mcpMachineAccessDescription =>
-      'Выберите, что внешний ИИ может делать на каждой машине. Настройки хранятся на этом устройстве для текущего рабочего пространства и не синхронизируются. Остановка MCP отзывает весь доступ независимо от выбранного здесь.';
-
-  @override
   String get mcpDefaultAccessTitle => 'По умолчанию для всех машин';
-
-  @override
-  String get mcpDefaultAccessDescription =>
-      'Применяется ко всем машинам без собственной настройки, включая добавленные позже.';
 
   @override
   String get mcpPerMachineTitle => 'Настройки для отдельных машин';
@@ -17665,10 +17610,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get mcpLocalDeviceName => 'Это устройство (локальная консоль)';
-
-  @override
-  String get mcpLocalDeviceDetail =>
-      'Локальные сеансы терминала, не связанные с сохранённым хостом';
 
   @override
   String mcpHostUseDefault(String mode) {
@@ -17729,11 +17670,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get mcpAndroidForwardingHint =>
-      'MCP прослушивает только адрес обратной петли этого устройства. Чтобы использовать его из ИИ на компьютере, подключённом по отладке USB, выполните на компьютере эту команду, а затем используйте там скопированную конфигурацию:';
-
-  @override
-  String get mcpAndroidBackgroundHint =>
-      'MCP продолжает работать после перехода в другое приложение или нажатия «Назад», и внешний ИИ может им пользоваться. Пока он работает, Atermius показывает уведомление с кнопкой «Стоп». Остановка, блокировка или выход прекращают доступ; токен не меняется.';
+      'На компьютере, подключённом по отладке USB, выполните:';
 
   @override
   String get mcpForegroundNotificationTitle => 'Доступ внешнего ИИ включён';
@@ -17747,16 +17684,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get mcpForegroundNotificationStop => 'Остановить MCP';
 
   @override
-  String get mcpAndroidProtected =>
-      'MCP продолжает работать в фоне. Остановить его можно здесь или из уведомления.';
-
-  @override
   String get mcpAndroidForegroundOnly =>
-      'MCP работает, только пока приложение на экране. При уходе он приостанавливается и возобновляется с тем же токеном, когда вы вернётесь.';
+      'Работает, только пока приложение на экране, и возобновляется при возврате.';
 
   @override
   String get mcpAndroidProtectedNoNotification =>
-      'MCP продолжает работать в фоне, но Android не может показать его уведомление. Остановить его можно здесь или в списке активных приложений Android.';
+      'Работает в фоне, но уведомление показать нельзя.';
 
   @override
   String get mcpStop => 'Остановить MCP';
@@ -17765,15 +17698,14 @@ class AppLocalizationsRu extends AppLocalizations {
   String get mcpAccessToken => 'Токен доступа (Bearer)';
 
   @override
-  String get mcpAccessTokenHint =>
-      'ИИ-клиенты подключаются с этим токеном. Он не меняется, пока вы его не сбросите.';
-
-  @override
   String get mcpAccessTokenNotSaved =>
-      'Не удалось сохранить токен в защищённое хранилище системы. Он действует до закрытия приложения; в следующий раз будет использован новый.';
+      'Не удалось сохранить токен; после перезапуска приложения он изменится.';
 
   @override
   String get mcpTokenCopied => 'Токен скопирован';
+
+  @override
+  String get mcpCopyConfig => 'Копировать конфигурацию подключения';
 
   @override
   String get mcpResetToken => 'Сбросить токен';
@@ -17790,16 +17722,8 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось сбросить токен. Текущий токен по-прежнему действует.';
 
   @override
-  String get mcpAutoStartNote =>
-      'MCP остаётся включённым на этом устройстве: он сам запускается при каждой разблокировке рабочего пространства или запуске Atermius, пока вы не остановите его здесь.';
-
-  @override
   String get mcpAutoStartFailed =>
       'MCP включён, но не смог запуститься сам. Возможно, порт занят другим окном.';
-
-  @override
-  String get mcpWindowsBackgroundNote =>
-      'После закрытия окна MCP и открытые сеансы продолжают работать в фоне; снова открыть Atermius или выйти можно через его значок в области уведомлений.';
 
   @override
   String mcpTrayTooltip(int port) {
@@ -17818,9 +17742,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get mcpTrayNoticeBody =>
       'Внешний ИИ может и дальше использовать MCP. Нажмите значок Atermius здесь, чтобы снова открыть окно, или щёлкните правой кнопкой, чтобы выйти.';
-
-  @override
-  String get mcpAndroidStarting => 'Запускается фоновая защита Android…';
 
   @override
   String get desktopKeyboardShow => 'Открыть клавиатуру и специальные клавиши';
@@ -18605,15 +18526,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get mcpListenExposedWarning =>
-      'Другие устройства в сети могут подключаться к этому порту. Тот, у кого есть токен, может работать с вашими хостами в пределах разрешений ниже. Соединение — обычный HTTP, поэтому устройства в той же сети могут перехватить токен и всё передаваемое. Используйте только в доверенных сетях. Подключения с публичных адресов отклоняются.';
-
-  @override
-  String get mcpListenTokenNote =>
-      'Токен хранится на этом устройстве для каждого рабочего пространства и не меняется после остановки, повторного включения или перезапуска приложения. Блокировка, выход или смена хранилища останавливают MCP. В разных окнах можно использовать разные порты. Остановка MCP не закрывает открытые вами сеансы.';
-
-  @override
-  String get mcpEndpointsTitle =>
-      'Клиенты могут подключаться по любому из этих адресов:';
+      'Другие устройства в сети могут подключаться к этому порту по обычному HTTP. Используйте только в доверенных сетях; подключения с публичных адресов отклоняются.';
 
   @override
   String get passwordRevealShow => 'Показать пароль';
@@ -20521,8 +20434,7 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get mcpActivityEmpty =>
-      'Действий ИИ пока нет. Каждый вызов инструмента, который ИИ-клиент делает через MCP, появляется здесь во время выполнения.';
+  String get mcpActivityEmpty => 'Действий ИИ пока нет.';
 
   @override
   String mcpActivityListening(String endpoint) {
@@ -20530,8 +20442,7 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
-  String get mcpActivityNotListening =>
-      'Сервер MCP выключен: внешние ИИ-клиенты не могут подключиться.';
+  String get mcpActivityNotListening => 'MCP выключен.';
 
   @override
   String get mcpActivityStop => 'Остановить MCP';
